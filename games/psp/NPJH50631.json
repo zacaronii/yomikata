@@ -1,0 +1,29 @@
+{
+  "id": "NPJH50631",
+  "platform": "psp",
+  "title": "スーパーダンガンロンパ2 さよなら絶望学園",
+  "title_romaji": "Super Danganronpa 2: Sayonara Zetsubou Gakuen",
+  "encoding": "utf16le",
+  "hooks": [
+    {
+      "address": "0x088D1A24",
+      "register": "a0",
+      "charset": "utf16le",
+      "cleanup": [
+        {
+          "regex": "\\n",
+          "replace": ""
+        },
+        {
+          "regex": "<CLT \\d+>(.*?)<CLT>",
+          "replace": "$1"
+        }
+      ]
+    }
+  ],
+  "status": "partial",
+  "sources": [
+    "Hook adapted from LunaHook's PPSSPP table (GPL-3.0), LunaTranslator src/NativeImpl/LunaHook/LunaHook/emulators/ppsspp_1.cpp"
+  ],
+  "notes": "Ported into Genkan from a published hook; not yet confirmed in play with Genkan."
+}

@@ -41,6 +41,19 @@ or a CRC-32 of the header (cartridges). A client that finds no match should warn
 
 An entry that only says `"encoding": "shift_jis"` is still useful: readers can skip guessing.
 
+## Cleanup
+
+`cleanup` is applied in order to each decoded line (a hook's own list first, then the entry's), so every client
+gets the same text:
+
+- `{regex, replace}` replaces every match. Keep patterns to what Java, Python and JavaScript all read: classes,
+  groups, lazy quantifiers, and the inline flags `(?m)` and `(?s)` only at the very start (JavaScript clients turn
+  them into flags). No lookbehind and no named groups. In `replace`, `$1`…`$9` insert a group (Python clients
+  convert them to `\1`), and `$$` is a literal `$`.
+- `{remap: {from: to}}` replaces single characters, e.g. half-width katakana a game uses for hiragana.
+- A line that is empty after cleanup is **dropped**. Use this to filter: a hook that also sees lines another hook
+  already reports can clean those to nothing.
+
 ## Table (`tables/…/*.tbl`)
 
 Thingy format, UTF-8, hex keys in **memory byte order** (so no separate endianness setting is needed):

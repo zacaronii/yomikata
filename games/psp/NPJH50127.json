@@ -1,0 +1,47 @@
+{
+  "id": "NPJH50127",
+  "platform": "psp",
+  "title": "ときめきメモリアル4",
+  "title_romaji": "Tokimeki Memorial 4",
+  "encoding": "shift_jis",
+  "hooks": [
+    {
+      "address": "0x088719DC",
+      "register": "a1",
+      "charset": "shift_jis",
+      "cleanup": [
+        {
+          "regex": "(?m)^�.*$|e_voice",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "address": "0x0899A510",
+      "register": "a2",
+      "charset": "shift_jis",
+      "cleanup": [
+        {
+          "regex": "\\\\n",
+          "replace": "\n"
+        }
+      ]
+    },
+    {
+      "address": "0x08850270",
+      "register": "a1",
+      "charset": "shift_jis",
+      "cleanup": [
+        {
+          "regex": "(?s)^.*[…。！？]$",
+          "replace": ""
+        }
+      ]
+    }
+  ],
+  "status": "partial",
+  "sources": [
+    "Hook and cleanup adapted from 0xDC00's Agent scripts (MIT), https://github.com/0xDC00/scripts PSP_NPJH50127_Tokimeki-Memorial-4.js"
+  ],
+  "notes": "Dialogue, mail and choices come through three calls. Dialogue also passes the third; only lines without closing punctuation there are choices, so the rest is cleaned to empty and dropped. Ported into Genkan from a published hook; not yet confirmed in play with Genkan."
+}

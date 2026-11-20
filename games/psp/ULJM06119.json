@@ -1,0 +1,37 @@
+{
+  "id": "ULJM06119",
+  "platform": "psp",
+  "title": "デュナミス15",
+  "title_romaji": "Dunamis 15",
+  "encoding": "utf8",
+  "hooks": [
+    {
+      "address": "0x0891D72C",
+      "register": "a0",
+      "charset": "utf8",
+      "cleanup": [
+        {
+          "regex": "\\[[^\\]]+.",
+          "replace": ""
+        },
+        {
+          "regex": "\\\\k|\\\\x|%C|%B",
+          "replace": ""
+        },
+        {
+          "regex": "%\\d+#[0-9a-fA-F]*;",
+          "replace": ""
+        },
+        {
+          "regex": "\\n+",
+          "replace": ""
+        }
+      ]
+    }
+  ],
+  "status": "partial",
+  "sources": [
+    "Hook and cleanup adapted from 0xDC00's Agent scripts (MIT), https://github.com/0xDC00/scripts PSP_ULJM06119_Dunamis15.js"
+  ],
+  "notes": "Ruby comes as [reading]base and colour tags as %0#rrggbbaa; (both removed). The hook did not fire on the 1.01 printing in Genkan's testing; the version it was made for is unknown. Ported into Genkan from a published hook; not yet confirmed in play with Genkan."
+}
