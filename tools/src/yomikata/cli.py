@@ -23,7 +23,14 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
     p.add_argument("--root", type=Path, default=Path("."))
     p.add_argument("--check", action="store_true")
+    p = sub.add_parser("serve", help="run the sample inbox (needs the server extra; settings from YOMIKATA_* env)")
+    p.add_argument("--port", type=int, default=8080)
     args = ap.parse_args(argv)
+
+    if args.cmd == "serve":
+        from .inbox import serve
+        serve(port=args.port)
+        return 0
 
     if args.cmd == "identify":
         status = 0

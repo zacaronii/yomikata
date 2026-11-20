@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 jobs:
   catalog:
@@ -23,3 +24,22 @@ jobs:
         run: yomikata validate
       - name: index.json is up to date
         run: yomikata index --check
+
+  image:
+    needs: catalog
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: tools
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/yomikata-tools:latest
+            ghcr.io/${{ github.repository_owner }}/yomikata-tools:sha-${{ github.sha }}
