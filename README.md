@@ -36,6 +36,6 @@ building tables from game fonts is in [docs/roadmap.md](docs/roadmap.md).
 
 ## Licences
 
-Tools: MIT. Catalog data (entries and tables): to be decided before the repository is published. Entries that
-adapt someone else's work (a translation project's table, a published hook) credit it in `sources` and follow its
-licence.
+Everything here, tools and catalog data (entries and tables), is under the GNU General Public License v3.0 or
+later (`LICENSE`). Entries that adapt someone else's work credit it in `sources`: MIT-licensed hooks and tables can
+be adapted into it as they are, and work under licences that conflict with the GPL doesn't belong here.
