@@ -1,0 +1,57 @@
+# Formats
+
+## Identity
+
+An entry is keyed by **release**, not title: the id the hardware or emulator reports.
+
+| Platform | id | Where it comes from |
+|---|---|---|
+| PS1, PS2 | `SLPS-01234` | `SYSTEM.CNF`: `BOOT = cdrom:\SLPS_012.34;1` (`BOOT2` on PS2) |
+| PSP | `ULJM06119` | `UMD_DATA.BIN` / `PARAM.SFO` `DISC_ID` (what PPSSPP reports) |
+| GameCube | `GXXJ01` | first 6 bytes of the disc header |
+| DS | `AXXJ` | game code in the cartridge header (0x0C) |
+| 3DS | `CTR-P-AXXJ` | product code in the NCCH header (0x150) |
+
+`yomikata identify <image>` prints all of this for CHD, cue/bin and ISO images and DS/3DS card images.
+
+**Multi-disc games:** each disc has its own serial. One entry covers the game; the other discs' serials go in
+`aliases`, and `versions[].id` says which disc a hash belongs to.
+
+**Versions:** `versions` lists every release the entry is known to fit, by the SHA-1 of the boot executable (discs)
+or a CRC-32 of the header (cartridges). A client that finds no match should warn, not guess.
+
+## Entry (`games/<platform>/<id>.json`)
+
+| Field | |
+|---|---|
+| `id`, `aliases` | The release id; other ids sharing the entry |
+| `platform` | `ps1`, `ps2`, `psp`, `nds`, `3ds`, `gc`, … (see the schema) |
+| `title`, `title_romaji` | As printed on the release; romanised for searching |
+| `versions` | `{exe, exe_sha1, id?, note?}` or `{header_crc32, …}` |
+| `encoding` | `shift_jis`, `utf16le`, `utf8`, `table`, `compressed` (script only compressed on disc; read from memory), `unknown` |
+| `tables` | Thingy files applied in order; later ones win |
+| `unit` | Bytes per code for table decoding (1 or 2) |
+| `controls` | Hex code (memory byte order) → `end`, `newline`, `wait`, `clear`, `page`, `name`, `color`, `pause`, `choice`, `ignore` |
+| `cleanup` | In order: `{regex, replace}` or `{remap: {from: to}}`. Declarative only, so any language can apply it |
+| `hooks` | `{address, register, charset, versions?, cleanup?}`: code addresses each line passes through (PSP via PPSSPP) |
+| `status` | `verified` (confirmed in play), `auto` (built by tools, passed validation), `partial` (known gaps) |
+| `coverage` | `{chars_in_table, chars_seen_in_script}` |
+| `sources` | Where it came from, with credit |
+| `notes` | Short; no script text |
+
+An entry that only says `"encoding": "shift_jis"` is still useful: readers can skip guessing.
+
+## Table (`tables/…/*.tbl`)
+
+Thingy format, UTF-8, hex keys in **memory byte order** (so no separate endianness setting is needed):
+
+```
+0100=学
+0101=校
+/FFFF
+*FFFE
+```
+
+`/` marks an end-of-string code and `*` a newline code. Values are a character or a few characters; the validator
+refuses longer values, because tables map codes, they don't hold text. Pieces shared between games (one developer's
+kana order) go in their own file, e.g. `tables/human-kana.tbl`, listed before the game's own table.

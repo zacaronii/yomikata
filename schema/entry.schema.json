@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zacaronii/yomikata/blob/main/schema/entry.schema.json",
+  "title": "Yomikata entry: how to read one game release's text",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "platform", "title", "encoding", "status"],
+  "properties": {
+    "id": {
+      "description": "The release's id (PS1/PS2 serial SLPS-01234, PSP DISC_ID ULJM06119, DS game code AXXJ, 3DS product code CTR-P-XXXJ, GameCube GXXJ01). The file is games/<platform>/<id>.json.",
+      "type": "string", "pattern": "^[A-Z0-9][A-Z0-9-]{3,19}$"
+    },
+    "aliases": {
+      "description": "Other ids of the same release that share this entry, e.g. the serials of discs 2+ of a multi-disc game.",
+      "type": "array", "items": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9-]{3,19}$"}, "uniqueItems": true
+    },
+    "platform": {"enum": ["ps1", "ps2", "psp", "nds", "3ds", "gc", "wii", "saturn", "dc", "pce-cd", "fc", "fds", "sfc", "gb", "gbc", "gba", "n64", "md"]},
+    "title": {"description": "The title as printed on the release (Japanese where it has one).", "type": "string", "minLength": 1, "maxLength": 200},
+    "title_romaji": {"type": "string", "maxLength": 200},
+    "versions": {
+      "description": "Releases this entry is known to fit: hash of the boot executable (discs) or of the header (cartridges).",
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9-]{3,19}$", "description": "Which id (main or alias) this hash belongs to; default: the main id."},
+          "exe": {"type": "string", "maxLength": 64, "description": "Boot executable name, e.g. SLPS_012.34"},
+          "exe_sha1": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "header_crc32": {"type": "string", "pattern": "^[0-9a-f]{8}$"},
+          "note": {"type": "string", "maxLength": 200}
+        },
+        "anyOf": [{"required": ["exe_sha1"]}, {"required": ["header_crc32"]}]
+      }
+    },
+    "encoding": {"enum": ["shift_jis", "utf16le", "utf8", "table", "compressed", "unknown"]},
+    "tables": {
+      "description": "Thingy .tbl files applied in order (later ones win). Keys are hex in memory byte order.",
+      "type": "array", "items": {"type": "string", "pattern": "^tables/[A-Za-z0-9._/-]+\\.tbl$"}
+    },
+    "unit": {"description": "Bytes per character code for table decoding.", "enum": [1, 2]},
+    "controls": {
+      "description": "Control codes (hex, memory byte order) and what they mean.",
+      "type": "object",
+      "propertyNames": {"pattern": "^([0-9A-F]{2})+$"},
+      "additionalProperties": {"enum": ["end", "newline", "wait", "clear", "page", "name", "color", "pause", "choice", "ignore"]}
+    },
+    "cleanup": {
+      "description": "Declarative text cleanup, applied in order: regex replacements and character remaps.",
+      "type": "array",
+      "items": {"oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["regex", "replace"],
+         "properties": {"regex": {"type": "string"}, "replace": {"type": "string"}}},
+        {"type": "object", "additionalProperties": false, "required": ["remap"],
+         "properties": {"remap": {"type": "object", "additionalProperties": {"type": "string"}}}}
+      ]}
+    },
+    "hooks": {
+      "description": "Code addresses each line passes through (PSP via PPSSPP's debugger, for now).",
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["address", "register", "charset"],
+        "properties": {
+          "address": {"type": "string", "pattern": "^0x[0-9A-Fa-f]{1,16}$"},
+          "register": {"type": "string", "pattern": "^[a-z0-9]{1,4}$"},
+          "charset": {"enum": ["shift_jis", "utf16le", "utf8", "table"]},
+          "versions": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+                       "description": "exe_sha1 values this hook was confirmed on; empty = all listed versions."},
+          "cleanup": {"$ref": "#/properties/cleanup"}
+        }
+      }
+    },
+    "status": {"enum": ["verified", "auto", "partial"],
+               "description": "verified: a person confirmed it in play. auto: built by the pipeline and passed validation. partial: known gaps."},
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "properties": {"chars_in_table": {"type": "integer", "minimum": 0}, "chars_seen_in_script": {"type": "integer", "minimum": 0}}
+    },
+    "sources": {"type": "array", "items": {"type": "string", "maxLength": 300}},
+    "notes": {"type": "string", "maxLength": 600}
+  },
+  "allOf": [
+    {"if": {"properties": {"encoding": {"const": "table"}, "status": {"const": "verified"}}},
+     "then": {"required": ["tables", "unit"]}}
+  ]
+}

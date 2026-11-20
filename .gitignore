@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+# Never commit game data: images, extracted files, dumps.
+*.bin
+*.iso
+*.chd
+*.cue
+*.img
+scratch/
+.venv/

@@ -1,0 +1,14 @@
+{
+  "id": "SLPS-00102",
+  "platform": "ps1",
+  "title": "トワイライトシンドローム 探索編",
+  "title_romaji": "Twilight Syndrome: Tansaku-hen",
+  "versions": [
+    {"exe": "SLPS_001.02", "exe_sha1": "23eb26992df8396bac6e65ac0a61897cbac1c715"}
+  ],
+  "encoding": "table",
+  "unit": 2,
+  "status": "partial",
+  "sources": ["Genkan memory search during play: same scheme as Moonlight Syndrome (same developer, Human)"],
+  "notes": "Same 16-bit scheme as SLPS-01001; once mapped, Human's kana order belongs in a shared tables/human-kana.tbl."
+}

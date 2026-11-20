@@ -1,0 +1,12 @@
+{
+  "id": "SLPS-01100",
+  "platform": "ps1",
+  "title": "テイルズ オブ デスティニー",
+  "title_romaji": "Tales of Destiny",
+  "versions": [
+    {"exe": "SLPS_011.00", "exe_sha1": "eba83e945427714cc1a2c0d8728f5821d5f60bea"}
+  ],
+  "encoding": "shift_jis",
+  "status": "verified",
+  "sources": ["Genkan memory search during play (about 19k characters of script resident in RAM)"]
+}

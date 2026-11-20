@@ -1,0 +1,12 @@
+{
+  "id": "SLPS-02296",
+  "platform": "ps1",
+  "title": "メモリーズオフ",
+  "title_romaji": "Memories Off",
+  "versions": [
+    {"exe": "SLPS_022.96", "exe_sha1": "e1db7cdd3b84deab40fe330d4d98451f52faf589"}
+  ],
+  "encoding": "shift_jis",
+  "status": "verified",
+  "sources": ["Genkan memory search during play"]
+}
