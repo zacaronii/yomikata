@@ -1,0 +1,46 @@
+{
+ "name": "table-two-files-controls",
+ "checks": "A table charset: two table files (the later wins), end and newline codes from the table, and the entry's controls. wait, color and name are nothing, page and clear a blank line, newline a line break, a code nobody knows U+FFFD. Line breaks at the end are dropped, and so is half a code.",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl",
+   "tables/test/kanji.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F001": "wait",
+   "F002": "color",
+   "F003": "page",
+   "F004": "newline",
+   "F005": "name",
+   "F006": "clear"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n",
+  "tables/test/kanji.tbl": "0002=学\n0007=校\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80200000",
+   "charset": "table",
+   "max_bytes": 64,
+   "terminator": "FFFF"
+  },
+  "speaker": {
+   "address": "0x80200040",
+   "charset": "table",
+   "max_bytes": 5
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80200000",
+   "hex": "00010002f001fffe0003f0020004f0030005f0040006f00600079999f005ffff00010000000000000000000000000000000000000000000000000000000000000001ffff0002"
+  }
+ ],
+ "expected": {
+  "message": "あ学\nうえ\n\nお\nか\n\n校\ufffd",
+  "speaker": "あ"
+ }
+}

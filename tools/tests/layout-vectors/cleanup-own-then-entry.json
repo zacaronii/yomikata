@@ -1,0 +1,50 @@
+{
+ "name": "cleanup-own-then-entry",
+ "checks": "A text's own cleanup runs first, then the entry's (the other order would leave a half-width ｲ here).",
+ "entry": {
+  "cleanup": [
+   {
+    "remap": {
+     "ｲ": "い"
+    }
+   }
+  ]
+ },
+ "layout": {
+  "message": {
+   "address": "0x02000000",
+   "charset": "utf8",
+   "max_bytes": 16,
+   "terminator": "00",
+   "cleanup": [
+    {
+     "regex": "ｱ",
+     "replace": "ｲ"
+    }
+   ]
+  },
+  "choices": {
+   "address": "0x02000010",
+   "charset": "utf8",
+   "max_bytes": 8,
+   "terminator": "00",
+   "rows": {
+    "count": 2,
+    "stride": 8
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x02000000",
+   "hex": "efbdb1efbdb200000000000000000000efbdb20000000000efbdb10000000000"
+  }
+ ],
+ "expected": {
+  "message": "いい",
+  "choices": [
+   "い",
+   "ｱ"
+  ]
+ }
+}

@@ -1,0 +1,22 @@
+{
+ "name": "sjis-terminator-boundary",
+ "checks": "A terminator counts only where a character starts: ソ is 83 5C, and 5C is the terminator.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80100000",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "5C"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80100000",
+   "hex": "835c83415c8ce3000000000000000000"
+  }
+ ],
+ "expected": {
+  "message": "ソア"
+ }
+}

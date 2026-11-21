@@ -1,0 +1,27 @@
+{
+ "name": "speaker-number-unnamed",
+ "checks": "A speaker number without a name stays a number. A flag with equals 0 is true at zero.",
+ "entry": {},
+ "layout": {
+  "speaker": {
+   "address": "0x80600000"
+  },
+  "speaker_names": {
+   "3": "先生"
+  },
+  "waiting": {
+   "address": "0x80600001",
+   "equals": 0
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80600000",
+   "hex": "0700"
+  }
+ ],
+ "expected": {
+  "speaker": 7,
+  "waiting": true
+ }
+}

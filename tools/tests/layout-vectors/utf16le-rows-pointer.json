@@ -1,0 +1,51 @@
+{
+ "name": "utf16le-rows-pointer",
+ "checks": "Rows behind a pointer chain: a row ends at its terminator or at max_bytes, empty rows at the end are dropped and one in the middle is kept. The speaker is a number with a name.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "base": "0x08A00020",
+   "offsets": [
+    "0x8",
+    "0x4"
+   ],
+   "charset": "utf16le",
+   "max_bytes": 8,
+   "terminator": "0000",
+   "rows": {
+    "count": 4,
+    "stride": 32
+   }
+  },
+  "speaker": {
+   "base": "0x08A00020",
+   "offsets": [
+    "0x8",
+    "0x2"
+   ],
+   "type": "u16"
+  },
+  "speaker_names": {
+   "3": "先生",
+   "4": "母"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x08A00020",
+   "hex": "0002a008"
+  },
+  {
+   "address": "0x08A00200",
+   "hex": "00000000000000000004a008"
+  },
+  {
+   "address": "0x08A00400",
+   "hex": "00000300004e4c88ee7667305930023000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000094e4c88ee760000e453443000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  }
+ ],
+ "expected": {
+  "message": "一行目で\n\n三行目",
+  "speaker": "先生"
+ }
+}

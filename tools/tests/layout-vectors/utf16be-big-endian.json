@@ -1,0 +1,41 @@
+{
+ "name": "utf16be-big-endian",
+ "checks": "endian: big turns pointers and numbers around (the text's order is the charset's own).",
+ "entry": {},
+ "layout": {
+  "endian": "big",
+  "message": {
+   "base": "0x80400000",
+   "offsets": [
+    "0x10"
+   ],
+   "charset": "utf16be",
+   "max_bytes": 32,
+   "terminator": "0000"
+  },
+  "shown": {
+   "address": "0x80400004",
+   "type": "u16"
+  },
+  "choice_cursor": {
+   "address": "0x80400006",
+   "type": "s16"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80400000",
+   "hex": "804001000002fffe"
+  },
+  {
+   "address": "0x80400100",
+   "hex": "0000000000000000000000000000000030533093306b3061306f00000000000000000000000000000000000000000000"
+  }
+ ],
+ "expected": {
+  "message": "こんにちは",
+  "shown": 2,
+  "choice_cursor": -2,
+  "on_screen": "こん"
+ }
+}

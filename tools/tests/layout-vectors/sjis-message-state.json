@@ -1,0 +1,46 @@
+{
+ "name": "sjis-message-state",
+ "checks": "A Shift-JIS message up to its terminator, the speaker's name, how much has typed out, and both flags. Keys a reader doesn't read (versions, poll, notes) change nothing.",
+ "entry": {},
+ "layout": {
+  "versions": [],
+  "poll": "frame",
+  "notes": "made up",
+  "message": {
+   "address": "0x80100000",
+   "charset": "shift_jis",
+   "max_bytes": 64,
+   "terminator": "00"
+  },
+  "speaker": {
+   "address": "0x80100040",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00"
+  },
+  "shown": {
+   "address": "0x80100050"
+  },
+  "waiting": {
+   "address": "0x80100051"
+  },
+  "choosing": {
+   "address": "0x80100052",
+   "equals": 2
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80100000",
+   "hex": "8da193fa82cd814182a282a293568b4382c582b782cb8142008e6382e8000000000000000000000000000000000000000000000000000000000000000000000090e690b600914f000000000000000000060101"
+  }
+ ],
+ "expected": {
+  "message": "今日は、いい天気ですね。",
+  "speaker": "先生",
+  "shown": 6,
+  "waiting": true,
+  "choosing": false,
+  "on_screen": "今日は、いい"
+ }
+}

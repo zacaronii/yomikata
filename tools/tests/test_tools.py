@@ -75,6 +75,9 @@ def test_serials():
 def test_tables():
     t = tbl.parse("# kana\n0001=あ\n0002=い\n0100=学\n/FFFF\n*FEFF\n")
     assert tbl.decode(bytes.fromhex("0001 0002 FEFF 0100 FFFF 9999".replace(" ", "")), t, 2) == "あい\n学\n\n�"
+    # An entry's controls: a page is a blank line, a newline a line break, anything else nothing.
+    controls = {"F001": "wait", "F002": "page", "f003": "newline"}
+    assert tbl.decode(bytes.fromhex("0001F0010002F0020100F0030001"), t, 2, controls) == "あい\n\n学\nあ"
     with pytest.raises(tbl.TableError):
         tbl.parse("0001=これは台詞の一行なので表には入らない")
     with pytest.raises(tbl.TableError):
@@ -102,6 +105,11 @@ def test_validation_catches_mistakes(tmp_path):
     assert "SLPS-00001 is also used" in msgs
     assert "games/<platform>/<id>.json" in msgs                     # id doesn't match its file name
     assert "tables" in msgs and "only .tbl files" in msgs
+    (root / "tables/kana.tbl").write_text("0001=あ\n", encoding="utf-8")
+    (root / "games/ps1/SLPS-00004.json").write_text(json.dumps({**good, "id": "SLPS-00004", "tables": ["tables/kana.tbl"]}))
+    assert "SLPS-00004.json: tables need a unit" in " | ".join(str(p) for p in catalog.validate(root))
+    (root / "games/ps1/SLPS-00004.json").unlink()
+    (root / "tables/kana.tbl").unlink()
     (root / "games/ps1/SLPS-00003.json").unlink()
     catalog.write_index(root)
     idx = json.loads((root / "index.json").read_text())

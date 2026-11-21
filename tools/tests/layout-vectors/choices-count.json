@@ -1,0 +1,41 @@
+{
+ "name": "choices-count",
+ "checks": "Choices are the text's rows, the first choice_count of them (a stale row after them doesn't count).",
+ "entry": {},
+ "layout": {
+  "choices": {
+   "address": "0x08A20000",
+   "charset": "utf16le",
+   "max_bytes": 16,
+   "terminator": "0000",
+   "rows": {
+    "count": 4,
+    "stride": 16
+   }
+  },
+  "choice_count": {
+   "address": "0x08A20040"
+  },
+  "choice_cursor": {
+   "address": "0x08A20041"
+  },
+  "choosing": {
+   "address": "0x08A20042"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x08A20000",
+   "hex": "6f30443000000000000000000000000044304430483000000000000000000000e453443000000000000000000000000000000000000000000000000000000000020101"
+  }
+ ],
+ "expected": {
+  "choices": [
+   "はい",
+   "いいえ"
+  ],
+  "choice_count": 2,
+  "choice_cursor": 1,
+  "choosing": true
+ }
+}

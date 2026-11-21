@@ -1,0 +1,31 @@
+{
+ "name": "shown-past-end",
+ "checks": "A shown past the end is the whole message.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80110000",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "terminator": "00",
+   "rows": {
+    "count": 2,
+    "stride": 8
+   }
+  },
+  "shown": {
+   "address": "0x80110010"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80110000",
+   "hex": "82a082a20000000082a482a600000000c8"
+  }
+ ],
+ "expected": {
+  "message": "あい\nうえ",
+  "shown": 200,
+  "on_screen": "あいうえ"
+ }
+}

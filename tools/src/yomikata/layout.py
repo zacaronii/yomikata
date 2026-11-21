@@ -1,7 +1,7 @@
 """Reference reader for an entry's `layouts`: what the game shows, read from memory (docs/format.md, Layouts).
 
-Clients can compare their output with `read_layout()`. Memory is any `read(address, size) -> bytes`; `Ram` wraps
-a snapshot. Nothing here hooks or writes: a layout only says where to look."""
+Clients can compare their output with `read_layout()`, or run tools/tests/layout-vectors. Memory is any
+`read(address, size) -> bytes`; `Ram` wraps a snapshot. Nothing here hooks or writes: a layout only says where to look."""
 
 from __future__ import annotations
 
@@ -77,7 +77,9 @@ def _char_len(data: bytes, i: int, charset: str, unit: int) -> int:
     if charset == "utf8":
         return 4 if b >= 0xF0 else 3 if b >= 0xE0 else 2 if b >= 0xC0 else 1
     if charset in ("utf16le", "utf16be"):
-        return 2
+        hi = charset == "utf16le"                   # where a unit's high byte is
+        pair = i + 3 < len(data) and 0xD8 <= data[i + hi] <= 0xDB and 0xDC <= data[i + 2 + hi] <= 0xDF
+        return 4 if pair else 2
     return unit
 
 
@@ -93,12 +95,30 @@ def _cut(data: bytes, charset: str, unit: int, terminator: bytes | None) -> byte
     return data[:i]
 
 
+def _char(code: bytes, charset: str) -> str:
+    """One character. Bytes that aren't one are U+FFFD, whatever a codec would make of them: the only single
+    bytes from 0x80 up that mean anything are Shift-JIS's half-width kana."""
+    if len(code) == 1 and code[0] >= 0x80 and not (charset == "shift_jis" and 0xA1 <= code[0] <= 0xDF):
+        return "\ufffd"
+    try:
+        return code.decode(CODEC[charset])
+    except UnicodeDecodeError:
+        return "\ufffd"
+
+
 def _decode(data: bytes, charset: str, entry: dict, table: tbl.Table | None) -> str:
+    """Character by character (the boundaries `_cut` uses), so a bad byte costs one U+FFFD in every client,
+    not whatever a platform's decoder does about it."""
     if charset == "table":
         if table is None:
             raise LayoutError("a table charset needs the entry's tables")
-        return tbl.decode(data, table, entry.get("unit", 2)).rstrip("\n")
-    return data.decode(CODEC[charset], errors="replace")
+        return tbl.decode(data, table, entry.get("unit", 2), entry.get("controls")).rstrip("\n")
+    out, i = [], 0
+    while i < len(data):
+        n = _char_len(data, i, charset, 1)
+        out.append(_char(data[i:i + n], charset))
+        i += n
+    return "".join(out)
 
 
 def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, endian: str = "little") -> str:
@@ -118,7 +138,7 @@ def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, end
         while lines and not lines[-1]:
             lines.pop()
     text = "\n".join(lines)
-    return apply(text, spec.get("cleanup", []))
+    return apply(apply(text, spec.get("cleanup", [])), entry.get("cleanup", []))      # its own, then the entry's
 
 
 def pick(entry: dict, exe_sha1: str | None = None) -> dict | None:
@@ -163,11 +183,12 @@ def read_layout(layout: dict, entry: dict, read, table: tbl.Table | None = None)
             attempt(name, lambda name=name: read_flag(layout[name], read, endian))
     if "choices" in layout:
         def choices():
-            rows = read_text(layout["choices"], read, entry, table, endian).split("\n")
-            return rows[:out["choice_count"]] if "choice_count" in out else rows
+            text = read_text(layout["choices"], read, entry, table, endian)
+            rows = text.split("\n") if text else []
+            return rows[:max(0, out["choice_count"])] if "choice_count" in out else rows
         attempt("choices", choices)
     if "message" in out and "shown" in out:
-        out["on_screen"] = out["message"].replace("\n", "")[:out["shown"]]
+        out["on_screen"] = out["message"].replace("\n", "")[:max(0, out["shown"])]
     if errors:
         out["errors"] = errors
     return out

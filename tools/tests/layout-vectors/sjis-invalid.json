@@ -1,0 +1,21 @@
+{
+ "name": "sjis-invalid",
+ "checks": "Bytes that aren't a character are one U+FFFD each: a lead byte with a bad second byte (both bytes), an unassigned pair, and the single bytes 80, A0, FD, FE, FF. A character cut off by max_bytes is dropped.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80100000",
+   "charset": "shift_jis",
+   "max_bytes": 16
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80100000",
+   "hex": "41812042854080a0fdfeff43835cb182a0"
+  }
+ ],
+ "expected": {
+  "message": "A\ufffdB\ufffd\ufffd\ufffd\ufffd\ufffd\ufffdCソｱ"
+ }
+}

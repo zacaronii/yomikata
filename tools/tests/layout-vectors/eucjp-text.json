@@ -1,0 +1,22 @@
+{
+ "name": "eucjp-text",
+ "checks": "EUC-JP: kanji and kana, 8E + half-width kana, the eight codes decoders disagree on (A1BD, A1C0, A1C1, A1C2, A1DD, A1F1, A1F2, A2CC) as JIS X 0208 has them, and a single byte from 80 up as U+FFFD.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x00200000",
+   "charset": "euc_jp",
+   "max_bytes": 32,
+   "terminator": "00"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x00200000",
+   "hex": "b4c1bbfaa4c8a5aba5ca8eb1a1bda1c0a1c1a1c2a1dda1f1a1f2a2cc80410000"
+  }
+ ],
+ "expected": {
+  "message": "漢字とカナｱ―＼〜‖−¢£¬\ufffdA"
+ }
+}

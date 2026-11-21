@@ -1,0 +1,49 @@
+{
+ "name": "flags-and-signed",
+ "checks": "A flag with equals is true only at that value; signed types read below zero. A shown below zero is kept as read, and nothing is on screen.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80600010",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00"
+  },
+  "waiting": {
+   "address": "0x80600000",
+   "equals": 255
+  },
+  "choosing": {
+   "address": "0x80600001",
+   "type": "s8",
+   "equals": -1
+  },
+  "shown": {
+   "address": "0x80600002",
+   "type": "s16"
+  },
+  "choice_cursor": {
+   "address": "0x80600004",
+   "type": "s32"
+  },
+  "choice_count": {
+   "address": "0x80600008",
+   "type": "u16"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80600000",
+   "hex": "fffffeffffffffff030000000000000082a082a282a400000000000000000000"
+  }
+ ],
+ "expected": {
+  "message": "あいう",
+  "waiting": true,
+  "choosing": true,
+  "shown": -2,
+  "choice_cursor": -1,
+  "choice_count": 3,
+  "on_screen": ""
+ }
+}

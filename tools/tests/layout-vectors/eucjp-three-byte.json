@@ -1,0 +1,21 @@
+{
+ "name": "eucjp-three-byte",
+ "checks": "EUC-JP's 8F starts a three-byte character (JIS X 0212). One that isn't a character is one U+FFFD for all three bytes, and one cut off by max_bytes is dropped.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x00200000",
+   "charset": "euc_jp",
+   "max_bytes": 9
+  }
+ },
+ "memory": [
+  {
+   "address": "0x00200000",
+   "hex": "8fb0a1418f41428fb0a1"
+  }
+ ],
+ "expected": {
+  "message": "丂A\ufffd"
+ }
+}
