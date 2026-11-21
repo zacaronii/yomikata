@@ -31,61 +31,61 @@
   },
   "SCPS-10053": {
    "path": "games/ps1/SCPS-10053.json",
-   "sha256": "bd73d7ace6f0ccdb05576223661baaad626433e68ce35a820e2bd091c5cc7037",
+   "sha256": "c55d984cbdb1327f53bf9a885150744b15f9762138f75c2364b411a978a3185a",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "shift_jis",
    "status": "auto"
   },
   "SCPS-10054": {
    "path": "games/ps1/SCPS-10053.json",
-   "sha256": "bd73d7ace6f0ccdb05576223661baaad626433e68ce35a820e2bd091c5cc7037",
+   "sha256": "c55d984cbdb1327f53bf9a885150744b15f9762138f75c2364b411a978a3185a",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "shift_jis",
    "status": "auto",
    "alias_of": "SCPS-10053"
   },
   "SCPS-10056": {
    "path": "games/ps1/SCPS-10056.json",
-   "sha256": "ee9d60125c3d78e344baecfad9c2ecdf6a544b7a41c839a558307ddaf7775fcc",
+   "sha256": "87f2d734d15d577d95af838b6ba66f5368ce8221aeed73afec67226688ecbcf1",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "shift_jis",
    "status": "auto"
   },
   "SCPS-10057": {
    "path": "games/ps1/SCPS-10056.json",
-   "sha256": "ee9d60125c3d78e344baecfad9c2ecdf6a544b7a41c839a558307ddaf7775fcc",
+   "sha256": "87f2d734d15d577d95af838b6ba66f5368ce8221aeed73afec67226688ecbcf1",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "shift_jis",
    "status": "auto",
    "alias_of": "SCPS-10056"
   },
   "SCPS-10067": {
    "path": "games/ps1/SCPS-10067.json",
-   "sha256": "0e6da853f0fd64434047f1e8c40c2a3965a90e0fa2f22dbf57810b5ffd25c58f",
+   "sha256": "6ef9879f55ce1d06f745dda8334f051fa60dab14c44168ef96da01b3ed4fef79",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "shift_jis",
    "status": "auto"
   },
   "SCPS-10068": {
    "path": "games/ps1/SCPS-10067.json",
-   "sha256": "0e6da853f0fd64434047f1e8c40c2a3965a90e0fa2f22dbf57810b5ffd25c58f",
+   "sha256": "6ef9879f55ce1d06f745dda8334f051fa60dab14c44168ef96da01b3ed4fef79",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "shift_jis",
    "status": "auto",
    "alias_of": "SCPS-10067"
   },
   "SCPS-10069": {
    "path": "games/ps1/SCPS-10069.json",
-   "sha256": "ed28c4832919fcf09b2495bd44852edea97c9c6dc7711d619404eeb5c96a7624",
+   "sha256": "36183a441d2ebc37751c6ed7f8c8a2b7faed06e7068177d4bb1b475aefa9e89c",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "shift_jis",
    "status": "auto"
   },
   "SCPS-10070": {
    "path": "games/ps1/SCPS-10069.json",
-   "sha256": "ed28c4832919fcf09b2495bd44852edea97c9c6dc7711d619404eeb5c96a7624",
+   "sha256": "36183a441d2ebc37751c6ed7f8c8a2b7faed06e7068177d4bb1b475aefa9e89c",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "shift_jis",
    "status": "auto",
    "alias_of": "SCPS-10069"
   },
@@ -98,16 +98,16 @@
   },
   "SCPS-10131": {
    "path": "games/ps1/SCPS-10131.json",
-   "sha256": "3e794d6eadccf2b14e8c68b3cc736751abb40a5a3b2187e7e5d0c4f7b4b12617",
+   "sha256": "be8edc11f3b132f095af7d0362df8a0140d2389fd27f5469b3f528b7bc9baf70",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "shift_jis",
    "status": "auto"
   },
   "SCPS-10132": {
    "path": "games/ps1/SCPS-10131.json",
-   "sha256": "3e794d6eadccf2b14e8c68b3cc736751abb40a5a3b2187e7e5d0c4f7b4b12617",
+   "sha256": "be8edc11f3b132f095af7d0362df8a0140d2389fd27f5469b3f528b7bc9baf70",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "shift_jis",
    "status": "auto",
    "alias_of": "SCPS-10131"
   },

@@ -131,3 +131,41 @@ def test_scan_finds_script_runs_per_encoding_and_ignores_kanji_lists():
     assert ScanResult(chars={"shift_jis": 5000, "utf16le": 10, "utf8": 0}).encoding() == "shift_jis"
     assert ScanResult(chars={"shift_jis": 50}, compressed_bytes=80, scanned_bytes=100).encoding() == "compressed"
     assert ScanResult(chars={"shift_jis": 50}, compressed_bytes=1, scanned_bytes=100).encoding() == "unknown"
+
+
+def test_single_byte_hiragana_is_read_and_drafted(tmp_path):
+    from yomikata import kana
+    from yomikata.cleanup import apply
+    from yomikata.draft import draft
+    from yomikata.scan import ScanResult, _runs
+    line = "「ボクはいったいどんな顔をしているんだろう、それでもがんばってみるよ」"
+    stored = "｢ボクﾊｲｯﾀｲﾄﾞﾝﾅ顔ｦｼﾃｲﾙﾝﾀﾞﾛｳ､ｿﾚﾃﾞﾓｶﾞﾝﾊﾞｯﾃﾐﾙﾖ｣"
+    assert apply(stored, kana.HIRAGANA_RULES) == line and kana.fold("ﾊﾟﾘ ｳﾞ ﾜﾞ ｰ") == "ぱり ゔ わ゛ ー"
+    assert kana.spelling(stored) == (29, 5, 0) and kana.spelling("ﾞｱﾞﾏﾟｱｬｼﾞｬ") == (6, 4, 4)
+    pad = b"\x00\x01" * 100
+    n, best, single = _runs(pad + stored.encode("cp932") + pad)["shift_jis"]
+    assert n == len(line) and best == line and single == 29
+    assert _runs(pad + line.encode("cp932") + pad)["shift_jis"][2] == 0
+    # Bytes that only fall in the range don't count: too few marks, marks anywhere, the codes in order.
+    few = "｢ｿﾚﾊﾎﾝﾄｳﾆｱｯﾀｺﾄﾅﾉｶﾓｼﾚﾅｲﾖ､ｷｯﾄ｣"
+    stray = "ﾐﾙﾜﾞﾔﾒﾟﾒﾙﾐﾞﾒﾔﾔﾙﾟﾐﾒﾐﾞﾐﾒﾍﾍﾋﾟﾅﾃﾃﾞﾀｺｺﾉﾐﾟﾙﾜﾞﾔﾆﾊｦﾞｶﾞﾃﾀﾃﾞﾄﾓ"
+    for noise in (few, stray, "".join(chr(c) for c in range(0xFF61, 0xFFA0)) * 4):
+        assert _runs(pad + noise.encode("cp932") + pad)["shift_jis"][0] == 0, noise
+    # A line of two-byte text inside a single-byte one is counted once.
+    mixed = stored[:-1] + "、そう言ってボクは外へ出ることにした。" + "｣"
+    assert _runs(pad + mixed.encode("cp932") + pad)["shift_jis"][0] == len(kana.fold(mixed))
+
+    assert ScanResult(chars={"shift_jis": 5000}, halfwidth_kana=3000).single_byte_hiragana()
+    assert not ScanResult(chars={"shift_jis": 5000}, halfwidth_kana=200).single_byte_hiragana()
+    assert not ScanResult(chars={"shift_jis": 500}, halfwidth_kana=400).single_byte_hiragana()
+    disc = {"image": "a.chd", "id": "SLPS-00009", "platform": "ps1", "exe": "SLPS_000.09", "exe_sha1": "a" * 40,
+            "chars": {"shift_jis": 5000, "utf16le": 0, "utf8": 0}, "encoding": "shift_jis"}
+    shutil.copytree(REPO / "schema", tmp_path / "schema")
+    (tmp_path / "tables").mkdir()
+    draft([{**disc, "single_byte_hiragana": True, "halfwidth_kana": 3000},
+           {**disc, "image": "b.chd", "id": "SLPS-00010"}], tmp_path)
+    plain, single = (json.loads((tmp_path / f"games/ps1/SLPS-000{n}.json").read_text()) for n in ("10", "09"))
+    assert single["cleanup"] == kana.HIRAGANA_RULES and "single bytes" in single["notes"]
+    assert single["sources"][0].endswith("3,000 of them hiragana stored as single bytes")
+    assert "cleanup" not in plain and "notes" not in plain and plain["sources"][0].endswith("prose-like text")
+    assert catalog.validate(tmp_path) == []

@@ -18,10 +18,183 @@
       "exe_sha1": "2fda3b9e79b71a727d6d787b43dbb584f49a7752"
     }
   ],
-  "encoding": "unknown",
+  "encoding": "shift_jis",
+  "cleanup": [
+    {
+      "regex": "ｳﾞ",
+      "replace": "ゔ"
+    },
+    {
+      "regex": "ｶﾞ",
+      "replace": "が"
+    },
+    {
+      "regex": "ｷﾞ",
+      "replace": "ぎ"
+    },
+    {
+      "regex": "ｸﾞ",
+      "replace": "ぐ"
+    },
+    {
+      "regex": "ｹﾞ",
+      "replace": "げ"
+    },
+    {
+      "regex": "ｺﾞ",
+      "replace": "ご"
+    },
+    {
+      "regex": "ｻﾞ",
+      "replace": "ざ"
+    },
+    {
+      "regex": "ｼﾞ",
+      "replace": "じ"
+    },
+    {
+      "regex": "ｽﾞ",
+      "replace": "ず"
+    },
+    {
+      "regex": "ｾﾞ",
+      "replace": "ぜ"
+    },
+    {
+      "regex": "ｿﾞ",
+      "replace": "ぞ"
+    },
+    {
+      "regex": "ﾀﾞ",
+      "replace": "だ"
+    },
+    {
+      "regex": "ﾁﾞ",
+      "replace": "ぢ"
+    },
+    {
+      "regex": "ﾂﾞ",
+      "replace": "づ"
+    },
+    {
+      "regex": "ﾃﾞ",
+      "replace": "で"
+    },
+    {
+      "regex": "ﾄﾞ",
+      "replace": "ど"
+    },
+    {
+      "regex": "ﾊﾞ",
+      "replace": "ば"
+    },
+    {
+      "regex": "ﾋﾞ",
+      "replace": "び"
+    },
+    {
+      "regex": "ﾌﾞ",
+      "replace": "ぶ"
+    },
+    {
+      "regex": "ﾍﾞ",
+      "replace": "べ"
+    },
+    {
+      "regex": "ﾎﾞ",
+      "replace": "ぼ"
+    },
+    {
+      "regex": "ﾊﾟ",
+      "replace": "ぱ"
+    },
+    {
+      "regex": "ﾋﾟ",
+      "replace": "ぴ"
+    },
+    {
+      "regex": "ﾌﾟ",
+      "replace": "ぷ"
+    },
+    {
+      "regex": "ﾍﾟ",
+      "replace": "ぺ"
+    },
+    {
+      "regex": "ﾎﾟ",
+      "replace": "ぽ"
+    },
+    {
+      "remap": {
+        "ｦ": "を",
+        "ｧ": "ぁ",
+        "ｨ": "ぃ",
+        "ｩ": "ぅ",
+        "ｪ": "ぇ",
+        "ｫ": "ぉ",
+        "ｬ": "ゃ",
+        "ｭ": "ゅ",
+        "ｮ": "ょ",
+        "ｯ": "っ",
+        "ｱ": "あ",
+        "ｲ": "い",
+        "ｳ": "う",
+        "ｴ": "え",
+        "ｵ": "お",
+        "ｶ": "か",
+        "ｷ": "き",
+        "ｸ": "く",
+        "ｹ": "け",
+        "ｺ": "こ",
+        "ｻ": "さ",
+        "ｼ": "し",
+        "ｽ": "す",
+        "ｾ": "せ",
+        "ｿ": "そ",
+        "ﾀ": "た",
+        "ﾁ": "ち",
+        "ﾂ": "つ",
+        "ﾃ": "て",
+        "ﾄ": "と",
+        "ﾅ": "な",
+        "ﾆ": "に",
+        "ﾇ": "ぬ",
+        "ﾈ": "ね",
+        "ﾉ": "の",
+        "ﾊ": "は",
+        "ﾋ": "ひ",
+        "ﾌ": "ふ",
+        "ﾍ": "へ",
+        "ﾎ": "ほ",
+        "ﾏ": "ま",
+        "ﾐ": "み",
+        "ﾑ": "む",
+        "ﾒ": "め",
+        "ﾓ": "も",
+        "ﾔ": "や",
+        "ﾕ": "ゆ",
+        "ﾖ": "よ",
+        "ﾗ": "ら",
+        "ﾘ": "り",
+        "ﾙ": "る",
+        "ﾚ": "れ",
+        "ﾛ": "ろ",
+        "ﾜ": "わ",
+        "ﾝ": "ん",
+        "｡": "。",
+        "｢": "「",
+        "｣": "」",
+        "､": "、",
+        "･": "・",
+        "ｰ": "ー",
+        "ﾞ": "゛",
+        "ﾟ": "゜"
+      }
+    }
+  ],
   "status": "auto",
   "sources": [
-    "yomikata scan 0.1.0 of the disc files: shift_jis 20, utf16le 112 characters of prose-like text"
+    "yomikata scan 0.2.0 of the disc files: shift_jis 24,112, utf16le 112 characters of prose-like text, 14,108 of them hiragana stored as single bytes"
   ],
-  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+  "notes": "Hiragana is stored as single bytes (the half-width katakana codes, voiced marks as bytes of their own); katakana and kanji are ordinary two-byte Shift-JIS. `cleanup` turns it back."
 }
