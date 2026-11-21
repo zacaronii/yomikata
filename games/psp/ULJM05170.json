@@ -1,0 +1,17 @@
+{
+  "id": "ULJM05170",
+  "platform": "psp",
+  "title": "英雄伝説 空の軌跡FC",
+  "title_romaji": "Eiyuu Densetsu: Sora no Kiseki FC",
+  "versions": [
+    {
+      "exe": "EBOOT.BIN",
+      "exe_sha1": "186f263af14d963b3d4fc368ce3831b17c02d79b"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 1,066,474, utf8 27 characters of prose-like text"
+  ]
+}
