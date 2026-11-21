@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("entry", type=Path, help="games/<platform>/<id>.json")
     p.add_argument("ram", type=Path, help="RAM snapshot (<sha1>.ram.gz from an inbox, or raw)")
     p.add_argument("--base", default=None, help="address of the snapshot's first byte (default: its .json, else the platform's RAM)")
-    p.add_argument("--version", help="exe_sha1 to pick the layout for (default: its .json, else the general one)")
+    p.add_argument("--version", help="exe_sha1 to pick the layout for (default: its .json's, else the only version of its id, else the general one)")
     p.add_argument("--root", type=Path, default=Path("."), help="catalog root, for table charsets")
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
@@ -158,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         entry = json.loads(args.entry.read_text(encoding="utf-8"))
         meta_path = args.ram.with_name(args.ram.name.split(".")[0] + ".json")
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
-        lay = layout.pick(entry, args.version or meta.get("exe_sha1"))
+        lay = layout.pick(entry, args.version or meta.get("exe_sha1"), meta.get("id"))
         if lay is None:
             print("no layout for that version", file=sys.stderr)
             return 1
