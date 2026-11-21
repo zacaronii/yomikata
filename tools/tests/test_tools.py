@@ -50,6 +50,23 @@ def test_identify_a_ps1_disc(tmp_path, raw):
     assert (r.platform, r.id, r.exe) == ("ps1", "SLPS-01234", "SLPS_012.34") and len(r.exe_sha1) == 40
 
 
+def test_boot_file_in_a_subfolder(tmp_path):
+    cnf = b"BOOT = cdrom:\\MGS\\SLPM_861.11;1\r\n"
+    exe = b"PS-X EXE" + bytes(40)
+    sub = dir_record(b"\0", 21, 2048, True) + dir_record(b"\1", 18, 2048, True) + \
+        dir_record(b"SLPM_861.11;1", 20, len(exe), False)
+    root = dir_record(b"\0", 18, 2048, True) + dir_record(b"\1", 18, 2048, True) + \
+        dir_record(b"MGS", 21, 2048, True) + dir_record(b"SYSTEM.CNF;1", 19, len(cnf), False)
+    pvd = bytearray(2048)
+    pvd[0:6] = b"\x01CD001"
+    pvd[156:190] = dir_record(b"\0", 18, 2048, True)[:34]
+    img = tmp_path / "mgs.iso"
+    img.write_bytes(b"".join([bytes(2048)] * 16 + [bytes(pvd), bytes(2048), root.ljust(2048, b"\0"),
+                                                   cnf.ljust(2048, b"\0"), exe.ljust(2048, b"\0"), sub.ljust(2048, b"\0")]))
+    r = identify(img)
+    assert (r.id, r.exe) == ("SLPM-86111", "SLPM_861.11") and r.exe_sha1
+
+
 def test_serials():
     assert serial_from_boot("cdrom:\\SLPS_022.96;1") == ("SLPS-02296", "SLPS_022.96")
     assert serial_from_boot("cdrom0:\\SLPM_655.55;1") == ("SLPM-65555", "SLPM_655.55")
@@ -99,6 +116,8 @@ def test_scan_finds_script_runs_per_encoding_and_ignores_kanji_lists():
         found = {k: v[0] for k, v in runs(os.urandom(200) + line.encode(codec) + os.urandom(200)).items()}
         assert found[enc] >= 20 and sum(found.values()) == found[enc], (enc, found)
     assert runs("一二三四五六七八九十百千万".encode("cp932"))["shift_jis"][0] == 0      # a font list, not script
+    for noise in ("ャ" * 40, "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほ", "う" * 30 + "ああ"):
+        assert runs(noise.encode("cp932"))["shift_jis"][0] == 0, noise
     assert compressed(os.urandom(100_000)) and not compressed(line.encode("utf-8") * 3000)
     assert ScanResult(chars={"shift_jis": 5000, "utf16le": 10, "utf8": 0}).encoding() == "shift_jis"
     assert ScanResult(chars={"shift_jis": 50}, compressed_bytes=80, scanned_bytes=100).encoding() == "compressed"

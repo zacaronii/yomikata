@@ -44,7 +44,8 @@ def identify_disc(path: Path, scratch: Path | None = None) -> Release:
             if not m:
                 raise DiscError("SYSTEM.CNF has no BOOT line")
             serial, exe = serial_from_boot(m.group(2))
-            entry = iso.find(exe)
+            boot_path = m.group(2).split(":", 1)[-1].split(";")[0]          # cdrom:\DIR\SLPM_861.11;1 -> \DIR\…
+            entry = iso.find(boot_path) or iso.find(exe)
             if entry is None:
                 raise DiscError(f"boot file {exe} not found on the disc")
             return Release("ps2" if m.group(1) else "ps1", serial, exe, hashlib.sha1(iso.read(entry)).hexdigest())

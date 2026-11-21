@@ -19,10 +19,11 @@ KANA_SHARE = 0.3
 MAX_FILE = 64 * 1024 * 1024
 STREAM_EXT = {".STR", ".XA", ".XAM", ".XAS", ".STX", ".DA", ".PSS", ".MOV", ".VAG"}
 
-# Shift-JIS: kana and kanji double-byte ranges (plus the ideographic punctuation and full-width forms)
-SJIS = re.compile(rb"(?:[\x81-\x9f\xe0-\xef][\x40-\x7e\x80-\xfc]|[\x20-\x7e]){%d,}" % MIN_RUN)
-UTF16 = re.compile(rb"(?:[\x00-\xff][\x30-\x30]|[\x00-\xff][\x4e-\x9f]|[\x00-\xff][\xff]|[\x20-\x7e]\x00){%d,}" % MIN_RUN)
-UTF8 = re.compile(rb"(?:\xe3[\x80-\x83][\x80-\xbf]|[\xe4-\xe9][\x80-\xbf][\x80-\xbf]|[\x20-\x7e]){%d,}" % MIN_RUN)
+# Runs of Japanese characters only (kana, kanji, punctuation, full-width forms); plain ASCII never starts a match,
+# which keeps a scan of a whole disc fast.
+SJIS = re.compile(rb"(?:[\x81-\x84\x88-\x9f\xe0-\xea][\x40-\x7e\x80-\xfc]){%d,}" % MIN_RUN)
+UTF16 = re.compile(rb"(?:[\x00-\xff][\x30\x4e-\x9f\xff]){%d,}" % MIN_RUN)
+UTF8 = re.compile(rb"(?:\xe3[\x80-\x83][\x80-\xbf]|[\xe4-\xe9][\x80-\xbf][\x80-\xbf]|\xef[\xbc-\xbd][\x80-\xbf]){%d,}" % MIN_RUN)
 
 
 def _kana(text: str) -> int:
@@ -31,6 +32,25 @@ def _kana(text: str) -> int:
 
 def _japanese(text: str) -> int:
     return sum(1 for c in text if "ぁ" <= c <= "ヺ" or "一" <= c <= "鿿" or c in "、。「」！？…ー")
+
+
+PARTICLES = set("のにはをがてたでとも")
+
+
+def script_like(text: str) -> bool:
+    """Prose, not noise: no character dominates, it isn't a character list in code order (font tables), and the
+    common particles turn up about as often as in real Japanese."""
+    chars = [c for c in text if not c.isspace()]
+    n = len(chars)
+    if n < MIN_RUN:
+        return False
+    top = max(chars.count(c) for c in set(chars))
+    if top > 0.25 * n or len(set(chars)) < 0.3 * n:
+        return False
+    rising = sum(1 for a, b in zip(chars, chars[1:]) if ord(b) > ord(a))
+    if rising > 0.8 * (n - 1):
+        return False
+    return sum(1 for c in chars if c in PARTICLES) >= 0.06 * n
 
 
 def runs(data: bytes) -> dict[str, tuple[int, str]]:
@@ -48,7 +68,7 @@ def runs(data: bytes) -> dict[str, tuple[int, str]]:
             except UnicodeDecodeError:
                 continue
             jp = _japanese(text)
-            if jp >= MIN_RUN and _kana(text) >= KANA_SHARE * jp:
+            if jp >= MIN_RUN and _kana(text) >= KANA_SHARE * jp and script_like(text):
                 total += jp
                 if jp > _japanese(best):
                     best = text
