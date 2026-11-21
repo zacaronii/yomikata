@@ -11,12 +11,13 @@
   ],
   "encoding": "table",
   "tables": [
-    "tables/human-kana.tbl"
+    "tables/ps1/SLPS-00102.tbl"
   ],
   "unit": 2,
   "status": "partial",
   "sources": [
-    "Genkan memory search during play: same scheme as Moonlight Syndrome (same developer, Human)"
+    "Genkan memory search during play: own 16-bit table, あ = 0x0001 in gojuon order",
+    "Three Genkan RAM snapshots of the opening (inbox): lines found with `yomikata locate`, and the layout read off by decoding them against the OCR'd text"
   ],
-  "notes": "Same 16-bit scheme as SLPS-01001 (same developer, Human), so its kana table is listed here too; not yet checked against this game's own text. Kanji follow each scene's font."
+  "notes": "Kana mapped (tables/ps1/SLPS-00102.tbl): 16-bit little-endian, a different layout from Moonlight Syndrome. Kanji are 0x0100 up in the scene font's order (聞 0x0122, 雨 0x013E in the opening; 「」 also appear there as 0x0103/0x0104), so they likely change between scenes. 0x8xxx words are control codes (not mapped yet). The small katakana block is the least certain: only ョ was seen."
 }

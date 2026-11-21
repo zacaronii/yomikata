@@ -1,0 +1,26 @@
+import os
+
+from yomikata.locate import GOJUON, locate, windows
+
+
+def encode(text: str, table: dict, width=2, order="little") -> bytes:
+    return b"".join(table[c].to_bytes(width, order) for c in text)
+
+
+def test_finds_a_line_in_ram_by_its_repeats_and_reads_the_gojuon_offset():
+    table = {c: 0x50 + i for i, c in enumerate(GOJUON)}
+    table.update({"早": 0x104, "帰": 0x105, "っ": 0x9F, "だ": 0x88, "ば": 0x8D})
+    line = "もっと早く帰ってくればよかった"
+    ram = bytearray(os.urandom(300_000))
+    at = 123_457                                                      # odd: alignment is searched too
+    ram[at:at + 2 * len(line)] = encode(line, table, order="big")
+    (best, *_) = locate([(bytes(ram), ["o." + line + "▼"])])
+    assert best.encoding == "u16be" and not best.conflicts
+    assert best.mapping[0x72] == "も" and best.mapping[0x104] == "早"
+    assert max(best.gojuon_offsets()["hiragana"], key=best.gojuon_offsets()["hiragana"].get) == 0x50
+    assert any(h["offset"] == at for h in best.hits)
+
+
+def test_windows_need_enough_repeats():
+    assert windows("あいうえおかきく") == []                              # no repeats: proves nothing
+    assert windows("もっと早く帰ってくればよかった")[0][0].count("っ") >= 2
