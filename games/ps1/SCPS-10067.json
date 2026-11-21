@@ -1,0 +1,27 @@
+{
+  "id": "SCPS-10067",
+  "aliases": [
+    "SCPS-10068"
+  ],
+  "platform": "ps1",
+  "title": "やるドラシリーズVol.3 サンパギータ",
+  "title_romaji": "Yarudora Series Vol. 3: Sampaguita",
+  "versions": [
+    {
+      "id": "SCPS-10067",
+      "exe": "SCPS_100.67",
+      "exe_sha1": "446bc14e2618c2c6c88d0a7dfe52e04813adacb4"
+    },
+    {
+      "id": "SCPS-10068",
+      "exe": "SCPS_100.68",
+      "exe_sha1": "446bc14e2618c2c6c88d0a7dfe52e04813adacb4"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0 of the disc files: shift_jis 36 characters of prose-like text"
+  ],
+  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+}

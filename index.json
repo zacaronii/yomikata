@@ -22,12 +22,159 @@
    "encoding": "utf16le",
    "status": "partial"
   },
+  "SCPS-10053": {
+   "path": "games/ps1/SCPS-10053.json",
+   "sha256": "bd73d7ace6f0ccdb05576223661baaad626433e68ce35a820e2bd091c5cc7037",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SCPS-10054": {
+   "path": "games/ps1/SCPS-10053.json",
+   "sha256": "bd73d7ace6f0ccdb05576223661baaad626433e68ce35a820e2bd091c5cc7037",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SCPS-10053"
+  },
+  "SCPS-10056": {
+   "path": "games/ps1/SCPS-10056.json",
+   "sha256": "ee9d60125c3d78e344baecfad9c2ecdf6a544b7a41c839a558307ddaf7775fcc",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SCPS-10057": {
+   "path": "games/ps1/SCPS-10056.json",
+   "sha256": "ee9d60125c3d78e344baecfad9c2ecdf6a544b7a41c839a558307ddaf7775fcc",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SCPS-10056"
+  },
+  "SCPS-10067": {
+   "path": "games/ps1/SCPS-10067.json",
+   "sha256": "0e6da853f0fd64434047f1e8c40c2a3965a90e0fa2f22dbf57810b5ffd25c58f",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SCPS-10068": {
+   "path": "games/ps1/SCPS-10067.json",
+   "sha256": "0e6da853f0fd64434047f1e8c40c2a3965a90e0fa2f22dbf57810b5ffd25c58f",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SCPS-10067"
+  },
+  "SCPS-10069": {
+   "path": "games/ps1/SCPS-10069.json",
+   "sha256": "ed28c4832919fcf09b2495bd44852edea97c9c6dc7711d619404eeb5c96a7624",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SCPS-10070": {
+   "path": "games/ps1/SCPS-10069.json",
+   "sha256": "ed28c4832919fcf09b2495bd44852edea97c9c6dc7711d619404eeb5c96a7624",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SCPS-10069"
+  },
+  "SCPS-10088": {
+   "path": "games/ps1/SCPS-10088.json",
+   "sha256": "27a630abaa9ecd64b317a375cf9b2d9a6ddbb8c72399497574b2a8b4b8961ffb",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "partial"
+  },
+  "SCPS-10131": {
+   "path": "games/ps1/SCPS-10131.json",
+   "sha256": "3e794d6eadccf2b14e8c68b3cc736751abb40a5a3b2187e7e5d0c4f7b4b12617",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SCPS-10132": {
+   "path": "games/ps1/SCPS-10131.json",
+   "sha256": "3e794d6eadccf2b14e8c68b3cc736751abb40a5a3b2187e7e5d0c4f7b4b12617",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SCPS-10131"
+  },
+  "SLPM-86111": {
+   "path": "games/ps1/SLPM-86111.json",
+   "sha256": "690d217542fd56cac5b96f4284081d26a724af93ca2fc679cca97036202b12d4",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SLPM-86112": {
+   "path": "games/ps1/SLPM-86111.json",
+   "sha256": "690d217542fd56cac5b96f4284081d26a724af93ca2fc679cca97036202b12d4",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SLPM-86111"
+  },
+  "SLPM-86168": {
+   "path": "games/ps1/SLPM-86168.json",
+   "sha256": "e3da8355ed3a201776b6f9d1fd55a33db8d1abe0a3f5ee32cd04503b7f1b7496",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SLPM-86500": {
+   "path": "games/ps1/SLPM-86500.json",
+   "sha256": "a2b2b5f8232e7ab285356d95a36488df9108684e6a929e9ff64ae6672bce0de9",
+   "platform": "ps1",
+   "encoding": "shift_jis",
+   "status": "auto"
+  },
+  "SLPM-86501": {
+   "path": "games/ps1/SLPM-86500.json",
+   "sha256": "a2b2b5f8232e7ab285356d95a36488df9108684e6a929e9ff64ae6672bce0de9",
+   "platform": "ps1",
+   "encoding": "shift_jis",
+   "status": "auto",
+   "alias_of": "SLPM-86500"
+  },
+  "SLPS-00097": {
+   "path": "games/ps1/SLPS-00097.json",
+   "sha256": "0d11f974c9059b4068bd38b066edabe2e36eba1b7b90816ef000d6ee0484dacd",
+   "platform": "ps1",
+   "encoding": "shift_jis",
+   "status": "auto"
+  },
   "SLPS-00102": {
    "path": "games/ps1/SLPS-00102.json",
    "sha256": "0c6b9455f3e06b4430d1a0836048fddd391520a5b95c6e9fcb8a7dfc52e16a97",
    "platform": "ps1",
    "encoding": "table",
    "status": "partial"
+  },
+  "SLPS-00404": {
+   "path": "games/ps1/SLPS-00404.json",
+   "sha256": "7ec09c6a301ec98a4698b822eb716c748baa5570c2c5e77d0f80990dab940421",
+   "platform": "ps1",
+   "encoding": "shift_jis",
+   "status": "auto"
+  },
+  "SLPS-00405": {
+   "path": "games/ps1/SLPS-00405.json",
+   "sha256": "89106198a5da762b298dbcf33b6e28c51d18babd876b6febf1bdcfa51494751f",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SLPS-00500": {
+   "path": "games/ps1/SLPS-00500.json",
+   "sha256": "d57fb064ba09f1a70686ee8f4160a11f56eb4b9b079c81becd4c6283c2394fac",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
   },
   "SLPS-01001": {
    "path": "games/ps1/SLPS-01001.json",
@@ -44,6 +191,37 @@
    "status": "partial",
    "alias_of": "SLPS-01001"
   },
+  "SLPS-01057": {
+   "path": "games/ps1/SLPS-01057.json",
+   "sha256": "65a9d76d245cc3155bea927ea584705b62df79e9b6afcd072fd0efd296793047",
+   "platform": "ps1",
+   "encoding": "compressed",
+   "status": "auto"
+  },
+  "SLPS-01058": {
+   "path": "games/ps1/SLPS-01057.json",
+   "sha256": "65a9d76d245cc3155bea927ea584705b62df79e9b6afcd072fd0efd296793047",
+   "platform": "ps1",
+   "encoding": "compressed",
+   "status": "auto",
+   "alias_of": "SLPS-01057"
+  },
+  "SLPS-01059": {
+   "path": "games/ps1/SLPS-01057.json",
+   "sha256": "65a9d76d245cc3155bea927ea584705b62df79e9b6afcd072fd0efd296793047",
+   "platform": "ps1",
+   "encoding": "compressed",
+   "status": "auto",
+   "alias_of": "SLPS-01057"
+  },
+  "SLPS-01060": {
+   "path": "games/ps1/SLPS-01057.json",
+   "sha256": "65a9d76d245cc3155bea927ea584705b62df79e9b6afcd072fd0efd296793047",
+   "platform": "ps1",
+   "encoding": "compressed",
+   "status": "auto",
+   "alias_of": "SLPS-01057"
+  },
   "SLPS-01100": {
    "path": "games/ps1/SLPS-01100.json",
    "sha256": "5a0cb54b944e01bfcd88cc716a53129bb5b72c0bf3a2aa4cd383afc7dd418199",
@@ -51,12 +229,118 @@
    "encoding": "shift_jis",
    "status": "verified"
   },
+  "SLPS-01160": {
+   "path": "games/ps1/SLPS-01160.json",
+   "sha256": "99a5cf4969558f1bbf11a8b9049220321067e19ca7bc66d2ec43608a24f5b929",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SLPS-01161": {
+   "path": "games/ps1/SLPS-01160.json",
+   "sha256": "99a5cf4969558f1bbf11a8b9049220321067e19ca7bc66d2ec43608a24f5b929",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SLPS-01160"
+  },
+  "SLPS-01880": {
+   "path": "games/ps1/SLPS-01880.json",
+   "sha256": "c13e972fc2688527ec230d8980e58f88198ba00418144a5de925bc42a3a6693b",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SLPS-01881": {
+   "path": "games/ps1/SLPS-01880.json",
+   "sha256": "c13e972fc2688527ec230d8980e58f88198ba00418144a5de925bc42a3a6693b",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SLPS-01880"
+  },
+  "SLPS-01882": {
+   "path": "games/ps1/SLPS-01880.json",
+   "sha256": "c13e972fc2688527ec230d8980e58f88198ba00418144a5de925bc42a3a6693b",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SLPS-01880"
+  },
+  "SLPS-01883": {
+   "path": "games/ps1/SLPS-01880.json",
+   "sha256": "c13e972fc2688527ec230d8980e58f88198ba00418144a5de925bc42a3a6693b",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SLPS-01880"
+  },
+  "SLPS-02100": {
+   "path": "games/ps1/SLPS-02100.json",
+   "sha256": "e955fed31df1bf24dc62c418efa244d1d0a8d42c8c9f97f0e57a039c73d4e85b",
+   "platform": "ps1",
+   "encoding": "table",
+   "status": "partial"
+  },
   "SLPS-02296": {
    "path": "games/ps1/SLPS-02296.json",
    "sha256": "afb87a9497c21a591f1c7a9c918fd17a14717c421f3e183c2506d0bdf5b685b5",
    "platform": "ps1",
    "encoding": "shift_jis",
    "status": "verified"
+  },
+  "SLPS-02785": {
+   "path": "games/ps1/SLPS-02785.json",
+   "sha256": "790147e4b87ba74ad2ba5b04f1bd320734668b9c1d48d135e460e9132fc0a9c3",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SLPS-02786": {
+   "path": "games/ps1/SLPS-02785.json",
+   "sha256": "790147e4b87ba74ad2ba5b04f1bd320734668b9c1d48d135e460e9132fc0a9c3",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SLPS-02785"
+  },
+  "SLPS-03050": {
+   "path": "games/ps1/SLPS-03050.json",
+   "sha256": "530af2aaeaa58717eb93073822d19c14326d572723d8193c82d54088c9635cfc",
+   "platform": "ps1",
+   "encoding": "shift_jis",
+   "status": "auto"
+  },
+  "SLPS-03051": {
+   "path": "games/ps1/SLPS-03050.json",
+   "sha256": "530af2aaeaa58717eb93073822d19c14326d572723d8193c82d54088c9635cfc",
+   "platform": "ps1",
+   "encoding": "shift_jis",
+   "status": "auto",
+   "alias_of": "SLPS-03050"
+  },
+  "SLPS-03052": {
+   "path": "games/ps1/SLPS-03050.json",
+   "sha256": "530af2aaeaa58717eb93073822d19c14326d572723d8193c82d54088c9635cfc",
+   "platform": "ps1",
+   "encoding": "shift_jis",
+   "status": "auto",
+   "alias_of": "SLPS-03050"
+  },
+  "SLPS-03292": {
+   "path": "games/ps1/SLPS-03292.json",
+   "sha256": "44e365efa593dea5fac23a05d9df04d6cd9331cd3d080dea58bea6dff7577437",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto"
+  },
+  "SLPS-03293": {
+   "path": "games/ps1/SLPS-03292.json",
+   "sha256": "44e365efa593dea5fac23a05d9df04d6cd9331cd3d080dea58bea6dff7577437",
+   "platform": "ps1",
+   "encoding": "unknown",
+   "status": "auto",
+   "alias_of": "SLPS-03292"
   },
   "ULJM05338": {
    "path": "games/psp/ULJM05338.json",

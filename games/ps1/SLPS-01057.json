@@ -1,0 +1,39 @@
+{
+  "id": "SLPS-01057",
+  "aliases": [
+    "SLPS-01058",
+    "SLPS-01059",
+    "SLPS-01060"
+  ],
+  "platform": "ps1",
+  "title": "ファイナルファンタジーVII インターナショナル",
+  "title_romaji": "Final Fantasy VII International",
+  "versions": [
+    {
+      "id": "SLPS-01057",
+      "exe": "SLPS_010.57",
+      "exe_sha1": "7b2043c1427820810f4993ea2d258cef2f1eb235"
+    },
+    {
+      "id": "SLPS-01058",
+      "exe": "SLPS_010.58",
+      "exe_sha1": "7b2043c1427820810f4993ea2d258cef2f1eb235"
+    },
+    {
+      "id": "SLPS-01059",
+      "exe": "SLPS_010.59",
+      "exe_sha1": "7b2043c1427820810f4993ea2d258cef2f1eb235"
+    },
+    {
+      "id": "SLPS-01060",
+      "exe": "SLPS_010.60",
+      "exe_sha1": "d7db541c09ee8361b513e3bde468bafc31f89c27"
+    }
+  ],
+  "encoding": "compressed",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0 of the disc files: shift_jis 10,190, utf16le 302 characters of prose-like text"
+  ],
+  "notes": "Discs 1-3 are largely compressed data with little readable script. The Shift-JIS prose found is on disc 4, the International edition's extra disc, not the game script. The game likely uses its own text table; a memory sample from play will settle it."
+}

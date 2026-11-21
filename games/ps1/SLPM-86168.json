@@ -1,0 +1,18 @@
+{
+  "id": "SLPM-86168",
+  "platform": "ps1",
+  "title": "幻想水滸伝II",
+  "title_romaji": "Gensou Suikoden II",
+  "versions": [
+    {
+      "exe": "SLPM_861.68",
+      "exe_sha1": "9a8d96efa3ccbfe51510274f33bca6e5a2bc4997"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0: no prose-like text on disc"
+  ],
+  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+}

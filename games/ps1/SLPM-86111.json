@@ -1,0 +1,27 @@
+{
+  "id": "SLPM-86111",
+  "aliases": [
+    "SLPM-86112"
+  ],
+  "platform": "ps1",
+  "title": "メタルギアソリッド",
+  "title_romaji": "Metal Gear Solid",
+  "versions": [
+    {
+      "id": "SLPM-86111",
+      "exe": "SLPM_861.11",
+      "exe_sha1": "7831444653135263415259495f3976fb45ead923"
+    },
+    {
+      "id": "SLPM-86112",
+      "exe": "SLPM_861.12",
+      "exe_sha1": "7831444653135263415259495f3976fb45ead923"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0 of the disc files: utf16le 10 characters of prose-like text"
+  ],
+  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+}

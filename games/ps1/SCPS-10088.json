@@ -1,0 +1,19 @@
+{
+  "id": "SCPS-10088",
+  "platform": "ps1",
+  "title": "ぼくのなつやすみ",
+  "title_romaji": "Boku no Natsuyasumi: Summer Holiday 20th Century",
+  "versions": [
+    {
+      "exe": "SCPS_100.88",
+      "exe_sha1": "959ddf98806648a689eeafaaabbff2a4ec0bfbbb"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "partial",
+  "sources": [
+    "yomikata scan 0.1.0 of the disc files: shift_jis 63 characters of prose-like text",
+    "Genkan memory search during play: system messages in Shift-JIS, dialogue not"
+  ],
+  "notes": "System messages are Shift-JIS but the dialogue apparently isn't (own table, or drawn as images). Needs a memory sample of a dialogue line."
+}

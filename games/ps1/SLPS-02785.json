@@ -1,0 +1,27 @@
+{
+  "id": "SLPS-02785",
+  "aliases": [
+    "SLPS-02786"
+  ],
+  "platform": "ps1",
+  "title": "ペルソナ2 罰",
+  "title_romaji": "Persona 2: Batsu",
+  "versions": [
+    {
+      "id": "SLPS-02785",
+      "exe": "SLPS_027.85",
+      "exe_sha1": "2052488cf17bd9cbb61bfc4039143aee6c7a0c4d"
+    },
+    {
+      "id": "SLPS-02786",
+      "exe": "SLPS_027.86",
+      "exe_sha1": "c4ecd0c591cafa371bc4608d77ecf78e0f0de59c"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0 of the disc files: shift_jis 609, utf16le 191 characters of prose-like text"
+  ],
+  "notes": "Little script reads on disc. Probably the same engine and table as Persona 2: Tsumi (SLPS-02100); a memory sample from play will settle it."
+}

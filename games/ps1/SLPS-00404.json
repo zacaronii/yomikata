@@ -1,0 +1,18 @@
+{
+  "id": "SLPS-00404",
+  "platform": "ps1",
+  "title": "学校であった怖い話S",
+  "title_romaji": "Gakkou de Atta Kowai Hanashi S",
+  "versions": [
+    {
+      "exe": "SLPS_004.04",
+      "exe_sha1": "0fbbbf73b02ad1c3409c431ccf9be2c7f83c62c3"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0 of the disc files: shift_jis 1,308,331 characters of prose-like text",
+    "Genkan memory search during play: menus in Shift-JIS (story not reached)"
+  ]
+}
