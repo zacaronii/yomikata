@@ -291,7 +291,7 @@
   },
   "SLPS-02296": {
    "path": "games/ps1/SLPS-02296.json",
-   "sha256": "afb87a9497c21a591f1c7a9c918fd17a14717c421f3e183c2506d0bdf5b685b5",
+   "sha256": "e3e1d7fe8635e8d69ba161e88263ef209526e56fe953dfadf224070a859ace4f",
    "platform": "ps1",
    "encoding": "shift_jis",
    "status": "verified"

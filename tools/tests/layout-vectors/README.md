@@ -23,7 +23,8 @@ How to compare:
   show otherwise.
 
 Not covered: choosing between an entry's layouts by version (`pick`; the rule is in docs/format.md under "Which
-layout", its cases in `test_layout.py`), and reading the entry's table files from disk.
+layout", its cases in `test_layout.py`), passing over a layout with a key the reader doesn't know (same place),
+and reading the entry's table files from disk.
 
 The files are written by `tools/tests/layout_vectors.py`, where each expected value is written by hand and checked
 against the reference reader. To change or add a case, edit it there and run it; a test fails if the files and the

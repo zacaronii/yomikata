@@ -55,10 +55,12 @@ def resolve(spec: dict, read, endian: str = "little") -> int:
     return addr
 
 
-def read_int(spec: dict, read, endian: str = "little") -> int:
+def read_int(spec: dict, read, endian: str = "little", index: int = 0) -> int:
+    """The number a spec names; `index` picks one of a run of them, each right after the last."""
     fmt = INT[spec.get("type", "u8")]
     size = struct.calcsize(fmt)
-    (value,) = struct.unpack(("<" if endian == "little" else ">") + fmt, read(resolve(spec, read, endian), size))
+    address = resolve(spec, read, endian) + index * size
+    (value,) = struct.unpack(("<" if endian == "little" else ">") + fmt, read(address, size))
     return value
 
 
@@ -83,15 +85,16 @@ def _char_len(data: bytes, i: int, charset: str, unit: int) -> int:
     return unit
 
 
-def _cut(data: bytes, charset: str, unit: int, terminator: bytes | None) -> bytes:
-    i = 0
-    while i < len(data):
+def _cut(data: bytes, charset: str, unit: int, terminator: bytes | None, chars: int | None = None) -> bytes:
+    i = count = 0
+    while i < len(data) and (chars is None or count < chars):
         if terminator and data[i:i + len(terminator)] == terminator:
             break
         n = _char_len(data, i, charset, unit)
         if i + n > len(data):                       # a character cut off by max_bytes or the stride
             break
         i += n
+        count += 1
     return data[:i]
 
 
@@ -122,17 +125,25 @@ def _decode(data: bytes, charset: str, entry: dict, table: tbl.Table | None) -> 
 
 
 def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, endian: str = "little") -> str:
+    if "when" in spec and not read_flag(spec["when"], read, endian):
+        return ""                                   # what the memory holds isn't on screen now
     charset = spec["charset"]
     unit = entry.get("unit", 2) if charset == "table" else 1
     term = bytes.fromhex(spec["terminator"]) if "terminator" in spec else None
     start = resolve(spec, read, endian)
     rows = spec.get("rows", {"count": 1, "stride": spec["max_bytes"]})
-    size = min(spec["max_bytes"], rows["stride"])
-    if "length" in spec:
-        size = min(size, max(0, read_int(spec["length"], read, endian)))
     lines = []
     for r in range(rows["count"]):
-        raw = _cut(read(start + r * rows["stride"], size), charset, unit, term)
+        size, chars = min(spec["max_bytes"], rows["stride"]), None
+        for length, index in ((spec.get("length"), 0), (rows.get("lengths"), r)):
+            if length is None:
+                continue
+            n = max(0, read_int(length, read, endian, index))
+            if length.get("counts") == "characters":
+                chars = n if chars is None else min(chars, n)
+            else:
+                size = min(size, n)
+        raw = _cut(read(start + r * rows["stride"], size), charset, unit, term, chars)
         lines.append(_decode(raw, charset, entry, table))
     if "rows" in spec:
         while lines and not lines[-1]:
@@ -148,12 +159,52 @@ def version_for(entry: dict, release_id: str | None) -> str | None:
     return mine[0].get("exe_sha1") if len(mine) == 1 else None
 
 
+_WHERE = {"address", "base", "offsets"}
+_NUMBER = _WHERE | {"type", "equals"}
+_LENGTH = _WHERE | {"type", "counts"}
+_TEXT = _WHERE | {"charset", "max_bytes", "terminator", "length", "rows", "when", "cleanup"}
+_FIELDS = {"message": "text", "choices": "text", "speaker": "either", "shown": "number", "waiting": "number",
+           "choosing": "number", "choice_count": "number", "choice_cursor": "number"}
+_OTHER = {"versions", "endian", "poll", "speaker_names", "notes"}
+
+
+def _number_ok(spec, keys=_NUMBER) -> bool:
+    return isinstance(spec, dict) and set(spec) <= keys and spec.get("type", "u8") in INT \
+        and spec.get("counts", "bytes") in ("bytes", "characters")
+
+
+def _text_ok(spec) -> bool:
+    if not isinstance(spec, dict) or not set(spec) <= _TEXT or spec.get("charset") not in (*CODEC, "table"):
+        return False
+    rows = spec.get("rows", {})
+    return set(rows) <= {"count", "stride", "lengths"} \
+        and all(_number_ok(n, _LENGTH) for n in (spec.get("length"), rows.get("lengths")) if n is not None) \
+        and ("when" not in spec or _number_ok(spec["when"]))
+
+
+def understood(layout: dict) -> bool:
+    """Whether this reader knows every key in the layout. A newer key can change what the others mean (a text
+    without its `when` would show what is no longer on screen), so a reader leaves such a layout alone."""
+    if not set(layout) <= set(_FIELDS) | _OTHER or layout.get("endian", "little") not in ("little", "big"):
+        return False
+    for key, kind in _FIELDS.items():
+        if key in layout:
+            spec = layout[key]
+            is_text = isinstance(spec, dict) and "charset" in spec
+            if not (_text_ok(spec) if kind == "text" or (kind == "either" and is_text) else _number_ok(spec)):
+                return False
+    return True
+
+
 def pick(entry: dict, exe_sha1: str | None = None, release_id: str | None = None) -> dict | None:
     """The layout for this version: one that lists it, else one that lists no versions. Without a hash, the
-    version is the only one listed for `release_id`, if there is just one."""
+    version is the only one listed for `release_id`, if there is just one. Layouts with keys this reader
+    doesn't know are passed over."""
     exe_sha1 = exe_sha1 or version_for(entry, release_id)
     general = None
     for lay in entry.get("layouts", []):
+        if not understood(lay):
+            continue
         if exe_sha1 and exe_sha1 in lay.get("versions", []):
             return lay
         if not lay.get("versions") and general is None:

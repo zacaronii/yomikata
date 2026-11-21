@@ -280,6 +280,99 @@ def cases() -> list[dict]:
          {0x02000000: rows(["あ".encode("utf-8"), "い".encode("utf-8")], 8)},
          {"speaker": "あ", "errors": {"message": ""}})
 
+    case("rows-lengths-characters",
+         "One length per row, counted in characters: a game that writes a new line over the old one leaves the "
+         "old line's end behind, and only the lengths say where the new one stops. A one-byte character counts "
+         "as one. A row of length 0 is empty, and empty rows at the end are dropped.",
+         {"message": {"address": "0x80110000", "charset": "shift_jis", "max_bytes": 12,
+                      "rows": {"count": 3, "stride": 12,
+                               "lengths": {"address": "0x80110024", "counts": "characters"}}}},
+         {0x80110000: rows([sjis("Aあいうえ"), sjis("かきくけ"), sjis("さし")], 12) + bytes([3, 1, 0])},
+         {"message": "Aあい\nか"})
+
+    case("rows-lengths-bytes",
+         "Row lengths count bytes unless they say otherwise, and each number comes right after the last: u16 "
+         "lengths are 2 bytes apart. A length that ends inside a character drops it; an empty row in the middle "
+         "stays.",
+         {"message": {"address": "0x08A20000", "charset": "utf16le", "max_bytes": 8,
+                      "rows": {"count": 3, "stride": 8, "lengths": {"address": "0x08A20018", "type": "u16"}}}},
+         {0x08A20000: rows([u16("あいうえ"), u16("かきくけ"), u16("さしすせ")], 8) + num(4, 2) + num(0, 2) + num(3, 2)},
+         {"message": "あい\n\nさ"})
+
+    case("rows-lengths-pointer",
+         "Row lengths behind a pointer chain, big-endian: the chain gives the first length's address.",
+         {"endian": "big",
+          "message": {"address": "0x80300000", "charset": "utf8", "max_bytes": 8,
+                      "rows": {"count": 2, "stride": 8,
+                               "lengths": {"base": "0x80300010", "offsets": ["0x4"], "type": "s16"}}}},
+         {0x80300000: rows([b"ABCDEFGH", b"IJKLMNOP"], 8) + num(0x80300020, 4, big=True),
+          0x80300020: bytes(4) + num(2, 2, big=True) + num(-1, 2, big=True)},
+         {"message": "AB"})
+
+    case("length-characters",
+         "A length in characters. The terminator still ends the text first, and so does max_bytes; a length "
+         "below zero is 0.",
+         {"message": {"address": "0x02000000", "charset": "utf8", "max_bytes": 16, "terminator": "00",
+                      "length": {"address": "0x02000030", "counts": "characters"}},
+          "speaker": {"address": "0x02000010", "charset": "utf8", "max_bytes": 16, "terminator": "00",
+                      "length": {"address": "0x02000031", "counts": "characters"}},
+          "choices": {"address": "0x02000020", "charset": "utf8", "max_bytes": 4,
+                      "length": {"address": "0x02000031", "counts": "characters"},
+                      "rows": {"count": 2, "stride": 8}}},
+         {0x02000000: pad("あAいう".encode("utf-8"), 16) + pad("あい".encode("utf-8"), 16)
+                      + rows(["あい".encode("utf-8"), b"ABCDEFGH"], 8) + bytes([3, 9])},
+         {"message": "あAい", "speaker": "あい", "choices": ["あ", "ABCD"]})
+
+    case("length-characters-negative-table",
+         "A length in characters with a table: each code is one character, whatever it decodes to (here a "
+         "control that is nothing, and a newline). A length below zero is 0.",
+         {"message": {"address": "0x80200000", "charset": "table", "max_bytes": 16,
+                      "length": {"address": "0x80200010", "counts": "characters"}},
+          "speaker": {"address": "0x80200000", "charset": "table", "max_bytes": 16,
+                      "length": {"address": "0x80200011", "type": "s8", "counts": "characters"}}},
+         {0x80200000: bytes.fromhex("0001 F001 FFFE 0002 0003 0004 0005 0006") + bytes([4, 0xFF])},
+         {"message": "あ\nい", "speaker": ""},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2, "controls": {"F001": "wait"}},
+         tables={"tables/test/kana.tbl": KANA})
+
+    case("length-and-rows-lengths",
+         "With both a length and row lengths, both hold: here no row is longer than 4 bytes, and each row "
+         "also stops at its own count of characters.",
+         {"message": {"address": "0x80110000", "charset": "shift_jis", "max_bytes": 8,
+                      "length": {"address": "0x80110010"},
+                      "rows": {"count": 2, "stride": 8,
+                               "lengths": {"address": "0x80110011", "counts": "characters"}}}},
+         {0x80110000: rows([sjis("あいうえ"), sjis("かきくけ")], 8) + bytes([4, 3, 1])},
+         {"message": "あい\nか"})
+
+    case("when-false",
+         "A text whose `when` is false is empty, and nothing else of it is read (the message's address isn't "
+         "in memory here, and that is no error). What is on screen is empty too; an empty choices text is no "
+         "answers. `when` is a flag like the others: nonzero, or `equals`.",
+         {"message": {"address": "0x09000000", "charset": "utf8", "max_bytes": 16, "terminator": "00",
+                      "when": {"address": "0x02000020"}},
+          "shown": {"address": "0x02000023"},
+          "speaker": {"address": "0x02000000", "charset": "utf8", "max_bytes": 16, "terminator": "00",
+                      "when": {"address": "0x02000021", "equals": 2}},
+          "choices": {"address": "0x02000010", "charset": "utf8", "max_bytes": 8, "terminator": "00",
+                      "rows": {"count": 2, "stride": 8}, "when": {"address": "0x02000022", "equals": 2}}},
+         {0x02000000: pad("あい".encode("utf-8"), 16) + rows(["う".encode("utf-8"), "え".encode("utf-8")], 8)
+                      + bytes([0, 2, 1, 5])},
+         {"message": "", "shown": 5, "on_screen": "", "speaker": "あい", "choices": []})
+
+    case("when-unreadable",
+         "A `when` that can't be read fails its text (the reader can't tell whether it is on screen), and so "
+         "do row lengths that can't all be read. The other fields are still read.",
+         {"message": {"address": "0x02000000", "charset": "utf8", "max_bytes": 8, "terminator": "00",
+                      "when": {"base": "0x02000018", "offsets": ["0x0"]}},
+          "choices": {"address": "0x02000000", "charset": "utf8", "max_bytes": 8,
+                      "rows": {"count": 3, "stride": 8, "lengths": {"address": "0x0200001A"}}},
+          "speaker": {"address": "0x02000008", "charset": "utf8", "max_bytes": 8, "terminator": "00",
+                      "when": {"address": "0x0200001A"}}},
+         {0x02000000: rows(["あ".encode("utf-8"), "い".encode("utf-8"), "う".encode("utf-8")], 8)
+                      + bytes([0, 0, 3, 3])},
+         {"speaker": "い", "errors": {"message": "", "choices": ""}})
+
     return out
 
 
