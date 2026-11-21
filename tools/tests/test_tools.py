@@ -113,7 +113,8 @@ def test_scan_finds_script_runs_per_encoding_and_ignores_kanji_lists():
     from yomikata.scan import ScanResult, compressed, runs
     line = "「そんな学園への入学資格は２つしかない。」と彼は言った。"
     for codec, enc in (("cp932", "shift_jis"), ("utf-16-le", "utf16le"), ("utf-8", "utf8")):
-        found = {k: v[0] for k, v in runs(os.urandom(200) + line.encode(codec) + os.urandom(200)).items()}
+        pad = b"\x00\x01" * 100                           # fixed, so the run can't be extended by chance
+        found = {k: v[0] for k, v in runs(pad + line.encode(codec) + pad).items()}
         assert found[enc] >= 20 and sum(found.values()) == found[enc], (enc, found)
     assert runs("一二三四五六七八九十百千万".encode("cp932"))["shift_jis"][0] == 0      # a font list, not script
     for noise in ("ャ" * 40, "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほ", "う" * 30 + "ああ"):
