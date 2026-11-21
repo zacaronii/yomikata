@@ -69,6 +69,33 @@
         }
       }
     },
+    "layouts": {
+      "description": "Where the game keeps what it shows, for readers that read memory instead of hooking. Every field is optional: a partial layout (just the message) is still useful.",
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "properties": {
+          "versions": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+                       "description": "exe_sha1 values this layout was confirmed on; empty = all listed versions."},
+          "endian": {"enum": ["little", "big"], "description": "Of pointers and numbers. Default little (GameCube/Wii: big)."},
+          "poll": {"oneOf": [{"const": "frame"}, {"type": "integer", "minimum": 1, "maximum": 60}],
+                   "description": "How often reading is enough: every frame, or a rate in Hz."},
+          "message": {"$ref": "#/$defs/text", "description": "The text the message window shows (whole, even while it types out)."},
+          "speaker": {"oneOf": [{"$ref": "#/$defs/text"}, {"$ref": "#/$defs/int"}],
+                      "description": "Who speaks: the name as text, or a number (see speaker_names)."},
+          "speaker_names": {"type": "object", "propertyNames": {"pattern": "^[0-9]{1,5}$"},
+                            "additionalProperties": {"type": "string", "maxLength": 40},
+                            "description": "Number -> the name as shown, for games whose name plate is a picture. Names only."},
+          "shown": {"$ref": "#/$defs/int", "description": "How many characters of the message are on screen yet."},
+          "waiting": {"$ref": "#/$defs/int", "description": "Flag: the line is complete and the game waits for a press."},
+          "choosing": {"$ref": "#/$defs/int", "description": "Flag: a choice is up."},
+          "choices": {"$ref": "#/$defs/text", "description": "The answers, one per row."},
+          "choice_count": {"$ref": "#/$defs/int"},
+          "choice_cursor": {"$ref": "#/$defs/int", "description": "Which answer (from 0) the cursor is on."},
+          "notes": {"type": "string", "maxLength": 600}
+        }
+      }
+    },
     "status": {"enum": ["verified", "auto", "partial"],
                "description": "verified: a person confirmed it in play. auto: built by the pipeline and passed validation. partial: known gaps."},
     "coverage": {
@@ -81,5 +108,38 @@
   "allOf": [
     {"if": {"properties": {"encoding": {"const": "table"}, "status": {"const": "verified"}}},
      "then": {"required": ["tables", "unit"]}}
-  ]
+  ],
+  "$defs": {
+    "address": {"type": "string", "pattern": "^0x[0-9A-Fa-f]{1,16}$"},
+    "offsets": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/address"}},
+    "where": {
+      "description": "A fixed address, or a pointer chain: start at base; for each offset, read the pointer there and add the offset.",
+      "oneOf": [{"required": ["address"], "not": {"required": ["base"]}}, {"required": ["base", "offsets"], "not": {"required": ["address"]}}]
+    },
+    "int": {
+      "type": "object", "additionalProperties": false, "$ref": "#/$defs/where",
+      "properties": {
+        "address": {"$ref": "#/$defs/address"}, "base": {"$ref": "#/$defs/address"}, "offsets": {"$ref": "#/$defs/offsets"},
+        "type": {"enum": ["u8", "u16", "u32", "s8", "s16", "s32"], "description": "Default u8."},
+        "equals": {"type": "integer", "description": "For flags: true when the value equals this (default: true when nonzero)."}
+      }
+    },
+    "text": {
+      "type": "object", "additionalProperties": false, "$ref": "#/$defs/where", "required": ["charset", "max_bytes"],
+      "properties": {
+        "address": {"$ref": "#/$defs/address"}, "base": {"$ref": "#/$defs/address"}, "offsets": {"$ref": "#/$defs/offsets"},
+        "charset": {"enum": ["shift_jis", "euc_jp", "utf16le", "utf16be", "utf8", "table"],
+                    "description": "table: the entry's tables, unit and controls."},
+        "max_bytes": {"type": "integer", "minimum": 1, "maximum": 65536, "description": "Never read more than this (per row, with rows)."},
+        "terminator": {"type": "string", "pattern": "^([0-9A-Fa-f]{2})+$",
+                       "description": "Hex in memory byte order, checked at character boundaries: 00, 0000, FFFF."},
+        "length": {"$ref": "#/$defs/int", "description": "The text's length in bytes, read from memory."},
+        "rows": {"type": "object", "additionalProperties": false, "required": ["count", "stride"],
+                 "properties": {"count": {"type": "integer", "minimum": 1, "maximum": 64},
+                                "stride": {"type": "integer", "minimum": 1, "maximum": 65536}},
+                 "description": "Rows stride bytes apart, each read to its terminator (or the stride), joined with newlines."},
+        "cleanup": {"$ref": "#/properties/cleanup"}
+      }
+    }
+  }
 }
