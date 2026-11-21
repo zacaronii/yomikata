@@ -32,3 +32,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## LunaHook, from LunaTranslator (GPL-3.0)
+
+https://github.com/HIllya51/LunaTranslator — PPSSPP hook addresses
+(`src/NativeImpl/LunaHook/LunaHook/emulators/ppsspp_1.cpp`) and the katakana remap from
+`util/stringfilters.cpp`. GPL-3.0, compatible with this repository's GPL-3.0-or-later.
+
+Used by: `games/psp/ULJM05603.json` (My Merry May with be), `games/psp/NPJH50515.json` (ダンガンロンパ),
+`games/psp/NPJH50631.json` (スーパーダンガンロンパ2), `games/psp/ULJM06232.json` (グリザイアの果実),
+`games/psp/ULJM05338.json` (CLANNAD).
