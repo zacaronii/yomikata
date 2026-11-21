@@ -1,5 +1,6 @@
-# Human (Moonlight Syndrome, Twilight Syndrome): 16-bit codes, stored high byte first (00 50 = あ).
-# Kana in gojuon order. Confirmed from Moonlight Syndrome (SLPS-01001) RAM and disc: あかくたてとなのもよられんだばっ
+# Human's Moonlight Syndrome (SLPS-01001): 16-bit codes, stored high byte first (00 50 = あ).
+# Kana in gojuon order. (Twilight Syndrome uses a different layout: tables/ps1/SLPS-00102.tbl.)
+# Confirmed from Moonlight Syndrome (SLPS-01001) RAM and disc: あかくたてとなのもよられんだばっ
 # しゃ (hiragana) and コンパ, ファン, サイン (katakana); the rest follows the same layout.
 0003=・
 0050=あ

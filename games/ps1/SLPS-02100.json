@@ -13,7 +13,8 @@
   "status": "partial",
   "sources": [
     "yomikata scan 0.1.0 of the disc files: shift_jis 609, utf16le 62 characters of prose-like text",
-    "Genkan memory search during play: the game uses its own table"
+    "Genkan memory search during play: the game uses its own table",
+    "Five Genkan RAM snapshots of the opening: `yomikata locate` found no dialogue line as a run of codes in RAM (only record tables that fit by chance)"
   ],
-  "notes": "Own character table (found in play). The disc shows only a little Shift-JIS system text. Needs memory samples (or the font) to map the table."
+  "notes": "Own character table (found in play). The dialogue isn't stored in RAM as a plain run of codes: it's probably decompressed into a short-lived buffer or drawn straight to video memory, so RAM snapshots alone don't map it. The disc shows only a little Shift-JIS system text."
 }

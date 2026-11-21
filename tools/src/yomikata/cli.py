@@ -31,6 +31,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--root", type=Path, default=Path("."))
     p.add_argument("--min-lines", type=int, default=5)
     p.add_argument("--min-rate", type=float, default=0.8)
+    p = sub.add_parser("locate", help="find OCR'd lines in RAM snapshots by their pattern of repeated characters")
+    p.add_argument("snapshots", nargs="+", type=Path, help="<sha1>.ram.gz files from an inbox (their .json beside them)")
+    p.add_argument("--show-hits", action="store_true", help="print each match's segment (script text: review only)")
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -77,6 +80,24 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "hooks":
         from .hooks import merge, summary
         print(summary(merge(args.root, args.reports, args.min_lines, args.min_rate)))
+        return 0
+    if args.cmd == "locate":
+        import gzip
+        from .locate import locate
+        snaps = []
+        for p in args.snapshots:
+            meta = json.loads(Path(str(p).replace(".ram.gz", ".json")).read_text(encoding="utf-8"))
+            raw = p.read_bytes()
+            snaps.append((gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw, meta["ocr"]))
+        for r in locate(snaps):
+            print(f"== {r.encoding}: {len(r.hits)} matches, {len(r.mapping)} codes, {len(r.conflicts)} conflicts")
+            print("   kana layout (code - gojuon position -> count):", r.gojuon_offsets())
+            print("   mapping:", " ".join(f"{c:04X}={ch}" for c, ch in sorted(r.mapping.items())))
+            for c in r.conflicts[:10]:
+                print("   conflict", c)
+            if args.show_hits:
+                for h in r.hits[:30]:
+                    print(f"   @{h['offset']:#08x} {h['segment']}")
         return 0
     if args.cmd == "validate":
         problems = catalog.validate(args.root)
