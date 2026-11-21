@@ -56,6 +56,11 @@ Upload at most 80 MB. Other parts are ignored.
   memory). Then the font in video memory and the frame on screen are what tie glyphs to characters.
 - Two or three snapshots taken at different lines of the same scene are far more useful than one: each line is a
   separate constraint when working out a game's own table.
+- For a game in a standard encoding, `yomikata locate <snapshots>` goes one step further: when a place in memory was
+  seen to change from one line to another, it prints that buffer as a layout's `message` block (address, rows and
+  stride if the window is stored row by row) and reads it back against each snapshot's OCR. Three snapshots of
+  different lines, plus one with no window on screen, are enough; one line alone can't tell the window's buffer
+  from the script and backlog copies a game also keeps.
 
 ## Hook reports (readers)
 

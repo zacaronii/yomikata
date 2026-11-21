@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "locate":
         import gzip
         from .layout import RAM_BASE
-        from .locate import find_standard, locate
+        from .locate import find_standard, locate, propose
         snaps, bases = [], []
         for p in args.snapshots:
             meta = json.loads(Path(str(p).replace(".ram.gz", ".json")).read_text(encoding="utf-8"))
@@ -118,6 +118,23 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"   {p.name.split('.')[0][:8]}: " + (" ".join(
                     f"0x{bases[n] + h['offset']:08X}" + (f"({h['segment']})" if args.show_hits else f"+{len(h['segment'])}")
                     for h in mine) or "nothing"))
+        if standard:
+            charset, hits = next(iter(standard.items()))
+            got = propose(snaps, hits, charset, bases[0]) if len(set(bases)) == 1 else None
+            if got:
+                rows = got["message"].get("rows")
+                print("The lines stand in one fixed buffer. As a layout's `message`"
+                      + (f" ({got['rows_seen']} of its {rows['count']} rows were seen with text; the rest were empty up to"
+                         " where other data begins)" if rows and rows["count"] > got["rows_seen"] else "")
+                      + (" (max_bytes is a guess: twice the longest line seen)" if not rows else "") + ":")
+                print("   " + json.dumps(got["message"], ensure_ascii=False))
+                print("   read back against OCR: " + ", ".join(
+                    f"{p.name.split('.')[0][:8]} " + ("empty, the screen's text is elsewhere" if a is None else f"{a:.0%}")
+                    + (f" (and {more} characters the screen didn't show: still typing?)" if more > 3 else "")
+                    for p, a, more in zip(args.snapshots, got["agreement"], got["longer"])))
+            else:
+                print("No place was seen to change from one line to another, so the window's buffer can't be told from "
+                      "script or backlog copies yet: snapshots of more lines will settle it.")
         if standard and not args.pattern:
             print("A standard encoding matched, so the search by pattern (for a game's own table) was skipped; --pattern runs it.")
             return 0
