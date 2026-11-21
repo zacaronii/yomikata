@@ -1,6 +1,13 @@
 {
  "format": 1,
  "entries": {
+  "NPJH50127": {
+   "path": "games/psp/NPJH50127.json",
+   "sha256": "ff7013c8bf55a06aa5839dd104c81428aa594fab5ef722bd2ec1bae2761e07d0",
+   "platform": "psp",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "SLPS-00102": {
    "path": "games/ps1/SLPS-00102.json",
    "sha256": "0c6b9455f3e06b4430d1a0836048fddd391520a5b95c6e9fcb8a7dfc52e16a97",
@@ -36,6 +43,13 @@
    "platform": "ps1",
    "encoding": "shift_jis",
    "status": "verified"
+  },
+  "ULJM06119": {
+   "path": "games/psp/ULJM06119.json",
+   "sha256": "bb72eb26e8095de7665e0928eb7a431ad48f25733a73d029272094ea9f86d28a",
+   "platform": "psp",
+   "encoding": "utf8",
+   "status": "partial"
   }
  }
 }
