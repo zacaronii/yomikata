@@ -31,6 +31,25 @@ built from them come back as ordinary pull requests.
 - `GET /api/samples` lists what's stored per game (count, last upload, whether the exe hash is known).
 - Errors: `400` with the reason, `401` without the token, `413` when too large.
 
+## RAM snapshots (readers)
+
+When matching a line on the device is unreliable (short lines, unknown tables), a reader can send the **whole main
+RAM** taken while a line is on screen, and let the inbox's side do the searching: `POST /api/snapshots`, same token,
+`multipart/form-data` with two parts:
+
+| Part | |
+|---|---|
+| `meta` | JSON: `id`, `platform` (`ps1`, `ps2`, `psp`), `base_address` (where the dump starts, e.g. `0x80000000` for PS1, `0x08000000` for PSP), `ocr` (the line or lines on screen, 1-10), and optionally `title`, `exe_sha1`, `captured_at`, `app`, `emulator`, `note` |
+| `ram` | The raw RAM bytes (PS1: 2 MB; PSP: up to 32 MB), optionally gzipped. Upload at most 40 MB |
+
+- The dump must lie inside main RAM (`base_address` + size), as with sample addresses.
+- Answers: `{"ok": true, "id": …, "added": true, "sha1": …, "stored": 3}`. The same RAM sent again gives
+  `"added": false`. `400` with the reason, `401`, `413`.
+- Snapshots hold script text: they're kept gzipped in the inbox (the newest 40 per game), never in the catalog.
+- `GET /api/snapshots` lists them per game (count, lines, last upload).
+- Two or three snapshots taken at different lines of the same scene are far more useful than one: each line is a
+  separate constraint when working out a game's own table.
+
 ## Hook reports (readers)
 
 `POST /api/hooks` with the same token: one hook a reader found and checked in play, in the report format of
