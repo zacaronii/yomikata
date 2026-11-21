@@ -39,6 +39,14 @@ MAX_BODY = 4 * 1024 * 1024
 MAX_SAMPLES = 500                     # kept per game (oldest dropped first)
 
 
+def write_json(p: Path, data: dict) -> None:
+    """Write via a temporary file and swap it in, so a reader never sees half a file."""
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(p)
+
+
 def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -204,10 +212,7 @@ class Inbox:
                     added += 1
             stored["samples"] = stored["samples"][-MAX_SAMPLES:]
             stored["uploads"] = (stored["uploads"] + [{"at": now(), "sent": len(new), "added": added}])[-50:]
-            p.parent.mkdir(parents=True, exist_ok=True)
-            tmp = p.with_suffix(".tmp")
-            tmp.write_text(json.dumps(stored, ensure_ascii=False, indent=1), encoding="utf-8")
-            tmp.replace(p)
+            write_json(p, stored)
         if not stored.get("exe_sha1") and self.library:
             threading.Thread(target=self.fill_hash, args=(platform, game_id), daemon=True).start()
         return {"ok": True, "id": game_id, "added": added, "stored": len(stored["samples"])}
@@ -223,10 +228,7 @@ class Inbox:
                        if (x["hook"]["address"], x["hook"]["register"], x.get("disc_version")) != key]
             replaced = len(reports) != len(stored["reports"])
             stored["reports"] = reports + [{**r, "received_at": now()}]
-            p.parent.mkdir(parents=True, exist_ok=True)
-            tmp = p.with_suffix(".tmp")
-            tmp.write_text(json.dumps(stored, ensure_ascii=False, indent=1), encoding="utf-8")
-            tmp.replace(p)
+            write_json(p, stored)
         if not r.get("exe_sha1") and self.library:
             threading.Thread(target=self.fill_hook_hash, args=(r["platform"], r["id"]), daemon=True).start()
         return {"ok": True, "id": r["id"], "replaced": replaced, "reports": len(stored["reports"])}
@@ -244,12 +246,13 @@ class Inbox:
             stored = json.loads(p.read_text(encoding="utf-8"))
             for x in stored["reports"]:
                 x.setdefault("exe_sha1", rec.get("exe_sha1"))
-            p.write_text(json.dumps(stored, ensure_ascii=False, indent=1), encoding="utf-8")
+            write_json(p, stored)
 
     def hooks(self) -> list[dict]:
         out = []
-        for p in sorted((self.data / "hooks").glob("*/*.json")):
-            s = json.loads(p.read_text(encoding="utf-8"))
+        with self.lock:
+            files = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((self.data / "hooks").glob("*/*.json"))]
+        for s in files:
             out.append({"id": s["id"], "platform": s["platform"], "reports": [
                 {"address": r["hook"]["address"], "register": r["hook"]["register"], "charset": r["hook"]["charset"],
                  "disc_version": r.get("disc_version"), "matched": f"{r['evidence']['lines_matched']}/"
@@ -269,13 +272,14 @@ class Inbox:
             p = self.path(platform, game_id)
             stored = json.loads(p.read_text(encoding="utf-8"))
             stored["exe_sha1"], stored["exe"] = rec.get("exe_sha1"), rec.get("exe")
-            p.write_text(json.dumps(stored, ensure_ascii=False, indent=1), encoding="utf-8")
+            write_json(p, stored)
         log.info("%s: exe hash filled from the library", game_id)
 
     def summary(self) -> list[dict]:
         out = []
-        for p in sorted((self.data / "samples").glob("*/*.json")):
-            s = json.loads(p.read_text(encoding="utf-8"))
+        with self.lock:
+            files = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((self.data / "samples").glob("*/*.json"))]
+        for s in files:
             out.append({"id": s["id"], "platform": s["platform"], "title": s.get("title"), "samples": len(s["samples"]),
                         "exe_sha1": s.get("exe_sha1"), "last_upload": (s.get("uploads") or [{}])[-1].get("at")})
         return out
