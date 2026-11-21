@@ -141,8 +141,17 @@ def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, end
     return apply(apply(text, spec.get("cleanup", [])), entry.get("cleanup", []))      # its own, then the entry's
 
 
-def pick(entry: dict, exe_sha1: str | None = None) -> dict | None:
-    """The layout for this version: one that lists it, else one that lists no versions."""
+def version_for(entry: dict, release_id: str | None) -> str | None:
+    """For a reader that can't hash the executable: the `exe_sha1` of the only version listed for its release id
+    (a version without `id` belongs to the entry's own). None when the id has several versions, or none."""
+    mine = [v for v in entry.get("versions", []) if v.get("id", entry.get("id")) == release_id]
+    return mine[0].get("exe_sha1") if len(mine) == 1 else None
+
+
+def pick(entry: dict, exe_sha1: str | None = None, release_id: str | None = None) -> dict | None:
+    """The layout for this version: one that lists it, else one that lists no versions. Without a hash, the
+    version is the only one listed for `release_id`, if there is just one."""
+    exe_sha1 = exe_sha1 or version_for(entry, release_id)
     general = None
     for lay in entry.get("layouts", []):
         if exe_sha1 and exe_sha1 in lay.get("versions", []):

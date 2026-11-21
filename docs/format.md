@@ -79,7 +79,7 @@ Every field is optional, and a layout with only `message` is already useful.
 
 | Field | |
 |---|---|
-| `versions` | `exe_sha1` values the layout was confirmed on; empty = every listed version. A reader picks the layout naming its version, else one naming none |
+| `versions` | `exe_sha1` values the layout was confirmed on; empty = every listed version. A reader picks the layout naming its version, else one naming none (see below) |
 | `endian` | Of pointers and numbers: `little` (default) or `big` (GameCube, Wii) |
 | `poll` | How often reading is enough: `"frame"`, or a rate in Hz |
 | `message` | *text*: what the message window shows |
@@ -98,6 +98,13 @@ Every *number*, *flag* and *text* says where it is in one of two ways:
 
 A *number* has a `type` (`u8` default, `u16`, `u32`, `s8`, `s16`, `s32`). As a *flag* it is true when nonzero, or
 when it `equals` a given value.
+
+**Which layout:** a reader that knows the executable's SHA-1 picks the layout naming it, else the first one naming
+no versions. A reader that can't hash the executable (one that only sees the game's memory) still knows the release
+id. If the entry's `versions` list exactly one version for that id (a version without `id` belongs to the entry's
+own), the reader takes that version's `exe_sha1` as its own and picks the same way. If the id has several versions,
+or none, only a layout naming no versions fits. Taking the only listed version is a guess: an unlisted revision
+of the same release would get a layout made for another one. Listing that revision in `versions` ends the guess.
 
 A *text* has:
 - a `charset`: `shift_jis`, `euc_jp`, `utf16le`, `utf16be`, `utf8`, or `table` (the entry's `tables`, `unit` and

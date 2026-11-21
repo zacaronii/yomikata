@@ -104,6 +104,21 @@ def test_pick_prefers_the_version():
     assert layout.pick({"layouts": [{"versions": ["b" * 40]}]}, None) is None
 
 
+def test_pick_without_a_hash_takes_the_only_version_of_the_release():
+    lays = [{"notes": "general"}, {"versions": ["b" * 40], "notes": "b"}, {"versions": ["c" * 40], "notes": "c"}]
+    e = {"id": "SLPS-00001", "aliases": ["SLPS-00002"], "layouts": lays,
+         "versions": [{"exe_sha1": "b" * 40}, {"exe_sha1": "c" * 40, "id": "SLPS-00002"}]}
+    assert layout.pick(e, None, "SLPS-00001")["notes"] == "b"          # a version without an id is the entry's own
+    assert layout.pick(e, None, "SLPS-00002")["notes"] == "c"
+    assert layout.pick(e, "c" * 40, "SLPS-00001")["notes"] == "c"      # a hash, when there is one, decides
+    assert layout.pick(e, None, "SLPS-00003")["notes"] == "general"    # an id with no version listed
+    e["versions"].append({"exe_sha1": "d" * 40, "note": "rev 1"})
+    assert layout.pick(e, None, "SLPS-00001")["notes"] == "general"    # two versions of one id: no guessing
+    assert layout.pick({**e, "layouts": lays[1:]}, None, "SLPS-00001") is None
+    cart = {"id": "AXXJ", "versions": [{"header_crc32": "0" * 8}], "layouts": lays}
+    assert layout.pick(cart, None, "AXXJ")["notes"] == "general"       # no executable hash to name
+
+
 def test_big_endian_pointers():
     m = ram()
     put(m, BASE + 0x20, struct.pack(">I", BASE + 0x80))
