@@ -63,6 +63,10 @@ RAM = {
 }
 
 
+# Optional parts kept with a snapshot, and their size limits once uncompressed.
+EXTRA_PARTS = {"state": 32 * 1024 * 1024,      # the emulator's savestate (holds video memory on PCSX ReARMed)
+               "vram": 2 * 1024 * 1024,        # video memory, when the core gives it out
+               "screen": 4 * 1024 * 1024}      # the frame on screen (PNG)
 # The largest RAM snapshot accepted per platform (main RAM size), and how many are kept per game.
 SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000}
 SNAPSHOTS_PER_GAME = 40
@@ -251,8 +255,23 @@ class Inbox:
             threading.Thread(target=self.fill_hash, args=(platform, game_id), daemon=True).start()
         return {"ok": True, "id": game_id, "added": added, "stored": len(stored["samples"])}
 
-    def add_snapshot(self, meta: dict, ram: bytes) -> dict:
+    def add_snapshot(self, meta: dict, ram: bytes, extras: dict[str, bytes] | None = None) -> dict:
         m = clean_snapshot_meta(meta)
+        kept = {}
+        for name, data in (extras or {}).items():
+            if name not in EXTRA_PARTS or not data:
+                continue
+            raw = data
+            if data[:2] == b"\x1f\x8b":
+                try:
+                    raw = gzip.decompress(data)
+                except (OSError, EOFError):
+                    raise ValueError(f"{name} looks gzipped but doesn't decompress") from None
+            if len(raw) > EXTRA_PARTS[name]:
+                raise ValueError(f"{name} is larger than {EXTRA_PARTS[name] // 1024 // 1024} MB")
+            if name == "screen" and raw[:8] != b"\x89PNG\r\n\x1a\n":
+                raise ValueError("screen must be a PNG")
+            kept[name] = raw
         if ram[:2] == b"\x1f\x8b":
             try:
                 ram = gzip.decompress(ram)
@@ -271,13 +290,20 @@ class Inbox:
                 return {"ok": True, "id": m["id"], "added": False, "sha1": digest}
             folder.mkdir(parents=True, exist_ok=True)
             (folder / f"{digest}.ram.gz").write_bytes(gzip.compress(ram, 6))
-            write_json(folder / f"{digest}.json", {**m, "size": len(ram), "sha1": digest, "received_at": now()})
+            for name, raw in kept.items():
+                if name == "screen":
+                    (folder / f"{digest}.screen.png").write_bytes(raw)
+                else:
+                    (folder / f"{digest}.{name}.gz").write_bytes(gzip.compress(raw, 6))
+            write_json(folder / f"{digest}.json", {**m, "size": len(ram), "sha1": digest, "received_at": now(),
+                                                   "parts": sorted(["ram", *kept])})
             metas = sorted(folder.glob("*.json"), key=lambda p: json.loads(p.read_text(encoding="utf-8"))["received_at"])
             for old in metas[:-SNAPSHOTS_PER_GAME]:            # keep the newest ones
-                old.with_name(old.name.replace(".json", ".ram.gz")).unlink(missing_ok=True)
-                old.unlink()
+                stem = old.name[: -len(".json")]
+                for f in folder.glob(stem + ".*"):
+                    f.unlink(missing_ok=True)
             count = len(list(folder.glob("*.json")))
-        return {"ok": True, "id": m["id"], "added": True, "sha1": digest, "stored": count}
+        return {"ok": True, "id": m["id"], "added": True, "sha1": digest, "stored": count, "parts": sorted(["ram", *kept])}
 
     def snapshots(self) -> list[dict]:
         out = []
@@ -287,6 +313,7 @@ class Inbox:
                 if metas:
                     out.append({"id": folder.name, "platform": folder.parent.name, "snapshots": len(metas),
                                 "lines": sum(len(m["ocr"]) for m in metas),
+                                "with": {p: sum(1 for m in metas if p in m.get("parts", [])) for p in EXTRA_PARTS},
                                 "last_upload": max(m["received_at"] for m in metas)})
         return out
 
@@ -393,8 +420,8 @@ def create_app(token: str, data: Path, library_root: Path | None = None, scratch
     @app.post("/api/snapshots")
     async def snapshot(request: Request):
         auth(request)
-        if int(request.headers.get("content-length") or 0) > 40 * 1024 * 1024:
-            raise HTTPException(413, "a snapshot upload is at most 40 MB")
+        if int(request.headers.get("content-length") or 0) > 80 * 1024 * 1024:
+            raise HTTPException(413, "a snapshot upload is at most 80 MB")
         try:
             form = await request.form(max_part_size=1024 * 1024)
         except Exception:
@@ -406,8 +433,13 @@ def create_app(token: str, data: Path, library_root: Path | None = None, scratch
             meta_obj = json.loads(meta if isinstance(meta, str) else (await meta.read()).decode("utf-8"))
         except ValueError:
             raise HTTPException(400, "meta must be JSON") from None
+        extras = {}
+        for name in EXTRA_PARTS:
+            part = form.get(name)
+            if part is not None and not isinstance(part, str):
+                extras[name] = await part.read()
         try:
-            return inbox.add_snapshot(meta_obj, await ram.read())
+            return inbox.add_snapshot(meta_obj, await ram.read(), extras)
         except ValueError as e:
             raise HTTPException(400, str(e)) from None
 

@@ -40,13 +40,20 @@ RAM** taken while a line is on screen, and let the inbox's side do the searching
 | Part | |
 |---|---|
 | `meta` | JSON: `id`, `platform` (`ps1`, `ps2`, `psp`), `base_address` (where the dump starts, e.g. `0x80000000` for PS1, `0x08000000` for PSP), `ocr` (the line or lines on screen, 1-10), and optionally `title`, `exe_sha1`, `captured_at`, `app`, `emulator`, `note` |
-| `ram` | The raw RAM bytes (PS1: 2 MB; PSP: up to 32 MB), optionally gzipped. Upload at most 40 MB |
+| `ram` | The raw RAM bytes (PS1: 2 MB; PSP: up to 32 MB), optionally gzipped |
+| `state` | Optional: the emulator's savestate (libretro `retro_serialize`), gzipped, up to 32 MB. On PCSX ReARMed it holds the 1 MB of video memory, which `yomikata vram` extracts |
+| `vram` | Optional: the video memory itself, when the core gives it out (PS1: 1 MB) |
+| `screen` | Optional: the frame on screen as a PNG, up to 4 MB |
+
+Upload at most 80 MB. Other parts are ignored.
 
 - The dump must lie inside main RAM (`base_address` + size), as with sample addresses.
 - Answers: `{"ok": true, "id": …, "added": true, "sha1": …, "stored": 3}`. The same RAM sent again gives
   `"added": false`. `400` with the reason, `401`, `413`.
 - Snapshots hold script text: they're kept gzipped in the inbox (the newest 40 per game), never in the catalog.
-- `GET /api/snapshots` lists them per game (count, lines, last upload).
+- `GET /api/snapshots` lists them per game (count, lines, how many carry each optional part, last upload).
+- Why the extras: some games never hold a line as codes in RAM (it's decompressed briefly, or drawn straight to video
+  memory). Then the font in video memory and the frame on screen are what tie glyphs to characters.
 - Two or three snapshots taken at different lines of the same scene are far more useful than one: each line is a
   separate constraint when working out a game's own table.
 
