@@ -1,0 +1,31 @@
+{
+  "id": "ULJM05603",
+  "platform": "psp",
+  "title": "My Merry May with be",
+  "title_romaji": "My Merry May with be",
+  "encoding": "shift_jis",
+  "hooks": [
+    {
+      "address": "0x0886F014",
+      "register": "a3",
+      "charset": "shift_jis",
+      "cleanup": [
+        {
+          "regex": "%K|%P|%p|%N|%V|%LC|%LE|%FS|%FE|%CFFFF|☆",
+          "replace": ""
+        },
+        {
+          "remap": {
+            "├": "ー",
+            "┤": "ー"
+          }
+        }
+      ]
+    }
+  ],
+  "status": "partial",
+  "sources": [
+    "Hook adapted from LunaHook's PPSSPP table (GPL-3.0), LunaTranslator src/NativeImpl/LunaHook/LunaHook/emulators/ppsspp_1.cpp"
+  ],
+  "notes": "Ported into Genkan from a published hook; not yet confirmed in play with Genkan."
+}

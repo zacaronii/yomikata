@@ -1,0 +1,98 @@
+{
+  "id": "ULJM06232",
+  "aliases": [
+    "ULJM06233"
+  ],
+  "platform": "psp",
+  "title": "グリザイアの果実 -LE FRUIT DE LA GRISAIA-",
+  "title_romaji": "Grisaia no Kajitsu",
+  "encoding": "shift_jis",
+  "hooks": [
+    {
+      "address": "0x08840324",
+      "register": "t0",
+      "charset": "shift_jis",
+      "cleanup": [
+        {
+          "remap": {
+            "ｧ": "ぁ",
+            "ｨ": "ぃ",
+            "ｩ": "ぅ",
+            "ｪ": "ぇ",
+            "ｫ": "ぉ",
+            "ｬ": "ゃ",
+            "ｭ": "ゅ",
+            "ｮ": "ょ",
+            "ｱ": "あ",
+            "ｲ": "い",
+            "ｳ": "う",
+            "ｴ": "え",
+            "ｵ": "お",
+            "ｶ": "か",
+            "ｷ": "き",
+            "ｸ": "く",
+            "ｹ": "け",
+            "ｺ": "こ",
+            "ｻ": "さ",
+            "ｼ": "し",
+            "ｽ": "す",
+            "ｾ": "せ",
+            "ｿ": "そ",
+            "ﾀ": "た",
+            "ﾁ": "ち",
+            "ﾂ": "つ",
+            "ﾃ": "て",
+            "ﾄ": "と",
+            "ﾅ": "な",
+            "ﾆ": "に",
+            "ﾇ": "ぬ",
+            "ﾈ": "ね",
+            "ﾉ": "の",
+            "ﾊ": "は",
+            "ﾋ": "ひ",
+            "ﾌ": "ふ",
+            "ﾍ": "へ",
+            "ﾎ": "ほ",
+            "ﾏ": "ま",
+            "ﾐ": "み",
+            "ﾑ": "む",
+            "ﾒ": "め",
+            "ﾓ": "も",
+            "ﾔ": "や",
+            "ﾕ": "ゆ",
+            "ﾖ": "よ",
+            "ﾗ": "ら",
+            "ﾘ": "り",
+            "ﾙ": "る",
+            "ﾚ": "れ",
+            "ﾛ": "ろ",
+            "ﾜ": "わ",
+            "ｦ": "を",
+            "ﾝ": "ん",
+            "ｯ": "っ",
+            "｢": "「",
+            "｣": "」",
+            "ｰ": "ー",
+            "､": "、",
+            "?": "？",
+            "｡": "。",
+            "!": "！",
+            "○": "〇",
+            "･": "…",
+            "ﾟ": "？",
+            "ﾞ": "！"
+          }
+        },
+        {
+          "regex": "\\$t(.*?)@",
+          "replace": "$1"
+        }
+      ]
+    }
+  ],
+  "status": "partial",
+  "sources": [
+    "Hook adapted from LunaHook's PPSSPP table (GPL-3.0), LunaTranslator src/NativeImpl/LunaHook/LunaHook/emulators/ppsspp_1.cpp, with util/stringfilters.cpp's katakana remap"
+  ],
+  "notes": "Both discs. Hiragana is stored as half-width katakana (remapped). Ported into Genkan from a published hook; not yet confirmed in play with Genkan."
+}
