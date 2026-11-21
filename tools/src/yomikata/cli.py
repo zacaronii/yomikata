@@ -31,9 +31,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--root", type=Path, default=Path("."))
     p.add_argument("--min-lines", type=int, default=5)
     p.add_argument("--min-rate", type=float, default=0.8)
-    p = sub.add_parser("locate", help="find OCR'd lines in RAM snapshots by their pattern of repeated characters")
+    p = sub.add_parser("locate", help="find OCR'd lines in RAM snapshots: in the standard encodings, else by their pattern of repeated characters")
     p.add_argument("snapshots", nargs="+", type=Path, help="<sha1>.ram.gz files from an inbox (their .json beside them)")
     p.add_argument("--show-hits", action="store_true", help="print each match's segment (script text: review only)")
+    p.add_argument("--pattern", action="store_true", help="search by pattern even when a standard encoding matched")
     p = sub.add_parser("vram", help="PS1 video memory from a PCSX ReARMed savestate, saved as PNG views for finding fonts")
     p.add_argument("state", type=Path, help="<sha1>.state.gz from an inbox (or a raw savestate)")
     p.add_argument("--ram", type=Path, help="the snapshot's RAM (<sha1>.ram.gz), to confirm the layout")
@@ -101,12 +102,25 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "locate":
         import gzip
-        from .locate import locate
-        snaps = []
+        from .layout import RAM_BASE
+        from .locate import find_standard, locate
+        snaps, bases = [], []
         for p in args.snapshots:
             meta = json.loads(Path(str(p).replace(".ram.gz", ".json")).read_text(encoding="utf-8"))
             raw = p.read_bytes()
             snaps.append((gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw, meta["ocr"]))
+            bases.append(int(meta["base_address"], 16) if meta.get("base_address") else RAM_BASE.get(meta.get("platform"), 0))
+        standard = find_standard(snaps)
+        for enc, hits in standard.items():
+            print(f"== {enc}: {sum(len(h['segment']) for h in hits)} characters of the lines found as they are, at")
+            for n, p in enumerate(args.snapshots):
+                mine = sorted((h for h in hits if h["snapshot"] == n), key=lambda h: h["offset"])
+                print(f"   {p.name.split('.')[0][:8]}: " + (" ".join(
+                    f"0x{bases[n] + h['offset']:08X}" + (f"({h['segment']})" if args.show_hits else f"+{len(h['segment'])}")
+                    for h in mine) or "nothing"))
+        if standard and not args.pattern:
+            print("A standard encoding matched, so the search by pattern (for a game's own table) was skipped; --pattern runs it.")
+            return 0
         for r in locate(snaps):
             print(f"== {r.encoding}: {len(r.hits)} matches, {len(r.mapping)} codes, {len(r.conflicts)} conflicts")
             print("   kana layout (code - gojuon position -> count):", r.gojuon_offsets())
