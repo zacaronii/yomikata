@@ -14,5 +14,5 @@
   "sources": [
     "yomikata scan 0.1.0 of the disc files: shift_jis 208 characters of prose-like text"
   ],
-  "notes": "Little script reads on disc. Probably the same 16-bit scheme as Twilight Syndrome: Tansaku-hen (SLPS-00102), same series and developer (Human)."
+  "notes": "Probably the same 16-bit scheme as SLPS-01001 and SLPS-00102 (same series and developer, Human); not yet checked. Little prose reads on disc in standard encodings."
 }
