@@ -103,11 +103,17 @@ def clean_snapshot_meta(meta: object) -> dict:
     lines = meta.get("ocr")
     if isinstance(lines, str):
         lines = [lines]
-    if not isinstance(lines, list) or not lines or len(lines) > 10 or \
-            not all(isinstance(x, str) and x.strip() and len(x) <= 400 for x in lines):
-        raise ValueError("meta.ocr must be the line(s) on screen: 1-10 strings of at most 400 characters")
+    no_text = meta.get("no_text") is True           # said outright, so a failed OCR can't pass for an empty screen
+    if no_text and lines not in ([], None):
+        raise ValueError("meta.no_text goes with an empty meta.ocr")
+    if not no_text and (not isinstance(lines, list) or not lines or len(lines) > 10 or
+                        not all(isinstance(x, str) and x.strip() and len(x) <= 400 for x in lines)):
+        raise ValueError("meta.ocr must be the line(s) on screen: 1-10 strings of at most 400 characters "
+                         "(or no_text: true with none, for a screen that shows no text)")
     out = {"id": game_id, "platform": platform, "base_address": "0x" + base[2:].upper() if base.startswith("0x") else base,
-           "ocr": lines}
+           "ocr": lines or []}
+    if no_text:
+        out["no_text"] = True
     for k in ("title", "genkan_version", "captured_at", "exe_sha1", "note", "app", "emulator"):
         v = meta.get(k)
         if isinstance(v, (str, int, float)) and len(str(v)) <= 200:
@@ -321,6 +327,7 @@ class Inbox:
                 if metas:
                     out.append({"id": folder.name, "platform": folder.parent.name, "snapshots": len(metas),
                                 "lines": sum(len(m["ocr"]) for m in metas),
+                                "no_text": sum(1 for m in metas if m.get("no_text")),
                                 "with": {p: sum(1 for m in metas if p in m.get("parts", [])) for p in EXTRA_PARTS},
                                 "last_upload": max(m["received_at"] for m in metas)})
         return out
