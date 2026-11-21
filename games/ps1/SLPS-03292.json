@@ -18,10 +18,60 @@
       "exe_sha1": "8ff227df40eccefd0a9e772f4930d693b89fc117"
     }
   ],
-  "encoding": "unknown",
+  "encoding": "compressed",
+  "layouts": [
+    {
+      "versions": [
+        "8ff227df40eccefd0a9e772f4930d693b89fc117"
+      ],
+      "poll": 20,
+      "message": {
+        "address": "0x8010B5EE",
+        "charset": "shift_jis",
+        "max_bytes": 44,
+        "terminator": "00",
+        "rows": {
+          "count": 3,
+          "stride": 44
+        }
+      },
+      "speaker": {
+        "address": "0x8010B5C2",
+        "charset": "shift_jis",
+        "max_bytes": 44,
+        "terminator": "00"
+      },
+      "waiting": {
+        "address": "0x8010AC4D",
+        "equals": 1
+      },
+      "choosing": {
+        "address": "0x8010BC22"
+      },
+      "choices": {
+        "address": "0x8010BCAC",
+        "charset": "shift_jis",
+        "max_bytes": 44,
+        "terminator": "00",
+        "rows": {
+          "count": 10,
+          "stride": 44
+        }
+      },
+      "choice_count": {
+        "address": "0x8010BCA0"
+      },
+      "choice_cursor": {
+        "address": "0x8010BC23",
+        "type": "s8"
+      },
+      "notes": "The window's three rows as the game wraps them; a full row has 22 characters and no ending zero. The name is empty for narration, and rows and name are cleared while the window is away. A line is whole as soon as it starts to type (no `shown` found). The state byte is 0 typing, 1 waiting, 2 at a choice. Answer rows keep older answers, so the count matters; its table has room for ten. The cursor is -1 until a direction is pressed. Found by headless replay (docs/replay.md); backlog, auto and skip unchecked."
+    }
+  ],
   "status": "auto",
   "sources": [
-    "yomikata scan 0.1.0 of the disc files: shift_jis 593, utf16le 28 characters of prose-like text"
+    "yomikata scan 0.1.0 of the disc files: shift_jis 593, utf16le 28 characters of prose-like text",
+    "Headless replay from a new game: 115 samples over 41 lines, and 24 choices (two or three answers)"
   ],
-  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+  "notes": "The script doesn't read on disc in a standard encoding; in memory it is Shift-JIS. Both discs boot the same executable. The layout is not yet checked in a reader during play."
 }
