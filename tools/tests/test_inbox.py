@@ -53,3 +53,14 @@ def test_the_exe_hash_is_filled_from_the_library(tmp_path):
     assert game["exe_sha1"] and len(game["exe_sha1"]) == 40
     cache = json.loads((tmp_path / "data/library.json").read_text())
     assert cache["psx/Game (Japan).iso"]["id"] == "SLPS-01234"
+
+
+def test_samples_outside_main_ram_are_refused(tmp_path):
+    c = TestClient(create_app("secret", tmp_path / "data"))
+    bad = body(1)
+    bad["samples"][0]["address"] = "0x1FC5EF8E"                  # PS1 BIOS ROM: a coincidental match
+    r = c.post("/api/samples", json=bad, headers=AUTH)
+    assert r.status_code == 400 and "outside ps1 main RAM" in r.json()["detail"]
+    ok = body(1)
+    ok["samples"][0]["address"] = "0x801A2B40"
+    assert c.post("/api/samples", json=ok, headers=AUTH).status_code == 200

@@ -23,6 +23,8 @@ built from them come back as ordinary pull requests.
 ```
 
 - `id`, `platform`, `samples[].ocr` and `samples[].bytes_hex` are required; other small fields are kept as sent.
+- `address` must be in the console's main RAM (PS1 `0x00000000`–`0x001FFFFF` and its `0x80…`/`0xA0…` mirrors,
+  PSP `0x08000000`–`0x09FFFFFF` …). A match elsewhere, such as the BIOS ROM, is a coincidence, so it's refused.
 - Send the whole file again whenever it grows: samples already stored are recognised and skipped
   (answer: `{"ok": true, "id": …, "added": 3, "stored": 41}`).
 - `exe_sha1` may be empty: an inbox with the library mounted identifies the release from the serial and fills it in.

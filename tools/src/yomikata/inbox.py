@@ -43,6 +43,25 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+# Where a game's own data can be: main RAM (with its usual mirrors). A match anywhere else (the BIOS ROM, I/O) is a
+# coincidence, not the game's text, so such samples are refused with the reason.
+RAM = {
+    "ps1": [(0x00000000, 0x00200000), (0x80000000, 0x80200000), (0xA0000000, 0xA0200000), (0x1F800000, 0x1F800400)],
+    "ps2": [(0x00000000, 0x02000000), (0x20000000, 0x22000000), (0x30000000, 0x32000000)],
+    "psp": [(0x08000000, 0x0A000000), (0x48000000, 0x4A000000), (0x88000000, 0x8A000000)],
+}
+
+
+def in_ram(platform: str, address: object) -> bool:
+    if platform not in RAM or not isinstance(address, str):
+        return True                                   # no rule for this platform, or no address given
+    try:
+        a = int(address, 16)
+    except ValueError:
+        return False
+    return any(lo <= a < hi for lo, hi in RAM[platform])
+
+
 def clean_sample(s: object) -> dict:
     if not isinstance(s, dict):
         raise ValueError("each sample must be an object")
@@ -164,6 +183,10 @@ class Inbox:
         if not isinstance(samples, list) or not samples or len(samples) > MAX_SAMPLES:
             raise ValueError(f"samples must be a non-empty list (at most {MAX_SAMPLES})")
         new = [clean_sample(s) for s in samples]
+        outside = [s["address"] for s in new if not in_ram(platform, s.get("address"))]
+        if outside:
+            raise ValueError(f"sample address {outside[0]} is outside {platform} main RAM (e.g. the BIOS ROM): "
+                             "a match there is a coincidence, not the game's text")
         with self.lock:
             p = self.path(platform, game_id)
             stored = json.loads(p.read_text(encoding="utf-8")) if p.exists() else \
