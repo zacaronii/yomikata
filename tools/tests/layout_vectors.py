@@ -92,11 +92,11 @@ def cases() -> list[dict]:
          {"message": "A�B������Cソｱ"})
 
     case("eucjp-text",
-         "EUC-JP: kanji and kana, 8E + half-width kana, the wave dash and minus as U+301C and U+2212, and a "
-         "single byte from 80 up as U+FFFD.",
+         "EUC-JP: kanji and kana, 8E + half-width kana, the eight codes decoders disagree on (A1BD, A1C0, A1C1, "
+         "A1C2, A1DD, A1F1, A1F2, A2CC) as JIS X 0208 has them, and a single byte from 80 up as U+FFFD.",
          {"message": {"address": "0x00200000", "charset": "euc_jp", "max_bytes": 32, "terminator": "00"}},
-         {0x00200000: pad("漢字とカナ".encode("euc_jp") + bytes.fromhex("8EB1 A1C1 A1DD 80 41"), 32)},
-         {"message": "漢字とカナｱ〜−�A"})
+         {0x00200000: pad("漢字とカナ".encode("euc_jp") + bytes.fromhex("8EB1 A1BD A1C0 A1C1 A1C2 A1DD A1F1 A1F2 A2CC 80 41"), 32)},
+         {"message": "漢字とカナｱ\u2015\uff3c\u301c\u2016\u2212\xa2\xa3\xac\ufffdA"})
 
     case("eucjp-three-byte",
          "EUC-JP's 8F starts a three-byte character (JIS X 0212). One that isn't a character is one U+FFFD for "

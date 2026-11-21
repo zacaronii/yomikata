@@ -123,13 +123,23 @@ Every client should get the same string from the same bytes, so the steps are fi
 | Charset | Bytes in a character, from its first byte | Decoded as |
 |---|---|---|
 | `shift_jis` | 2 for `81`–`9F` and `E0`–`FC`, else 1 | Windows' Shift-JIS (cp932): `8160` is U+FF5E, the user-defined area `F040`–`F9FC` is U+E000–U+E757, `5C` is a backslash. Single bytes `A1`–`DF` are half-width kana |
-| `euc_jp` | 3 for `8F`, 2 for `8E` and up, else 1 | JIS X 0208 (`A1C1` is U+301C, `A1DD` is U+2212), `8E` + half-width kana, `8F` + JIS X 0212. Vendor rows (NEC's row 13, IBM's extensions) aren't defined yet |
+| `euc_jp` | 3 for `8F`, 2 for `8E` and up, else 1 | JIS X 0208, `8E` + half-width kana, `8F` + JIS X 0212. Vendor rows (NEC's row 13, IBM's extensions) aren't defined yet |
 | `utf8` | 4 for `F0` and up, 3 for `E0` and up, 2 for `C0` and up, else 1 | Strict UTF-8: an overlong form or an encoded surrogate doesn't decode |
 | `utf16le`, `utf16be` | 4 for a high surrogate followed by a low one when both fit, else 2 | A surrogate on its own doesn't decode |
 | `table` | the entry's `unit` | The table's character. An end code, or a code `controls` calls `page` or `clear`, is a blank line; a newline code is a line break; any other control is nothing; a code the table lacks is U+FFFD. Line breaks at the end are dropped |
 
 Any other single byte from `80` up is U+FFFD. Python's `cp932` and `euc_jp` codecs are the reference for the
 mappings.
+
+Eight `euc_jp` codes come out differently from decoders that follow Windows (Java's and Android's among them).
+A reader fixes them by code before it asks its decoder:
+
+| Code | Character | Code | Character |
+|---|---|---|---|
+| `A1BD` | U+2015 ― | `A1DD` | U+2212 − |
+| `A1C0` | U+FF3C ＼ | `A1F1` | U+00A2 ¢ |
+| `A1C1` | U+301C 〜 | `A1F2` | U+00A3 £ |
+| `A1C2` | U+2016 ‖ | `A2CC` | U+00AC ¬ |
 
 What a reader derives from the fields:
 
