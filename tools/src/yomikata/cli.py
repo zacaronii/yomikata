@@ -26,6 +26,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("results", type=Path, help="JSON lines from `yomikata scan` (a `path` field groups discs by folder)")
     p.add_argument("--titles", type=Path, help="JSON: folder or image name -> {title, title_romaji}")
     p.add_argument("--root", type=Path, default=Path("."))
+    p = sub.add_parser("hooks", help="merge hook reports (an inbox's hooks/ folder) into entries; prints a summary")
+    p.add_argument("reports", type=Path, help="folder with <platform>/<id>.json hook reports")
+    p.add_argument("--root", type=Path, default=Path("."))
+    p.add_argument("--min-lines", type=int, default=5)
+    p.add_argument("--min-rate", type=float, default=0.8)
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -68,6 +73,10 @@ def main(argv: list[str] | None = None) -> int:
         results = [json.loads(l) for l in args.results.read_text(encoding="utf-8").splitlines() if l.strip()]
         titles = json.loads(args.titles.read_text(encoding="utf-8")) if args.titles else None
         print(summary(draft(results, args.root, titles)))
+        return 0
+    if args.cmd == "hooks":
+        from .hooks import merge, summary
+        print(summary(merge(args.root, args.reports, args.min_lines, args.min_rate)))
         return 0
     if args.cmd == "validate":
         problems = catalog.validate(args.root)

@@ -18,7 +18,8 @@ text instead of falling back to OCR.
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Adding or fixing an entry, by hand or with the tools |
 | [schema/entry.schema.json](schema/entry.schema.json) | JSON Schema every entry is checked against |
 | [tools/](tools/) | `yomikata` command line: identify images, validate, build the index (Docker image included) |
-| [docs/inbox.md](docs/inbox.md) | The sample inbox readers upload memory samples to (`yomikata serve`) |
+| [docs/inbox.md](docs/inbox.md) | The inbox readers upload memory samples and hook reports to (`yomikata serve`) |
+| [docs/hook-finder.md](docs/hook-finder.md) | How a reader app finds and checks a hook during play, and the report format |
 
 ## Using the catalog (clients)
 

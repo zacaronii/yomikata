@@ -6,6 +6,8 @@ folder and never in the catalog repository.
 
 POST /api/samples   one game's samples (Bearer token), merged with what's stored, duplicates dropped
 GET  /api/samples   what's stored: per game, sample count and last upload (Bearer token)
+POST /api/hooks     a hook a reader found and checked in play (docs/hook-finder.md); stored per game
+GET  /api/hooks     the hook reports stored, per game
 GET  /health
 
 If the library is mounted, an upload without exe_sha1 gets it filled from the serial: the inbox identifies the
@@ -91,6 +93,57 @@ class Library:
         return None
 
 
+CHARSETS = {"shift_jis", "utf16le", "utf8", "table"}
+
+
+def clean_hook_report(body: object) -> dict:
+    """A hook report (docs/hook-finder.md), checked and normalised. Evidence lines stay in the inbox only."""
+    if not isinstance(body, dict):
+        raise ValueError("expected a JSON object")
+    game_id, platform = body.get("id"), body.get("platform")
+    if not isinstance(game_id, str) or not ID_RE.fullmatch(game_id):
+        raise ValueError("id must be a release id such as NPJH50372")
+    if platform not in PLATFORMS:
+        raise ValueError(f"platform must be one of: {', '.join(sorted(PLATFORMS))}")
+    hook = body.get("hook")
+    if not isinstance(hook, dict):
+        raise ValueError("hook is required: {address, register, charset}")
+    address, register, charset = hook.get("address"), hook.get("register"), hook.get("charset")
+    if not isinstance(address, str) or not re.fullmatch(r"0x[0-9A-Fa-f]{1,16}", address):
+        raise ValueError("hook.address must be hex like 0x088540B0")
+    if not isinstance(register, str) or not re.fullmatch(r"[a-z0-9]{1,4}", register):
+        raise ValueError("hook.register must be a register name like a0")
+    if charset not in CHARSETS:
+        raise ValueError(f"hook.charset must be one of: {', '.join(sorted(CHARSETS))}")
+    cleanup = hook.get("cleanup", [])
+    if not isinstance(cleanup, list) or len(cleanup) > 30:
+        raise ValueError("hook.cleanup must be a list of cleanup rules (docs/format.md)")
+    ev = body.get("evidence")
+    if not isinstance(ev, dict):
+        raise ValueError("evidence is required: {lines_checked, lines_matched}")
+    checked, matched = ev.get("lines_checked"), ev.get("lines_matched")
+    if not all(isinstance(v, int) and not isinstance(v, bool) and v >= 0 for v in (checked, matched)) or matched > checked:
+        raise ValueError("evidence.lines_checked / lines_matched must be counts, matched <= checked")
+    pairs = ev.get("pairs", [])
+    if not isinstance(pairs, list) or len(pairs) > 20 or not all(
+            isinstance(p, dict) and all(isinstance(p.get(k, ""), str) and len(p.get(k, "")) <= 300 for k in ("ocr", "hook"))
+            for p in pairs):
+        raise ValueError("evidence.pairs: at most 20 {ocr, hook} pairs of short strings")
+    reporter = body.get("reporter") or {}
+    out = {"id": game_id, "platform": platform,
+           "hook": {"address": "0x" + address[2:].upper(), "register": register, "charset": charset,
+                    **({"cleanup": cleanup} if cleanup else {})},
+           "evidence": {"lines_checked": checked, "lines_matched": matched, "pairs": pairs},
+           "reporter": {k: str(reporter.get(k))[:80] for k in ("app", "version") if reporter.get(k)}}
+    for k in ("disc_version", "title", "emulator", "exe_sha1", "notes"):
+        v = body.get(k)
+        if isinstance(v, str) and v.strip():
+            out[k] = v.strip()[:300]
+        elif k == "emulator" and isinstance(v, dict):
+            out[k] = {kk: str(vv)[:80] for kk, vv in v.items() if kk in ("name", "version")}
+    return out
+
+
 class Inbox:
     def __init__(self, data: Path, library: Library | None = None):
         self.data, self.library = data, library
@@ -135,6 +188,51 @@ class Inbox:
         if not stored.get("exe_sha1") and self.library:
             threading.Thread(target=self.fill_hash, args=(platform, game_id), daemon=True).start()
         return {"ok": True, "id": game_id, "added": added, "stored": len(stored["samples"])}
+
+    def add_hook(self, body: dict) -> dict:
+        r = clean_hook_report(body)
+        with self.lock:
+            p = self.data / "hooks" / r["platform"] / f"{r['id']}.json"
+            stored = json.loads(p.read_text(encoding="utf-8")) if p.exists() else \
+                {"id": r["id"], "platform": r["platform"], "reports": []}
+            key = (r["hook"]["address"], r["hook"]["register"], r.get("disc_version"))
+            reports = [x for x in stored["reports"]
+                       if (x["hook"]["address"], x["hook"]["register"], x.get("disc_version")) != key]
+            replaced = len(reports) != len(stored["reports"])
+            stored["reports"] = reports + [{**r, "received_at": now()}]
+            p.parent.mkdir(parents=True, exist_ok=True)
+            tmp = p.with_suffix(".tmp")
+            tmp.write_text(json.dumps(stored, ensure_ascii=False, indent=1), encoding="utf-8")
+            tmp.replace(p)
+        if not r.get("exe_sha1") and self.library:
+            threading.Thread(target=self.fill_hook_hash, args=(r["platform"], r["id"]), daemon=True).start()
+        return {"ok": True, "id": r["id"], "replaced": replaced, "reports": len(stored["reports"])}
+
+    def fill_hook_hash(self, platform: str, game_id: str) -> None:
+        try:
+            rec = self.library.lookup(platform, game_id)
+        except Exception as e:
+            log.warning("identifying the library for %s failed: %s", game_id, e)
+            return
+        if not rec:
+            return
+        with self.lock:
+            p = self.data / "hooks" / platform / f"{game_id}.json"
+            stored = json.loads(p.read_text(encoding="utf-8"))
+            for x in stored["reports"]:
+                x.setdefault("exe_sha1", rec.get("exe_sha1"))
+            p.write_text(json.dumps(stored, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    def hooks(self) -> list[dict]:
+        out = []
+        for p in sorted((self.data / "hooks").glob("*/*.json")):
+            s = json.loads(p.read_text(encoding="utf-8"))
+            out.append({"id": s["id"], "platform": s["platform"], "reports": [
+                {"address": r["hook"]["address"], "register": r["hook"]["register"], "charset": r["hook"]["charset"],
+                 "disc_version": r.get("disc_version"), "matched": f"{r['evidence']['lines_matched']}/"
+                 f"{r['evidence']['lines_checked']}", "exe_sha1": r.get("exe_sha1"), "received_at": r["received_at"]}
+                for r in s["reports"]]})
+        return out
 
     def fill_hash(self, platform: str, game_id: str) -> None:
         try:
@@ -191,6 +289,26 @@ def create_app(token: str, data: Path, library_root: Path | None = None, scratch
             return inbox.add(body)
         except ValueError as e:
             raise HTTPException(400, str(e)) from None
+
+    @app.post("/api/hooks")
+    async def hook_report(request: Request):
+        auth(request)
+        raw = await request.body()
+        if len(raw) > 256 * 1024:
+            raise HTTPException(413, "a hook report is at most 256 KB")
+        try:
+            body = json.loads(raw)
+        except ValueError:
+            raise HTTPException(400, "body must be JSON") from None
+        try:
+            return inbox.add_hook(body)
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from None
+
+    @app.get("/api/hooks")
+    async def hook_listing(request: Request):
+        auth(request)
+        return {"games": inbox.hooks()}
 
     @app.get("/api/samples")
     async def listing(request: Request):
