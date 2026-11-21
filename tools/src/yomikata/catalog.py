@@ -70,6 +70,14 @@ def validate(root: Path) -> list[Problem]:
                 problems.append(Problem(rel, f"table {t} doesn't exist"))
         if e.get("encoding") == "table" and not e.get("tables") and e.get("status") != "partial":
             problems.append(Problem(rel, "a table encoding needs tables, or status partial"))
+        listed = {v.get("exe_sha1") for v in e.get("versions", [])}
+        for n, lay in enumerate(e.get("layouts", [])):
+            for v in lay.get("versions", []):
+                if v not in listed:
+                    problems.append(Problem(rel, f"layouts/{n}: version {v} isn't in the entry's versions"))
+            texts = [lay.get(k) for k in ("message", "speaker", "choices")]
+            if any(isinstance(t, dict) and t.get("charset") == "table" for t in texts) and not e.get("tables"):
+                problems.append(Problem(rel, f"layouts/{n}: a table charset needs the entry's tables"))
     return problems
 
 

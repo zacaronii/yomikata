@@ -34,6 +34,7 @@ or a CRC-32 of the header (cartridges). A client that finds no match should warn
 | `controls` | Hex code (memory byte order) → `end`, `newline`, `wait`, `clear`, `page`, `name`, `color`, `pause`, `choice`, `ignore` |
 | `cleanup` | In order: `{regex, replace}` or `{remap: {from: to}}`. Declarative only, so any language can apply it |
 | `hooks` | `{address, register, charset, versions?, cleanup?}`: code addresses each line passes through (PSP via PPSSPP) |
+| `layouts` | Where the game keeps what it shows, for readers that read memory instead of hooking (see Layouts) |
 | `status` | `verified` (confirmed in play), `auto` (built by tools, passed validation), `partial` (known gaps) |
 | `coverage` | `{chars_in_table, chars_seen_in_script}` |
 | `sources` | Where it came from, with credit |
@@ -56,6 +57,59 @@ gets the same text:
 
 Reference implementation: `tools/src/yomikata/cleanup.py` (`clean_line(text, entry, hook)`), tested against the
 catalog's own entries, so clients can compare their output with it.
+
+## Layouts
+
+A hook needs the emulator to stop the game at an instruction; most stock emulators can't do that. But much of
+what a reader wants is kept in memory anyway: the message the window shows (often whole, before it types out),
+how much of it is on screen, a flag while the game waits for a press, a choice's answers. A layout says where.
+Every field is optional, and a layout with only `message` is already useful.
+
+```json
+"layouts": [{
+  "poll": 20,
+  "message": {"address": "0x08A10004", "charset": "utf16le", "max_bytes": 540,
+              "terminator": "0000", "rows": {"count": 5, "stride": 108}},
+  "speaker": {"address": "0x08A10002", "type": "u16"},
+  "waiting": {"base": "0x08B00000", "offsets": ["0x2C"]}
+}]
+```
+
+(A made-up example: a message of five UTF-16 rows, a speaker number, and a flag in an object the game allocates.)
+
+| Field | |
+|---|---|
+| `versions` | `exe_sha1` values the layout was confirmed on; empty = every listed version. A reader picks the layout naming its version, else one naming none |
+| `endian` | Of pointers and numbers: `little` (default) or `big` (GameCube, Wii) |
+| `poll` | How often reading is enough: `"frame"`, or a rate in Hz |
+| `message` | *text*: what the message window shows |
+| `speaker` | *text* (the name), or *number* with `speaker_names` (`{"3": "苗木"}`, names only) for name plates that are pictures |
+| `shown` | *number*: how many characters of the message are on screen |
+| `waiting`, `choosing` | *flag*: the line is complete and waits for a press; a choice is up |
+| `choices`, `choice_count`, `choice_cursor` | *text* with one answer per row; how many rows count; which answer (from 0) the cursor is on |
+| `notes` | Short; no script text |
+
+Every *number*, *flag* and *text* says where it is in one of two ways:
+
+- `"address": "0x…"`: a fixed address;
+- `"base": "0x…", "offsets": ["0x8", "0x14"]`: a pointer chain, for anything the game allocates. Start at
+  `base`; for each offset, read the 32-bit pointer there and add the offset. So `{base: B, offsets: [0x8]}` is
+  "the pointer at B, plus 8".
+
+A *number* has a `type` (`u8` default, `u16`, `u32`, `s8`, `s16`, `s32`). As a *flag* it is true when nonzero, or
+when it `equals` a given value.
+
+A *text* has:
+- a `charset`: `shift_jis`, `euc_jp`, `utf16le`, `utf16be`, `utf8`, or `table` (the entry's `tables` and `unit`);
+- `max_bytes`, which a reader never reads past;
+- optionally `terminator` (hex in memory byte order, matched only at character boundaries), `length` (a *number*
+  holding the length in bytes), and `rows: {count, stride}` for a buffer of rows, each read to its terminator and
+  joined with newlines;
+- its own `cleanup`.
+
+Reference implementation: `tools/src/yomikata/layout.py` (`read_layout(layout, entry, read)`). To check a layout
+against a RAM snapshot before a PR, run `yomikata layout games/<platform>/<id>.json <sha1>.ram.gz`; it prints what
+each field reads (the output is script text, so keep it out of the repo).
 
 ## Table (`tables/…/*.tbl`)
 

@@ -13,3 +13,6 @@
    glyphs stay `partial`, never guesses.
 4. **M3:** PSP hook profiles move into the catalog; DS and 3DS sorting (PS2 and GameCube when there are games to test).
 5. **M4:** tables learned by readers during play (OCR text paired with the bytes in memory) arrive as pull requests.
+6. **M5:** layouts, for reading depth without hooks: where each game keeps its message, speaker, how much is shown,
+   and its choices (`layouts`, docs/format.md). Found with `locate`, snapshots and `replay`, and checked with
+   `yomikata layout` against a snapshot before a PR.

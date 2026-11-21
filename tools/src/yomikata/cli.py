@@ -46,6 +46,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--press", default="", help="buttons to press first, e.g. 'a' to advance a line (RetroPad names)")
     p.add_argument("--wait", type=int, default=10, help="frames to run before pressing")
     p.add_argument("-o", "--out", type=Path, required=True, help="folder for ram.npy, frames.npy and PNGs every 10 frames")
+    p = sub.add_parser("layout", help="read an entry's layout from a RAM snapshot (checks a layout before a PR)")
+    p.add_argument("entry", type=Path, help="games/<platform>/<id>.json")
+    p.add_argument("ram", type=Path, help="RAM snapshot (<sha1>.ram.gz from an inbox, or raw)")
+    p.add_argument("--base", default=None, help="address of the snapshot's first byte (default: its .json, else the platform's RAM)")
+    p.add_argument("--version", help="exe_sha1 to pick the layout for (default: its .json, else the general one)")
+    p.add_argument("--root", type=Path, default=Path("."), help="catalog root, for table charsets")
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -147,6 +153,24 @@ def main(argv: list[str] | None = None) -> int:
         np.save(args.out / "frames.npy", np.stack(frames))
         print(f"recorded {args.frames} frames (state {len(state)} bytes, core expects {core.state_size()})")
         return 0
+    if args.cmd == "layout":
+        from . import layout, tbl
+        entry = json.loads(args.entry.read_text(encoding="utf-8"))
+        meta_path = args.ram.with_name(args.ram.name.split(".")[0] + ".json")
+        meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
+        lay = layout.pick(entry, args.version or meta.get("exe_sha1"))
+        if lay is None:
+            print("no layout for that version", file=sys.stderr)
+            return 1
+        base = args.base or meta.get("base_address")
+        base = int(base, 16) if base else layout.RAM_BASE.get(entry["platform"])
+        if base is None:
+            print(f"give --base for {entry['platform']}", file=sys.stderr)
+            return 1
+        table = tbl.load([args.root / t for t in entry["tables"]]) if entry.get("tables") else None
+        print(json.dumps(layout.read_layout(lay, entry, layout.Ram.load(args.ram, base), table), ensure_ascii=False, indent=1))
+        return 0
+
     if args.cmd == "validate":
         problems = catalog.validate(args.root)
         for pr in problems:
