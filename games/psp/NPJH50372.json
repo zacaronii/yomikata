@@ -36,6 +36,7 @@
   ],
   "status": "auto",
   "sources": [
+    "Genkan memory search during play (PR #5): the line on screen was UTF-16LE at three addresses in user RAM (the loaded script and two buffers); nothing in Shift-JIS or UTF-8",
     "Hook 0x0885AF64 (a0) found in play by Genkan 0.0.1 in PPSSPP v1.20.4, disc version 1.03: 8/8 lines matched OCR"
   ],
   "notes": "The original release. The PSP the Best reissue (NPJH50515) uses a different hook address; its 0x088540B0 runs constantly on this release without pointing at text."
