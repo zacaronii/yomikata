@@ -29,6 +29,13 @@ built from them come back as ordinary pull requests.
 - `GET /api/samples` lists what's stored per game (count, last upload, whether the exe hash is known).
 - Errors: `400` with the reason, `401` without the token, `413` when too large.
 
+## Hook reports (readers)
+
+`POST /api/hooks` with the same token: one hook a reader found and checked in play, in the report format of
+[hook-finder.md](hook-finder.md) (at most 256 KB). A report for the same address, register and disc version
+replaces the earlier one (`{"ok": true, "id": …, "replaced": true, "reports": 1}`). `GET /api/hooks` lists them.
+Whoever runs the inbox turns them into catalog entries with `yomikata hooks <data>/hooks` and opens a pull request.
+
 ## Running one
 
 The tools image runs it: `yomikata serve` (port 8080), configured by environment variables.

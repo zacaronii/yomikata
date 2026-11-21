@@ -20,6 +20,12 @@ In the pull request, say how you know: tested in play (status `verified`), built
 known (`partial`). A few decoded sample lines in the **pull request description** help review; never put script
 text in the repository.
 
+## Adding a hook you found
+
+Follow [docs/hook-finder.md](docs/hook-finder.md). Either send the report to an inbox, or add the hook to the
+entry yourself: `hooks[]` with `address`, `register`, `charset` and the exe SHA-1 it was checked on in `versions`,
+plus a `sources` line saying how many lines matched OCR.
+
 ## Rules
 
 - **No game data in the repository:** no script text, fonts, images, executables or disc files. Only mappings,
