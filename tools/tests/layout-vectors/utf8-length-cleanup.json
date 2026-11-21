@@ -1,0 +1,36 @@
+{
+ "name": "utf8-length-cleanup",
+ "checks": "A length field ends the text (here in the middle of a character, which is dropped); then the text's cleanup runs in order, a regex and a remap.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x02000000",
+   "charset": "utf8",
+   "max_bytes": 64,
+   "length": {
+    "address": "0x02000040",
+    "type": "u16"
+   },
+   "cleanup": [
+    {
+     "regex": "<C\\d>",
+     "replace": ""
+    },
+    {
+     "remap": {
+      "～": "〜"
+     }
+    }
+   ]
+  }
+ },
+ "memory": [
+  {
+   "address": "0x02000000",
+   "hex": "3c43313ee38182efbd9ee38184e381860000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e00"
+  }
+ ],
+ "expected": {
+  "message": "あ〜い"
+ }
+}

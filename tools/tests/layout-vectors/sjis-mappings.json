@@ -1,0 +1,22 @@
+{
+ "name": "sjis-mappings",
+ "checks": "Shift-JIS is Windows' (cp932): full-width tilde and minus, NEC and IBM extensions, the user-defined area as U+E000 up, a backslash and a tilde for 5C and 7E, half-width kana.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80100000",
+   "charset": "shift_jis",
+   "max_bytes": 32,
+   "terminator": "00"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80100000",
+   "hex": "8160817c81618191819281ca8740fa5ced405c7eb1dff040f9fc000000000000"
+  }
+ ],
+ "expected": {
+  "message": "～－∥￠￡￢①纊纊\\~ｱﾟ\ue000\ue757"
+ }
+}

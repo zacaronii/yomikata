@@ -1,0 +1,31 @@
+{
+ "name": "choices-negative-count",
+ "checks": "A count below zero gives no choices.",
+ "entry": {},
+ "layout": {
+  "choices": {
+   "address": "0x08A20000",
+   "charset": "utf16le",
+   "max_bytes": 16,
+   "terminator": "0000",
+   "rows": {
+    "count": 4,
+    "stride": 16
+   }
+  },
+  "choice_count": {
+   "address": "0x08A20040",
+   "type": "s8"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x08A20000",
+   "hex": "6f30443000000000000000000000000044304430483000000000000000000000e453443000000000000000000000000000000000000000000000000000000000ff"
+  }
+ ],
+ "expected": {
+  "choices": [],
+  "choice_count": -1
+ }
+}

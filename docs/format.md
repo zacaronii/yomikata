@@ -30,7 +30,7 @@ or a CRC-32 of the header (cartridges). A client that finds no match should warn
 | `versions` | `{exe, exe_sha1, id?, note?}` or `{header_crc32, …}` |
 | `encoding` | `shift_jis`, `utf16le`, `utf8`, `table`, `compressed` (script only compressed on disc; read from memory), `unknown` |
 | `tables` | Thingy files applied in order; later ones win |
-| `unit` | Bytes per code for table decoding (1 or 2) |
+| `unit` | Bytes per code for table decoding (1 or 2); required with `tables` |
 | `controls` | Hex code (memory byte order) → `end`, `newline`, `wait`, `clear`, `page`, `name`, `color`, `pause`, `choice`, `ignore` |
 | `cleanup` | In order: `{regex, replace}` or `{remap: {from: to}}`. Declarative only, so any language can apply it |
 | `hooks` | `{address, register, charset, versions?, cleanup?}`: code addresses each line passes through (PSP via PPSSPP) |
@@ -44,8 +44,8 @@ An entry that only says `"encoding": "shift_jis"` is still useful: readers can s
 
 ## Cleanup
 
-`cleanup` is applied in order to each decoded line (a hook's own list first, then the entry's), so every client
-gets the same text:
+`cleanup` is applied in order to each decoded line (a hook's or a layout text's own list first, then the entry's),
+so every client gets the same text:
 
 - `{regex, replace}` replaces every match. Keep patterns to what Java, Python and JavaScript all read: classes,
   groups, lazy quantifiers, and the inline flags `(?m)` and `(?s)` only at the very start (JavaScript clients turn
@@ -100,16 +100,52 @@ A *number* has a `type` (`u8` default, `u16`, `u32`, `s8`, `s16`, `s32`). As a *
 when it `equals` a given value.
 
 A *text* has:
-- a `charset`: `shift_jis`, `euc_jp`, `utf16le`, `utf16be`, `utf8`, or `table` (the entry's `tables` and `unit`);
+- a `charset`: `shift_jis`, `euc_jp`, `utf16le`, `utf16be`, `utf8`, or `table` (the entry's `tables`, `unit` and
+  `controls`);
 - `max_bytes`, which a reader never reads past;
 - optionally `terminator` (hex in memory byte order, matched only at character boundaries), `length` (a *number*
   holding the length in bytes), and `rows: {count, stride}` for a buffer of rows, each read to its terminator and
   joined with newlines;
-- its own `cleanup`.
+- its own `cleanup`, applied before the entry's.
+
+### Reading a text
+
+Every client should get the same string from the same bytes, so the steps are fixed:
+
+1. Read `max_bytes` bytes at the address (`stride` bytes if that is less; with `rows`, once per row, `stride`
+   apart). A `length` shortens the read; a length below zero is 0. If a read fails, the whole field fails.
+2. Split the bytes into characters by the lengths below. Stop at the `terminator` where it stands at the start of
+   a character, and drop a last character that doesn't fit in what was read.
+3. Decode each character on its own. One that doesn't decode is one U+FFFD, however many bytes it has.
+4. With `rows`: drop empty rows from the end, and join the rest with a newline.
+5. Apply the text's `cleanup`, then the entry's.
+
+| Charset | Bytes in a character, from its first byte | Decoded as |
+|---|---|---|
+| `shift_jis` | 2 for `81`–`9F` and `E0`–`FC`, else 1 | Windows' Shift-JIS (cp932): `8160` is U+FF5E, the user-defined area `F040`–`F9FC` is U+E000–U+E757, `5C` is a backslash. Single bytes `A1`–`DF` are half-width kana |
+| `euc_jp` | 3 for `8F`, 2 for `8E` and up, else 1 | JIS X 0208 (`A1C1` is U+301C, `A1DD` is U+2212), `8E` + half-width kana, `8F` + JIS X 0212. Vendor rows (NEC's row 13, IBM's extensions) aren't defined yet |
+| `utf8` | 4 for `F0` and up, 3 for `E0` and up, 2 for `C0` and up, else 1 | Strict UTF-8: an overlong form or an encoded surrogate doesn't decode |
+| `utf16le`, `utf16be` | 4 for a high surrogate followed by a low one when both fit, else 2 | A surrogate on its own doesn't decode |
+| `table` | the entry's `unit` | The table's character. An end code, or a code `controls` calls `page` or `clear`, is a blank line; a newline code is a line break; any other control is nothing; a code the table lacks is U+FFFD. Line breaks at the end are dropped |
+
+Any other single byte from `80` up is U+FFFD. Python's `cp932` and `euc_jp` codecs are the reference for the
+mappings.
+
+What a reader derives from the fields:
+
+- `choices`: the text's rows, the first `choice_count` of them (none if it is below zero; all if it can't be
+  read). An empty text is no answers.
+- What is on screen: the message without its newlines, the first `shown` characters (code points; none if it is
+  below zero).
+- A `speaker` number is the name `speaker_names` gives it, else the number.
+- A field that can't be read is left out; the others are still read.
 
 Reference implementation: `tools/src/yomikata/layout.py` (`read_layout(layout, entry, read)`). To check a layout
 against a RAM snapshot before a PR, run `yomikata layout games/<platform>/<id>.json <sha1>.ram.gz`; it prints what
 each field reads (the output is script text, so keep it out of the repo).
+
+Clients check themselves against `tools/tests/layout-vectors/`: each file is a layout, some memory, and what
+`read_layout` gives (see its README).
 
 ## Table (`tables/…/*.tbl`)
 

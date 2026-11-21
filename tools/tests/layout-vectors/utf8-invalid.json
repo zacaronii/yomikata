@@ -1,0 +1,22 @@
+{
+ "name": "utf8-invalid",
+ "checks": "UTF-8 that isn't a character is one U+FFFD for as many bytes as its first byte claims: an overlong form, a continuation byte alone, a lead byte whose followers are wrong (they go with it), an encoded surrogate, and F8.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x02000000",
+   "charset": "utf8",
+   "max_bytes": 32,
+   "terminator": "00"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x02000000",
+   "hex": "41c08080e38141eda080f888808042f09f988000000000000000000000000000"
+  }
+ ],
+ "expected": {
+  "message": "A\ufffd\ufffd\ufffd\ufffd\ufffdB😀"
+ }
+}

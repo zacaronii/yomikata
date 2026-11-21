@@ -1,0 +1,35 @@
+{
+ "name": "length-clamped",
+ "checks": "A length larger than max_bytes reads max_bytes (0xFFFFFFFF is not -1); a length below zero reads nothing.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x02000000",
+   "charset": "utf8",
+   "max_bytes": 2,
+   "length": {
+    "address": "0x02000008",
+    "type": "u32"
+   }
+  },
+  "speaker": {
+   "address": "0x02000004",
+   "charset": "utf8",
+   "max_bytes": 4,
+   "length": {
+    "address": "0x02000008",
+    "type": "s32"
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x02000000",
+   "hex": "4142434445464748ffffffff"
+  }
+ ],
+ "expected": {
+  "message": "AB",
+  "speaker": ""
+ }
+}

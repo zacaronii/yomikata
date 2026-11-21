@@ -1,0 +1,34 @@
+{
+ "name": "choices-count-over",
+ "checks": "A count larger than the rows gives the rows there are.",
+ "entry": {},
+ "layout": {
+  "choices": {
+   "address": "0x08A20000",
+   "charset": "utf16le",
+   "max_bytes": 16,
+   "terminator": "0000",
+   "rows": {
+    "count": 4,
+    "stride": 16
+   }
+  },
+  "choice_count": {
+   "address": "0x08A20040"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x08A20000",
+   "hex": "6f30443000000000000000000000000044304430483000000000000000000000e453443000000000000000000000000000000000000000000000000000000000c8"
+  }
+ ],
+ "expected": {
+  "choices": [
+   "はい",
+   "いいえ",
+   "古い"
+  ],
+  "choice_count": 200
+ }
+}

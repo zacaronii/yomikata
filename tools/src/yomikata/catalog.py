@@ -68,6 +68,8 @@ def validate(root: Path) -> list[Problem]:
         for t in e.get("tables", []):
             if not (root / t).is_file():
                 problems.append(Problem(rel, f"table {t} doesn't exist"))
+        if e.get("tables") and "unit" not in e:
+            problems.append(Problem(rel, "tables need a unit (bytes per code)"))
         if e.get("encoding") == "table" and not e.get("tables") and e.get("status") != "partial":
             problems.append(Problem(rel, "a table encoding needs tables, or status partial"))
         listed = {v.get("exe_sha1") for v in e.get("versions", [])}

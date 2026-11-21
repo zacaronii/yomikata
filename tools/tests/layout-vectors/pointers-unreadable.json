@@ -1,0 +1,56 @@
+{
+ "name": "pointers-unreadable",
+ "checks": "A field that can't be read is left out and named in errors; the others are still read. Here: a null pointer, a pointer that leads outside memory, a base outside memory, and a number that runs past the end of a block.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "base": "0x80300000",
+   "offsets": [
+    "0x10"
+   ],
+   "charset": "shift_jis",
+   "max_bytes": 16
+  },
+  "speaker": {
+   "base": "0x80300004",
+   "offsets": [
+    "0x0",
+    "0x8"
+   ],
+   "charset": "shift_jis",
+   "max_bytes": 16
+  },
+  "shown": {
+   "base": "0x80500000",
+   "offsets": [
+    "0x0"
+   ]
+  },
+  "choice_cursor": {
+   "address": "0x80300106",
+   "type": "u32"
+  },
+  "waiting": {
+   "address": "0x80300008"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80300000",
+   "hex": "000000000001308000000000"
+  },
+  {
+   "address": "0x80300100",
+   "hex": "0000009000000000"
+  }
+ ],
+ "expected": {
+  "waiting": false,
+  "errors": {
+   "message": "0x00000010+16 is outside memory",
+   "speaker": "0x90000008+16 is outside memory",
+   "shown": "0x80500000+4 is outside memory",
+   "choice_cursor": "0x80300106+4 is outside memory"
+  }
+ }
+}

@@ -1,0 +1,35 @@
+{
+ "name": "rows-unreadable-partway",
+ "checks": "If one row can't be read, the whole text fails.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x02000000",
+   "charset": "utf8",
+   "max_bytes": 8,
+   "terminator": "00",
+   "rows": {
+    "count": 3,
+    "stride": 8
+   }
+  },
+  "speaker": {
+   "address": "0x02000000",
+   "charset": "utf8",
+   "max_bytes": 8,
+   "terminator": "00"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x02000000",
+   "hex": "e381820000000000e381840000000000"
+  }
+ ],
+ "expected": {
+  "speaker": "あ",
+  "errors": {
+   "message": "0x02000010+8 is outside memory"
+  }
+ }
+}

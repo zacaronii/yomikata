@@ -1,0 +1,33 @@
+{
+ "name": "table-unit-1",
+ "checks": "A table with one byte per code.",
+ "entry": {
+  "tables": [
+   "tables/test/one.tbl"
+  ],
+  "unit": 1,
+  "controls": {
+   "7E": "ignore"
+  }
+ },
+ "tables": {
+  "tables/test/one.tbl": "01=あ\n02=い\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80200000",
+   "charset": "table",
+   "max_bytes": 8,
+   "terminator": "00"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80200000",
+   "hex": "01027f7e02000101"
+  }
+ ],
+ "expected": {
+  "message": "あい\ufffdい"
+ }
+}

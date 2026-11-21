@@ -1,0 +1,36 @@
+{
+ "name": "choices-no-count",
+ "checks": "A count that can't be read gives every row: empty rows at the end dropped, one in the middle kept.",
+ "entry": {},
+ "layout": {
+  "choices": {
+   "address": "0x08A20000",
+   "charset": "utf16le",
+   "max_bytes": 16,
+   "terminator": "0000",
+   "rows": {
+    "count": 4,
+    "stride": 16
+   }
+  },
+  "choice_count": {
+   "address": "0x08A30000"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x08A20000",
+   "hex": "6f304430000000000000000000000000000000000000000000000000000000004430443048300000000000000000000000000000000000000000000000000000"
+  }
+ ],
+ "expected": {
+  "choices": [
+   "はい",
+   "",
+   "いいえ"
+  ],
+  "errors": {
+   "choice_count": "0x08A30000+1 is outside memory"
+  }
+ }
+}

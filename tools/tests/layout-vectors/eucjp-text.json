@@ -1,0 +1,22 @@
+{
+ "name": "eucjp-text",
+ "checks": "EUC-JP: kanji and kana, 8E + half-width kana, the wave dash and minus as U+301C and U+2212, and a single byte from 80 up as U+FFFD.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x00200000",
+   "charset": "euc_jp",
+   "max_bytes": 32,
+   "terminator": "00"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x00200000",
+   "hex": "b4c1bbfaa4c8a5aba5ca8eb1a1c1a1dd80410000000000000000000000000000"
+  }
+ ],
+ "expected": {
+  "message": "漢字とカナｱ〜−\ufffdA"
+ }
+}

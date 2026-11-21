@@ -1,0 +1,26 @@
+{
+ "name": "utf16-surrogates",
+ "checks": "A surrogate pair is one character, also for `shown`. A surrogate on its own is one U+FFFD: a high one before another character, a low one, and a high one whose other half max_bytes cut off.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x08A01000",
+   "charset": "utf16le",
+   "max_bytes": 15
+  },
+  "shown": {
+   "address": "0x08A01010"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x08A01000",
+   "hex": "3dd800de41003dd8420000de3dd800de02"
+  }
+ ],
+ "expected": {
+  "message": "😀A\ufffdB\ufffd\ufffd",
+  "shown": 2,
+  "on_screen": "😀A"
+ }
+}
