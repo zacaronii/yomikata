@@ -34,6 +34,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("locate", help="find OCR'd lines in RAM snapshots by their pattern of repeated characters")
     p.add_argument("snapshots", nargs="+", type=Path, help="<sha1>.ram.gz files from an inbox (their .json beside them)")
     p.add_argument("--show-hits", action="store_true", help="print each match's segment (script text: review only)")
+    p = sub.add_parser("vram", help="PS1 video memory from a PCSX ReARMed savestate, saved as PNG views for finding fonts")
+    p.add_argument("state", type=Path, help="<sha1>.state.gz from an inbox (or a raw savestate)")
+    p.add_argument("--ram", type=Path, help="the snapshot's RAM (<sha1>.ram.gz), to confirm the layout")
+    p.add_argument("-o", "--out", type=Path, required=True, help="prefix for <prefix>-rgb.png, <prefix>-nibbles.png, <prefix>.vram")
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -98,6 +102,17 @@ def main(argv: list[str] | None = None) -> int:
             if args.show_hits:
                 for h in r.hits[:30]:
                     print(f"   @{h['offset']:#08x} {h['segment']}")
+        return 0
+    if args.cmd == "vram":
+        import gzip
+        from PIL import Image
+        from .vram import extract_vram, views
+        load = lambda p: (lambda b: gzip.decompress(b) if b[:2] == b"\x1f\x8b" else b)(p.read_bytes())
+        got = extract_vram(load(args.state), load(args.ram) if args.ram else None)
+        args.out.with_suffix(".vram").write_bytes(got.vram)
+        for name, arr in views(got.vram).items():
+            Image.fromarray(arr).save(f"{args.out}-{name}.png")
+        print(f"video memory at offset {got.vram_offset:#x}" + (f", RAM at {got.ram_offset:#x}" if got.ram_offset is not None else ""))
         return 0
     if args.cmd == "validate":
         problems = catalog.validate(args.root)
