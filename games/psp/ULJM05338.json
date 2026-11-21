@@ -1,0 +1,22 @@
+{
+  "id": "ULJM05338",
+  "aliases": [
+    "ULJM05339"
+  ],
+  "platform": "psp",
+  "title": "CLANNAD",
+  "title_romaji": "Clannad",
+  "encoding": "utf16le",
+  "hooks": [
+    {
+      "address": "0x0880F240",
+      "register": "a0",
+      "charset": "utf16le"
+    }
+  ],
+  "status": "partial",
+  "sources": [
+    "Hook adapted from LunaHook's PPSSPP table (GPL-3.0), LunaTranslator src/NativeImpl/LunaHook/LunaHook/emulators/ppsspp_1.cpp"
+  ],
+  "notes": "Both discs. Ported into Genkan from a published hook; not yet confirmed in play with Genkan."
+}

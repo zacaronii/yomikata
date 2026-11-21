@@ -8,6 +8,20 @@
    "encoding": "shift_jis",
    "status": "partial"
   },
+  "NPJH50515": {
+   "path": "games/psp/NPJH50515.json",
+   "sha256": "b3dbef7d6c005afff916741cff5e56afa384b929f91b9ea5910ffbf8f866ce95",
+   "platform": "psp",
+   "encoding": "utf16le",
+   "status": "partial"
+  },
+  "NPJH50631": {
+   "path": "games/psp/NPJH50631.json",
+   "sha256": "b19336cf209dd31aad77a8ae500d23f66a2bb452892abf2d403240a13396f59b",
+   "platform": "psp",
+   "encoding": "utf16le",
+   "status": "partial"
+  },
   "SLPS-00102": {
    "path": "games/ps1/SLPS-00102.json",
    "sha256": "0c6b9455f3e06b4430d1a0836048fddd391520a5b95c6e9fcb8a7dfc52e16a97",
@@ -44,12 +58,49 @@
    "encoding": "shift_jis",
    "status": "verified"
   },
+  "ULJM05338": {
+   "path": "games/psp/ULJM05338.json",
+   "sha256": "f8bed0baab4b8fa99767a714598435713a1ab5edf065e6075691e40c34aa3387",
+   "platform": "psp",
+   "encoding": "utf16le",
+   "status": "partial"
+  },
+  "ULJM05339": {
+   "path": "games/psp/ULJM05338.json",
+   "sha256": "f8bed0baab4b8fa99767a714598435713a1ab5edf065e6075691e40c34aa3387",
+   "platform": "psp",
+   "encoding": "utf16le",
+   "status": "partial",
+   "alias_of": "ULJM05338"
+  },
+  "ULJM05603": {
+   "path": "games/psp/ULJM05603.json",
+   "sha256": "6f623f04e873d8966520d41414c1f689a798f06667abba302c1df3c145a9a0f4",
+   "platform": "psp",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "ULJM06119": {
    "path": "games/psp/ULJM06119.json",
    "sha256": "bb72eb26e8095de7665e0928eb7a431ad48f25733a73d029272094ea9f86d28a",
    "platform": "psp",
    "encoding": "utf8",
    "status": "partial"
+  },
+  "ULJM06232": {
+   "path": "games/psp/ULJM06232.json",
+   "sha256": "d31a57cb953f83e546e9b1c809fe776fcbe763b6cd358826357839823b689d9c",
+   "platform": "psp",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
+  "ULJM06233": {
+   "path": "games/psp/ULJM06232.json",
+   "sha256": "d31a57cb953f83e546e9b1c809fe776fcbe763b6cd358826357839823b689d9c",
+   "platform": "psp",
+   "encoding": "shift_jis",
+   "status": "partial",
+   "alias_of": "ULJM06232"
   }
  }
 }
