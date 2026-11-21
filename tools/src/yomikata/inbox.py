@@ -25,6 +25,7 @@ import logging
 import os
 import re
 import threading
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -64,12 +65,28 @@ RAM = {
 
 
 # Optional parts kept with a snapshot, and their size limits once uncompressed.
-EXTRA_PARTS = {"state": 32 * 1024 * 1024,      # the emulator's savestate (holds video memory on PCSX ReARMed)
+EXTRA_PARTS = {"state": 64 * 1024 * 1024,      # the emulator's savestate (holds video memory on PCSX ReARMed;
+                                               # PPSSPP's is 40 MB: the 32 MB of RAM and the rest of the machine)
                "vram": 2 * 1024 * 1024,        # video memory, when the core gives it out
                "screen": 4 * 1024 * 1024}      # the frame on screen (PNG)
 # The largest RAM snapshot accepted per platform (main RAM size), and how many are kept per game.
 SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000}
 SNAPSHOTS_PER_GAME = 40
+
+
+def gunzip(data: bytes, limit: int, name: str) -> bytes:
+    """`data` uncompressed if it is gzipped, stopping at `limit` bytes so a small upload can't unpack into a huge
+    one. A result of limit + 1 bytes means "too large" to the caller's size check."""
+    if data[:2] != b"\x1f\x8b":
+        return data
+    unpacker = zlib.decompressobj(wbits=31)
+    try:
+        out = unpacker.decompress(data, limit + 1)
+    except zlib.error:
+        out = None
+    if out is None or (len(out) <= limit and not unpacker.eof):      # broken, or cut short
+        raise ValueError(f"{name} looks gzipped but doesn't decompress")
+    return out
 
 
 def clean_snapshot_meta(meta: object) -> dict:
@@ -261,22 +278,13 @@ class Inbox:
         for name, data in (extras or {}).items():
             if name not in EXTRA_PARTS or not data:
                 continue
-            raw = data
-            if data[:2] == b"\x1f\x8b":
-                try:
-                    raw = gzip.decompress(data)
-                except (OSError, EOFError):
-                    raise ValueError(f"{name} looks gzipped but doesn't decompress") from None
+            raw = gunzip(data, EXTRA_PARTS[name], name)
             if len(raw) > EXTRA_PARTS[name]:
                 raise ValueError(f"{name} is larger than {EXTRA_PARTS[name] // 1024 // 1024} MB")
             if name == "screen" and raw[:8] != b"\x89PNG\r\n\x1a\n":
                 raise ValueError("screen must be a PNG")
             kept[name] = raw
-        if ram[:2] == b"\x1f\x8b":
-            try:
-                ram = gzip.decompress(ram)
-            except (OSError, EOFError):
-                raise ValueError("ram looks gzipped but doesn't decompress") from None
+        ram = gunzip(ram, SNAPSHOT_MAX[m["platform"]], "ram")
         if not ram or len(ram) > SNAPSHOT_MAX[m["platform"]]:
             raise ValueError(f"ram must be 1 byte to {SNAPSHOT_MAX[m['platform']] // 1024 // 1024} MB "
                              f"({m['platform']} main RAM)")

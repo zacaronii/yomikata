@@ -41,7 +41,7 @@ RAM** taken while a line is on screen, and let the inbox's side do the searching
 |---|---|
 | `meta` | JSON: `id`, `platform` (`ps1`, `ps2`, `psp`), `base_address` (where the dump starts, e.g. `0x80000000` for PS1, `0x08000000` for PSP), `ocr` (the line or lines on screen, 1-10), and optionally `title`, `exe_sha1`, `captured_at`, `app`, `emulator`, `note` |
 | `ram` | The raw RAM bytes (PS1: 2 MB; PSP: up to 32 MB), optionally gzipped |
-| `state` | Optional: the emulator's savestate (libretro `retro_serialize`), gzipped, up to 32 MB. On PCSX ReARMed it holds the 1 MB of video memory, which `yomikata vram` extracts |
+| `state` | Optional: the emulator's savestate (libretro `retro_serialize`), gzipped, up to 64 MB once unpacked (PCSX ReARMed: 4 MB, PPSSPP: 40 MB). On PCSX ReARMed it holds the 1 MB of video memory, which `yomikata vram` extracts |
 | `vram` | Optional: the video memory itself, when the core gives it out (PS1: 1 MB) |
 | `screen` | Optional: the frame on screen as a PNG, up to 4 MB |
 
