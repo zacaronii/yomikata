@@ -1,19 +1,35 @@
 {
   "id": "SLPS-01001",
-  "aliases": ["SLPS-01002"],
+  "aliases": [
+    "SLPS-01002"
+  ],
   "platform": "ps1",
   "title": "ムーンライトシンドローム",
   "title_romaji": "Moonlight Syndrome",
   "versions": [
-    {"id": "SLPS-01001", "exe": "SLPS_010.01", "exe_sha1": "a8b3924464bf4b2977f03ac14ea8a7e0c09739d7", "note": "disc 1"},
-    {"id": "SLPS-01002", "exe": "SLPS_010.02", "exe_sha1": "a8b3924464bf4b2977f03ac14ea8a7e0c09739d7", "note": "disc 2 (same executable)"}
+    {
+      "id": "SLPS-01001",
+      "exe": "SLPS_010.01",
+      "exe_sha1": "a8b3924464bf4b2977f03ac14ea8a7e0c09739d7",
+      "note": "disc 1"
+    },
+    {
+      "id": "SLPS-01002",
+      "exe": "SLPS_010.02",
+      "exe_sha1": "a8b3924464bf4b2977f03ac14ea8a7e0c09739d7",
+      "note": "disc 2 (same executable)"
+    }
   ],
   "encoding": "table",
+  "tables": [
+    "tables/human-kana.tbl"
+  ],
   "unit": 2,
   "status": "partial",
   "sources": [
     "Genkan memory search during play (scheme)",
-    "Relative search of the disc files found no plain script: it is most likely compressed on disc"
+    "RAM snapshot from Genkan (inbox): the line on screen found as 16-bit codes by its pattern of repeated characters; the kana fit the gojuon order exactly, and the surrounding dialogue decodes as Japanese",
+    "The same bytes are on disc in PROLOGUE.DAT, archive entry 0 (the prologue script), uncompressed"
   ],
-  "notes": "Own 16-bit codes (Human's scheme, shared with Twilight Syndrome): kana in a fixed order below 0x0100, kanji from 0x0100 in font order, 0xFFF0-0xFFFF control codes. Byte order, the kana order and control meanings still to be mapped, from a memory sample or the game font."
+  "notes": "Kana are mapped (tables/human-kana.tbl). Codes are 2 bytes, high byte first, and in this RAM buffer they start at an odd address. Kanji are 0x0100 up in the order of the scene's own font (早 0x0104, 帰 0x0105 in the prologue), so they likely change between scenes: read them from the font or by OCR. 0xFFF9-0xFFFF are control codes, some followed by a parameter word (FFFA xx, FFF9 xxxx); their meanings aren't mapped yet."
 }
