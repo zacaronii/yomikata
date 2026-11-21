@@ -22,6 +22,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("images", nargs="+", type=Path)
     p.add_argument("--scratch", type=Path, help="where CHDs are unpacked (deleted after each image)")
     p.add_argument("--samples", action="store_true", help="include the longest run per encoding (for review only)")
+    p = sub.add_parser("draft", help="write draft entries from `scan` output (never overwrites); prints a summary")
+    p.add_argument("results", type=Path, help="JSON lines from `yomikata scan` (a `path` field groups discs by folder)")
+    p.add_argument("--titles", type=Path, help="JSON: folder or image name -> {title, title_romaji}")
+    p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -59,6 +63,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps({"image": img.name, "error": str(e)}), file=sys.stderr)
                 status = 1
         return status
+    if args.cmd == "draft":
+        from .draft import draft, summary
+        results = [json.loads(l) for l in args.results.read_text(encoding="utf-8").splitlines() if l.strip()]
+        titles = json.loads(args.titles.read_text(encoding="utf-8")) if args.titles else None
+        print(summary(draft(results, args.root, titles)))
+        return 0
     if args.cmd == "validate":
         problems = catalog.validate(args.root)
         for pr in problems:

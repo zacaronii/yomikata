@@ -1,0 +1,39 @@
+{
+  "id": "SLPS-01880",
+  "aliases": [
+    "SLPS-01881",
+    "SLPS-01882",
+    "SLPS-01883"
+  ],
+  "platform": "ps1",
+  "title": "ファイナルファンタジーVIII",
+  "title_romaji": "Final Fantasy VIII",
+  "versions": [
+    {
+      "id": "SLPS-01880",
+      "exe": "SLPS_018.80",
+      "exe_sha1": "acde806a81ed6296e37c86213e5bfc6ea38adec7"
+    },
+    {
+      "id": "SLPS-01881",
+      "exe": "SLPS_018.81",
+      "exe_sha1": "acde806a81ed6296e37c86213e5bfc6ea38adec7"
+    },
+    {
+      "id": "SLPS-01882",
+      "exe": "SLPS_018.82",
+      "exe_sha1": "acde806a81ed6296e37c86213e5bfc6ea38adec7"
+    },
+    {
+      "id": "SLPS-01883",
+      "exe": "SLPS_018.83",
+      "exe_sha1": "acde806a81ed6296e37c86213e5bfc6ea38adec7"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0 of the disc files: utf16le 31 characters of prose-like text"
+  ],
+  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+}

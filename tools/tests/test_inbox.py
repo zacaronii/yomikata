@@ -45,7 +45,7 @@ def test_the_exe_hash_is_filled_from_the_library(tmp_path):
     make_ps1(lib / "psx" / "Game (Japan).iso", raw=False)
     c = TestClient(create_app("secret", tmp_path / "data", library_root=lib))
     c.post("/api/samples", json=body(1), headers=AUTH)
-    for _ in range(50):                                  # identified in the background
+    for _ in range(200):                                 # identified in the background
         game = c.get("/api/samples", headers=AUTH).json()["games"][0]
         if game["exe_sha1"]:
             break

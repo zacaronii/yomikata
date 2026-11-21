@@ -1,0 +1,27 @@
+{
+  "id": "SCPS-10056",
+  "aliases": [
+    "SCPS-10057"
+  ],
+  "platform": "ps1",
+  "title": "やるドラシリーズVol.2 季節を抱きしめて",
+  "title_romaji": "Yarudora Series Vol. 2: Kisetsu o Dakishimete",
+  "versions": [
+    {
+      "id": "SCPS-10056",
+      "exe": "SCPS_100.56",
+      "exe_sha1": "d21d5e9c5779fd15ea58aaf9e1032ac75332d062"
+    },
+    {
+      "id": "SCPS-10057",
+      "exe": "SCPS_100.57",
+      "exe_sha1": "d21d5e9c5779fd15ea58aaf9e1032ac75332d062"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0: no prose-like text on disc"
+  ],
+  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+}

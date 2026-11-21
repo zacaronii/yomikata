@@ -1,0 +1,17 @@
+{
+  "id": "SLPS-00097",
+  "platform": "ps1",
+  "title": "幻想水滸伝",
+  "title_romaji": "Gensou Suikoden",
+  "versions": [
+    {
+      "exe": "SLPS_000.97",
+      "exe_sha1": "f01bf2b47a59a4cda2efdbe2c001af518f01f2ae"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0 of the disc files: shift_jis 6,766 characters of prose-like text"
+  ]
+}

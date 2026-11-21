@@ -1,0 +1,32 @@
+{
+  "id": "SLPS-03050",
+  "aliases": [
+    "SLPS-03051",
+    "SLPS-03052"
+  ],
+  "platform": "ps1",
+  "title": "テイルズ オブ エターニア",
+  "title_romaji": "Tales of Eternia",
+  "versions": [
+    {
+      "id": "SLPS-03050",
+      "exe": "SLPS_030.50",
+      "exe_sha1": "0e461086b49d4bed0a8648d7ab4b841abfae9336"
+    },
+    {
+      "id": "SLPS-03051",
+      "exe": "SLPS_030.51",
+      "exe_sha1": "0e461086b49d4bed0a8648d7ab4b841abfae9336"
+    },
+    {
+      "id": "SLPS-03052",
+      "exe": "SLPS_030.52",
+      "exe_sha1": "0e461086b49d4bed0a8648d7ab4b841abfae9336"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0 of the disc files: shift_jis 13,490, utf16le 48 characters of prose-like text"
+  ]
+}

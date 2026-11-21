@@ -1,0 +1,27 @@
+{
+  "id": "SLPS-01160",
+  "aliases": [
+    "SLPS-01161"
+  ],
+  "platform": "ps1",
+  "title": "ゼノギアス",
+  "title_romaji": "Xenogears",
+  "versions": [
+    {
+      "id": "SLPS-01160",
+      "exe": "SLPS_011.60",
+      "exe_sha1": "3f9633f80213427f55894cda9fc8c3346ecf31b4"
+    },
+    {
+      "id": "SLPS-01161",
+      "exe": "SLPS_011.61",
+      "exe_sha1": "15dae4421e0db5d864b5cada59dfcc786f323c9b"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0: no prose-like text on disc"
+  ],
+  "notes": "None of the disc's ISO 9660 files reads as data (the game reads raw sectors), so the scan saw nothing. Needs a memory sample from play."
+}

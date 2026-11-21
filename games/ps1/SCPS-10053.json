@@ -1,0 +1,27 @@
+{
+  "id": "SCPS-10053",
+  "aliases": [
+    "SCPS-10054"
+  ],
+  "platform": "ps1",
+  "title": "やるドラシリーズVol.1 ダブルキャスト",
+  "title_romaji": "Yarudora Series Vol. 1: Double Cast",
+  "versions": [
+    {
+      "id": "SCPS-10053",
+      "exe": "SCPS_100.53",
+      "exe_sha1": "9a0ac19e2456f8caa981a151b3c6010ff0886f69"
+    },
+    {
+      "id": "SCPS-10054",
+      "exe": "SCPS_100.54",
+      "exe_sha1": "9a0ac19e2456f8caa981a151b3c6010ff0886f69"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0: no prose-like text on disc"
+  ],
+  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+}

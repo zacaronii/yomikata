@@ -1,0 +1,26 @@
+{
+  "id": "SLPM-86500",
+  "aliases": [
+    "SLPM-86501"
+  ],
+  "platform": "ps1",
+  "title": "ドラゴンクエストVII エデンの戦士たち",
+  "title_romaji": "Dragon Quest VII: Eden no Senshitachi",
+  "versions": [
+    {
+      "id": "SLPM-86500",
+      "exe": "SLPM_865.00",
+      "exe_sha1": "772b09ece8da31f7aae3473cadde0ff8b9025ed3"
+    },
+    {
+      "id": "SLPM-86501",
+      "exe": "SLPM_865.01",
+      "exe_sha1": "fc187181ed2ac3d3af6205964a71ae7dc986bddc"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.1.0 of the disc files: shift_jis 32,909, utf16le 8 characters of prose-like text"
+  ]
+}
