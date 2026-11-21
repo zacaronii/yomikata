@@ -1,0 +1,43 @@
+{
+  "id": "NPJH50372",
+  "platform": "psp",
+  "title": "ダンガンロンパ　希望の学園と絶望の高校生",
+  "title_romaji": "Danganronpa: Kibou no Gakuen to Zetsubou no Koukousei",
+  "versions": [
+    {
+      "exe_sha1": "e259164dd103d5d0306b8cd7e9dc2be0cb282804",
+      "note": "disc version 1.03"
+    }
+  ],
+  "encoding": "utf16le",
+  "hooks": [
+    {
+      "address": "0x0885AF64",
+      "register": "a0",
+      "charset": "utf16le",
+      "cleanup": [
+        {
+          "regex": "<CLT[^<>\\n]*>",
+          "replace": ""
+        },
+        {
+          "regex": "\\n",
+          "replace": ""
+        },
+        {
+          "regex": "^\\s+|\\s+$",
+          "replace": ""
+        }
+      ],
+      "versions": [
+        "e259164dd103d5d0306b8cd7e9dc2be0cb282804"
+      ]
+    }
+  ],
+  "status": "auto",
+  "sources": [
+    "Genkan memory search during play (PR #5): the line on screen was UTF-16LE at three addresses in user RAM (the loaded script and two buffers); nothing in Shift-JIS or UTF-8",
+    "Hook 0x0885AF64 (a0) found in play by Genkan 0.0.1 in PPSSPP v1.20.4, disc version 1.03: 8/8 lines matched OCR"
+  ],
+  "notes": "The original release. The PSP the Best reissue (NPJH50515) uses a different hook address; its 0x088540B0 runs constantly on this release without pointing at text."
+}
