@@ -6,6 +6,8 @@ folder and never in the catalog repository.
 
 POST /api/samples   one game's samples (Bearer token), merged with what's stored, duplicates dropped
 GET  /api/samples   what's stored: per game, sample count and last upload (Bearer token)
+POST /api/snapshots a RAM snapshot taken with a line on screen (multipart: meta JSON + ram file), stored per game
+GET  /api/snapshots what's stored per game
 POST /api/hooks     a hook a reader found and checked in play (docs/hook-finder.md); stored per game
 GET  /api/hooks     the hook reports stored, per game
 GET  /health
@@ -15,6 +17,7 @@ library's images once (cached by path, size and mtime) and looks the serial up."
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import hmac
 import json
@@ -58,6 +61,37 @@ RAM = {
     "ps2": [(0x00000000, 0x02000000), (0x20000000, 0x22000000), (0x30000000, 0x32000000)],
     "psp": [(0x08000000, 0x0A000000), (0x48000000, 0x4A000000), (0x88000000, 0x8A000000)],
 }
+
+
+# The largest RAM snapshot accepted per platform (main RAM size), and how many are kept per game.
+SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000}
+SNAPSHOTS_PER_GAME = 40
+
+
+def clean_snapshot_meta(meta: object) -> dict:
+    if not isinstance(meta, dict):
+        raise ValueError("meta must be a JSON object")
+    game_id, platform = meta.get("id"), meta.get("platform")
+    if not isinstance(game_id, str) or not ID_RE.fullmatch(game_id):
+        raise ValueError("meta.id must be a release id such as SLPS-01001")
+    if platform not in SNAPSHOT_MAX:
+        raise ValueError(f"snapshots are taken for: {', '.join(sorted(SNAPSHOT_MAX))}")
+    base = meta.get("base_address")
+    if not isinstance(base, str) or not in_ram(platform, base):
+        raise ValueError(f"meta.base_address must be the start of {platform} main RAM as hex, e.g. 0x80000000")
+    lines = meta.get("ocr")
+    if isinstance(lines, str):
+        lines = [lines]
+    if not isinstance(lines, list) or not lines or len(lines) > 10 or \
+            not all(isinstance(x, str) and x.strip() and len(x) <= 400 for x in lines):
+        raise ValueError("meta.ocr must be the line(s) on screen: 1-10 strings of at most 400 characters")
+    out = {"id": game_id, "platform": platform, "base_address": "0x" + base[2:].upper() if base.startswith("0x") else base,
+           "ocr": lines}
+    for k in ("title", "genkan_version", "captured_at", "exe_sha1", "note", "app", "emulator"):
+        v = meta.get(k)
+        if isinstance(v, (str, int, float)) and len(str(v)) <= 200:
+            out[k] = v
+    return out
 
 
 def in_ram(platform: str, address: object) -> bool:
@@ -217,6 +251,45 @@ class Inbox:
             threading.Thread(target=self.fill_hash, args=(platform, game_id), daemon=True).start()
         return {"ok": True, "id": game_id, "added": added, "stored": len(stored["samples"])}
 
+    def add_snapshot(self, meta: dict, ram: bytes) -> dict:
+        m = clean_snapshot_meta(meta)
+        if ram[:2] == b"\x1f\x8b":
+            try:
+                ram = gzip.decompress(ram)
+            except (OSError, EOFError):
+                raise ValueError("ram looks gzipped but doesn't decompress") from None
+        if not ram or len(ram) > SNAPSHOT_MAX[m["platform"]]:
+            raise ValueError(f"ram must be 1 byte to {SNAPSHOT_MAX[m['platform']] // 1024 // 1024} MB "
+                             f"({m['platform']} main RAM)")
+        end = int(m["base_address"], 16) + len(ram) - 1
+        if not in_ram(m["platform"], hex(end)):
+            raise ValueError("base_address + size runs past main RAM")
+        digest = hashlib.sha1(ram).hexdigest()
+        folder = self.data / "snapshots" / m["platform"] / m["id"]
+        with self.lock:
+            if (folder / f"{digest}.json").exists():
+                return {"ok": True, "id": m["id"], "added": False, "sha1": digest}
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / f"{digest}.ram.gz").write_bytes(gzip.compress(ram, 6))
+            write_json(folder / f"{digest}.json", {**m, "size": len(ram), "sha1": digest, "received_at": now()})
+            metas = sorted(folder.glob("*.json"), key=lambda p: json.loads(p.read_text(encoding="utf-8"))["received_at"])
+            for old in metas[:-SNAPSHOTS_PER_GAME]:            # keep the newest ones
+                old.with_name(old.name.replace(".json", ".ram.gz")).unlink(missing_ok=True)
+                old.unlink()
+            count = len(list(folder.glob("*.json")))
+        return {"ok": True, "id": m["id"], "added": True, "sha1": digest, "stored": count}
+
+    def snapshots(self) -> list[dict]:
+        out = []
+        with self.lock:
+            for folder in sorted((self.data / "snapshots").glob("*/*")):
+                metas = [json.loads(p.read_text(encoding="utf-8")) for p in folder.glob("*.json")]
+                if metas:
+                    out.append({"id": folder.name, "platform": folder.parent.name, "snapshots": len(metas),
+                                "lines": sum(len(m["ocr"]) for m in metas),
+                                "last_upload": max(m["received_at"] for m in metas)})
+        return out
+
     def add_hook(self, body: dict) -> dict:
         r = clean_hook_report(body)
         with self.lock:
@@ -316,6 +389,32 @@ def create_app(token: str, data: Path, library_root: Path | None = None, scratch
             return inbox.add(body)
         except ValueError as e:
             raise HTTPException(400, str(e)) from None
+
+    @app.post("/api/snapshots")
+    async def snapshot(request: Request):
+        auth(request)
+        if int(request.headers.get("content-length") or 0) > 40 * 1024 * 1024:
+            raise HTTPException(413, "a snapshot upload is at most 40 MB")
+        try:
+            form = await request.form(max_part_size=1024 * 1024)
+        except Exception:
+            raise HTTPException(400, "send multipart/form-data with a meta part (JSON) and a ram file part") from None
+        ram, meta = form.get("ram"), form.get("meta")
+        if ram is None or isinstance(ram, str) or meta is None:
+            raise HTTPException(400, "send multipart/form-data with a meta part (JSON) and a ram file part")
+        try:
+            meta_obj = json.loads(meta if isinstance(meta, str) else (await meta.read()).decode("utf-8"))
+        except ValueError:
+            raise HTTPException(400, "meta must be JSON") from None
+        try:
+            return inbox.add_snapshot(meta_obj, await ram.read())
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from None
+
+    @app.get("/api/snapshots")
+    async def snapshot_listing(request: Request):
+        auth(request)
+        return {"games": inbox.snapshots()}
 
     @app.post("/api/hooks")
     async def hook_report(request: Request):
