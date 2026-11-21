@@ -18,6 +18,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("identify", help="print each image's platform, id and executable hash (JSON lines)")
     p.add_argument("images", nargs="+", type=Path)
     p.add_argument("--scratch", type=Path, help="where CHDs are unpacked (deleted after each image)")
+    p = sub.add_parser("scan", help="sort disc images by how their script is stored (JSON lines; no text is kept)")
+    p.add_argument("images", nargs="+", type=Path)
+    p.add_argument("--scratch", type=Path, help="where CHDs are unpacked (deleted after each image)")
+    p.add_argument("--samples", action="store_true", help="include the longest run per encoding (for review only)")
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -37,6 +41,20 @@ def main(argv: list[str] | None = None) -> int:
         for img in args.images:
             try:
                 print(json.dumps({"image": img.name, **identify(img, args.scratch).as_dict()}, ensure_ascii=False))
+            except (DiscError, OSError, ValueError) as e:
+                print(json.dumps({"image": img.name, "error": str(e)}), file=sys.stderr)
+                status = 1
+        return status
+    if args.cmd == "scan":
+        from .scan import scan_disc
+        status = 0
+        for img in args.images:
+            try:
+                rel = identify(img, args.scratch).as_dict()
+                res = scan_disc(img, args.scratch).as_dict()
+                if not args.samples:
+                    res.pop("sample")
+                print(json.dumps({"image": img.name, **rel, **res}, ensure_ascii=False))
             except (DiscError, OSError, ValueError) as e:
                 print(json.dumps({"image": img.name, "error": str(e)}), file=sys.stderr)
                 status = 1

@@ -43,6 +43,14 @@ class Image:
             raise DiscError(f"sector {lba} is past the end of the image")
         return data
 
+    def is_form2(self, lba: int) -> bool:
+        """A Mode 2 Form 2 sector (streamed XA audio/video): its data isn't file-system data."""
+        if not self.raw:
+            return False
+        self.f.seek(lba * 2352 + 18)
+        sub = self.f.read(1)
+        return bool(sub and sub[0] & 0x20)
+
     def read(self, lba: int, length: int) -> bytes:
         out = bytearray()
         n = 0

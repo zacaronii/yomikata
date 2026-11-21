@@ -54,6 +54,9 @@ gets the same text:
 - A line that is empty after cleanup is **dropped**. Use this to filter: a hook that also sees lines another hook
   already reports can clean those to nothing.
 
+Reference implementation: `tools/src/yomikata/cleanup.py` (`clean_line(text, entry, hook)`), tested against the
+catalog's own entries, so clients can compare their output with it.
+
 ## Table (`tables/…/*.tbl`)
 
 Thingy format, UTF-8, hex keys in **memory byte order** (so no separate endianness setting is needed):
