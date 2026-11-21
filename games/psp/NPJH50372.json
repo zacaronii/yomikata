@@ -1,0 +1,12 @@
+{
+  "id": "NPJH50372",
+  "platform": "psp",
+  "title": "ダンガンロンパ 希望の学園と絶望の高校生",
+  "title_romaji": "Danganronpa: Kibou no Gakuen to Zetsubou no Koukousei",
+  "encoding": "utf16le",
+  "status": "partial",
+  "sources": [
+    "Genkan memory search during play (version 1.03): lines on screen found in RAM as UTF-16LE"
+  ],
+  "notes": "Original release, version 1.03. Text is UTF-16LE in RAM: the line on screen sits in the loaded script and two buffers, and the scene's other lines are loaded with it. The PSP the Best release's hook (NPJH50515, 0x088540B0) does not apply: at that address this release runs code constantly with no text in a0-a3 or t0. No hook for this release yet."
+}

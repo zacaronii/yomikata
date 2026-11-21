@@ -8,6 +8,13 @@
    "encoding": "shift_jis",
    "status": "partial"
   },
+  "NPJH50372": {
+   "path": "games/psp/NPJH50372.json",
+   "sha256": "9f1017eb8f55cb0d10d1ad66fee9fdc48f827a500a339c9891332593de489a74",
+   "platform": "psp",
+   "encoding": "utf16le",
+   "status": "partial"
+  },
   "NPJH50515": {
    "path": "games/psp/NPJH50515.json",
    "sha256": "b3dbef7d6c005afff916741cff5e56afa384b929f91b9ea5910ffbf8f866ce95",
