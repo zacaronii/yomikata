@@ -38,6 +38,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("state", type=Path, help="<sha1>.state.gz from an inbox (or a raw savestate)")
     p.add_argument("--ram", type=Path, help="the snapshot's RAM (<sha1>.ram.gz), to confirm the layout")
     p.add_argument("-o", "--out", type=Path, required=True, help="prefix for <prefix>-rgb.png, <prefix>-nibbles.png, <prefix>.vram")
+    p = sub.add_parser("replay", help="run a libretro core headless from a savestate; record RAM and frames (docs/replay.md)")
+    p.add_argument("--core", type=Path, required=True, help="the libretro core (.so), e.g. pcsx_rearmed_libretro.so")
+    p.add_argument("--game", type=Path, required=True, help="the game image the savestate belongs to")
+    p.add_argument("--state", type=Path, required=True, help="savestate (<sha1>.state.gz from an inbox, or raw)")
+    p.add_argument("--frames", type=int, default=120, help="frames to record")
+    p.add_argument("--press", default="", help="buttons to press first, e.g. 'a' to advance a line (RetroPad names)")
+    p.add_argument("--wait", type=int, default=10, help="frames to run before pressing")
+    p.add_argument("-o", "--out", type=Path, required=True, help="folder for ram.npy, frames.npy and PNGs every 10 frames")
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -113,6 +121,31 @@ def main(argv: list[str] | None = None) -> int:
         for name, arr in views(got.vram).items():
             Image.fromarray(arr).save(f"{args.out}-{name}.png")
         print(f"video memory at offset {got.vram_offset:#x}" + (f", RAM at {got.ram_offset:#x}" if got.ram_offset is not None else ""))
+        return 0
+    if args.cmd == "replay":
+        import gzip
+        import numpy as np
+        from PIL import Image
+        from .replay.libretro import Core
+        args.out.mkdir(parents=True, exist_ok=True)
+        core = Core(args.core, args.out / "system")
+        core.load_game(args.game)
+        raw = args.state.read_bytes()
+        state = gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw
+        core.load_state(state)
+        core.run(args.wait)
+        if args.press:
+            core.run(3, hold=set(args.press.split(",")))
+        rams, frames = [], []
+        for f in range(args.frames):
+            core.run(1)
+            rams.append(np.frombuffer(core.ram(), dtype=np.uint8).copy())
+            frames.append(core.frame_rgb())
+            if f % 10 == 0:
+                Image.fromarray(frames[-1]).save(args.out / f"frame-{f:04d}.png")
+        np.save(args.out / "ram.npy", np.stack(rams))
+        np.save(args.out / "frames.npy", np.stack(frames))
+        print(f"recorded {args.frames} frames (state {len(state)} bytes, core expects {core.state_size()})")
         return 0
     if args.cmd == "validate":
         problems = catalog.validate(args.root)
