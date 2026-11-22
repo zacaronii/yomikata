@@ -1,0 +1,33 @@
+{
+ "name": "codes-arguments",
+ "checks": "A code and its argument bytes are one character and nothing in the text, so an argument of 00 isn't the terminator and an argument of 83 doesn't start a character (message). Without `codes` the same bytes end at the first 00 (speaker).",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80150000",
+   "charset": "shift_jis",
+   "max_bytes": 24,
+   "terminator": "00",
+   "codes": {
+    "03": 2,
+    "07": 2
+   }
+  },
+  "speaker": {
+   "address": "0x80150000",
+   "charset": "shift_jis",
+   "max_bytes": 24,
+   "terminator": "00"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80150000",
+   "hex": "82a0070182a2070082a40383410082a90000000000000000"
+  }
+ ],
+ "expected": {
+  "message": "あいうA",
+  "speaker": "あ\u0007\u0001い\u0007"
+ }
+}

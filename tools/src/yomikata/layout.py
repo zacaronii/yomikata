@@ -70,8 +70,17 @@ def read_flag(spec: dict, read, endian: str = "little") -> bool:
     return value == spec["equals"] if "equals" in spec else value != 0
 
 
-def _char_len(data: bytes, i: int, charset: str, unit: int) -> int:
+def _code_len(data: bytes, i: int, codes: dict | None) -> int:
+    """Bytes in the code starting at i, or 0 when none of `codes` starts there. The longest lead wins."""
+    leads = [lead for lead in codes or () if data.startswith(lead, i)]
+    return codes[max(leads, key=len)] if leads else 0
+
+
+def _char_len(data: bytes, i: int, charset: str, unit: int, codes: dict | None = None) -> int:
     """Bytes in the character starting at i (so terminators are only matched at character boundaries)."""
+    n = _code_len(data, i, codes)
+    if n:
+        return n                                    # a code and its arguments are one character
     b = data[i]
     if charset == "shift_jis":
         return 2 if 0x81 <= b <= 0x9F or 0xE0 <= b <= 0xFC else 1
@@ -86,12 +95,13 @@ def _char_len(data: bytes, i: int, charset: str, unit: int) -> int:
     return unit
 
 
-def _cut(data: bytes, charset: str, unit: int, terminator: bytes | None, chars: int | None = None) -> bytes:
+def _cut(data: bytes, charset: str, unit: int, terminator: bytes | None, chars: int | None = None,
+         codes: dict | None = None) -> bytes:
     i = count = 0
     while i < len(data) and (chars is None or count < chars):
         if terminator and data[i:i + len(terminator)] == terminator:
             break
-        n = _char_len(data, i, charset, unit)
+        n = _char_len(data, i, charset, unit, codes)
         if i + n > len(data):                       # a character cut off by max_bytes or the stride
             break
         i += n
@@ -99,7 +109,7 @@ def _cut(data: bytes, charset: str, unit: int, terminator: bytes | None, chars: 
     return data[:i]
 
 
-def _page(data: bytes, charset: str, unit: int, mark: bytes, cursor: int) -> bytes:
+def _page(data: bytes, charset: str, unit: int, mark: bytes, cursor: int, codes: dict | None = None) -> bytes:
     """The page a script cursor is on. `data` is split at each `mark` that starts a character; the page is the
     last one with anything in it that starts at or before the cursor (an offset into data). A cursor outside the
     text is on its last page: a game may drop its cursor once the last page is typed out."""
@@ -109,7 +119,7 @@ def _page(data: bytes, charset: str, unit: int, mark: bytes, cursor: int) -> byt
             pages.append((start, i))
             start = i = i + len(mark)
         else:
-            i += _char_len(data, i, charset, unit)
+            i += _char_len(data, i, charset, unit, codes)
     pages.append((start, len(data)))
     inside = 0 <= cursor <= len(data)
     full = [(a, b) for a, b in pages if b > a and (a <= cursor or not inside)]
@@ -127,7 +137,7 @@ def _char(code: bytes, charset: str) -> str:
         return "\ufffd"
 
 
-def _decode(data: bytes, charset: str, entry: dict, table: tbl.Table | None) -> str:
+def _decode(data: bytes, charset: str, entry: dict, table: tbl.Table | None, codes: dict | None = None) -> str:
     """Character by character (the boundaries `_cut` uses), so a bad byte costs one U+FFFD in every client,
     not whatever a platform's decoder does about it."""
     if charset == "table":
@@ -136,8 +146,10 @@ def _decode(data: bytes, charset: str, entry: dict, table: tbl.Table | None) -> 
         return tbl.decode(data, table, entry.get("unit", 2), entry.get("controls")).rstrip("\n")
     out, i = [], 0
     while i < len(data):
-        n = _char_len(data, i, charset, 1)
-        out.append(_char(data[i:i + n], charset))
+        n = _code_len(data, i, codes)
+        if not n:                                   # a code is nothing in the text
+            n = _char_len(data, i, charset, 1)
+            out.append(_char(data[i:i + n], charset))
         i += n
     return "".join(out)
 
@@ -148,6 +160,7 @@ def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, end
     charset = spec["charset"]
     unit = entry.get("unit", 2) if charset == "table" else 1
     term = bytes.fromhex(spec["terminator"]) if "terminator" in spec else None
+    codes = {bytes.fromhex(lead): n for lead, n in spec.get("codes", {}).items()}
     start = resolve(spec, read, endian)
     rows = spec.get("rows", {"count": 1, "stride": spec["max_bytes"]})
     lines = []
@@ -161,11 +174,11 @@ def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, end
                 chars = n if chars is None else min(chars, n)
             else:
                 size = min(size, n)
-        raw = _cut(read(start + r * rows["stride"], size), charset, unit, term, chars)
+        raw = _cut(read(start + r * rows["stride"], size), charset, unit, term, chars, codes)
         if "pages" in spec:
             cursor = read_int(spec["pages"]["cursor"], read, endian) - start
-            raw = _page(raw, charset, unit, bytes.fromhex(spec["pages"]["break"]), cursor)
-        lines.append(_decode(raw, charset, entry, table))
+            raw = _page(raw, charset, unit, bytes.fromhex(spec["pages"]["break"]), cursor, codes)
+        lines.append(_decode(raw, charset, entry, table, codes))
     if "rows" in spec:
         while lines and not lines[-1]:
             lines.pop()
@@ -183,7 +196,8 @@ def version_for(entry: dict, release_id: str | None) -> str | None:
 _WHERE = {"address", "base", "offsets"}
 _NUMBER = _WHERE | {"type", "equals"}
 _LENGTH = _WHERE | {"type", "counts"}
-_TEXT = _WHERE | {"charset", "max_bytes", "terminator", "length", "rows", "pages", "when", "cleanup"}
+_TEXT = _WHERE | {"charset", "max_bytes", "terminator", "length", "rows", "pages", "codes", "when", "cleanup"}
+_HEX = re.compile(r"([0-9A-Fa-f]{2}){1,4}")
 _FIELDS = {"message": "text", "choices": "text", "speaker": "either", "shown": "number", "waiting": "number",
            "choosing": "number", "choice_count": "number", "choice_cursor": "number"}
 _OTHER = {"versions", "endian", "poll", "speaker_names", "notes", "when"}
@@ -200,7 +214,11 @@ _BYTES = re.compile(r"([0-9A-Fa-f]{2})+")
 def _text_ok(spec) -> bool:
     if not isinstance(spec, dict) or not set(spec) <= _TEXT or spec.get("charset") not in (*CODEC, "table"):
         return False
-    rows, pages = spec.get("rows", {}), spec.get("pages")
+    rows, pages, codes = spec.get("rows", {}), spec.get("pages"), spec.get("codes")
+    if codes is not None and not (spec["charset"] != "table" and isinstance(codes, dict) and codes and all(
+            isinstance(lead, str) and _HEX.fullmatch(lead) and type(n) is int and len(lead) // 2 <= n <= 16
+            for lead, n in codes.items())):
+        return False
     if pages is not None and not ("rows" not in spec and isinstance(pages, dict) and set(pages) == {"break", "cursor"}
                                   and isinstance(pages["break"], str) and _BYTES.fullmatch(pages["break"])
                                   and _number_ok(pages["cursor"], _WHERE | {"type"})):
