@@ -9,9 +9,24 @@
       "exe_sha1": "f01bf2b47a59a4cda2efdbe2c001af518f01f2ae"
     }
   ],
-  "encoding": "shift_jis",
-  "status": "auto",
+  "encoding": "table",
+  "tables": [
+    "tables/ps1/SLPS-00097.tbl"
+  ],
+  "unit": 2,
+  "status": "partial",
+  "layouts": [{
+    "poll": "frame",
+    "message": {"base": "0x8017DBC0", "offsets": ["0x18", "0x0"], "charset": "table", "max_bytes": 40,
+                "rows": {"count": 4, "stride": 40},
+                "when": {"base": "0x8017DBC0", "offsets": ["0x8"], "equals": 1},
+                "cleanup": [{"regex": "(?m)　+$", "replace": ""}, {"regex": "\\n+$", "replace": ""}]},
+    "waiting": {"address": "0x801BA436", "equals": 24},
+    "notes": "The pointer at 0x8017DBC0 leads to the window last used; the text is at the pointer 0x18 into it: 4 rows of 20 16-bit cells, filled as the line is typed. Byte 0x08 there is 1 while the window is open (the text stays after it closes). A portrait speaker's name is row 1 of the message. Bytes 0x11 and 0x12 are the typing column and row. `waiting` is the wait mark's entry in the draw list, not a state variable. Answers to a question come as the message, one a row; no flag for them was found. Before the first window the pointer is 0 and the message can't be read."
+  }],
   "sources": [
-    "yomikata scan 0.1.0 of the disc files: shift_jis 6,766 characters of prose-like text"
-  ]
+    "Headless replay of the opening from power-on (first room, corridor, audience with the emperor, the first choice, the menu): about 150 frames compared with the layout's reading",
+    "The game's font in video memory, read glyph by glyph; checked against sentences in the system text on the disc and in memory, and against a reference 12-pixel font"
+  ],
+  "notes": "One 16-bit table for the whole game (tables/ps1/SLPS-00097.tbl): the code is the glyph's place in the font. The dialogue is packed on the disc and unpacked in memory; the system text is on the disc as plain codes. 21 of the kanji were never seen in a sentence (here or in Gensou Suikoden II, which shares most of the font), so one or two may be wrong. Not reached in the replay: talking to townspeople, shops, battles, the war and duel screens. Cursor marks, wait marks and item icons (0x35-0x3B, 0xF2-0xF7) are not mapped."
 }

@@ -1,0 +1,78 @@
+{
+ "name": "pages-pointer-is-cursor",
+ "checks": "A game that keeps only a pointer to the page it shows: the pointer is the text's address and its page cursor, so the text is the first page from there, up to a break (message) or the terminator (speaker). The same cell is the text's `when`: at zero nothing is shown, and nothing is read (choices).",
+ "entry": {},
+ "layout": {
+  "message": {
+   "base": "0x80150010",
+   "offsets": [
+    "0x0"
+   ],
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00",
+   "pages": {
+    "break": "0C",
+    "cursor": {
+     "address": "0x80150010",
+     "type": "u32"
+    }
+   },
+   "when": {
+    "address": "0x80150010",
+    "type": "u32"
+   }
+  },
+  "speaker": {
+   "base": "0x80150014",
+   "offsets": [
+    "0x0"
+   ],
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00",
+   "pages": {
+    "break": "0C",
+    "cursor": {
+     "address": "0x80150014",
+     "type": "u32"
+    }
+   },
+   "when": {
+    "address": "0x80150014",
+    "type": "u32"
+   }
+  },
+  "choices": {
+   "base": "0x80150018",
+   "offsets": [
+    "0x0"
+   ],
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00",
+   "pages": {
+    "break": "0C",
+    "cursor": {
+     "address": "0x80150018",
+     "type": "u32"
+    }
+   },
+   "when": {
+    "address": "0x80150018",
+    "type": "u32"
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80150000",
+   "hex": "82a00c82a20082a40000000000000000000015800300158000000000"
+  }
+ ],
+ "expected": {
+  "message": "あ",
+  "speaker": "い",
+  "choices": []
+ }
+}
