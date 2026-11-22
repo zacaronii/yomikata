@@ -10,6 +10,7 @@ from pathlib import Path
 from . import catalog
 from .disc import DiscError
 from .identify import identify
+from .layout import RAM_BASE
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -38,14 +39,28 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("state", type=Path, help="<sha1>.state.gz from an inbox (or a raw savestate)")
     p.add_argument("--ram", type=Path, help="the snapshot's RAM (<sha1>.ram.gz), to confirm the layout")
     p.add_argument("-o", "--out", type=Path, required=True, help="prefix for <prefix>-rgb.png, <prefix>-nibbles.png, <prefix>.vram")
-    p = sub.add_parser("replay", help="run a libretro core headless from a savestate; record RAM and frames (docs/replay.md)")
+    p = sub.add_parser("replay", help="run a libretro core headless, from a savestate or from power-on; record RAM and frames (docs/replay.md)")
     p.add_argument("--core", type=Path, required=True, help="the libretro core (.so), e.g. pcsx_rearmed_libretro.so")
-    p.add_argument("--game", type=Path, required=True, help="the game image the savestate belongs to")
-    p.add_argument("--state", type=Path, required=True, help="savestate (<sha1>.state.gz from an inbox, or raw)")
+    p.add_argument("--game", type=Path, required=True, help="the game image (the one the savestate belongs to)")
+    p.add_argument("--state", type=Path, help="savestate (<sha1>.state.gz from an inbox, or raw); without one the game boots")
+    p.add_argument("--system", type=Path, help="the core's system folder, e.g. with your console's BIOS (default: <out>/system)")
+    p.add_argument("--steps", help="a script instead of --press/--frames, e.g. 'wait:600,start:4,30x(a:4,wait:40,snap)'")
+    p.add_argument("--watch", default="", help="with --steps: addresses (hex, comma separated) whose byte is printed at each snap")
+    p.add_argument("--platform", default="ps1", choices=sorted(RAM_BASE), help="whose RAM addresses --watch takes")
     p.add_argument("--frames", type=int, default=120, help="frames to record")
     p.add_argument("--press", default="", help="buttons to press first, e.g. 'a' to advance a line (RetroPad names)")
     p.add_argument("--wait", type=int, default=10, help="frames to run before pressing")
-    p.add_argument("-o", "--out", type=Path, required=True, help="folder for ram.npy, frames.npy and PNGs every 10 frames")
+    p.add_argument("-o", "--out", type=Path, required=True, help="folder for ram.npy, frames.npy and PNGs every 10 frames; with --steps, for the snaps")
+    p = sub.add_parser("contrast", help="bytes that hold one value in some RAM snapshots and never in the others (finds flags)")
+    p.add_argument("--same", nargs="+", type=Path, required=True, help="snapshots where it holds (.ram.gz or raw)")
+    p.add_argument("--other", nargs="+", type=Path, required=True, help="snapshots where it doesn't")
+    p.add_argument("--platform", default="ps1", choices=sorted(RAM_BASE), help="whose RAM the snapshots are")
+    p.add_argument("--limit", type=int, default=40)
+    p = sub.add_parser("find", help="where a string stands in RAM snapshots, in the standard encodings")
+    p.add_argument("text", help="text read off the frame (it isn't stored anywhere)")
+    p.add_argument("snapshots", nargs="+", type=Path, help=".ram.gz or raw")
+    p.add_argument("--absent", nargs="+", type=Path, default=[], help="snapshots of moments without the text: places that hold it there too are skipped")
+    p.add_argument("--platform", default="ps1", choices=sorted(RAM_BASE), help="whose RAM the snapshots are")
     p = sub.add_parser("layout", help="read an entry's layout from a RAM snapshot (checks a layout before a PR)")
     p.add_argument("entry", type=Path, help="games/<platform>/<id>.json")
     p.add_argument("ram", type=Path, help="RAM snapshot (<sha1>.ram.gz from an inbox, or raw)")
@@ -134,11 +149,20 @@ def main(argv: list[str] | None = None) -> int:
         from PIL import Image
         from .replay.libretro import Core
         args.out.mkdir(parents=True, exist_ok=True)
-        core = Core(args.core, args.out / "system")
+        core = Core(args.core, args.system or args.out / "system")
         core.load_game(args.game)
-        raw = args.state.read_bytes()
-        state = gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw
-        core.load_state(state)
+        state = b""
+        if args.state:
+            raw = args.state.read_bytes()
+            state = gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw
+            core.load_state(state)
+        if args.steps:
+            from .replay import steps
+            base = RAM_BASE[args.platform]
+            watch = {a: int(a, 16) - base for a in args.watch.split(",") if a}
+            for line in steps.run(core, steps.parse(args.steps), args.out, watch):
+                print(line)
+            return 0
         core.run(args.wait)
         if args.press:
             core.run(3, hold=set(args.press.split(",")))
@@ -151,7 +175,22 @@ def main(argv: list[str] | None = None) -> int:
                 Image.fromarray(frames[-1]).save(args.out / f"frame-{f:04d}.png")
         np.save(args.out / "ram.npy", np.stack(rams))
         np.save(args.out / "frames.npy", np.stack(frames))
-        print(f"recorded {args.frames} frames (state {len(state)} bytes, core expects {core.state_size()})")
+        print(f"recorded {args.frames} frames" + (f" (state {len(state)} bytes, core expects {core.state_size()})" if state else ""))
+        return 0
+    if args.cmd in ("contrast", "find"):
+        from .contrast import contrast, find_text
+        from .layout import Ram
+        base = RAM_BASE[args.platform]
+        if args.cmd == "find":
+            absent = [Ram.load(p, base).data for p in args.absent]
+            for p in args.snapshots:
+                for charset, at in find_text(Ram.load(p, base).data, args.text, absent).items():
+                    print(p.name, charset, " ".join(f"0x{base + o:08X}" for o in at))
+            return 0
+        hits = contrast([Ram.load(p, base).data for p in args.same], [Ram.load(p, base).data for p in args.other])
+        for offset, value, others in hits[:args.limit]:
+            print(f"0x{base + offset:08X} {value}, otherwise {' '.join(map(str, others[:8]))}")
+        print(f"{len(hits)} byte(s)")
         return 0
     if args.cmd == "layout":
         from . import layout, tbl
