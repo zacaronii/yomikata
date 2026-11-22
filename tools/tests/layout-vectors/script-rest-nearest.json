@@ -1,0 +1,72 @@
+{
+ "name": "script-rest-nearest",
+ "checks": "Rest looks back from the position and stops at the nearest end code. Just past an end code that is the one, and nothing changes (message, at the script's end). Two codes into the second answer, the first one's end code is in reach: the position goes back to it and the second answer isn't read, which is why rest isn't for a script whose texts can start that close to an end code (speaker). One code past the end, rest 16 reaches the first answer's end code as well but takes the nearer one (choices).",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80340000",
+   "charset": "table",
+   "max_bytes": 24,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80340018",
+     "type": "u16",
+     "counts": "codes"
+    },
+    "rest": 4
+   }
+  },
+  "speaker": {
+   "address": "0x80340000",
+   "charset": "table",
+   "max_bytes": 24,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x8034001A",
+     "type": "u16",
+     "counts": "codes"
+    },
+    "rest": 2
+   }
+  },
+  "choices": {
+   "address": "0x80340000",
+   "charset": "table",
+   "max_bytes": 24,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x8034001C",
+     "type": "u16",
+     "counts": "codes"
+    },
+    "rest": 16,
+    "texts": "rows"
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80340000",
+   "hex": "80000001ffff800000020003ffff00060005000000000000070005000800"
+  }
+ ],
+ "expected": {
+  "message": "あいう",
+  "speaker": "あ",
+  "choices": [
+   "あ",
+   "いう"
+  ]
+ }
+}

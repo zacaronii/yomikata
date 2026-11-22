@@ -1,0 +1,75 @@
+{
+ "name": "script-not-in-a-text",
+ "checks": "A position that isn't in a text reads as nothing: on the first open code, which no end code precedes (message); among the instructions after the last text, where walking back meets an end code before an open code (speaker); at the script's start (choices: the offset is 0).",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F001": "wait",
+   "F003": "page"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80300000",
+   "charset": "table",
+   "max_bytes": 64,
+   "codes": {
+    "F001": 4
+   },
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80300040",
+     "type": "s32"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x80300000",
+   "charset": "table",
+   "max_bytes": 64,
+   "codes": {
+    "F001": 4
+   },
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80300044",
+     "type": "s32"
+    }
+   }
+  },
+  "choices": {
+   "address": "0x80300000",
+   "charset": "table",
+   "max_bytes": 64,
+   "codes": {
+    "F001": 4
+   },
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80300048",
+     "type": "s32"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80300000",
+   "hex": "270105800000010002fffe0003ffff80000004f001001e0005f003ffff80000006ffff0028123400000000000000000000000000000000000000000000000000030000002700000000000000"
+  }
+ ],
+ "expected": {
+  "message": "",
+  "speaker": "",
+  "choices": []
+ }
+}

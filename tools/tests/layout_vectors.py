@@ -53,8 +53,8 @@ def cases() -> list[dict]:
         v = {"name": name, "checks": checks, "entry": entry or {}}
         if tables:
             v["tables"] = tables
-        v.update(layout=layout, memory=[{"address": f"0x{a:08X}", "hex": d.hex()} for a, d in memory.items()],
-                 expected=expected)
+        v["layouts" if isinstance(layout, list) else "layout"] = layout      # a list: one version's layouts
+        v.update(memory=[{"address": f"0x{a:08X}", "hex": d.hex()} for a, d in memory.items()], expected=expected)
         out.append(v)
 
     case("sjis-message-state",
@@ -242,6 +242,16 @@ def cases() -> list[dict]:
          {0x80600000: bytes.fromhex("FF FF FEFF FFFFFFFF 0300") + bytes(6) + pad(sjis("あいう"), 16)},
          {"message": "あいう", "waiting": True, "choosing": True, "shown": -2, "choice_cursor": -1,
           "choice_count": 3, "on_screen": ""})
+
+    case("flag-mask",
+         "A flag's mask keeps only those bits before the test: nonzero, or equals. The bits are the stored ones, so "
+         "a signed type's -1 under mask 3 is 3.",
+         {"waiting": {"address": "0x80600000", "mask": 3},
+          "choosing": {"address": "0x80600001", "mask": 3},
+          "choices": {"address": "0x80600010", "charset": "shift_jis", "max_bytes": 8, "terminator": "00",
+                      "when": {"address": "0x80600002", "type": "s8", "mask": 3, "equals": 3}}},
+         {0x80600000: bytes.fromhex("02 08 FF") + bytes(13) + pad(sjis("はい"), 8)},
+         {"waiting": True, "choosing": False, "choices": ["はい"]})
 
     case("speaker-number-unnamed",
          "A speaker number without a name stays a number. A flag with equals 0 is true at zero.",
@@ -491,6 +501,380 @@ def cases() -> list[dict]:
           0x80140020: bytes(8) + num(0x80140003)},
          {"speaker": "CD", "errors": {"message": ""}})
 
+    styled = sjis("あ") + b"\x07\x01" + sjis("い") + b"\x07\0" + sjis("う") + b"\x03\x83" + b"A\0" + sjis("か")
+    case("codes-arguments",
+         "A code and its argument bytes are one character and nothing in the text, so an argument of 00 isn't "
+         "the terminator and an argument of 83 doesn't start a character (message). Without `codes` the same "
+         "bytes end at the first 00 (speaker).",
+         {"message": {"address": "0x80150000", "charset": "shift_jis", "max_bytes": 24, "terminator": "00",
+                      "codes": {"03": 2, "07": 2}},
+          "speaker": {"address": "0x80150000", "charset": "shift_jis", "max_bytes": 24, "terminator": "00"}},
+         {0x80150000: pad(styled, 24)},
+         {"message": "あいうA", "speaker": "あ\u0007\u0001い\u0007"})
+
+    case("codes-lengths",
+         "A code is one character for a length in characters (message: three characters are あ, a code, い). A "
+         "code that doesn't fit in what was read is dropped like any last character (speaker, where max_bytes "
+         "ends after the code's first byte; choices, where a length in bytes does).",
+         {"message": {"address": "0x80160000", "charset": "shift_jis", "max_bytes": 16, "codes": {"07": 2},
+                      "length": {"address": "0x80160010", "counts": "characters"}},
+          "speaker": {"address": "0x80160000", "charset": "shift_jis", "max_bytes": 3, "codes": {"07": 2}},
+          "choices": {"address": "0x80160000", "charset": "shift_jis", "max_bytes": 16, "codes": {"07": 2},
+                      "length": {"address": "0x80160011"}}},
+         {0x80160000: pad(sjis("あ") + b"\x07\x01" + sjis("いう"), 16) + bytes([3, 7])},
+         {"message": "あい", "speaker": "あ", "choices": ["あい"]})
+
+    case("codes-leads",
+         "Where two leads start at the same byte the longer one counts (message: 1F 03 takes three bytes, any "
+         "other 1F two). The terminator is looked for first (speaker: 07 FF ends the text though 07 is a "
+         "code). In UTF-16 a code's bytes are counted the same way, so its 00 00 isn't the terminator "
+         "(choices).",
+         {"message": {"address": "0x80170000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "codes": {"1F": 2, "1F03": 3}},
+          "speaker": {"address": "0x80170010", "charset": "shift_jis", "max_bytes": 16, "terminator": "07FF",
+                      "codes": {"07": 2}},
+          "choices": {"address": "0x80170020", "charset": "utf16le", "max_bytes": 16, "terminator": "0000",
+                      "codes": {"1B00": 4}}},
+         {0x80170000: pad(sjis("あ") + b"\x1f\x03\0" + sjis("い") + b"\x1f\0" + sjis("う"), 16)
+          + pad(sjis("あ") + b"\x07\x01" + sjis("い") + b"\x07\xff" + sjis("う"), 16)
+          + pad(u16("あ") + b"\x1b\0\0\0" + u16("い"), 16)},
+         {"message": "あいう", "speaker": "あい", "choices": ["あい"]})
+
+    case("codes-pages",
+         "With `pages`, a code's argument isn't a break: 03 0C stays inside the first page (message), and the "
+         "second page starts after the one real break (speaker).",
+         {"message": {"address": "0x80180000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "codes": {"03": 2},
+                      "pages": {"break": "0C", "cursor": {"address": "0x80180010", "type": "u32"}}},
+          "speaker": {"address": "0x80180000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "codes": {"03": 2},
+                      "pages": {"break": "0C", "cursor": {"address": "0x80180014", "type": "u32"}}}},
+         {0x80180000: pad(sjis("あ") + b"\x03\x0c" + sjis("い") + b"\x0c" + sjis("う"), 16)
+          + num(0x80180004) + num(0x80180007)},
+         {"message": "あい", "speaker": "う"})
+
+    case("codes-table",
+         "Codes with a table charset: a control that takes an argument is skipped whole, so an argument of FFFF "
+         "isn't the terminator (message). Without `codes` the same bytes end there (speaker).",
+         {"message": {"address": "0x80200000", "charset": "table", "max_bytes": 16, "terminator": "FFFF",
+                      "codes": {"F001": 4}},
+          "speaker": {"address": "0x80200000", "charset": "table", "max_bytes": 16, "terminator": "FFFF"}},
+         {0x80200000: pad(bytes.fromhex("0001 F001 FFFF 0002 FFFF 0003"), 16)},
+         {"message": "あい", "speaker": "あ"},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2, "controls": {"F001": "wait"}},
+         tables={"tables/test/kana.tbl": KANA})
+
+    # A made-up script: instructions (27 01 05 and 00 28 12 34) around three texts, each after 80 00. The second
+    # text carries the first one's page on; the third starts a new page, because F003 (page) stands before the
+    # end code in front of it. The texts start at odd addresses.
+    pieces = ["270105", "8000", "0001 0002 FFFE 0003", "FFFF", "8000", "0004", "F001 001E", "0005", "F003", "FFFF",
+              "8000", "0006", "FFFF", "0028 1234"]
+    script = pad(b"".join(bytes.fromhex(p) for p in pieces), 64)
+    at = [sum(len(bytes.fromhex(p)) for p in pieces[:n]) for n in range(len(pieces) + 1)]   # where each starts
+    told = {"tables": ["tables/test/kana.tbl"], "unit": 2, "controls": {"F001": "wait", "F003": "page"}}
+
+    def page(cell: int, **more) -> dict:
+        offset = {"address": f"0x{0x80300040 + 4 * cell:08X}", "type": "s32"}
+        return {"address": "0x80300000", "charset": "table", "max_bytes": 64, "codes": {"F001": 4},
+                "script": {"open": "8000", "offset": offset}, **more}
+
+    case("script-typing",
+         "A script page is read as far as the game has read it. The position is 6 bytes into the first text "
+         "(message), and in the second text after a wait code and its argument (speaker): the second text "
+         "follows the first one's end code directly, so it carries the page on, and neither the end code nor "
+         "the 80 00 shows.",
+         {"message": page(0), "speaker": page(1)},
+         {0x80300000: script + num(at[2] + 4) + num(at[7])},
+         {"message": "あい", "speaker": "あい\nうえ"}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-page-end",
+         "The position is after the page's last character and its page code, before the end code (message), "
+         "and after the end code of the last text, with an instruction next (speaker): the end code just "
+         "behind the position is stepped over. The third text starts a new page, because a page code stands "
+         "before the end code in front of it.",
+         {"message": page(0), "speaker": page(1)},
+         {0x80300000: script + num(at[9]) + num(at[13])},
+         {"message": "あい\nうえお", "speaker": "か"}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-between-texts",
+         "The position is on an open code that carries the page on: the page so far (message). Right after "
+         "that code it is the same (speaker).",
+         {"message": page(0), "speaker": page(1)},
+         {0x80300000: script + num(at[4]) + num(at[5])},
+         {"message": "あい\nう", "speaker": "あい\nう"}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-new-page",
+         "The position is on an open code that starts a new page: nothing, the old page is over (message). "
+         "Right after it nothing of the new page has been read yet (speaker), and then its first character "
+         "(choices).",
+         {"message": page(0), "speaker": page(1), "choices": page(2)},
+         {0x80300000: script + num(at[10]) + num(at[11]) + num(at[12])},
+         {"message": "", "speaker": "", "choices": ["か"]}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-not-in-a-text",
+         "A position that isn't in a text reads as nothing: on the first open code, which no end code "
+         "precedes (message); among the instructions after the last text, where walking back meets an end "
+         "code before an open code (speaker); at the script's start (choices: the offset is 0).",
+         {"message": page(0), "speaker": page(1), "choices": page(2)},
+         {0x80300000: script + num(at[1]) + num(at[14]) + num(0)},
+         {"message": "", "speaker": "", "choices": []}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-max-bytes",
+         "Never more than max_bytes behind the position. 8 bytes reach back to the second text's open code "
+         "but not to the first text, so the page starts at the second (message); 6 bytes reach no open code "
+         "at all (speaker). An offset below zero is nothing (choices).",
+         {"message": page(0, max_bytes=8), "speaker": page(0, max_bytes=6), "choices": page(1)},
+         {0x80300000: script + num(at[7]) + num(-4)},
+         {"message": "え", "speaker": "", "choices": []}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    # A list as the game writes a choice: 80 07, a count, then each answer after 00 00 01, ending in FFFF.
+    asked = pad(bytes.fromhex("8007 0003 0012" "000001 0001 0002 FFFF" "000001 0003 FFFF" "000001 FFFF"
+                              "000001 0004 0005 FFFF" "27"), 48)
+    answers = {"address": "0x80310000", "charset": "table", "max_bytes": 48,
+               "script": {"open": "000001", "offset": {"address": "0x80310030", "type": "u32"}, "texts": "rows"}}
+    case("script-rows",
+         "With texts: rows each text of the page is a row of its own. The position is after the last answer's "
+         "end code: four answers, the third an empty one (choices). The same bytes without texts run "
+         "together (message). Partway through the list the rows so far are read, the last one as far as the "
+         "game has read it (speaker: the position is one character into the second answer).",
+         {"choices": answers,
+          "message": {**answers, "script": {k: v for k, v in answers["script"].items() if k != "texts"}},
+          "speaker": {**answers, "script": {**answers["script"], "offset": {"address": "0x80310034", "type": "u32"}}}},
+         {0x80310000: asked + num(36) + num(20)},
+         {"choices": ["あい", "う", "", "えお"], "message": "あいうえお", "speaker": "あい\nう"},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2}, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-unreadable",
+         "If the offset can't be read, the field fails (message), and so it does if the script can't be read "
+         "at the offset (speaker: the offset points far outside memory).",
+         {"message": {**page(0), "script": {"open": "8000", "offset": {"base": "0x80300044", "offsets": ["0x0"]}}},
+          "speaker": page(2)},
+         {0x80300000: script + num(at[7]) + num(0) + num(0x100000)},
+         {"errors": {"message": "", "speaker": ""}}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    # Another made-up script, counted in codes: an instruction (0027 0105), then a window that opens at 8000 and
+    # closes at F004. A text in it has two pages, each ending in F003 (page); after two instructions (0028) the
+    # window opens again for a third. FFFF ends the script. F003 and F004 are both page codes.
+    words = ["0027", "0105", "8000", "0001", "0002", "F003", "0003", "FFFE", "0004", "F003", "F004", "0028",
+             "0028", "8000", "0005", "F003", "F004", "FFFF"]
+    windows = pad(b"".join(bytes.fromhex(w) for w in words), 48)
+    shut = {"tables": ["tables/test/kana.tbl"], "unit": 2,
+            "controls": {"F003": "page", "F004": "clear", "0028": "ignore"}}
+
+    def window(cell: int) -> dict:
+        offset = {"address": f"0x{0x80320030 + 2 * cell:08X}", "type": "u16", "counts": "codes"}
+        return {"address": "0x80320000", "charset": "table", "max_bytes": 48, "script": {"open": "8000", "offset": offset}}
+
+    case("script-offset-codes",
+         "An offset that counts codes: 5 codes of 2 bytes are 10 bytes into the script, after the first page's "
+         "two characters (message). One code on, the position has passed the page code and nothing follows it "
+         "yet: the page it ended is still up (speaker). And one more: a page code with something after it "
+         "starts the page anew, so only the second page's first character is read (choices).",
+         {"message": window(0), "speaker": window(1), "choices": window(2)},
+         {0x80320000: windows + num(5, 2) + num(6, 2) + num(7, 2)},
+         {"message": "あい", "speaker": "あい", "choices": ["う"]}, entry=shut, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-page-codes",
+         "Page codes inside a text. The second page with its line break, the position past its page code "
+         "(message). Past the code that closes the window as well: that one is a page code too, and the page "
+         "after it is empty (speaker). The same among the instructions that follow, which are controls and "
+         "read as nothing (choices).",
+         {"message": window(0), "speaker": window(1), "choices": window(2)},
+         {0x80320000: windows + num(10, 2) + num(11, 2) + num(12, 2)},
+         {"message": "う\nえ", "speaker": "", "choices": []}, entry=shut, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-page-codes-end",
+         "The window opened again: its one character with the position on the page code (message) and past it "
+         "(speaker). At the script's end, past the closing code and the end code: the end code is stepped "
+         "over, the closing code is the last thing read and so starts no page, and the page code before it has "
+         "the closing code after it, so the page is empty (choices).",
+         {"message": window(0), "speaker": window(1), "choices": window(2)},
+         {0x80320000: windows + num(15, 2) + num(16, 2) + num(18, 2)},
+         {"message": "お", "speaker": "お", "choices": []}, entry=shut, tables={"tables/test/kana.tbl": KANA})
+
+    # A third made-up script, counted in codes: a choice's two answers, each a text of its own, then the end code
+    # and two numbers the game reads after it (where each answer leads). The game waits past those.
+    words = ["8000", "0001", "FFFF", "8000", "0002", "0003", "FFFF", "0006", "0005"]
+    answers = pad(b"".join(bytes.fromhex(w) for w in words), 24)
+
+    def resting(cell: int, rest: int | None, texts: str | None = None) -> dict:
+        offset = {"address": f"0x{0x80340018 + 2 * cell:08X}", "type": "u16", "counts": "codes"}
+        more = {k: v for k, v in (("rest", rest), ("texts", texts)) if v is not None}
+        return {"address": "0x80340000", "charset": "table", "max_bytes": 24,
+                "script": {"open": "8000", "offset": offset, **more}}
+
+    case("script-rest",
+         "The position is two codes past the end code, on neither a text nor an open code. With rest 2 it is "
+         "read as just past the end code, so the page is still up: both texts, joined (message). With rest 1 "
+         "the end code is too far back, and without rest nobody looks: nothing (speaker, shown as a text). "
+         "With rows, each text is an answer (choices).",
+         {"message": resting(0, 2), "speaker": resting(0, 1), "choices": resting(0, 16, "rows")},
+         {0x80340000: answers + num(9, 2)},
+         {"message": "あいう", "speaker": "", "choices": ["あ", "いう"]},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2}, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-rest-nearest",
+         "Rest looks back from the position and stops at the nearest end code. Just past an end code that "
+         "is the one, and nothing changes (message, at the script's end). Two codes into the second answer, the first one's "
+         "end code is in reach: the position goes back to it and the second answer isn't read, which is why "
+         "rest isn't for a script whose texts can start that close to an end code (speaker). One code past "
+         "the end, rest 16 reaches the first answer's end code as well but takes the nearer one (choices).",
+         {"message": resting(0, 4), "speaker": resting(1, 2), "choices": resting(2, 16, "rows")},
+         {0x80340000: answers + num(7, 2) + num(5, 2) + num(8, 2)},
+         {"message": "あいう", "speaker": "あ", "choices": ["あ", "いう"]},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2}, tables={"tables/test/kana.tbl": KANA})
+
+    # A fourth made-up script: a question and two answers in one text, a line each, then the end code and where
+    # each answer leads. An answer's row is a code that says which answer it is (they are not in order), a colon
+    # and its words; the game draws the letters. It waits past the end with a cell at 0xFFFF; another holds the
+    # cursor.
+    colon = KANA + "00C7=：\n"
+    numbered = {"tables": ["tables/test/colon.tbl"], "unit": 2, "controls": {"0098": "choice", "0198": "choice"}}
+    colons = [{"regex": "(?s)^(.*?\\n)??：", "replace": ""}, {"regex": "\\n：", "replace": "\n"}]
+
+    def asking(address: int, words: list[str]) -> tuple[dict, bytes]:
+        size = 2 * len(words)
+        page = {"address": f"0x{address:08X}", "charset": "table", "max_bytes": size,
+                "script": {"open": "8000", "rest": 2,
+                           "offset": {"address": f"0x{address + size:08X}", "type": "u16", "counts": "codes"}}}
+        up = {"address": f"0x{address + size + 2:08X}", "type": "u16", "equals": 65535}
+        return ({"message": page, "choosing": up, "choices": {**page, "when": up, "cleanup": colons},
+                 "choice_cursor": {"address": f"0x{address + size + 4:08X}", "type": "u16"}},
+                b"".join(bytes.fromhex(w) for w in words))
+
+    choice, asked = asking(0x80350000, ["8000", "0001", "0002", "FFFE", "0198", "00C7", "0003", "FFFE", "0098",
+                                        "00C7", "0004", "0005", "FFFE", "FFFF", "0006", "0005"])
+
+    case("script-rest-choice",
+         "A choice in one text: the question's row, then a row for each answer, a colon before its words. The "
+         "game waits two codes past the end code; with rest the message is the whole page. The answers are the "
+         "same text with a cleanup of their own, which runs over the whole text before it is split into rows: "
+         "the first rule takes everything up to the first row that starts with a colon, line breaks included "
+         "(its group is optional and lazy, ??), the second the other rows' colons.",
+         choice, {0x80350000: asked + num(16, 2) + num(0xFFFF, 2) + num(1, 2)},
+         {"message": "あい\n：う\n：えお", "choosing": True, "choices": ["う", "えお"], "choice_cursor": 1},
+         entry=numbered, tables={"tables/test/colon.tbl": colon})
+
+    case("script-rest-choice-typing",
+         "The same choice while its first answer types out: the message is the page so far, and the answers "
+         "are none, because their own when is false until the choice is up.",
+         choice, {0x80350000: asked + num(7, 2) + num(0, 2) + num(0, 2)},
+         {"message": "あい\n：う", "choosing": False, "choices": [], "choice_cursor": 0},
+         entry=numbered, tables={"tables/test/colon.tbl": colon})
+
+    alone, asked = asking(0x80360000, ["8000", "0098", "00C7", "0003", "FFFE", "0198", "00C7", "0004", "FFFE",
+                                       "FFFF", "0005", "0006"])
+
+    case("script-rest-choice-first-row",
+         "A choice with no question's row: the page starts with an answer. The first rule's group is lazy, so it "
+         "matches nothing here and the first answer stays; a greedy one would take the first answer away.",
+         alone, {0x80360000: asked + num(12, 2) + num(0xFFFF, 2) + num(0, 2)},
+         {"message": "：う\n：え", "choosing": True, "choices": ["う", "え"], "choice_cursor": 0},
+         entry=numbered, tables={"tables/test/colon.tbl": colon})
+
+    # A fifth made-up script: a game that starts a choice's first answer on a row of its own, whether or not the
+    # script has a line break before it. The code that opens the choice (0097) is a line break in `controls`, and
+    # the message's own cleanup takes out the doubled break that leaves before a colon.
+    opened = {**numbered, "controls": {**numbered["controls"], "0097": "newline"}}
+    doubled = [{"regex": "^\\n：", "replace": "："}, {"regex": "\\n\\n：", "replace": "\n："}]
+
+    def opening(address: int, words: list[str]) -> tuple[dict, bytes]:
+        fields, data = asking(address, words)
+        return {**fields, "message": {**fields["message"], "cleanup": doubled}}, data
+
+    glued, asked = opening(0x80370000, ["8000", "0001", "0002", "0097", "0198", "00C7", "0003", "FFFE", "0098",
+                                        "00C7", "0004", "0005", "FFFE", "FFFF", "0006", "0005"])
+
+    case("script-choice-row-no-break",
+         "The question runs straight into the choice, with no line break code before it. The code that opens the "
+         "choice is a newline in controls, so the first answer starts a row: the message has the question's row "
+         "and a row for each answer, and the answers are both there. Were that code nothing, the first answer "
+         "would sit on the question's row and be lost from the answers.",
+         glued, {0x80370000: asked + num(16, 2) + num(0xFFFF, 2) + num(0, 2)},
+         {"message": "あい\n：う\n：えお", "choosing": True, "choices": ["う", "えお"], "choice_cursor": 0},
+         entry=opened, tables={"tables/test/colon.tbl": colon})
+
+    case("script-choice-row-no-break-typing",
+         "The same script just past the code that opens the choice: the line break it gives ends the text so "
+         "far and is dropped with the other trailing line breaks.",
+         glued, {0x80370000: asked + num(4, 2) + num(0, 2) + num(0, 2)},
+         {"message": "あい", "choosing": False, "choices": [], "choice_cursor": 0},
+         entry=opened, tables={"tables/test/colon.tbl": colon})
+
+    broken, asked = opening(0x80380000, ["8000", "0001", "0002", "FFFE", "0097", "0198", "00C7", "0003", "FFFE",
+                                         "0098", "00C7", "0004", "0005", "FFFE", "FFFF", "0006", "0005"])
+
+    case("script-choice-row-break",
+         "The usual script: a line break code, then the choice. Now there are two line breaks before the first "
+         "colon, and the message's own cleanup makes them one (its second rule), so the message is the same as "
+         "with no line break code. The answers' cleanup takes everything up to the first row that starts with a "
+         "colon either way.",
+         broken, {0x80380000: asked + num(17, 2) + num(0xFFFF, 2) + num(1, 2)},
+         {"message": "あい\n：う\n：えお", "choosing": True, "choices": ["う", "えお"], "choice_cursor": 1},
+         entry=opened, tables={"tables/test/colon.tbl": colon})
+
+    first, asked = opening(0x80390000, ["8000", "0097", "0098", "00C7", "0003", "FFFE", "0198", "00C7", "0004",
+                                        "FFFE", "FFFF", "0005", "0006"])
+
+    case("script-choice-row-first",
+         "A choice with no question: the page starts with the code that opens it. The line break it gives is "
+         "the first thing in the text, and the cleanup's first rule (anchored at the start of the text, not of "
+         "each line) takes it out.",
+         first, {0x80390000: asked + num(13, 2) + num(0xFFFF, 2) + num(0, 2)},
+         {"message": "：う\n：え", "choosing": True, "choices": ["う", "え"], "choice_cursor": 0},
+         entry=opened, tables={"tables/test/colon.tbl": colon})
+
+    # Two layouts for one version: a game that loads a program per chapter keeps its cells elsewhere in each.
+    def chapter(value: int, text: int) -> dict:
+        return {"when": {"address": "0x80330000", "type": "u32", "equals": value},
+                "message": {"address": f"0x{text:08X}", "charset": "shift_jis", "max_bytes": 8, "terminator": "00"},
+                "waiting": {"address": "0x80330004"}}
+    both = [chapter(0x27BD0018, 0x80330008), chapter(0xAFBF0020, 0x80330010)]
+    lines = num(1) + pad(sjis("一章"), 8) + pad(sjis("二章"), 8)
+    case("layouts-first-true",
+         "Several layouts for one version are taken in order, and the first whose own when is true is read. "
+         "Here it is the second.",
+         both, {0x80330000: num(0xAFBF0020) + lines}, {"message": "二章", "waiting": True})
+
+    case("layouts-none-true",
+         "No layout's when is true: the first is read, which gives what a false when gives.",
+         both, {0x80330000: num(0x3C028007) + lines}, {"message": "", "waiting": False})
+
+    case("layouts-without-when",
+         "A layout without a when is always true, so nothing after it is ever read. One whose when can't be "
+         "read is passed over.",
+         [{**both[0], "when": {"base": "0x80330020", "offsets": ["0x0"], "type": "u32"}},
+          {k: v for k, v in both[0].items() if k != "when"}, both[1]],
+         {0x80330000: num(0xAFBF0020) + lines + bytes(12) + num(0)}, {"message": "一章", "waiting": True})
+
+    sets = {"tables": {"by": {"address": "0x80210010", "type": "u16"},
+                       "sets": {"36": ["tables/test/one.tbl"], "94": ["tables/test/two.tbl"]}},
+            "message": {"address": "0x80210000", "charset": "table", "max_bytes": 16, "terminator": "FFFF"},
+            "speaker": {"address": "0x80210008", "charset": "shift_jis", "max_bytes": 8, "terminator": "00"}}
+    chapters = {"tables/test/kana.tbl": KANA, "tables/test/one.tbl": "0100=学\n",
+                "tables/test/two.tbl": "0100=校\n0002=胃\n"}
+    words = bytes.fromhex("0001 0002 0100 FFFF") + pad(sjis("先生"), 8)
+    case("tables-set",
+         "A layout's own tables: the number is 94, so two.tbl follows the entry's table (and wins over it for "
+         "0002). The same bytes under 36 would be あい学.",
+         sets, {0x80210000: words + num(94, 2)},
+         {"message": "あ胃校", "speaker": "先生"},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2}, tables=chapters)
+
+    case("tables-no-set",
+         "No set for the number: a table text fails instead of being read with the wrong table. A text in a "
+         "standard charset is still read.",
+         sets, {0x80210000: words + num(7, 2)},
+         {"speaker": "先生", "errors": {"message": ""}},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2}, tables=chapters)
+
+    case("tables-unreadable",
+         "The number can't be read: the same. Here the entry has no tables of its own; a set can be all there is.",
+         {**sets, "tables": {**sets["tables"], "by": {"base": "0x80210014", "offsets": ["0x0"], "type": "u16"}}},
+         {0x80210000: words + num(94, 2) + bytes(2) + num(0)},
+         {"speaker": "先生", "errors": {"message": ""}},
+         entry={"unit": 2}, tables=chapters)
+
     return out
 
 
@@ -509,12 +893,20 @@ def memory(vector: dict):
 def replay(vector: dict) -> dict:
     """What the reference reader reads from a vector."""
     entry = vector["entry"]
-    table = None
-    if entry.get("tables"):
+
+    def load(paths: list[str]) -> tbl.Table:
         table = tbl.Table()
-        for path in entry["tables"]:
+        for path in paths:
             table.update(tbl.parse(vector["tables"][path], path))
-    return layout.read_layout(vector["layout"], entry, memory(vector), table)
+        return table
+    table = load(entry["tables"]) if entry.get("tables") else None
+    read = memory(vector)
+    lay = layout.live(vector["layouts"], read) if "layouts" in vector else vector["layout"]
+    return layout.read_layout(lay, entry, read, table, load)
+
+
+def layouts_of(vector: dict) -> list[dict]:
+    return vector.get("layouts") or [vector["layout"]]
 
 
 def agrees(read: dict, expected: dict) -> bool:

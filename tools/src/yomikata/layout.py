@@ -67,11 +67,22 @@ def read_int(spec: dict, read, endian: str = "little", index: int = 0) -> int:
 
 def read_flag(spec: dict, read, endian: str = "little") -> bool:
     value = read_int(spec, read, endian)
+    if "mask" in spec:                              # only these bits count (of the value as stored, so never negative)
+        value &= spec["mask"]
     return value == spec["equals"] if "equals" in spec else value != 0
 
 
-def _char_len(data: bytes, i: int, charset: str, unit: int) -> int:
+def _code_len(data: bytes, i: int, codes: dict | None) -> int:
+    """Bytes in the code starting at i, or 0 when none of `codes` starts there. The longest lead wins."""
+    leads = [lead for lead in codes or () if data.startswith(lead, i)]
+    return codes[max(leads, key=len)] if leads else 0
+
+
+def _char_len(data: bytes, i: int, charset: str, unit: int, codes: dict | None = None) -> int:
     """Bytes in the character starting at i (so terminators are only matched at character boundaries)."""
+    n = _code_len(data, i, codes)
+    if n:
+        return n                                    # a code and its arguments are one character
     b = data[i]
     if charset == "shift_jis":
         return 2 if 0x81 <= b <= 0x9F or 0xE0 <= b <= 0xFC else 1
@@ -86,12 +97,13 @@ def _char_len(data: bytes, i: int, charset: str, unit: int) -> int:
     return unit
 
 
-def _cut(data: bytes, charset: str, unit: int, terminator: bytes | None, chars: int | None = None) -> bytes:
+def _cut(data: bytes, charset: str, unit: int, terminator: bytes | None, chars: int | None = None,
+         codes: dict | None = None) -> bytes:
     i = count = 0
     while i < len(data) and (chars is None or count < chars):
         if terminator and data[i:i + len(terminator)] == terminator:
             break
-        n = _char_len(data, i, charset, unit)
+        n = _char_len(data, i, charset, unit, codes)
         if i + n > len(data):                       # a character cut off by max_bytes or the stride
             break
         i += n
@@ -99,7 +111,7 @@ def _cut(data: bytes, charset: str, unit: int, terminator: bytes | None, chars: 
     return data[:i]
 
 
-def _page(data: bytes, charset: str, unit: int, mark: bytes, cursor: int) -> bytes:
+def _page(data: bytes, charset: str, unit: int, mark: bytes, cursor: int, codes: dict | None = None) -> bytes:
     """The page a script cursor is on. `data` is split at each `mark` that starts a character; the page is the
     last one with anything in it that starts at or before the cursor (an offset into data). A cursor outside the
     text is on its last page: a game may drop its cursor once the last page is typed out."""
@@ -109,11 +121,61 @@ def _page(data: bytes, charset: str, unit: int, mark: bytes, cursor: int) -> byt
             pages.append((start, i))
             start = i = i + len(mark)
         else:
-            i += _char_len(data, i, charset, unit)
+            i += _char_len(data, i, charset, unit, codes)
     pages.append((start, len(data)))
     inside = 0 <= cursor <= len(data)
     full = [(a, b) for a, b in pages if b > a and (a <= cursor or not inside)]
     return data[slice(*full[-1])] if full else b""
+
+
+def _script(both: bytes, size: int, unit: int, mark: bytes, ends: set[bytes], breaks: set[bytes],
+            codes: dict | None, rows: bool = False, rest: int = 0) -> list[bytes]:
+    """The page a script's reading position is on, as far as it has been read: in one piece, or with `rows` a
+    piece for each of its texts. `both` is `size` bytes of script up to the position, then what follows it, as
+    long as `mark`. A text starts after a mark and stops at an end code; a mark right after an end code that has
+    no page break before it carries the page on. A page break inside a text starts the page anew, unless only end
+    codes follow it: the page it ended is still up. Nothing when the position isn't in a text, or a text is about
+    to start a new page. With `rest`, a position up to that many codes past an end code is read as just past it."""
+    for k in range(rest + 1 if rest else 0):        # the nearest end code behind, k codes back
+        if size >= (k + 1) * unit and both[size - (k + 1) * unit:size - k * unit] in ends:
+            both, size = both[:size - k * unit + len(mark)], size - k * unit
+            break
+    data, ahead = both[:size], both[size:]
+    code = lambda i: data[i:i + unit] if i >= 0 else b""
+    joins = lambda q: code(q - unit) in ends and code(q - 2 * unit) not in breaks      # a mark at q carries on
+    p, start = len(data), None
+    if ahead == mark and not joins(p):
+        return []
+    if code(p - unit) in ends:                      # the text has just ended
+        p -= unit
+    while True:
+        while p >= len(mark) and data[p - len(mark):p] != mark and code(p - unit) not in ends:
+            p -= unit
+        if p < len(mark) or data[p - len(mark):p] != mark:
+            break                                   # out of what was read, or a second end code: not a text
+        start, q = p, p - len(mark)
+        if not joins(q):
+            break
+        p = q - unit                                # on through the text before
+    if start is None:
+        return []
+    tail = len(data)
+    while tail - unit >= start and code(tail - unit) in ends:
+        tail -= unit
+    out, i = [bytearray()], start
+    while i + unit <= len(data):
+        n = _code_len(data, i, codes)
+        if not n and code(i) in ends and data.startswith(mark, i + unit):
+            i += unit + len(mark)                   # where two texts of the page join
+            if rows:
+                out.append(bytearray())
+            continue
+        if not n and code(i) in breaks and i + unit < tail:
+            out, i = [bytearray()], i + unit        # a new page: what came before is off the screen
+            continue
+        out[-1] += data[i:i + (n or unit)]
+        i += n or unit
+    return [bytes(piece) for piece in out]
 
 
 def _char(code: bytes, charset: str) -> str:
@@ -127,17 +189,19 @@ def _char(code: bytes, charset: str) -> str:
         return "\ufffd"
 
 
-def _decode(data: bytes, charset: str, entry: dict, table: tbl.Table | None) -> str:
+def _decode(data: bytes, charset: str, entry: dict, table: tbl.Table | None, codes: dict | None = None) -> str:
     """Character by character (the boundaries `_cut` uses), so a bad byte costs one U+FFFD in every client,
     not whatever a platform's decoder does about it."""
     if charset == "table":
         if table is None:
-            raise LayoutError("a table charset needs the entry's tables")
-        return tbl.decode(data, table, entry.get("unit", 2), entry.get("controls")).rstrip("\n")
+            raise LayoutError("no table to decode with")
+        return tbl.decode(data, table, entry.get("unit", 2), entry.get("controls"), codes).rstrip("\n")
     out, i = [], 0
     while i < len(data):
-        n = _char_len(data, i, charset, 1)
-        out.append(_char(data[i:i + n], charset))
+        n = _code_len(data, i, codes)
+        if not n:                                   # a code is nothing in the text
+            n = _char_len(data, i, charset, 1)
+            out.append(_char(data[i:i + n], charset))
         i += n
     return "".join(out)
 
@@ -148,7 +212,25 @@ def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, end
     charset = spec["charset"]
     unit = entry.get("unit", 2) if charset == "table" else 1
     term = bytes.fromhex(spec["terminator"]) if "terminator" in spec else None
+    codes = {bytes.fromhex(lead): n for lead, n in spec.get("codes", {}).items()}
     start = resolve(spec, read, endian)
+    if "script" in spec:
+        if table is None:
+            raise LayoutError("no table to decode with")
+        at = read_int(spec["script"]["offset"], read, endian)
+        if spec["script"]["offset"].get("counts") == "codes":
+            at *= unit
+        size = max(0, min(spec["max_bytes"], at))
+        means = entry.get("controls", {})
+        ends = table.end | {bytes.fromhex(c) for c, what in means.items() if what == "end"}
+        breaks = {bytes.fromhex(c) for c, what in means.items() if what in ("page", "clear")}
+        mark = bytes.fromhex(spec["script"]["open"])
+        texts = []
+        if size:                                    # at or before the script's start there is nothing to read
+            texts = _script(read(start + at - size, size + len(mark)), size, unit, mark, ends, breaks, codes,
+                            spec["script"].get("texts") == "rows", spec["script"].get("rest", 0))
+        text = "\n".join(_decode(raw, charset, entry, table, codes) for raw in texts)
+        return apply(apply(text, spec.get("cleanup", [])), entry.get("cleanup", []))
     rows = spec.get("rows", {"count": 1, "stride": spec["max_bytes"]})
     lines = []
     for r in range(rows["count"]):
@@ -161,11 +243,11 @@ def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, end
                 chars = n if chars is None else min(chars, n)
             else:
                 size = min(size, n)
-        raw = _cut(read(start + r * rows["stride"], size), charset, unit, term, chars)
+        raw = _cut(read(start + r * rows["stride"], size), charset, unit, term, chars, codes)
         if "pages" in spec:
             cursor = read_int(spec["pages"]["cursor"], read, endian) - start
-            raw = _page(raw, charset, unit, bytes.fromhex(spec["pages"]["break"]), cursor)
-        lines.append(_decode(raw, charset, entry, table))
+            raw = _page(raw, charset, unit, bytes.fromhex(spec["pages"]["break"]), cursor, codes)
+        lines.append(_decode(raw, charset, entry, table, codes))
     if "rows" in spec:
         while lines and not lines[-1]:
             lines.pop()
@@ -181,17 +263,19 @@ def version_for(entry: dict, release_id: str | None) -> str | None:
 
 
 _WHERE = {"address", "base", "offsets"}
-_NUMBER = _WHERE | {"type", "equals"}
+_NUMBER = _WHERE | {"type", "equals", "mask"}
 _LENGTH = _WHERE | {"type", "counts"}
-_TEXT = _WHERE | {"charset", "max_bytes", "terminator", "length", "rows", "pages", "when", "cleanup"}
+_TEXT = _WHERE | {"charset", "max_bytes", "terminator", "length", "rows", "pages", "script", "codes", "when",
+                  "cleanup"}
+_HEX = re.compile(r"([0-9A-Fa-f]{2}){1,4}")
 _FIELDS = {"message": "text", "choices": "text", "speaker": "either", "shown": "number", "waiting": "number",
            "choosing": "number", "choice_count": "number", "choice_cursor": "number"}
-_OTHER = {"versions", "endian", "poll", "speaker_names", "notes", "when"}
+_OTHER = {"versions", "endian", "poll", "speaker_names", "notes", "when", "tables"}
 
 
-def _number_ok(spec, keys=_NUMBER) -> bool:
+def _number_ok(spec, keys=_NUMBER, counts=("bytes", "characters")) -> bool:
     return isinstance(spec, dict) and set(spec) <= keys and spec.get("type", "u8") in INT \
-        and spec.get("counts", "bytes") in ("bytes", "characters")
+        and spec.get("counts", "bytes") in counts
 
 
 _BYTES = re.compile(r"([0-9A-Fa-f]{2})+")
@@ -200,7 +284,19 @@ _BYTES = re.compile(r"([0-9A-Fa-f]{2})+")
 def _text_ok(spec) -> bool:
     if not isinstance(spec, dict) or not set(spec) <= _TEXT or spec.get("charset") not in (*CODEC, "table"):
         return False
-    rows, pages = spec.get("rows", {}), spec.get("pages")
+    rows, pages, codes, script = spec.get("rows", {}), spec.get("pages"), spec.get("codes"), spec.get("script")
+    if script is not None and not (
+            spec["charset"] == "table" and not set(spec) & {"rows", "pages", "terminator", "length"}
+            and isinstance(script, dict) and {"open", "offset"} <= set(script) <= {"open", "offset", "texts", "rest"}
+            and script.get("texts", "rows") == "rows"
+            and type(script.get("rest", 1)) is int and 1 <= script.get("rest", 1) <= 16
+            and isinstance(script["open"], str) and _BYTES.fullmatch(script["open"])
+            and _number_ok(script["offset"], _LENGTH, ("bytes", "codes"))):
+        return False
+    if codes is not None and not (isinstance(codes, dict) and codes and all(
+            isinstance(lead, str) and _HEX.fullmatch(lead) and type(n) is int and len(lead) // 2 <= n <= 16
+            for lead, n in codes.items())):
+        return False
     if pages is not None and not ("rows" not in spec and isinstance(pages, dict) and set(pages) == {"break", "cursor"}
                                   and isinstance(pages["break"], str) and _BYTES.fullmatch(pages["break"])
                                   and _number_ok(pages["cursor"], _WHERE | {"type"})):
@@ -210,12 +306,21 @@ def _text_ok(spec) -> bool:
         and ("when" not in spec or _number_ok(spec["when"]))
 
 
+def _switch_ok(spec) -> bool:
+    return isinstance(spec, dict) and set(spec) == {"by", "sets"} and _number_ok(spec["by"], _WHERE | {"type"}) \
+        and isinstance(spec["sets"], dict) and bool(spec["sets"]) and all(
+            isinstance(n, str) and re.fullmatch(r"-?[0-9]{1,10}", n) and isinstance(paths, list) and paths
+            and all(isinstance(t, str) for t in paths) for n, paths in spec["sets"].items())
+
+
 def understood(layout: dict) -> bool:
     """Whether this reader knows every key in the layout. A newer key can change what the others mean (a text
     without its `when` would show what is no longer on screen), so a reader leaves such a layout alone."""
     if not set(layout) <= set(_FIELDS) | _OTHER or layout.get("endian", "little") not in ("little", "big"):
         return False
     if "when" in layout and not _number_ok(layout["when"]):
+        return False
+    if "tables" in layout and not _switch_ok(layout["tables"]):
         return False
     for key, kind in _FIELDS.items():
         if key in layout:
@@ -226,25 +331,39 @@ def understood(layout: dict) -> bool:
     return True
 
 
-def pick(entry: dict, exe_sha1: str | None = None, release_id: str | None = None) -> dict | None:
-    """The layout for this version: one that lists it, else one that lists no versions. Without a hash, the
-    version is the only one listed for `release_id`, if there is just one. Layouts with keys this reader
-    doesn't know are passed over."""
+def layouts_for(entry: dict, exe_sha1: str | None = None, release_id: str | None = None) -> list[dict]:
+    """The layouts for this version, in the entry's order: those that list it, else those that list no versions.
+    Without a hash, the version is the only one listed for `release_id`, if there is just one. Layouts with
+    keys this reader doesn't know are passed over."""
     exe_sha1 = exe_sha1 or version_for(entry, release_id)
-    general = None
-    for lay in entry.get("layouts", []):
-        if not understood(lay):
-            continue
-        if exe_sha1 and exe_sha1 in lay.get("versions", []):
-            return lay
-        if not lay.get("versions") and general is None:
-            general = lay
-    return general
+    known = [lay for lay in entry.get("layouts", []) if understood(lay)]
+    return [lay for lay in known if exe_sha1 and exe_sha1 in lay.get("versions", [])] \
+        or [lay for lay in known if not lay.get("versions")]
 
 
-def read_layout(layout: dict, entry: dict, read, table: tbl.Table | None = None) -> dict:
+def pick(entry: dict, exe_sha1: str | None = None, release_id: str | None = None) -> dict | None:
+    """The first layout for this version, or None. A game with several (`layouts_for`) needs `live` each time."""
+    return next(iter(layouts_for(entry, exe_sha1, release_id)), None)
+
+
+def live(layouts: list[dict], read) -> dict | None:
+    """Which of a version's layouts to read now: the first whose own `when` is true, or that has none. A game
+    that loads a program per chapter keeps its cells elsewhere in each, and each layout's `when` says whether
+    its program is the one loaded. With none true, the first: reading it gives what a false `when` gives."""
+    for lay in layouts:
+        try:
+            if "when" not in lay or read_flag(lay["when"], read, lay.get("endian", "little")):
+                return lay
+        except (LayoutError, struct.error, KeyError):
+            pass
+    return layouts[0] if layouts else None
+
+
+def read_layout(layout: dict, entry: dict, read, table: tbl.Table | None = None, load=None) -> dict:
     """Everything the layout names, as plain values. A field that can't be read is left out and listed in `errors`.
-    While the layout's own `when` is false nothing else is read: texts are empty, flags false, numbers left out."""
+    While the layout's own `when` is false nothing else is read: texts are empty, flags false, numbers left out.
+    `table` is the entry's tables. A layout with its own `tables` reads with `load(paths)` instead: the entry's
+    table files and then the set's."""
     endian = layout.get("endian", "little")
     out: dict = {}
     errors: dict[str, str] = {}
@@ -267,6 +386,12 @@ def read_layout(layout: dict, entry: dict, read, table: tbl.Table | None = None)
         except (LayoutError, struct.error, KeyError) as e:
             errors[name] = str(e)
 
+    if "tables" in layout:                          # the set its number names after the entry's, or no table
+        try:
+            more = layout["tables"]["sets"].get(str(read_int(layout["tables"]["by"], read, endian)))
+        except (LayoutError, struct.error):
+            more = None
+        table = load(entry.get("tables", []) + more) if more and load else None
     if "message" in layout:
         attempt("message", lambda: read_text(layout["message"], read, entry, table, endian))
     if "speaker" in layout:

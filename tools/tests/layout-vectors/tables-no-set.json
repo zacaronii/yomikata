@@ -1,0 +1,55 @@
+{
+ "name": "tables-no-set",
+ "checks": "No set for the number: a table text fails instead of being read with the wrong table. A text in a standard charset is still read.",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n",
+  "tables/test/one.tbl": "0100=学\n",
+  "tables/test/two.tbl": "0100=校\n0002=胃\n"
+ },
+ "layout": {
+  "tables": {
+   "by": {
+    "address": "0x80210010",
+    "type": "u16"
+   },
+   "sets": {
+    "36": [
+     "tables/test/one.tbl"
+    ],
+    "94": [
+     "tables/test/two.tbl"
+    ]
+   }
+  },
+  "message": {
+   "address": "0x80210000",
+   "charset": "table",
+   "max_bytes": 16,
+   "terminator": "FFFF"
+  },
+  "speaker": {
+   "address": "0x80210008",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "terminator": "00"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80210000",
+   "hex": "000100020100ffff90e690b6000000000700"
+  }
+ ],
+ "expected": {
+  "speaker": "先生",
+  "errors": {
+   "message": "no table to decode with"
+  }
+ }
+}

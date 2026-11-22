@@ -1,8 +1,86 @@
 # Human's Moonlight Syndrome (SLPS-01001): 16-bit codes, stored high byte first (00 50 = あ).
-# Kana in gojuon order. (Twilight Syndrome uses a different layout: tables/ps1/SLPS-00102.tbl.)
-# Confirmed from Moonlight Syndrome (SLPS-01001) RAM and disc: あかくたてとなのもよられんだばっ
-# しゃ (hiragana) and コンパ, ファン, サイン (katakana); the rest follows the same layout.
+# What every chapter shares, read from the kana sheet on the discs (entry 1 of each chapter archive, the same
+# bitmaps in all twelve): punctuation 0x00-0x09, digits 0x10-0x19, Latin letters 0x1A-0x4D, then hiragana 0x50-0x9F
+# and katakana 0xA0-0xEF in gojuon order. 0x0A-0x0F and 0x4E-0x4F are blank cells.
+# Kanji are 0x0100 up and numbered anew by each chapter: one of tables/ps1/SLPS-01001-<chapter>.tbl goes after this
+# file (named after the chapter archives: prologue, henlin, henshits, mowdei, sowguw on disc 1; denpow, dowaku,
+# epilogue, fuyou, hamon, kaibyo, shitsow on disc 2).
+# Control words (in the entry's `controls`): FFFF ends a text, FFFD breaks the line, FFFC ends the page. FFF9 and
+# FFFA are followed by one more word, a count of frames (FFF9 012C waits for a press, FFFA 0008 pauses). FFFE
+# is a gap in the row, half a character wide (the pen moves 8 dots and nothing is drawn): a space here.
+# (Twilight Syndrome uses a different layout: tables/ps1/SLPS-00102.tbl.)
+0000=：
+0001=！
+0002=？
 0003=・
+0004=ー
+0005=、
+0006=。
+0007=〜
+0008=「
+0009=」
+0010=０
+0011=１
+0012=２
+0013=３
+0014=４
+0015=５
+0016=６
+0017=７
+0018=８
+0019=９
+001A=Ａ
+001B=Ｂ
+001C=Ｃ
+001D=Ｄ
+001E=Ｅ
+001F=Ｆ
+0020=Ｇ
+0021=Ｈ
+0022=Ｉ
+0023=Ｊ
+0024=Ｋ
+0025=Ｌ
+0026=Ｍ
+0027=Ｎ
+0028=Ｏ
+0029=Ｐ
+002A=Ｑ
+002B=Ｒ
+002C=Ｓ
+002D=Ｔ
+002E=Ｕ
+002F=Ｖ
+0030=Ｗ
+0031=Ｘ
+0032=Ｙ
+0033=Ｚ
+0034=ａ
+0035=ｂ
+0036=ｃ
+0037=ｄ
+0038=ｅ
+0039=ｆ
+003A=ｇ
+003B=ｈ
+003C=ｉ
+003D=ｊ
+003E=ｋ
+003F=ｌ
+0040=ｍ
+0041=ｎ
+0042=ｏ
+0043=ｐ
+0044=ｑ
+0045=ｒ
+0046=ｓ
+0047=ｔ
+0048=ｕ
+0049=ｖ
+004A=ｗ
+004B=ｘ
+004C=ｙ
+004D=ｚ
 0050=あ
 0051=い
 0052=う
@@ -163,3 +241,4 @@
 00ED=ュ
 00EE=ョ
 00EF=ッ
+FFFE=　

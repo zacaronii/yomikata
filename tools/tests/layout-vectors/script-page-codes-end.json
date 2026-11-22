@@ -1,0 +1,70 @@
+{
+ "name": "script-page-codes-end",
+ "checks": "The window opened again: its one character with the position on the page code (message) and past it (speaker). At the script's end, past the closing code and the end code: the end code is stepped over, the closing code is the last thing read and so starts no page, and the page code before it has the closing code after it, so the page is empty (choices).",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F003": "page",
+   "F004": "clear",
+   "0028": "ignore"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80320000",
+   "charset": "table",
+   "max_bytes": 48,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80320030",
+     "type": "u16",
+     "counts": "codes"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x80320000",
+   "charset": "table",
+   "max_bytes": 48,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80320032",
+     "type": "u16",
+     "counts": "codes"
+    }
+   }
+  },
+  "choices": {
+   "address": "0x80320000",
+   "charset": "table",
+   "max_bytes": 48,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80320034",
+     "type": "u16",
+     "counts": "codes"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80320000",
+   "hex": "00270105800000010002f0030003fffe0004f003f0040028002880000005f003f004ffff0000000000000000000000000f0010001200"
+  }
+ ],
+ "expected": {
+  "message": "お",
+  "speaker": "お",
+  "choices": []
+ }
+}

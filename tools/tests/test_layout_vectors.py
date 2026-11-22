@@ -3,7 +3,7 @@ import json
 from jsonschema import Draft202012Validator
 
 import layout_vectors
-from layout_vectors import HERE, agrees, replay
+from layout_vectors import HERE, agrees, layouts_of, replay
 from test_layout import REPO, entry_with
 
 VECTORS = {p.name: p.read_text(encoding="utf-8") for p in sorted(HERE.glob("*.json"))}
@@ -25,5 +25,6 @@ def test_every_vector_is_a_layout_the_schema_accepts():
     schema = Draft202012Validator(json.loads((REPO / "schema" / "entry.schema.json").read_text(encoding="utf-8")))
     for name, text in VECTORS.items():
         v = json.loads(text)
-        problems = [e.message for e in schema.iter_errors(entry_with(v["layout"], **v["entry"]))]
-        assert not problems, (name, problems)
+        for lay in layouts_of(v):
+            problems = [e.message for e in schema.iter_errors(entry_with(lay, **v["entry"]))]
+            assert not problems, (name, problems)
