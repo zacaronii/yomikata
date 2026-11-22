@@ -1,0 +1,29 @@
+{
+ "name": "rows-lengths-bytes",
+ "checks": "Row lengths count bytes unless they say otherwise, and each number comes right after the last: u16 lengths are 2 bytes apart. A length that ends inside a character drops it; an empty row in the middle stays.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x08A20000",
+   "charset": "utf16le",
+   "max_bytes": 8,
+   "rows": {
+    "count": 3,
+    "stride": 8,
+    "lengths": {
+     "address": "0x08A20018",
+     "type": "u16"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x08A20000",
+   "hex": "42304430463048304b304d304f3051305530573059305b30040000000300"
+  }
+ ],
+ "expected": {
+  "message": "あい\n\nさ"
+ }
+}

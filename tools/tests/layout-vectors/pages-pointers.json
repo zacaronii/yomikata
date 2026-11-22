@@ -1,0 +1,58 @@
+{
+ "name": "pages-pointers",
+ "checks": "The buffer and the cursor behind pointer chains: the cursor is measured from where the text was found (speaker). A cursor that can't be read fails the field (message).",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80140000",
+   "charset": "utf8",
+   "max_bytes": 8,
+   "terminator": "00",
+   "pages": {
+    "break": "0C",
+    "cursor": {
+     "base": "0x80140014",
+     "offsets": [
+      "0x0"
+     ],
+     "type": "u32"
+    }
+   }
+  },
+  "speaker": {
+   "base": "0x80140010",
+   "offsets": [
+    "0x4"
+   ],
+   "charset": "utf8",
+   "max_bytes": 8,
+   "terminator": "00",
+   "pages": {
+    "break": "0C",
+    "cursor": {
+     "base": "0x80140018",
+     "offsets": [
+      "0x8"
+     ],
+     "type": "u32"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80140000",
+   "hex": "41420c43440000000000000000000000fcff13800000009020001480"
+  },
+  {
+   "address": "0x80140020",
+   "hex": "000000000000000003001480"
+  }
+ ],
+ "expected": {
+  "speaker": "CD",
+  "errors": {
+   "message": "0x90000000+4 is outside memory"
+  }
+ }
+}
