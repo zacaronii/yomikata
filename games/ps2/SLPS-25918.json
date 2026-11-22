@@ -1,0 +1,17 @@
+{
+  "id": "SLPS-25918",
+  "platform": "ps2",
+  "title": "アマガミ",
+  "title_romaji": "Amagami",
+  "versions": [
+    {
+      "exe": "SLPS_259.18",
+      "exe_sha1": "0a7019f94140a66ef3f08c8c651b1ee2c509a34f"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 914,233 characters of prose-like text"
+  ]
+}
