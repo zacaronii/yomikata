@@ -9,11 +9,23 @@
       "exe_sha1": "959ddf98806648a689eeafaaabbff2a4ec0bfbbb"
     }
   ],
-  "encoding": "unknown",
+  "encoding": "table",
+  "tables": [
+    "tables/ps1/SCPS-10088.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+    "0280": "page"
+  },
   "status": "partial",
+  "coverage": {
+    "chars_in_table": 1482,
+    "chars_seen_in_script": 1317
+  },
   "sources": [
     "yomikata scan 0.1.0 of the disc files: shift_jis 63 characters of prose-like text",
-    "Genkan memory search during play: system messages in Shift-JIS, dialogue not"
+    "Genkan memory search during play: system messages in Shift-JIS, dialogue not",
+    "Table read by eye from the game's font (in BOKU.BIN, and in video memory during play in a headless replay), then proofread against the dialogue in BOKU.BIN and the menu texts in the executable, which are stored as these codes"
   ],
-  "notes": "System messages are Shift-JIS but the dialogue apparently isn't (own table, or drawn as images). Needs a memory sample of a dialogue line."
+  "notes": "Dialogue, lists and menu texts are 16-bit codes numbering the glyphs of the game's own font; the table has all but six of them. 0x8000 ends a text, 0x8001 is a new line, 0x8002 ends a page and is followed by one more word (a time, not text) that a reader has to skip. Kanji found in a sentence were proofread there; about 95 of the 1,202 are in no text found and are read from the glyph alone. No layout yet: where the game keeps its place in the scene's text isn't found. The few Shift-JIS system messages are not covered by the table."
 }
