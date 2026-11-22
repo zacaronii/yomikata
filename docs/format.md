@@ -130,6 +130,10 @@ A *text* has:
   through it: `break` is the code between two pages (hex in memory byte order, one byte or more, matched only at
   character boundaries) and `cursor` a *number* holding the address the game is reading at. The text is the page
   the cursor is on. Not together with `rows`;
+- optionally `codes`, for a text in a standard charset with the game's own codes in it (a colour, a style, a
+  pause): each key is the bytes a code starts with (hex in memory byte order), its value how many bytes the code
+  has in all, those included. `{"03": 2, "07": 2}` is two codes with one argument byte each. Not with `table`,
+  whose codes are the entry's `controls`;
 - optionally `when`, a *flag* that is true while the text is on screen. Many games leave the last text in memory
   after its window closes; while `when` is false the text is empty;
 - its own `cleanup`, applied before the entry's.
@@ -150,12 +154,16 @@ Every client should get the same string from the same bytes, so the steps are fi
    a character, and drop a last character that doesn't fit in what was read. A length in characters stops the
    split after that many (a `table` code is one character here, whatever it decodes to). `length` applies to
    every row and `rows.lengths` to its own row; where both are given, both hold.
+   With `codes`: where a character starts with one of the keys (the longest, if several fit), it is a code of
+   that many bytes, whatever the charset would make of them. The terminator is looked for first. A code is one
+   character here, so an argument byte is never a terminator, a page break or the start of a character.
 4. With `pages`: read the cursor (if it can't be read, the field fails) and split what step 3 left into pages
    at each `break` standing at the start of a character. The text is the last page with anything in it that
    starts at or before the cursor. A cursor on a break is still on the page before it, and a cursor outside what
    step 3 left (before the text's address, or past its end) is on the last page with anything in it: a game may
    drop its cursor once the last page is typed out. No such page: the empty string.
-5. Decode each character on its own. One that doesn't decode is one U+FFFD, however many bytes it has.
+5. Decode each character on its own. One that doesn't decode is one U+FFFD, however many bytes it has. A code
+   from `codes` is nothing.
 6. With `rows`: drop empty rows from the end, and join the rest with a newline.
 7. Apply the text's `cleanup`, then the entry's.
 
