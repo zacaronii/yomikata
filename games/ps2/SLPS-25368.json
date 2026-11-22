@@ -1,0 +1,27 @@
+{
+  "id": "SLPS-25368",
+  "aliases": [
+    "SLPS-25369"
+  ],
+  "platform": "ps2",
+  "title": "ゼノサーガ エピソードII 善悪の彼岸",
+  "title_romaji": "Xenosaga Episode II: Jenseits von Gut und Böse",
+  "versions": [
+    {
+      "id": "SLPS-25368",
+      "exe": "SLPS_253.68",
+      "exe_sha1": "f0d20ee3e648f5fa4097e4b7a5a64ba956cab13d"
+    },
+    {
+      "id": "SLPS-25369",
+      "exe": "SLPS_253.69",
+      "exe_sha1": "f0d20ee3e648f5fa4097e4b7a5a64ba956cab13d"
+    }
+  ],
+  "encoding": "compressed",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 9, utf16le 25, utf8 33 characters of prose-like text"
+  ],
+  "notes": "Most of the disc is compressed data and little script reads on it; the script is likely compressed on disc. A memory sample from play will settle the encoding."
+}
