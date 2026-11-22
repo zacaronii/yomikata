@@ -1,0 +1,49 @@
+{
+ "name": "codes-pages",
+ "checks": "With `pages`, a code's argument isn't a break: 03 0C stays inside the first page (message), and the second page starts after the one real break (speaker).",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80180000",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00",
+   "codes": {
+    "03": 2
+   },
+   "pages": {
+    "break": "0C",
+    "cursor": {
+     "address": "0x80180010",
+     "type": "u32"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x80180000",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00",
+   "codes": {
+    "03": 2
+   },
+   "pages": {
+    "break": "0C",
+    "cursor": {
+     "address": "0x80180014",
+     "type": "u32"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80180000",
+   "hex": "82a0030c82a20c82a4000000000000000400188007001880"
+  }
+ ],
+ "expected": {
+  "message": "あい",
+  "speaker": "う"
+ }
+}
