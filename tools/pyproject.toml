@@ -7,7 +7,7 @@ name = "yomikata-tools"
 version = "0.2.0"
 description = "Tools for the Yomikata catalog: identify releases, validate entries and tables, build the index"
 requires-python = ">=3.11"
-license = "GPL-3.0-or-later"
+license = "GPL-3.0-only"
 dependencies = ["jsonschema>=4.21"]
 
 [project.optional-dependencies]
