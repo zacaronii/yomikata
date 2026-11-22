@@ -10,7 +10,9 @@
 # 2181 kanji, 146 kana and 23 marks from 0x0080 are listed. Left out on purpose, so they read as U+FFFD:
 # 33 codes from 0x0080 this game's script uses that stayed in doubt or are blank glyphs (125 of the 582651
 # uses on the disc), 0x005E (a blank glyph), and the codes neither game's messages confirm.
-# The control words (0x11xx, and 0x12xx with one argument word) are in the entry.
+# The control words (0x11xx, and 0x12xx with one argument word) are in the entry, but for three that only leave
+# a gap in the line (0x111F, 0x1120, 0x1121: the indent every line of a message starts with, and the gap between
+# two words): they are listed last, as a space. The layout's cleanup takes the indent off again.
 0000=「
 0100=」
 0200=、
@@ -2488,3 +2490,6 @@ FF09=‐
 0B0A=侍
 0C0A=頻
 0D0A=禄
+1F11=　
+2011=　
+2111=　
