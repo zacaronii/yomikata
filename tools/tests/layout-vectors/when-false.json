@@ -1,0 +1,56 @@
+{
+ "name": "when-false",
+ "checks": "A text whose `when` is false is empty, and nothing else of it is read (the message's address isn't in memory here, and that is no error). What is on screen is empty too; an empty choices text is no answers. `when` is a flag like the others: nonzero, or `equals`.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x09000000",
+   "charset": "utf8",
+   "max_bytes": 16,
+   "terminator": "00",
+   "when": {
+    "address": "0x02000020"
+   }
+  },
+  "shown": {
+   "address": "0x02000023"
+  },
+  "speaker": {
+   "address": "0x02000000",
+   "charset": "utf8",
+   "max_bytes": 16,
+   "terminator": "00",
+   "when": {
+    "address": "0x02000021",
+    "equals": 2
+   }
+  },
+  "choices": {
+   "address": "0x02000010",
+   "charset": "utf8",
+   "max_bytes": 8,
+   "terminator": "00",
+   "rows": {
+    "count": 2,
+    "stride": 8
+   },
+   "when": {
+    "address": "0x02000022",
+    "equals": 2
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x02000000",
+   "hex": "e38182e3818400000000000000000000e381860000000000e38188000000000000020105"
+  }
+ ],
+ "expected": {
+  "message": "",
+  "shown": 5,
+  "on_screen": "",
+  "speaker": "あい",
+  "choices": []
+ }
+}

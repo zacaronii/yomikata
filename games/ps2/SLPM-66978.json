@@ -1,0 +1,18 @@
+{
+  "id": "SLPM-66978",
+  "platform": "ps2",
+  "title": "ペルソナ4",
+  "title_romaji": "Persona 4",
+  "versions": [
+    {
+      "exe": "SLPM_669.78",
+      "exe_sha1": "d2acb7f143a3703cffb165c918455ba977a9421b"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 693, utf16le 58 characters of prose-like text"
+  ],
+  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+}

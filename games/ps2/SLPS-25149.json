@@ -1,0 +1,18 @@
+{
+  "id": "SLPS-25149",
+  "platform": "ps2",
+  "title": "Ever17 -the out of infinity-",
+  "title_romaji": "Ever17: The Out of Infinity",
+  "versions": [
+    {
+      "exe": "SLPS_251.49",
+      "exe_sha1": "70abfd7e7daf2fbc790dca21284659519e1dcb17"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 2,409, utf16le 486 characters of prose-like text"
+  ],
+  "notes": "Only a little prose reads on disc, far less than the game's script, so the script is likely packed. A memory sample from play will settle the encoding."
+}

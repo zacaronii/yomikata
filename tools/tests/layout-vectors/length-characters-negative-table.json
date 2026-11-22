@@ -1,0 +1,47 @@
+{
+ "name": "length-characters-negative-table",
+ "checks": "A length in characters with a table: each code is one character, whatever it decodes to (here a control that is nothing, and a newline). A length below zero is 0.",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F001": "wait"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80200000",
+   "charset": "table",
+   "max_bytes": 16,
+   "length": {
+    "address": "0x80200010",
+    "counts": "characters"
+   }
+  },
+  "speaker": {
+   "address": "0x80200000",
+   "charset": "table",
+   "max_bytes": 16,
+   "length": {
+    "address": "0x80200011",
+    "type": "s8",
+    "counts": "characters"
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80200000",
+   "hex": "0001f001fffe0002000300040005000604ff"
+  }
+ ],
+ "expected": {
+  "message": "あ\nい",
+  "speaker": ""
+ }
+}

@@ -1,0 +1,66 @@
+{
+ "name": "layout-when-unreadable",
+ "checks": "If the layout's `when` can't be read, nothing else is read, and `when` is the one field that failed.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80100000",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00"
+  },
+  "speaker": {
+   "address": "0x80100010",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "terminator": "00"
+  },
+  "shown": {
+   "address": "0x80100028"
+  },
+  "waiting": {
+   "address": "0x80100029"
+  },
+  "choosing": {
+   "address": "0x8010002A"
+  },
+  "choices": {
+   "address": "0x80100018",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "terminator": "00",
+   "rows": {
+    "count": 2,
+    "stride": 8
+   }
+  },
+  "choice_count": {
+   "address": "0x8010002B"
+  },
+  "choice_cursor": {
+   "address": "0x8010002C",
+   "type": "s8"
+  },
+  "when": {
+   "base": "0x80090000",
+   "offsets": [
+    "0x4"
+   ]
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80100000",
+   "hex": "82a882cd82e682a4000000000000000090e690b60000000082cd82a20000000082a282a282a600000301010201"
+  },
+  {
+   "address": "0x80090000",
+   "hex": "00000000"
+  }
+ ],
+ "expected": {
+  "errors": {
+   "when": "0x00000004+1 is outside memory"
+  }
+ }
+}

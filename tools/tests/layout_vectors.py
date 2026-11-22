@@ -243,6 +243,16 @@ def cases() -> list[dict]:
          {"message": "あいう", "waiting": True, "choosing": True, "shown": -2, "choice_cursor": -1,
           "choice_count": 3, "on_screen": ""})
 
+    case("flag-mask",
+         "A flag's mask keeps only those bits before the test: nonzero, or equals. The bits are the stored ones, so "
+         "a signed type's -1 under mask 3 is 3.",
+         {"waiting": {"address": "0x80600000", "mask": 3},
+          "choosing": {"address": "0x80600001", "mask": 3},
+          "choices": {"address": "0x80600010", "charset": "shift_jis", "max_bytes": 8, "terminator": "00",
+                      "when": {"address": "0x80600002", "type": "s8", "mask": 3, "equals": 3}}},
+         {0x80600000: bytes.fromhex("02 08 FF") + bytes(13) + pad(sjis("はい"), 8)},
+         {"waiting": True, "choosing": False, "choices": ["はい"]})
+
     case("speaker-number-unnamed",
          "A speaker number without a name stays a number. A flag with equals 0 is true at zero.",
          {"speaker": {"address": "0x80600000"}, "speaker_names": {"3": "先生"},
@@ -279,6 +289,254 @@ def cases() -> list[dict]:
           "speaker": {"address": "0x02000000", "charset": "utf8", "max_bytes": 8, "terminator": "00"}},
          {0x02000000: rows(["あ".encode("utf-8"), "い".encode("utf-8")], 8)},
          {"speaker": "あ", "errors": {"message": ""}})
+
+    case("rows-lengths-characters",
+         "One length per row, counted in characters: a game that writes a new line over the old one leaves the "
+         "old line's end behind, and only the lengths say where the new one stops. A one-byte character counts "
+         "as one. A row of length 0 is empty, and empty rows at the end are dropped.",
+         {"message": {"address": "0x80110000", "charset": "shift_jis", "max_bytes": 12,
+                      "rows": {"count": 3, "stride": 12,
+                               "lengths": {"address": "0x80110024", "counts": "characters"}}}},
+         {0x80110000: rows([sjis("Aあいうえ"), sjis("かきくけ"), sjis("さし")], 12) + bytes([3, 1, 0])},
+         {"message": "Aあい\nか"})
+
+    case("rows-lengths-bytes",
+         "Row lengths count bytes unless they say otherwise, and each number comes right after the last: u16 "
+         "lengths are 2 bytes apart. A length that ends inside a character drops it; an empty row in the middle "
+         "stays.",
+         {"message": {"address": "0x08A20000", "charset": "utf16le", "max_bytes": 8,
+                      "rows": {"count": 3, "stride": 8, "lengths": {"address": "0x08A20018", "type": "u16"}}}},
+         {0x08A20000: rows([u16("あいうえ"), u16("かきくけ"), u16("さしすせ")], 8) + num(4, 2) + num(0, 2) + num(3, 2)},
+         {"message": "あい\n\nさ"})
+
+    case("rows-lengths-pointer",
+         "Row lengths behind a pointer chain, big-endian: the chain gives the first length's address.",
+         {"endian": "big",
+          "message": {"address": "0x80300000", "charset": "utf8", "max_bytes": 8,
+                      "rows": {"count": 2, "stride": 8,
+                               "lengths": {"base": "0x80300010", "offsets": ["0x4"], "type": "s16"}}}},
+         {0x80300000: rows([b"ABCDEFGH", b"IJKLMNOP"], 8) + num(0x80300020, 4, big=True),
+          0x80300020: bytes(4) + num(2, 2, big=True) + num(-1, 2, big=True)},
+         {"message": "AB"})
+
+    case("length-characters",
+         "A length in characters. The terminator still ends the text first, and so does max_bytes; a length "
+         "below zero is 0.",
+         {"message": {"address": "0x02000000", "charset": "utf8", "max_bytes": 16, "terminator": "00",
+                      "length": {"address": "0x02000030", "counts": "characters"}},
+          "speaker": {"address": "0x02000010", "charset": "utf8", "max_bytes": 16, "terminator": "00",
+                      "length": {"address": "0x02000031", "counts": "characters"}},
+          "choices": {"address": "0x02000020", "charset": "utf8", "max_bytes": 4,
+                      "length": {"address": "0x02000031", "counts": "characters"},
+                      "rows": {"count": 2, "stride": 8}}},
+         {0x02000000: pad("あAいう".encode("utf-8"), 16) + pad("あい".encode("utf-8"), 16)
+                      + rows(["あい".encode("utf-8"), b"ABCDEFGH"], 8) + bytes([3, 9])},
+         {"message": "あAい", "speaker": "あい", "choices": ["あ", "ABCD"]})
+
+    case("length-characters-negative-table",
+         "A length in characters with a table: each code is one character, whatever it decodes to (here a "
+         "control that is nothing, and a newline). A length below zero is 0.",
+         {"message": {"address": "0x80200000", "charset": "table", "max_bytes": 16,
+                      "length": {"address": "0x80200010", "counts": "characters"}},
+          "speaker": {"address": "0x80200000", "charset": "table", "max_bytes": 16,
+                      "length": {"address": "0x80200011", "type": "s8", "counts": "characters"}}},
+         {0x80200000: bytes.fromhex("0001 F001 FFFE 0002 0003 0004 0005 0006") + bytes([4, 0xFF])},
+         {"message": "あ\nい", "speaker": ""},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2, "controls": {"F001": "wait"}},
+         tables={"tables/test/kana.tbl": KANA})
+
+    case("length-and-rows-lengths",
+         "With both a length and row lengths, both hold: here no row is longer than 4 bytes, and each row "
+         "also stops at its own count of characters.",
+         {"message": {"address": "0x80110000", "charset": "shift_jis", "max_bytes": 8,
+                      "length": {"address": "0x80110010"},
+                      "rows": {"count": 2, "stride": 8,
+                               "lengths": {"address": "0x80110011", "counts": "characters"}}}},
+         {0x80110000: rows([sjis("あいうえ"), sjis("かきくけ")], 8) + bytes([4, 3, 1])},
+         {"message": "あい\nか"})
+
+    case("when-false",
+         "A text whose `when` is false is empty, and nothing else of it is read (the message's address isn't "
+         "in memory here, and that is no error). What is on screen is empty too; an empty choices text is no "
+         "answers. `when` is a flag like the others: nonzero, or `equals`.",
+         {"message": {"address": "0x09000000", "charset": "utf8", "max_bytes": 16, "terminator": "00",
+                      "when": {"address": "0x02000020"}},
+          "shown": {"address": "0x02000023"},
+          "speaker": {"address": "0x02000000", "charset": "utf8", "max_bytes": 16, "terminator": "00",
+                      "when": {"address": "0x02000021", "equals": 2}},
+          "choices": {"address": "0x02000010", "charset": "utf8", "max_bytes": 8, "terminator": "00",
+                      "rows": {"count": 2, "stride": 8}, "when": {"address": "0x02000022", "equals": 2}}},
+         {0x02000000: pad("あい".encode("utf-8"), 16) + rows(["う".encode("utf-8"), "え".encode("utf-8")], 8)
+                      + bytes([0, 2, 1, 5])},
+         {"message": "", "shown": 5, "on_screen": "", "speaker": "あい", "choices": []})
+
+    case("when-unreadable",
+         "A `when` that can't be read fails its text (the reader can't tell whether it is on screen), and so "
+         "do row lengths that can't all be read. The other fields are still read.",
+         {"message": {"address": "0x02000000", "charset": "utf8", "max_bytes": 8, "terminator": "00",
+                      "when": {"base": "0x02000018", "offsets": ["0x0"]}},
+          "choices": {"address": "0x02000000", "charset": "utf8", "max_bytes": 8,
+                      "rows": {"count": 3, "stride": 8, "lengths": {"address": "0x0200001A"}}},
+          "speaker": {"address": "0x02000008", "charset": "utf8", "max_bytes": 8, "terminator": "00",
+                      "when": {"address": "0x0200001A"}}},
+         {0x02000000: rows(["あ".encode("utf-8"), "い".encode("utf-8"), "う".encode("utf-8")], 8)
+                      + bytes([0, 0, 3, 3])},
+         {"speaker": "い", "errors": {"message": "", "choices": ""}})
+
+    state = {"message": {"address": "0x80100000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00"},
+             "speaker": {"address": "0x80100010", "charset": "shift_jis", "max_bytes": 8, "terminator": "00"},
+             "shown": {"address": "0x80100028"},
+             "waiting": {"address": "0x80100029"},
+             "choosing": {"address": "0x8010002A"},
+             "choices": {"address": "0x80100018", "charset": "shift_jis", "max_bytes": 8, "terminator": "00",
+                         "rows": {"count": 2, "stride": 8}},
+             "choice_count": {"address": "0x8010002B"},
+             "choice_cursor": {"address": "0x8010002C", "type": "s8"}}
+    block = pad(sjis("おはよう"), 16) + pad(sjis("先生"), 8) + rows([sjis("はい"), sjis("いいえ")], 8) \
+        + bytes([3, 1, 1, 2, 1])
+
+    case("layout-when-true",
+         "A layout with its own `when` reads as usual while the flag is true (here: a 32-bit mode that "
+         "`equals` 1).",
+         {**state, "when": {"address": "0x80090000", "type": "u32", "equals": 1}},
+         {0x80100000: block, 0x80090000: num(1)},
+         {"message": "おはよう", "speaker": "先生", "shown": 3, "on_screen": "おはよ", "waiting": True,
+          "choosing": True, "choices": ["はい", "いいえ"], "choice_count": 2, "choice_cursor": 1})
+
+    case("layout-when-false",
+         "While the layout's `when` is false nothing else is read, whatever the memory holds (the same bytes "
+         "as in layout-when-true): the texts are empty, the flags false, there are no answers, and the "
+         "numbers are left out, so nothing is on screen either.",
+         {**state, "when": {"address": "0x80090000", "type": "u32", "equals": 1}},
+         {0x80100000: block, 0x80090000: num(4)},
+         {"message": "", "speaker": "", "waiting": False, "choosing": False, "choices": []})
+
+    case("layout-when-false-speaker-number",
+         "A speaker given as a number is a number like the others: left out while the layout's `when` is "
+         "false. The fields' own memory isn't there at all, and that is no error.",
+         {"when": {"address": "0x02000000"},
+          "message": {"address": "0x09000000", "charset": "utf8", "max_bytes": 16, "terminator": "00"},
+          "speaker": {"address": "0x09000010", "type": "u16"}, "speaker_names": {"3": "先生"},
+          "waiting": {"address": "0x09000012"}},
+         {0x02000000: bytes([0])},
+         {"message": "", "waiting": False})
+
+    case("layout-when-unreadable",
+         "If the layout's `when` can't be read, nothing else is read, and `when` is the one field that "
+         "failed.",
+         {**state, "when": {"base": "0x80090000", "offsets": ["0x4"]}},
+         {0x80100000: block, 0x80090000: num(0)},
+         {"errors": {"when": ""}})
+
+    # several pages in one buffer: an empty page, あ/い, う, an empty page, えお, the end, and an older text's rest
+    book = b"\x0c" + sjis("あ\nい") + b"\x0c" + sjis("う") + b"\x0c\x0c" + sjis("えお") + b"\0" + sjis("か")
+    at = 0x80120000
+
+    def paged(cursor: int) -> dict:
+        return {"address": f"0x{at:08X}", "charset": "shift_jis", "max_bytes": 32, "terminator": "00",
+                "pages": {"break": "0C", "cursor": {"address": f"0x{cursor:08X}", "type": "u32"}}}
+
+    def book_at(*cursors: int) -> dict:
+        return {at: pad(book, 32) + b"".join(num(c) for c in cursors)}
+
+    case("pages-cursor",
+         "A buffer of pages with breaks between them: the text is the page the cursor's address is in, from the "
+         "page's first character (message) to its last (choices). What follows the terminator is no page.",
+         {"message": paged(at + 32), "speaker": paged(at + 36), "choices": paged(at + 40)},
+         book_at(at + 1, at + 7, at + 13),
+         {"message": "あ\nい", "speaker": "う", "choices": ["えお"]})
+
+    case("pages-cursor-on-break",
+         "A cursor on a break is still on the page before it (message). An empty page isn't a page: past it the "
+         "cursor is still on the last page with anything in it (speaker, on the second of two breaks). Before "
+         "the first such page there is nothing to show (choices, on the break the buffer starts with).",
+         {"message": paged(at + 32), "speaker": paged(at + 36), "choices": paged(at + 40)},
+         book_at(at + 6, at + 10, at),
+         {"message": "あ\nい", "speaker": "う", "choices": []})
+
+    case("pages-cursor-outside",
+         "A cursor outside the text is on the last page: zero (message), before the text's address (speaker), "
+         "past the terminator (choices).",
+         {"message": paged(at + 32), "speaker": paged(at + 36), "choices": paged(at + 40)},
+         book_at(0, at - 1, at + 16),
+         {"message": "えお", "speaker": "えお", "choices": ["えお"]})
+
+    wide = u16("あ\u0c05\u3000") + b"\x0c\0" + u16("い") + b"\0\0"
+    case("pages-break-boundary",
+         "A break counts only at the start of a character: 40 is also the second byte of ァ (83 40), and 0C 00 "
+         "also lies across two UTF-16 units (05 0C, 00 30). The cursor may point into a character.",
+         {"message": {"address": "0x80130000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "pages": {"break": "40", "cursor": {"address": "0x80130010", "type": "u32"}}},
+          "speaker": {"address": "0x80130000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "pages": {"break": "40", "cursor": {"address": "0x80130014", "type": "u32"}}},
+          "choices": {"address": "0x80130020", "charset": "utf16le", "max_bytes": 16, "terminator": "0000",
+                      "pages": {"break": "0C00", "cursor": {"address": "0x80130018", "type": "u32"}}}},
+         {0x80130000: pad(sjis("ァ") + b"@" + sjis("あ"), 16) + num(0x80130001) + num(0x80130003)
+          + num(0x80130022) + bytes(4) + pad(wide, 16)},
+         {"message": "ァ", "speaker": "あ", "choices": ["あ\u0c05\u3000"]})
+
+    case("pages-pointers",
+         "The buffer and the cursor behind pointer chains: the cursor is measured from where the text was found "
+         "(speaker). A cursor that can't be read fails the field (message).",
+         {"message": {"address": "0x80140000", "charset": "utf8", "max_bytes": 8, "terminator": "00",
+                      "pages": {"break": "0C", "cursor": {"base": "0x80140014", "offsets": ["0x0"], "type": "u32"}}},
+          "speaker": {"base": "0x80140010", "offsets": ["0x4"], "charset": "utf8", "max_bytes": 8, "terminator": "00",
+                      "pages": {"break": "0C", "cursor": {"base": "0x80140018", "offsets": ["0x8"], "type": "u32"}}}},
+         {0x80140000: pad(b"AB\x0cCD", 16) + num(0x8013FFFC) + num(0x90000000) + num(0x80140020),
+          0x80140020: bytes(8) + num(0x80140003)},
+         {"speaker": "CD", "errors": {"message": ""}})
+
+    styled = sjis("あ") + b"\x07\x01" + sjis("い") + b"\x07\0" + sjis("う") + b"\x03\x83" + b"A\0" + sjis("か")
+    case("codes-arguments",
+         "A code and its argument bytes are one character and nothing in the text, so an argument of 00 isn't "
+         "the terminator and an argument of 83 doesn't start a character (message). Without `codes` the same "
+         "bytes end at the first 00 (speaker).",
+         {"message": {"address": "0x80150000", "charset": "shift_jis", "max_bytes": 24, "terminator": "00",
+                      "codes": {"03": 2, "07": 2}},
+          "speaker": {"address": "0x80150000", "charset": "shift_jis", "max_bytes": 24, "terminator": "00"}},
+         {0x80150000: pad(styled, 24)},
+         {"message": "あいうA", "speaker": "あ\u0007\u0001い\u0007"})
+
+    case("codes-lengths",
+         "A code is one character for a length in characters (message: three characters are あ, a code, い). A "
+         "code that doesn't fit in what was read is dropped like any last character (speaker, where max_bytes "
+         "ends after the code's first byte; choices, where a length in bytes does).",
+         {"message": {"address": "0x80160000", "charset": "shift_jis", "max_bytes": 16, "codes": {"07": 2},
+                      "length": {"address": "0x80160010", "counts": "characters"}},
+          "speaker": {"address": "0x80160000", "charset": "shift_jis", "max_bytes": 3, "codes": {"07": 2}},
+          "choices": {"address": "0x80160000", "charset": "shift_jis", "max_bytes": 16, "codes": {"07": 2},
+                      "length": {"address": "0x80160011"}}},
+         {0x80160000: pad(sjis("あ") + b"\x07\x01" + sjis("いう"), 16) + bytes([3, 7])},
+         {"message": "あい", "speaker": "あ", "choices": ["あい"]})
+
+    case("codes-leads",
+         "Where two leads start at the same byte the longer one counts (message: 1F 03 takes three bytes, any "
+         "other 1F two). The terminator is looked for first (speaker: 07 FF ends the text though 07 is a "
+         "code). In UTF-16 a code's bytes are counted the same way, so its 00 00 isn't the terminator "
+         "(choices).",
+         {"message": {"address": "0x80170000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "codes": {"1F": 2, "1F03": 3}},
+          "speaker": {"address": "0x80170010", "charset": "shift_jis", "max_bytes": 16, "terminator": "07FF",
+                      "codes": {"07": 2}},
+          "choices": {"address": "0x80170020", "charset": "utf16le", "max_bytes": 16, "terminator": "0000",
+                      "codes": {"1B00": 4}}},
+         {0x80170000: pad(sjis("あ") + b"\x1f\x03\0" + sjis("い") + b"\x1f\0" + sjis("う"), 16)
+          + pad(sjis("あ") + b"\x07\x01" + sjis("い") + b"\x07\xff" + sjis("う"), 16)
+          + pad(u16("あ") + b"\x1b\0\0\0" + u16("い"), 16)},
+         {"message": "あいう", "speaker": "あい", "choices": ["あい"]})
+
+    case("codes-pages",
+         "With `pages`, a code's argument isn't a break: 03 0C stays inside the first page (message), and the "
+         "second page starts after the one real break (speaker).",
+         {"message": {"address": "0x80180000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "codes": {"03": 2},
+                      "pages": {"break": "0C", "cursor": {"address": "0x80180010", "type": "u32"}}},
+          "speaker": {"address": "0x80180000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "codes": {"03": 2},
+                      "pages": {"break": "0C", "cursor": {"address": "0x80180014", "type": "u32"}}}},
+         {0x80180000: pad(sjis("あ") + b"\x03\x0c" + sjis("い") + b"\x0c" + sjis("う"), 16)
+          + num(0x80180004) + num(0x80180007)},
+         {"message": "あい", "speaker": "う"})
 
     return out
 
