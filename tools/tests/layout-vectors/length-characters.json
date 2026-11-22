@@ -1,0 +1,54 @@
+{
+ "name": "length-characters",
+ "checks": "A length in characters. The terminator still ends the text first, and so does max_bytes; a length below zero is 0.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x02000000",
+   "charset": "utf8",
+   "max_bytes": 16,
+   "terminator": "00",
+   "length": {
+    "address": "0x02000030",
+    "counts": "characters"
+   }
+  },
+  "speaker": {
+   "address": "0x02000010",
+   "charset": "utf8",
+   "max_bytes": 16,
+   "terminator": "00",
+   "length": {
+    "address": "0x02000031",
+    "counts": "characters"
+   }
+  },
+  "choices": {
+   "address": "0x02000020",
+   "charset": "utf8",
+   "max_bytes": 4,
+   "length": {
+    "address": "0x02000031",
+    "counts": "characters"
+   },
+   "rows": {
+    "count": 2,
+    "stride": 8
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x02000000",
+   "hex": "e3818241e38184e38186000000000000e38182e3818400000000000000000000e38182e38184000041424344454647480309"
+  }
+ ],
+ "expected": {
+  "message": "あAい",
+  "speaker": "あい",
+  "choices": [
+   "あ",
+   "ABCD"
+  ]
+ }
+}

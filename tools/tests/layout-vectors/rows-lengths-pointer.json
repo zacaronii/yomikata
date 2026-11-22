@@ -1,0 +1,37 @@
+{
+ "name": "rows-lengths-pointer",
+ "checks": "Row lengths behind a pointer chain, big-endian: the chain gives the first length's address.",
+ "entry": {},
+ "layout": {
+  "endian": "big",
+  "message": {
+   "address": "0x80300000",
+   "charset": "utf8",
+   "max_bytes": 8,
+   "rows": {
+    "count": 2,
+    "stride": 8,
+    "lengths": {
+     "base": "0x80300010",
+     "offsets": [
+      "0x4"
+     ],
+     "type": "s16"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80300000",
+   "hex": "4142434445464748494a4b4c4d4e4f5080300020"
+  },
+  {
+   "address": "0x80300020",
+   "hex": "000000000002ffff"
+  }
+ ],
+ "expected": {
+  "message": "AB"
+ }
+}
