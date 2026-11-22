@@ -163,6 +163,7 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
                 {"message": {**text, "script": script}},                      # only a table has end codes
                 {"message": {**table, "script": {"open": "8000"}}}, {"message": {**table, "script": {**script, "to": 1}}},
                 {"message": {**table, "script": {**script, "open": "800"}}},
+                {"message": {**table, "script": {**script, "texts": "pages"}}},
                 {"message": {**table, "script": {**script, "offset": {"address": "0x2", "equals": 1}}}},
                 {"message": {**table, "script": script, "terminator": "FFFF"}},
                 {"message": {**table, "script": script, "length": {"address": "0x2"}}},
@@ -174,6 +175,7 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
                 {"tables": {"by": by, "sets": {"1": ["tables/a.tbl"]}, "else": []}}):
         assert not layout.understood(odd), odd
     assert layout.understood({"message": {**text, "codes": {"07": 2, "1f03": 3}}})
+    assert layout.understood({"choices": {**table, "script": {**script, "texts": "rows"}}})
     assert layout.understood({"message": {**table, "codes": {"F001": 4}, "script": script, "when": {"address": "0x3"}},
                               "tables": {"by": by, "sets": {"1": ["tables/a.tbl"], "-2": ["tables/b.tbl"]}}})
 
@@ -231,7 +233,8 @@ def test_schema_and_catalog_rules(tmp_path):
     for wrong in ({"length": {"address": "0x1", "counts": "words"}}, {"length": {"address": "0x1", "equals": 1}},
                   {"rows": {"count": 2, "stride": 8, "lengths": {"type": "u8"}}}, {"when": {"address": "0x1", "counts": "bytes"}},
                   {"script": script}, {"charset": "table", "script": script, "terminator": "FFFF"},
-                  {"charset": "table", "script": {"open": "8000", "offset": {"address": "0x2", "equals": 1}}}):
+                  {"charset": "table", "script": {"open": "8000", "offset": {"address": "0x2", "equals": 1}}},
+                  {"charset": "table", "script": {**script, "texts": "joined"}}):
         lay = {"message": {"address": "0x08800100", "charset": "utf16le", "max_bytes": 8, **wrong}}
         (tmp_path / "games" / "psp" / "ULJM00001.json").write_text(json.dumps(entry_with(lay)), encoding="utf-8")
         assert any("layouts/0/message" in str(p) for p in catalog.validate(tmp_path)), wrong

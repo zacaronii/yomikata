@@ -602,6 +602,23 @@ def cases() -> list[dict]:
          {0x80300000: script + num(at[7]) + num(-4)},
          {"message": "え", "speaker": "", "choices": []}, entry=told, tables={"tables/test/kana.tbl": KANA})
 
+    # A list as the game writes a choice: 80 07, a count, then each answer after 00 00 01, ending in FFFF.
+    asked = pad(bytes.fromhex("8007 0003 0012" "000001 0001 0002 FFFF" "000001 0003 FFFF" "000001 FFFF"
+                              "000001 0004 0005 FFFF" "27"), 48)
+    answers = {"address": "0x80310000", "charset": "table", "max_bytes": 48,
+               "script": {"open": "000001", "offset": {"address": "0x80310030", "type": "u32"}, "texts": "rows"}}
+    case("script-rows",
+         "With texts: rows each text of the page is a row of its own. The position is after the last answer's "
+         "end code: four answers, the third an empty one (choices). The same bytes without texts run "
+         "together (message). Partway through the list the rows so far are read, the last one as far as the "
+         "game has read it (speaker: the position is one character into the second answer).",
+         {"choices": answers,
+          "message": {**answers, "script": {k: v for k, v in answers["script"].items() if k != "texts"}},
+          "speaker": {**answers, "script": {**answers["script"], "offset": {"address": "0x80310034", "type": "u32"}}}},
+         {0x80310000: asked + num(36) + num(20)},
+         {"choices": ["あい", "う", "", "えお"], "message": "あいうえお", "speaker": "あい\nう"},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2}, tables={"tables/test/kana.tbl": KANA})
+
     case("script-unreadable",
          "If the offset can't be read, the field fails (message), and so it does if the script can't be read "
          "at the offset (speaker: the offset points far outside memory).",
