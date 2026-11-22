@@ -1,0 +1,35 @@
+{
+ "name": "rows-pointers",
+ "checks": "With rows.pointers each row is a 32-bit pointer to its text, stride bytes apart. A text is read to its terminator or to max_bytes, whatever the stride. A null pointer is an empty row: kept in the middle, dropped at the end.",
+ "entry": {},
+ "layout": {
+  "choices": {
+   "address": "0x80360000",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "terminator": "00",
+   "rows": {
+    "count": 4,
+    "stride": 12,
+    "pointers": true
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80360000",
+   "hex": "00013680eeeeeeeeeeeeeeee00000000eeeeeeeeeeeeeeee10013680eeeeeeeeeeeeeeee00000000eeeeeeeeeeeeeeee"
+  },
+  {
+   "address": "0x80360100",
+   "hex": "82cd82a2008cc300000000000000000088ea93f18e4f8e6c8cdc00000000000082a282a282a600000000000000000000"
+  }
+ ],
+ "expected": {
+  "choices": [
+   "はい",
+   "",
+   "一二三四"
+  ]
+ }
+}

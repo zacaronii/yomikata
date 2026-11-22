@@ -242,7 +242,7 @@ def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, end
     rows = spec.get("rows", {"count": 1, "stride": spec["max_bytes"]})
     lines = []
     for r in range(rows["count"]):
-        size, chars = min(spec["max_bytes"], rows["stride"]), None
+        size, chars = spec["max_bytes"] if rows.get("pointers") else min(spec["max_bytes"], rows["stride"]), None
         for length, index in ((spec.get("length"), 0), (rows.get("lengths"), r)):
             if length is None:
                 continue
@@ -251,7 +251,13 @@ def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, end
                 chars = n if chars is None else min(chars, n)
             else:
                 size = min(size, n)
-        raw = _cut(read(start + r * rows["stride"], size), charset, unit, term, chars, codes)
+        at = start + r * rows["stride"]
+        if rows.get("pointers"):                    # the row holds a pointer to its text; none is an empty row
+            (at,) = struct.unpack("<I" if endian == "little" else ">I", read(at, 4))
+            if not at:
+                lines.append("")
+                continue
+        raw = _cut(read(at, size), charset, unit, term, chars, codes)
         if "pages" in spec:
             cursor = read_int(spec["pages"]["cursor"], read, endian) - start
             raw = _page(raw, charset, unit, bytes.fromhex(spec["pages"]["break"]), cursor, codes)
@@ -310,7 +316,8 @@ def _text_ok(spec) -> bool:
                                   and isinstance(pages["break"], str) and _BYTES.fullmatch(pages["break"])
                                   and _number_ok(pages["cursor"], _WHERE | {"type"})):
         return False
-    return set(rows) <= {"count", "stride", "lengths"} \
+    return set(rows) <= {"count", "stride", "lengths", "pointers"} \
+        and (rows.get("pointers", True) is True and not {"lengths", "pointers"} <= set(rows)) \
         and all(_number_ok(n, _LENGTH) for n in (spec.get("length"), rows.get("lengths")) if n is not None) \
         and ("when" not in spec or _number_ok(spec["when"]))
 

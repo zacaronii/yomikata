@@ -1,0 +1,37 @@
+{
+ "name": "rows-pointers-outside",
+ "checks": "A pointer that leads outside memory: the text can't be read and is named in errors, the other fields are still read.",
+ "entry": {},
+ "layout": {
+  "choices": {
+   "address": "0x80360000",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "terminator": "00",
+   "rows": {
+    "count": 2,
+    "stride": 12,
+    "pointers": true
+   }
+  },
+  "choosing": {
+   "address": "0x80360018"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80360000",
+   "hex": "00013680eeeeeeeeeeeeeeee00000090eeeeeeeeeeeeeeee01"
+  },
+  {
+   "address": "0x80360100",
+   "hex": "82cd82a2008cc300000000000000000088ea93f18e4f8e6c8cdc00000000000082a282a282a600000000000000000000"
+  }
+ ],
+ "expected": {
+  "choosing": true,
+  "errors": {
+   "choices": "0x90000000+8 is outside memory"
+  }
+ }
+}

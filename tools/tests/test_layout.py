@@ -168,6 +168,9 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
     script = {"open": "8000", "offset": {"address": "0x2", "type": "u32"}}
     for odd in ({"blink": 1}, {"endian": "middle"}, {"message": {**text, "charset": "ebcdic"}},
                 {"message": {**text, "rows": {"count": 1, "stride": 8, "gap": 2}}},
+                {"choices": {**text, "rows": {"count": 2, "stride": 8, "pointers": False}}},
+                {"choices": {**text, "rows": {"count": 2, "stride": 8, "pointers": 1}}},
+                {"choices": {**text, "rows": {"count": 2, "stride": 8, "pointers": True, "lengths": {"address": "0x2"}}}},
                 {"message": {**text, "length": {"address": "0x2", "counts": "words"}}},
                 {"waiting": {"address": "0x2", "type": "u64"}}, {"shown": {"address": "0x2", "counts": "bytes"}},
                 {"speaker": {**text, "when": {"address": "0x2", "below": 3}}},
@@ -205,6 +208,7 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
                 {"tables": {"by": by, "sets": {"1": ["tables/a.tbl"]}, "else": []}}):
         assert not layout.understood(odd), odd
     assert layout.understood({"message": {**text, "codes": {"07": 2, "1f03": 3}}})
+    assert layout.understood({"choices": {**text, "rows": {"count": 2, "stride": 8, "pointers": True}}})
     assert layout.understood({"choices": {**table, "script": {**script, "texts": "rows"}}})
     assert layout.understood({"choices": {**table, "script": {**script, "texts": "rows", "rest": 16}}})
     assert layout.understood({"message": {**table, "script": {**script, "rest": 1}}})
@@ -268,6 +272,8 @@ def test_schema_and_catalog_rules(tmp_path):
     script = {"open": "8000", "offset": {"address": "0x2", "type": "u32"}}
     for wrong in ({"length": {"address": "0x1", "counts": "words"}}, {"length": {"address": "0x1", "equals": 1}},
                   {"rows": {"count": 2, "stride": 8, "lengths": {"type": "u8"}}}, {"when": {"address": "0x1", "counts": "bytes"}},
+                  {"rows": {"count": 2, "stride": 8, "pointers": False}},
+                  {"rows": {"count": 2, "stride": 8, "pointers": True, "lengths": {"address": "0x1"}}},
                   {"script": script}, {"charset": "table", "script": script, "terminator": "FFFF"},
                   {"charset": "table", "script": {"open": "8000", "offset": {"address": "0x2", "equals": 1}}},
                   {"charset": "table", "script": {**script, "texts": "joined"}},
