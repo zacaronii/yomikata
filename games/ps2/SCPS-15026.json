@@ -1,0 +1,18 @@
+{
+  "id": "SCPS-15026",
+  "platform": "ps2",
+  "title": "ぼくのなつやすみ2 海の冒険篇",
+  "title_romaji": "Boku no Natsuyasumi 2: Umi no Bouken-hen",
+  "versions": [
+    {
+      "exe": "SCPS_150.26",
+      "exe_sha1": "3d539c08fda2de114090de39f5d0aa99be73605a"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 9, utf16le 2,922 characters of prose-like text"
+  ],
+  "notes": "Only a little prose reads on disc, far less than the game's script, so the script is likely packed. A memory sample from play will settle the encoding."
+}

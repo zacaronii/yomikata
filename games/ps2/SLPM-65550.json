@@ -1,0 +1,18 @@
+{
+  "id": "SLPM-65550",
+  "platform": "ps2",
+  "title": "Remember11 -the age of infinity-",
+  "title_romaji": "Remember11: The Age of Infinity",
+  "versions": [
+    {
+      "exe": "SLPM_655.50",
+      "exe_sha1": "611a44e1df5450a29ea3e311034748ea3d2c9dec"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 2,700, utf16le 252 characters of prose-like text"
+  ],
+  "notes": "Only a little prose reads on disc, far less than the game's script, so the script is likely packed. A memory sample from play will settle the encoding."
+}

@@ -151,10 +151,24 @@
                                 "lengths": {"$ref": "#/$defs/length",
                                             "description": "One length per row, the numbers one after another in memory."}},
                  "description": "Rows stride bytes apart, each read to its terminator, its length or the stride, joined with newlines."},
+        "pages": {"type": "object", "additionalProperties": false, "required": ["break", "cursor"],
+                  "properties": {"break": {"type": "string", "pattern": "^([0-9A-Fa-f]{2})+$",
+                                           "description": "The code between two pages, hex in memory byte order, checked at character boundaries: 0C."},
+                                 "cursor": {"type": "object", "additionalProperties": false, "$ref": "#/$defs/where",
+                                            "properties": {"address": {"$ref": "#/$defs/address"}, "base": {"$ref": "#/$defs/address"},
+                                                           "offsets": {"$ref": "#/$defs/offsets"},
+                                                           "type": {"enum": ["u8", "u16", "u32", "s8", "s16", "s32"], "description": "Default u8; a pointer is u32."}},
+                                            "description": "Number: the address in the text the game is reading at."}},
+                  "description": "For a buffer holding several pages of script: the text is the page the game's cursor is on. Not with rows."},
+        "codes": {"type": "object", "minProperties": 1, "propertyNames": {"pattern": "^([0-9A-Fa-f]{2}){1,4}$"},
+                  "additionalProperties": {"type": "integer", "minimum": 1, "maximum": 16},
+                  "description": "Codes in the text that aren't characters: the bytes a code starts with (hex in memory byte order), and how many bytes it has in all, those included. {\"07\": 2} is 07 and one argument byte. A code is skipped whole, so its arguments are never taken for the terminator or for text. Not with a table charset, which has controls."},
         "when": {"$ref": "#/$defs/int",
                  "description": "Flag: the text is on screen. While it is false the text is empty, whatever the memory holds."},
         "cleanup": {"$ref": "#/properties/cleanup"}
-      }
+      },
+      "allOf": [{"not": {"required": ["rows", "pages"]}},
+                {"not": {"required": ["codes"], "properties": {"charset": {"const": "table"}}}}]
     }
   }
 }

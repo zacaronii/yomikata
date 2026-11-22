@@ -1,0 +1,48 @@
+{
+ "name": "codes-leads",
+ "checks": "Where two leads start at the same byte the longer one counts (message: 1F 03 takes three bytes, any other 1F two). The terminator is looked for first (speaker: 07 FF ends the text though 07 is a code). In UTF-16 a code's bytes are counted the same way, so its 00 00 isn't the terminator (choices).",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80170000",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00",
+   "codes": {
+    "1F": 2,
+    "1F03": 3
+   }
+  },
+  "speaker": {
+   "address": "0x80170010",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "07FF",
+   "codes": {
+    "07": 2
+   }
+  },
+  "choices": {
+   "address": "0x80170020",
+   "charset": "utf16le",
+   "max_bytes": 16,
+   "terminator": "0000",
+   "codes": {
+    "1B00": 4
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80170000",
+   "hex": "82a01f030082a21f0082a4000000000082a0070182a207ff82a400000000000042301b00000044300000000000000000"
+  }
+ ],
+ "expected": {
+  "message": "あいう",
+  "speaker": "あい",
+  "choices": [
+   "あい"
+  ]
+ }
+}
