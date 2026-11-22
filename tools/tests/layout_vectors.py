@@ -667,6 +667,38 @@ def cases() -> list[dict]:
          {0x80320000: windows + num(15, 2) + num(16, 2) + num(18, 2)},
          {"message": "お", "speaker": "お", "choices": []}, entry=shut, tables={"tables/test/kana.tbl": KANA})
 
+    # A third made-up script, counted in codes: a choice's two answers, each a text of its own, then the end code
+    # and two numbers the game reads after it (where each answer leads). The game waits past those.
+    words = ["8000", "0001", "FFFF", "8000", "0002", "0003", "FFFF", "0006", "0005"]
+    answers = pad(b"".join(bytes.fromhex(w) for w in words), 24)
+
+    def resting(cell: int, rest: int | None, texts: str | None = None) -> dict:
+        offset = {"address": f"0x{0x80340018 + 2 * cell:08X}", "type": "u16", "counts": "codes"}
+        more = {k: v for k, v in (("rest", rest), ("texts", texts)) if v is not None}
+        return {"address": "0x80340000", "charset": "table", "max_bytes": 24,
+                "script": {"open": "8000", "offset": offset, **more}}
+
+    case("script-rest",
+         "The position is two codes past the end code, on neither a text nor an open code. With rest 2 it is "
+         "read as just past the end code, so the page is still up: both texts, joined (message). With rest 1 "
+         "the end code is too far back, and without rest nobody looks: nothing (speaker, shown as a text). "
+         "With rows, each text is an answer (choices).",
+         {"message": resting(0, 2), "speaker": resting(0, 1), "choices": resting(0, 16, "rows")},
+         {0x80340000: answers + num(9, 2)},
+         {"message": "あいう", "speaker": "", "choices": ["あ", "いう"]},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2}, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-rest-nearest",
+         "Rest looks back from the position and stops at the nearest end code. Just past an end code that "
+         "is the one, and nothing changes (message, at the script's end). Two codes into the second answer, the first one's "
+         "end code is in reach: the position goes back to it and the second answer isn't read, which is why "
+         "rest isn't for a script whose texts can start that close to an end code (speaker). One code past "
+         "the end, rest 16 reaches the first answer's end code as well but takes the nearer one (choices).",
+         {"message": resting(0, 4), "speaker": resting(1, 2), "choices": resting(2, 16, "rows")},
+         {0x80340000: answers + num(7, 2) + num(5, 2) + num(8, 2)},
+         {"message": "あいう", "speaker": "あ", "choices": ["あ", "いう"]},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2}, tables={"tables/test/kana.tbl": KANA})
+
     # Two layouts for one version: a game that loads a program per chapter keeps its cells elsewhere in each.
     def chapter(value: int, text: int) -> dict:
         return {"when": {"address": "0x80330000", "type": "u32", "equals": value},

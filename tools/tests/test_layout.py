@@ -187,6 +187,8 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
                 {"message": {**table, "script": {"open": "8000"}}}, {"message": {**table, "script": {**script, "to": 1}}},
                 {"message": {**table, "script": {**script, "open": "800"}}},
                 {"message": {**table, "script": {**script, "texts": "pages"}}},
+                {"message": {**table, "script": {**script, "rest": 0}}}, {"message": {**table, "script": {**script, "rest": 17}}},
+                {"message": {**table, "script": {**script, "rest": "2"}}}, {"message": {**table, "script": {**script, "rest": True}}},
                 {"message": {**table, "script": {**script, "offset": {"address": "0x2", "equals": 1}}}},
                 {"message": {**table, "script": {**script, "offset": {"address": "0x2", "counts": "characters"}}}},
                 {"message": {**table, "pages": {"break": "0C", "cursor": {"address": "0x2", "counts": "codes"}}}},
@@ -202,6 +204,8 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
         assert not layout.understood(odd), odd
     assert layout.understood({"message": {**text, "codes": {"07": 2, "1f03": 3}}})
     assert layout.understood({"choices": {**table, "script": {**script, "texts": "rows"}}})
+    assert layout.understood({"choices": {**table, "script": {**script, "texts": "rows", "rest": 16}}})
+    assert layout.understood({"message": {**table, "script": {**script, "rest": 1}}})
     assert layout.understood({"message": {**table, "script": {**script, "offset": {"address": "0x2", "counts": "codes"}}}})
     assert layout.understood({"message": {**table, "script": {**script, "offset": {"address": "0x2", "counts": "bytes"}}}})
     assert layout.understood({"message": {**table, "codes": {"F001": 4}, "script": script, "when": {"address": "0x3"}},
