@@ -4,20 +4,28 @@
 # -ch8, -ch9, -chA or -chH goes after this file, chosen by the byte at 0x80016635 (0-6 in that order).
 # Read from the game's own drawing: a replay made it draw every code, and each glyph was read by eye.
 # Not mapped: 0x00CA, 0x00CB (marks not made out), 0x00D6 (a page icon), 0x00D8-0x00DB (ornate A B C D); no
-# scene's text uses them. ° (0x00C5) stands in for an apostrophe the one time it is used.
+# scene's text uses them. ° (0x00C5) stands in for an apostrophe the one time it is used. The program swaps
+# 0x00BC, 0x00BD and 0x00BE (ー 。 、) for 0x00C1, 0x00C5 and 0x00CB while one of its flags is set (read from its
+# code, not seen in play), so those three are probably the same marks set for text in columns.
 # Words from 0x8000 up are commands: 0x8100 new line, 0x8500 wait for a press with the text going on below
 # (the window scrolls), 0x8600 wait for a press at a page's end (the window is cleared), 0x8D0n a speaker's page
-# (a name of n codes follows, then ：), 0x84nn indent, 0xFFFF the script's end; the rest (high bytes 0x82-0x8B,
-# 0x97, 0x98, 0xA7, 0xA8, 0xC2-0xD9) drive answers, pauses and pictures. 288 different ones are used. Some seem
-# to take a word below 0x8000 as an argument (0x0002 after 0xCD00 and 0xCD80, 0x007F after 0xC804).
-# The running script is at 0x801FE800. Each chapter runs its own program, so where it keeps its place moves:
-# chapter 5 has it at 0x800AAABE and chapter 6 at 0x800A80E2; the other chapters' addresses are not known. That
-# u16 is the index of the next word the game will read: just past the wait code while it waits for a press, and
-# just past 0xFFFF once the script is over. Beside it, in both chapters: the u16 six bytes before it is 0xFFFE
-# while the game waits for a press (a small count while it types), and the byte 0x28 after it is 1 while the
-# text window is open (0 with no window: seen in chapter 5 only).
+# (a name of n codes follows, then ：), 0x84nn a pause of length nn, 0x8900 a window opening, 0x8A00 one closing,
+# 0xFFFF the script's end; the rest (high bytes 0x82-0x8B, 0x97, 0x98, 0xA7, 0xA8, 0xC2-0xD9) drive answers and
+# pictures. 288 different ones are used. Which take one more word (the entry's `codes`) is read from the script
+# interpreter's code, the same in all seven chapter programs: 0xC1nn, 0xC8nn, 0xCDnn, 0xD0nn-0xD2nn, 0xCE01,
+# 0xCE03, 0xCE04, and 0xD6nn-0xD8nn when nn is 0 or 1. In the scripts that word is always below 0x8000.
+# The running script is at 0x801FE800. Each chapter runs its own program (CAP5.EXE to CAPH.EXE), so where it
+# keeps its place moves: 0x800AAABE in chapter 5, 0x800A80E2 in 6, 0x800A5B02 in 7, 0x800AF726 in 8, 0x800A5D96
+# in 9, 0x800A86A2 in A and 0x80096742 in H. The instruction word at 0x80041C78 differs in every program, and
+# the entry's layouts tell them apart by it. That u16 is the index of the next word the game will read: just past
+# the wait code while it waits for a press, and just past 0xFFFF once the script is over. Beside it: the u16 six
+# bytes before it is 0xFFFE while the game waits for a press (a small count while it types), the u16 four bytes
+# after it is 0 while no text is up (it counts characters as they are drawn), and the byte 0x28 after it is 1
+# while the text window is open.
 # Chapter 5 from ten snapshots of real play (two conversations, then walking); chapter 6 from a replay of its
-# first scene.
+# first scene; the other chapters' addresses from matching chapter 5's code in each program, not yet run.
+# Two script files on the disc look like leftovers and are not counted here: CAP6_K6LINK (its kana are blanked
+# and its kanji start at 0x010C, as in Tansaku-hen) and CAP7_YHLINK (chapter H's script in an earlier numbering).
 0000=　
 0100=あ
 0200=い
