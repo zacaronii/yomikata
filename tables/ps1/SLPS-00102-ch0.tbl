@@ -3,7 +3,7 @@
 # 16-bit little-endian codes, keys in memory byte order. Goes after SLPS-00102.tbl (the shared codes).
 # 263 glyphs are bit for bit ones already read for Kyuumei-hen; the other 17 were read by eye here. All were
 # then checked in the scenes' words.
-# Confirmed in play: five Genkan snapshots of the opening decode to the lines on screen.
+# Confirmed in play: fourteen Genkan snapshots (seven scripts, 118 kanji codes) decode with none unmapped.
 # Not checked in a scene, since none uses them: 0x0198, 0x0215.
 0C01=学
 0D01=校
