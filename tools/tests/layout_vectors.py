@@ -699,6 +699,54 @@ def cases() -> list[dict]:
          {"message": "あいう", "speaker": "あ", "choices": ["あ", "いう"]},
          entry={"tables": ["tables/test/kana.tbl"], "unit": 2}, tables={"tables/test/kana.tbl": KANA})
 
+    # A fourth made-up script: a question and two answers in one text, a line each, then the end code and where
+    # each answer leads. An answer's row is a code that says which answer it is (they are not in order), a colon
+    # and its words; the game draws the letters. It waits past the end with a cell at 0xFFFF; another holds the
+    # cursor.
+    colon = KANA + "00C7=：\n"
+    numbered = {"tables": ["tables/test/colon.tbl"], "unit": 2, "controls": {"0098": "choice", "0198": "choice"}}
+    colons = [{"regex": "(?s)^(.*?\\n)??：", "replace": ""}, {"regex": "\\n：", "replace": "\n"}]
+
+    def asking(address: int, words: list[str]) -> tuple[dict, bytes]:
+        size = 2 * len(words)
+        page = {"address": f"0x{address:08X}", "charset": "table", "max_bytes": size,
+                "script": {"open": "8000", "rest": 2,
+                           "offset": {"address": f"0x{address + size:08X}", "type": "u16", "counts": "codes"}}}
+        up = {"address": f"0x{address + size + 2:08X}", "type": "u16", "equals": 65535}
+        return ({"message": page, "choosing": up, "choices": {**page, "when": up, "cleanup": colons},
+                 "choice_cursor": {"address": f"0x{address + size + 4:08X}", "type": "u16"}},
+                b"".join(bytes.fromhex(w) for w in words))
+
+    choice, asked = asking(0x80350000, ["8000", "0001", "0002", "FFFE", "0198", "00C7", "0003", "FFFE", "0098",
+                                        "00C7", "0004", "0005", "FFFE", "FFFF", "0006", "0005"])
+
+    case("script-rest-choice",
+         "A choice in one text: the question's row, then a row for each answer, a colon before its words. The "
+         "game waits two codes past the end code; with rest the message is the whole page. The answers are the "
+         "same text with a cleanup of their own, which runs over the whole text before it is split into rows: "
+         "the first rule takes everything up to the first row that starts with a colon, line breaks included "
+         "(its group is optional and lazy, ??), the second the other rows' colons.",
+         choice, {0x80350000: asked + num(16, 2) + num(0xFFFF, 2) + num(1, 2)},
+         {"message": "あい\n：う\n：えお", "choosing": True, "choices": ["う", "えお"], "choice_cursor": 1},
+         entry=numbered, tables={"tables/test/colon.tbl": colon})
+
+    case("script-rest-choice-typing",
+         "The same choice while its first answer types out: the message is the page so far, and the answers "
+         "are none, because their own when is false until the choice is up.",
+         choice, {0x80350000: asked + num(7, 2) + num(0, 2) + num(0, 2)},
+         {"message": "あい\n：う", "choosing": False, "choices": [], "choice_cursor": 0},
+         entry=numbered, tables={"tables/test/colon.tbl": colon})
+
+    alone, asked = asking(0x80360000, ["8000", "0098", "00C7", "0003", "FFFE", "0198", "00C7", "0004", "FFFE",
+                                       "FFFF", "0005", "0006"])
+
+    case("script-rest-choice-first-row",
+         "A choice with no question's row: the page starts with an answer. The first rule's group is lazy, so it "
+         "matches nothing here and the first answer stays; a greedy one would take the first answer away.",
+         alone, {0x80360000: asked + num(12, 2) + num(0xFFFF, 2) + num(0, 2)},
+         {"message": "：う\n：え", "choosing": True, "choices": ["う", "え"], "choice_cursor": 0},
+         entry=numbered, tables={"tables/test/colon.tbl": colon})
+
     # Two layouts for one version: a game that loads a program per chapter keeps its cells elsewhere in each.
     def chapter(value: int, text: int) -> dict:
         return {"when": {"address": "0x80330000", "type": "u32", "equals": value},
