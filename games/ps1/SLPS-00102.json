@@ -74,10 +74,10 @@
     "068D": "name",
     "078D": "name",
     "008F": "ignore",
-    "0197": "choice",
-    "0297": "choice",
-    "0397": "choice",
-    "A297": "choice",
+    "0197": "newline",
+    "0297": "newline",
+    "0397": "newline",
+    "A297": "newline",
     "0098": "choice",
     "0198": "choice",
     "0298": "choice",
@@ -337,7 +337,17 @@
         "when": {
           "address": "0x800A4CEE",
           "type": "u16"
-        }
+        },
+        "cleanup": [
+          {
+            "regex": "^\\n：",
+            "replace": "："
+          },
+          {
+            "regex": "\\n\\n：",
+            "replace": "\n："
+          }
+        ]
       },
       "waiting": {
         "address": "0x800A4CE4",
@@ -565,7 +575,17 @@
         "when": {
           "address": "0x800A39F2",
           "type": "u16"
-        }
+        },
+        "cleanup": [
+          {
+            "regex": "^\\n：",
+            "replace": "："
+          },
+          {
+            "regex": "\\n\\n：",
+            "replace": "\n："
+          }
+        ]
       },
       "waiting": {
         "address": "0x800A39E8",
@@ -793,7 +813,17 @@
         "when": {
           "address": "0x8009F8EA",
           "type": "u16"
-        }
+        },
+        "cleanup": [
+          {
+            "regex": "^\\n：",
+            "replace": "："
+          },
+          {
+            "regex": "\\n\\n：",
+            "replace": "\n："
+          }
+        ]
       },
       "waiting": {
         "address": "0x8009F8E0",
@@ -1021,7 +1051,17 @@
         "when": {
           "address": "0x800A4802",
           "type": "u16"
-        }
+        },
+        "cleanup": [
+          {
+            "regex": "^\\n：",
+            "replace": "："
+          },
+          {
+            "regex": "\\n\\n：",
+            "replace": "\n："
+          }
+        ]
       },
       "waiting": {
         "address": "0x800A47F8",
@@ -1249,7 +1289,17 @@
         "when": {
           "address": "0x800A479A",
           "type": "u16"
-        }
+        },
+        "cleanup": [
+          {
+            "regex": "^\\n：",
+            "replace": "："
+          },
+          {
+            "regex": "\\n\\n：",
+            "replace": "\n："
+          }
+        ]
       },
       "waiting": {
         "address": "0x800A4790",
@@ -1477,7 +1527,17 @@
         "when": {
           "address": "0x80094452",
           "type": "u16"
-        }
+        },
+        "cleanup": [
+          {
+            "regex": "^\\n：",
+            "replace": "："
+          },
+          {
+            "regex": "\\n\\n：",
+            "replace": "\n："
+          }
+        ]
       },
       "waiting": {
         "address": "0x80094448",
@@ -1606,5 +1666,5 @@
     "Fourteen Genkan RAM snapshots of the first chapter (inbox): seven scripts decode to the lines that were on screen with no unmapped code, and its layout reads the page on screen in each",
     "The six chapter programs on the disc (CAP0.EXE to CAPX.EXE): each keeps the same cells at its own addresses, found by matching the code around the first chapter's. Which command words take an argument word is read from the script interpreter's code; the words in use, from every scene's script"
   ],
-  "notes": "16-bit little-endian codes, not Kyuumei-hen's (SLPS-00405): 0x0000-0x0108 are shared; kanji are 0x010C up, numbered anew by each chapter. Each chapter is its own program with its cells elsewhere: one layout per program, told apart by the word at 0x8004AA1C, each with its chapter's table. The script at 0x801FE800 is one record at a time. The message is the page so far (the window shows its last rows). A choice's answers are rows of it, each after a colon; the game draws their letters and waits up to four words past the end code. Waiting is true for a frame or two after an answer is taken."
+  "notes": "16-bit little-endian codes; 0x0000-0x0108 are shared with Kyuumei-hen (SLPS-00405), kanji are 0x010C up, numbered anew by each chapter. One layout per chapter program, with its cells and table, told apart by the word at 0x8004AA1C. The script at 0x801FE800 is one record at a time. The message is the page so far. A choice's answers are rows of it, each after a colon; the first starts a row even with no line break before it (97nn is one; a doubled break is cleaned up). The game draws their letters and waits up to four words past the end code. Waiting is true for a frame or two after an answer."
 }
