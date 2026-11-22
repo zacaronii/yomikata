@@ -150,7 +150,7 @@
   },
   "SLPS-00097": {
    "path": "games/ps1/SLPS-00097.json",
-   "sha256": "6021351f2b636fe1924b5b11818acdce827a07787d0b1b00163f8b0e8dd2f861",
+   "sha256": "3244b4cee27e19564459a8e1780c93380c89290477b4937d5c0a71dbfcaf6ff6",
    "platform": "ps1",
    "encoding": "table",
    "status": "partial"

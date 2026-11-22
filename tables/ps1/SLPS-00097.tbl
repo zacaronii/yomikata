@@ -1,10 +1,12 @@
 # Gensou Suikoden (SLPS-00097): 16-bit codes, low byte first (46 00 = あ). One table for the whole game.
 # The code is the glyph's place in the game's 12x12 font, which stands whole in video memory during play.
-# Read off that font glyph by glyph, then checked twice: against sentences in the game's own codes (the system
-# text on the disc and the opening's dialogue in memory), which gave roughly two thirds of the 530 kanji a
-# sentence, and glyph by glyph beside a reference 12-pixel font. The checks corrected four kanji (0x0116,
-# 0x01AA, 0x023D, 0x025E). 0x0010 is the blank cell of the text grid. Not mapped: 0x0000-0x000F (window frame
-# pieces), 0x0035-0x003B (cursor and wait marks), 0x00F2-0x00F7 (item icons). 0x01EA and 0x02B5 are both 退.
+# Read off that font glyph by glyph, then checked three ways: against sentences in the game's own codes (the
+# system text on the disc and the opening's dialogue in memory), which gave roughly two thirds of the 530 kanji
+# a sentence; glyph by glyph beside a reference 12-pixel font; and, for kanji with no sentence here, against
+# Gensou Suikoden II's dialogue wherever that game keeps the same glyph at the same code (113 more kanji). The
+# checks corrected five kanji (0x0116, 0x01AA, 0x023D, 0x025B, 0x025E); 21 kanji still have no sentence.
+# 0x0010 is the blank cell of the text grid. Not mapped: 0x0000-0x000F (window frame pieces), 0x0035-0x003B
+# (cursor and wait marks), 0x00F2-0x00F7 (item icons). 0x01EA and 0x02B5 are both 退.
 # Least certain: ＋ and － (0x00F0, 0x00F1), ” (0x00DD), 叉 (0x02CF).
 1000=　
 1100=０
@@ -580,7 +582,7 @@ FF01=毒
 5802=開
 5902=過
 5A02=隠
-5B02=貫
+5B02=員
 5C02=案
 5D02=料
 5E02=遊
