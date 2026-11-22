@@ -1,0 +1,83 @@
+{
+ "name": "script-rest-choice-typing",
+ "checks": "The same choice while its first answer types out: the message is the page so far, and the answers are none, because their own when is false until the choice is up.",
+ "entry": {
+  "tables": [
+   "tables/test/colon.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "0098": "choice",
+   "0198": "choice"
+  }
+ },
+ "tables": {
+  "tables/test/colon.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n00C7=：\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80350000",
+   "charset": "table",
+   "max_bytes": 32,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80350020",
+     "type": "u16",
+     "counts": "codes"
+    }
+   }
+  },
+  "choosing": {
+   "address": "0x80350022",
+   "type": "u16",
+   "equals": 65535
+  },
+  "choices": {
+   "address": "0x80350000",
+   "charset": "table",
+   "max_bytes": 32,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80350020",
+     "type": "u16",
+     "counts": "codes"
+    }
+   },
+   "when": {
+    "address": "0x80350022",
+    "type": "u16",
+    "equals": 65535
+   },
+   "cleanup": [
+    {
+     "regex": "(?s)^(.*?\\n)??：",
+     "replace": ""
+    },
+    {
+     "regex": "\\n：",
+     "replace": "\n"
+    }
+   ]
+  },
+  "choice_cursor": {
+   "address": "0x80350024",
+   "type": "u16"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80350000",
+   "hex": "800000010002fffe019800c70003fffe009800c700040005fffeffff00060005070000000000"
+  }
+ ],
+ "expected": {
+  "message": "あい\n：う",
+  "choosing": false,
+  "choices": [],
+  "choice_cursor": 0
+ }
+}

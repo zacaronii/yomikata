@@ -126,12 +126,19 @@ A reader that finds a key or a named value (a `charset`, a `type`) it doesn't kn
 that layout as not there: a newer key can change what the others mean (a text without its `when` would show
 what is no longer on screen).
 
-**Which layout:** a reader that knows the executable's SHA-1 picks the layout naming it, else the first one naming
-no versions. A reader that can't hash the executable (one that only sees the game's memory) still knows the release
+**Which layout:** a reader that knows the executable's SHA-1 picks the layouts naming it, else those naming no
+versions. A reader that can't hash the executable (one that only sees the game's memory) still knows the release
 id. If the entry's `versions` list exactly one version for that id (a version without `id` belongs to the entry's
 own), the reader takes that version's `exe_sha1` as its own and picks the same way. If the id has several versions,
 or none, only a layout naming no versions fits. Taking the only listed version is a guess: an unlisted revision
 of the same release would get a layout made for another one. Listing that revision in `versions` ends the guess.
+
+Usually that leaves one layout. A game that loads a different program for each chapter keeps its cells at other
+addresses in each, and gets one layout per program, each with a `when` that is true only while its program is
+the one loaded (a word of the program's code that differs between them will do). A reader takes the layouts
+left in the entry's order and, each time it reads, reads the first whose `when` is true; one without `when`
+is always true, and one whose `when` can't be read is passed over. If none is true it reads the first, which
+gives what a false `when` gives.
 
 A *text* has:
 - a `charset`: `shift_jis`, `euc_jp`, `utf16le`, `utf16be`, `utf8`, or `table` (the entry's `tables`, `unit` and
@@ -153,11 +160,13 @@ A *text* has:
   needs no entry here;
 - optionally `script: {open, offset}`, for a game that keeps no copy of the text it shows and reads it straight
   out of a script, with instructions between the texts. The text's address is then where the script starts,
-  `offset` is a *number* holding how many bytes into the script the game is reading, and `open` is the code a
-  text starts after (hex in memory byte order). The text is the page the game is on, as far as it has read it,
-  so it grows while the page types out. Only with `table`, and not together with `rows`, `pages`, `terminator`
-  or `length`. With `texts: "rows"` in it, each text of the page is a row of its own: for a list the game
-  writes as one text per item, such as a choice's answers;
+  `offset` is a *number* holding how many bytes into the script the game is reading (with `"counts": "codes"`,
+  how many codes of `unit` bytes), and `open` is the code a text starts after (hex in memory byte order). The
+  text is the page the game is on, as far as it has read it, so it grows while the page types out. Only with
+  `table`, and not together with `rows`, `pages`, `terminator` or `length`. With `texts: "rows"` in it, each text
+  of the page is a row of its own: for a list the game writes as one text per item, such as a choice's answers.
+  With `rest` (1 to 16), a game may stop up to that many codes past a text's end code while the text stays up,
+  as one does that reads a choice's jump targets after its answers and waits there;
 - optionally `when`, a *flag* that is true while the text is on screen. Many games leave the last text in memory
   after its window closes; while `when` is false the text is empty;
 - its own `cleanup`, applied before the entry's.
@@ -195,9 +204,14 @@ With `script`, the steps below take the place of steps 2 to 4. Codes are `unit` 
 tables mark with `/` or `controls` calls `end`; a *page code* is one `controls` calls `page` or `clear`. The
 *position* is the text's address plus `offset`.
 
-1. Read `offset`; if it can't be read, the field fails. At zero or below the text is the empty string.
+1. Read `offset`; if it can't be read, the field fails. If it counts codes, multiply it by `unit`. At zero or
+   below the text is the empty string.
    Otherwise read the bytes of script that end at the position, `max_bytes` of them or `offset` if that is
    less, and as many bytes after the position as `open` has. If the read fails, the field fails.
+   With `rest`: look at the code just behind the position, then the one before it, and so on: `rest` + 1 codes
+   at most, and none that starts before the bytes read. At the first end code among them the looking stops,
+   and from here on the position is just past that code, and the bytes after the position are those after it.
+   (A text that starts within `rest` codes of an end code is read late, so `rest` isn't for such a script.)
 2. An open code *carries the page on* when the code just before it is an end code and the code before that
    isn't a page code: the text after it goes on the same page as the text before it. If the bytes after the
    position are the open code and it doesn't carry the page on, the text is the empty string: the old page is
@@ -211,6 +225,10 @@ tables mark with `/` or `controls` calls `end`; a *page code* is one `controls` 
 4. The page is what lies between its start and the position, split into codes; a code from `codes` is taken
    whole. Where an end code is followed directly by the open code, both are left out: two texts of the page
    join there, with nothing between them, or with `texts: "rows"` a line break.
+5. A page code inside the page starts it anew: what was read before the code is off the screen, and the code
+   goes with it. Not so for a page code with nothing after it up to the position but end codes: the page it
+   ended is still up, and stays until the game reads on. (A game that closes its window with a code of its
+   own gets an empty text from this once it has read past that code, if `controls` calls it `clear`.)
 
 Walking back can't tell an argument from a code. An argument that equals the open code or an end code cuts the
 page short there, so a script whose arguments can have those values isn't one for `script`.

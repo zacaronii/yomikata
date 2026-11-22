@@ -1,0 +1,49 @@
+{
+ "name": "layouts-first-true",
+ "checks": "Several layouts for one version are taken in order, and the first whose own when is true is read. Here it is the second.",
+ "entry": {},
+ "layouts": [
+  {
+   "when": {
+    "address": "0x80330000",
+    "type": "u32",
+    "equals": 666697752
+   },
+   "message": {
+    "address": "0x80330008",
+    "charset": "shift_jis",
+    "max_bytes": 8,
+    "terminator": "00"
+   },
+   "waiting": {
+    "address": "0x80330004"
+   }
+  },
+  {
+   "when": {
+    "address": "0x80330000",
+    "type": "u32",
+    "equals": 2948530208
+   },
+   "message": {
+    "address": "0x80330010",
+    "charset": "shift_jis",
+    "max_bytes": 8,
+    "terminator": "00"
+   },
+   "waiting": {
+    "address": "0x80330004"
+   }
+  }
+ ],
+ "memory": [
+  {
+   "address": "0x80330000",
+   "hex": "2000bfaf0100000088ea8fcd0000000093f18fcd00000000"
+  }
+ ],
+ "expected": {
+  "message": "二章",
+  "waiting": true
+ }
+}

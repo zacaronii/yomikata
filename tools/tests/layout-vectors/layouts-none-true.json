@@ -1,0 +1,49 @@
+{
+ "name": "layouts-none-true",
+ "checks": "No layout's when is true: the first is read, which gives what a false when gives.",
+ "entry": {},
+ "layouts": [
+  {
+   "when": {
+    "address": "0x80330000",
+    "type": "u32",
+    "equals": 666697752
+   },
+   "message": {
+    "address": "0x80330008",
+    "charset": "shift_jis",
+    "max_bytes": 8,
+    "terminator": "00"
+   },
+   "waiting": {
+    "address": "0x80330004"
+   }
+  },
+  {
+   "when": {
+    "address": "0x80330000",
+    "type": "u32",
+    "equals": 2948530208
+   },
+   "message": {
+    "address": "0x80330010",
+    "charset": "shift_jis",
+    "max_bytes": 8,
+    "terminator": "00"
+   },
+   "waiting": {
+    "address": "0x80330004"
+   }
+  }
+ ],
+ "memory": [
+  {
+   "address": "0x80330000",
+   "hex": "0780023c0100000088ea8fcd0000000093f18fcd00000000"
+  }
+ ],
+ "expected": {
+  "message": "",
+  "waiting": false
+ }
+}

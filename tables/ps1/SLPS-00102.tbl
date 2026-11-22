@@ -2,27 +2,30 @@
 # This file is what every chapter shares: 0x0000 is a space and 0x0001-0x0108 the kana, digits, Latin letters and
 # punctuation. Kanji are 0x010C up and numbered anew by each chapter: one of SLPS-00102-ch0.tbl, -ch1, -ch2, -ch3,
 # -ch4 or -chX goes after this file (named after the disc folders DAT/CAP0 ... DAT/CAPX that hold the scripts).
-# Which byte in memory says the chapter isn't known yet. Not Kyuumei-hen's codes (SLPS-00405), though the engine
-# and the command words are the same.
+# Each chapter is its own program, and the entry has one layout for each, naming that chapter's file. Not
+# Kyuumei-hen's codes (SLPS-00405), though the engine and the command words are the same.
 # Worked out from the disc: the font file's order, and every scene's script decoded and checked against a word
 # list. Then confirmed in play: fourteen Genkan snapshots of the first chapter (seven different scripts) decode
 # with no unmapped code, to the lines that were on screen.
 # Placed by their block's order only, since no scene uses them: ｚ (0x00EF), ￥ (0x00F9), ＝ (0x00FA), … (0x00FC),
 # ’ (0x00FF). The game writes ・・・ for an ellipsis. Not mapped: 0x0109-0x010B (icons, by Kyuumei-hen's layout;
 # 0x010A is used twice).
-# Words from 0x8000 up are commands: 0x8100 new line, 0x8500 wait for a press with the text going on below
-# (the window scrolls), 0x8600 wait for a press at a page's end (the window is cleared), 0x8D0n a speaker's page
-# (a name of n codes follows, then ：), 0x84nn indent, 0xFFFF the script's end; the rest drive answers, pauses
-# and pictures. 246 different ones are used. The meanings of the two waits are Kyuumei-hen's, seen in a replay
-# of that game; here the snapshots only show the game stopped just past each kind.
-# The running script is at 0x801FE800, and the u16 at 0x800A4CEA is the index of the next word the game will read:
-# just past the wait code while it waits for a press, and just past 0xFFFF once the script is over. Beside it:
-# the u16 at 0x800A4CE4 is 0xFFFE while the game waits for a press and 0 otherwise; the u16 at 0x800A4CEE counts
-# characters typed and is 0 when no text is shown; the byte at 0x800A4D12 is 1 in a conversation's window but 0
-# in the opening's narration, so it doesn't say "text is shown". The bytes at 0x800A4D10 are 01 FF at a 0x8500
-# wait and FF 01 at a 0x8600 one.
-# All of that from the first chapter only (the fourteen snapshots: ten waits, two while typing, two with no
-# window). Kyuumei-hen moves these addresses from chapter to chapter, so the other chapters' may differ.
+# Words from 0x8000 up are commands: 0x8100 new line, 0x8500 wait for a press with the text going on below (the
+# window scrolls), 0x8600 wait for a press at a page's end (the window is cleared), 0x8D0n a speaker's page (a name
+# of n codes follows, then ：), 0x84nn a pause of length nn, 0x8900 a window opening, 0x8A00 one closing, 0xFFFF
+# the script's end; the rest drive answers and pictures. 246 different ones are used. Which take one more word (the
+# entry's `codes`) is read from the script interpreter's code: 0xC1nn, 0xC8nn, 0xCDnn, 0xD0nn-0xD2nn, 0xCE01,
+# 0xCE03, 0xCE04, and 0xD6nn-0xD8nn when nn is 0 or 1. The meanings of the two waits are Kyuumei-hen's, seen in a
+# replay of that game; here the snapshots only show the game stopped just past each kind.
+# The running script is at 0x801FE800, and in the first chapter the u16 at 0x800A4CEA is the index of the next word
+# the game will read: just past the wait code while it waits for a press, and just past 0xFFFF once the script is
+# over. Beside it: the u16 at 0x800A4CE4 is 0xFFFE while the game waits for a press and 0 otherwise; the u16 at
+# 0x800A4CEE counts the characters in the window (its last four rows) and is 0 when no text is shown; the byte at
+# 0x800A4D12 is 1 in a conversation's window but 0 in the opening's narration, so it doesn't say "text is shown".
+# The bytes at 0x800A4D10 are 01 FF at a 0x8500 wait and FF 01 at a 0x8600 one.
+# All of that from the first chapter (the fourteen snapshots: ten waits, two while typing, two with no window).
+# The other chapters' programs keep the same three cells at their own addresses, which are in the entry's layouts:
+# found by matching the first chapter's code in each program, and not yet run.
 0000=　
 0100=あ
 0200=い

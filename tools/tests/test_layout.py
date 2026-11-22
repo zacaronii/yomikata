@@ -119,6 +119,29 @@ def test_pick_without_a_hash_takes_the_only_version_of_the_release():
     assert layout.pick(cart, None, "AXXJ")["notes"] == "general"       # no executable hash to name
 
 
+def test_layouts_for_gives_every_layout_of_the_version_in_order():
+    lays = [{"notes": "general"}, {"versions": ["b" * 40], "notes": "b1"}, {"versions": ["c" * 40], "notes": "c"},
+            {"versions": ["b" * 40], "notes": "b2"}, {"notes": "general 2"}]
+    e = {"layouts": lays}
+    assert [lay["notes"] for lay in layout.layouts_for(e, "b" * 40)] == ["b1", "b2"]
+    assert [lay["notes"] for lay in layout.layouts_for(e, "d" * 40)] == ["general", "general 2"]
+    assert layout.pick(e, "b" * 40)["notes"] == "b1"                   # a reader of one layout takes the first
+    assert layout.layouts_for({"layouts": lays[1:4]}, None) == []
+
+
+def test_live_reads_the_first_layout_whose_when_is_true():
+    m = ram()
+    put(m, BASE + 0x40, bytes([2]))
+    when = lambda n: {"address": "0x08800040", "equals": n}
+    lays = [{"notes": "one", "when": when(1)}, {"notes": "two", "when": when(2)}, {"notes": "always"}]
+    read = layout.Ram(BASE, bytes(m))
+    assert layout.live(lays, read)["notes"] == "two"
+    assert layout.live(lays[:1] + lays[2:], read)["notes"] == "always"
+    assert layout.live(lays[:1], read)["notes"] == "one"               # none is true: the first, which reads as off
+    assert layout.live([{"notes": "far", "when": {"address": "0x09900000"}}, lays[1]], read)["notes"] == "two"
+    assert layout.live([], read) is None
+
+
 def test_row_lengths_cut_a_line_written_over_an_older_one():
     m = ram()
     put(m, BASE + 0x100, "あいうえお".encode("cp932").ljust(16, b"\0") + "かきくけこ".encode("cp932"))
@@ -164,7 +187,12 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
                 {"message": {**table, "script": {"open": "8000"}}}, {"message": {**table, "script": {**script, "to": 1}}},
                 {"message": {**table, "script": {**script, "open": "800"}}},
                 {"message": {**table, "script": {**script, "texts": "pages"}}},
+                {"message": {**table, "script": {**script, "rest": 0}}}, {"message": {**table, "script": {**script, "rest": 17}}},
+                {"message": {**table, "script": {**script, "rest": "2"}}}, {"message": {**table, "script": {**script, "rest": True}}},
                 {"message": {**table, "script": {**script, "offset": {"address": "0x2", "equals": 1}}}},
+                {"message": {**table, "script": {**script, "offset": {"address": "0x2", "counts": "characters"}}}},
+                {"message": {**table, "pages": {"break": "0C", "cursor": {"address": "0x2", "counts": "codes"}}}},
+                {"message": {**text, "length": {"address": "0x2", "counts": "codes"}}},
                 {"message": {**table, "script": script, "terminator": "FFFF"}},
                 {"message": {**table, "script": script, "length": {"address": "0x2"}}},
                 {"message": {**table, "script": script, "rows": {"count": 2, "stride": 4}}},
@@ -176,6 +204,10 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
         assert not layout.understood(odd), odd
     assert layout.understood({"message": {**text, "codes": {"07": 2, "1f03": 3}}})
     assert layout.understood({"choices": {**table, "script": {**script, "texts": "rows"}}})
+    assert layout.understood({"choices": {**table, "script": {**script, "texts": "rows", "rest": 16}}})
+    assert layout.understood({"message": {**table, "script": {**script, "rest": 1}}})
+    assert layout.understood({"message": {**table, "script": {**script, "offset": {"address": "0x2", "counts": "codes"}}}})
+    assert layout.understood({"message": {**table, "script": {**script, "offset": {"address": "0x2", "counts": "bytes"}}}})
     assert layout.understood({"message": {**table, "codes": {"F001": 4}, "script": script, "when": {"address": "0x3"}},
                               "tables": {"by": by, "sets": {"1": ["tables/a.tbl"], "-2": ["tables/b.tbl"]}}})
 
@@ -183,7 +215,8 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
 def test_every_layout_the_schema_accepts_here_is_understood():
     # the reader's key lists and the schema say the same thing twice; the vectors and the catalog use every key
     from layout_vectors import cases
-    lays = [v["layout"] for v in cases()]
+    from layout_vectors import layouts_of
+    lays = [lay for v in cases() for lay in layouts_of(v)]
     lays += [lay for _, e in catalog.entries(REPO) for lay in e.get("layouts", [])]
     assert len(lays) > 30 and all(layout.understood(lay) for lay in lays)
     keys = lambda d: {k for k, v in d.items() for k in ([k] + sorted(keys(v)) if isinstance(v, dict) else [k])}

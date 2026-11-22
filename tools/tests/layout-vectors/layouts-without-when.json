@@ -1,0 +1,62 @@
+{
+ "name": "layouts-without-when",
+ "checks": "A layout without a when is always true, so nothing after it is ever read. One whose when can't be read is passed over.",
+ "entry": {},
+ "layouts": [
+  {
+   "when": {
+    "base": "0x80330020",
+    "offsets": [
+     "0x0"
+    ],
+    "type": "u32"
+   },
+   "message": {
+    "address": "0x80330008",
+    "charset": "shift_jis",
+    "max_bytes": 8,
+    "terminator": "00"
+   },
+   "waiting": {
+    "address": "0x80330004"
+   }
+  },
+  {
+   "message": {
+    "address": "0x80330008",
+    "charset": "shift_jis",
+    "max_bytes": 8,
+    "terminator": "00"
+   },
+   "waiting": {
+    "address": "0x80330004"
+   }
+  },
+  {
+   "when": {
+    "address": "0x80330000",
+    "type": "u32",
+    "equals": 2948530208
+   },
+   "message": {
+    "address": "0x80330010",
+    "charset": "shift_jis",
+    "max_bytes": 8,
+    "terminator": "00"
+   },
+   "waiting": {
+    "address": "0x80330004"
+   }
+  }
+ ],
+ "memory": [
+  {
+   "address": "0x80330000",
+   "hex": "2000bfaf0100000088ea8fcd0000000093f18fcd0000000000000000000000000000000000000000"
+  }
+ ],
+ "expected": {
+  "message": "一章",
+  "waiting": true
+ }
+}
