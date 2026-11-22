@@ -25,6 +25,7 @@ import logging
 import os
 import re
 import threading
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -64,12 +65,28 @@ RAM = {
 
 
 # Optional parts kept with a snapshot, and their size limits once uncompressed.
-EXTRA_PARTS = {"state": 32 * 1024 * 1024,      # the emulator's savestate (holds video memory on PCSX ReARMed)
+EXTRA_PARTS = {"state": 64 * 1024 * 1024,      # the emulator's savestate (holds video memory on PCSX ReARMed;
+                                               # PPSSPP's is 40 MB: the 32 MB of RAM and the rest of the machine)
                "vram": 2 * 1024 * 1024,        # video memory, when the core gives it out
                "screen": 4 * 1024 * 1024}      # the frame on screen (PNG)
 # The largest RAM snapshot accepted per platform (main RAM size), and how many are kept per game.
 SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000}
 SNAPSHOTS_PER_GAME = 40
+
+
+def gunzip(data: bytes, limit: int, name: str) -> bytes:
+    """`data` uncompressed if it is gzipped, stopping at `limit` bytes so a small upload can't unpack into a huge
+    one. A result of limit + 1 bytes means "too large" to the caller's size check."""
+    if data[:2] != b"\x1f\x8b":
+        return data
+    unpacker = zlib.decompressobj(wbits=31)
+    try:
+        out = unpacker.decompress(data, limit + 1)
+    except zlib.error:
+        out = None
+    if out is None or (len(out) <= limit and not unpacker.eof):      # broken, or cut short
+        raise ValueError(f"{name} looks gzipped but doesn't decompress")
+    return out
 
 
 def clean_snapshot_meta(meta: object) -> dict:
@@ -86,11 +103,17 @@ def clean_snapshot_meta(meta: object) -> dict:
     lines = meta.get("ocr")
     if isinstance(lines, str):
         lines = [lines]
-    if not isinstance(lines, list) or not lines or len(lines) > 10 or \
-            not all(isinstance(x, str) and x.strip() and len(x) <= 400 for x in lines):
-        raise ValueError("meta.ocr must be the line(s) on screen: 1-10 strings of at most 400 characters")
+    no_text = meta.get("no_text") is True           # said outright, so a failed OCR can't pass for an empty screen
+    if no_text and lines not in ([], None):
+        raise ValueError("meta.no_text goes with an empty meta.ocr")
+    if not no_text and (not isinstance(lines, list) or not lines or len(lines) > 10 or
+                        not all(isinstance(x, str) and x.strip() and len(x) <= 400 for x in lines)):
+        raise ValueError("meta.ocr must be the line(s) on screen: 1-10 strings of at most 400 characters "
+                         "(or no_text: true with none, for a screen that shows no text)")
     out = {"id": game_id, "platform": platform, "base_address": "0x" + base[2:].upper() if base.startswith("0x") else base,
-           "ocr": lines}
+           "ocr": lines or []}
+    if no_text:
+        out["no_text"] = True
     for k in ("title", "genkan_version", "captured_at", "exe_sha1", "note", "app", "emulator"):
         v = meta.get(k)
         if isinstance(v, (str, int, float)) and len(str(v)) <= 200:
@@ -261,22 +284,13 @@ class Inbox:
         for name, data in (extras or {}).items():
             if name not in EXTRA_PARTS or not data:
                 continue
-            raw = data
-            if data[:2] == b"\x1f\x8b":
-                try:
-                    raw = gzip.decompress(data)
-                except (OSError, EOFError):
-                    raise ValueError(f"{name} looks gzipped but doesn't decompress") from None
+            raw = gunzip(data, EXTRA_PARTS[name], name)
             if len(raw) > EXTRA_PARTS[name]:
                 raise ValueError(f"{name} is larger than {EXTRA_PARTS[name] // 1024 // 1024} MB")
             if name == "screen" and raw[:8] != b"\x89PNG\r\n\x1a\n":
                 raise ValueError("screen must be a PNG")
             kept[name] = raw
-        if ram[:2] == b"\x1f\x8b":
-            try:
-                ram = gzip.decompress(ram)
-            except (OSError, EOFError):
-                raise ValueError("ram looks gzipped but doesn't decompress") from None
+        ram = gunzip(ram, SNAPSHOT_MAX[m["platform"]], "ram")
         if not ram or len(ram) > SNAPSHOT_MAX[m["platform"]]:
             raise ValueError(f"ram must be 1 byte to {SNAPSHOT_MAX[m['platform']] // 1024 // 1024} MB "
                              f"({m['platform']} main RAM)")
@@ -313,6 +327,7 @@ class Inbox:
                 if metas:
                     out.append({"id": folder.name, "platform": folder.parent.name, "snapshots": len(metas),
                                 "lines": sum(len(m["ocr"]) for m in metas),
+                                "no_text": sum(1 for m in metas if m.get("no_text")),
                                 "with": {p: sum(1 for m in metas if p in m.get("parts", [])) for p in EXTRA_PARTS},
                                 "last_upload": max(m["received_at"] for m in metas)})
         return out

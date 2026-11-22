@@ -25,11 +25,22 @@
     "tables/human-kana.tbl"
   ],
   "unit": 2,
+  "controls": {
+    "FFFF": "end",
+    "FFFD": "newline",
+    "FFFC": "page",
+    "FFF9": "wait",
+    "FFFA": "pause"
+  },
   "status": "partial",
   "sources": [
     "Genkan memory search during play (scheme)",
     "RAM snapshot from Genkan (inbox): the line on screen found as 16-bit codes by its pattern of repeated characters; the kana fit the gojuon order exactly, and the surrounding dialogue decodes as Japanese",
-    "The same bytes are on disc in PROLOGUE.DAT, archive entry 0 (the prologue script), uncompressed"
+    "The same bytes are on disc in PROLOGUE.DAT, archive entry 0 (the prologue script), uncompressed",
+    "From the discs: each chapter archive's entry 0 is its script (a text follows the bytes 80 00 and ends at FFFF), entry 1 the kana sheet (identical in all twelve), entry 2 the kanji widths and entry 3 the kanji sheets, 256 cells each in code order",
+    "Glyphs: 3,626 kanji cells in twelve chapters, 1,123 different bitmaps, all read by eye. Every script was then decoded and checked against a word list, and the lines of each glyph the list didn't confirm were read; 89 glyphs no script uses are unchecked",
+    "Every text in the twelve scripts decodes with no unmapped character code, but for one line in MOWDEI that uses two codes (0x02E6, 0x02E7) the font has no glyph for",
+    "Replay from the BIOS in PCSX ReARMed: the script pointer, offset, state and window cells followed frame by frame through the prologue, then checked on 19 snapshots Genkan took on a device (every waiting one reads back the text on screen). Other chapters and disc 2 not run"
   ],
-  "notes": "Kana are mapped (tables/human-kana.tbl). Codes are 2 bytes, high byte first, and in this RAM buffer they start at an odd address. Kanji are 0x0100 up in the order of the scene's own font (早 0x0104, 帰 0x0105 in the prologue), so they likely change between scenes: read them from the font or by OCR. 0xFFF9-0xFFFF are control codes, some followed by a parameter word (FFFA xx, FFF9 xxxx); their meanings aren't mapped yet."
+  "notes": "16-bit codes, high byte first; a text can start at an odd address. 0x0000-0x00EF are shared (tables/human-kana.tbl); kanji (0x0100 up) are numbered per chapter (12), so one of tables/ps1/SLPS-01001-<chapter>.tbl must follow. The format can't choose a table yet: kanji read as unmapped. FFF9/FFFA take a frame count, which a table decode shows as a character. RAM, disc 1: u32 0x8008BEF0 points to the script, 0x8008BEF4 is the offset being read, 0x8008BEF8 the label count (one per chapter); s32 0x8008BF00: 1 typing, 2 waiting, 4 choice; u8 0x8008F0E4: 0x80 while the window is up. No layout."
 }
