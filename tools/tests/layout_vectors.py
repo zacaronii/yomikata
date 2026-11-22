@@ -217,6 +217,38 @@ def cases() -> list[dict]:
          {0x08A20000: bytes(64)},
          {"choices": []})
 
+    # Rows of pointers: a list of records, each pointing at a text kept somewhere else.
+    def listed(count: int, **more) -> dict:
+        return {"address": "0x80360000", "charset": "shift_jis", "max_bytes": 8, "terminator": "00",
+                "rows": {"count": count, "stride": 12, "pointers": True}, **more}
+
+    def records(pointers: list[int], big: bool = False) -> bytes:
+        return b"".join(num(ptr, 4, big) + bytes([0xEE] * 8) for ptr in pointers)
+
+    answers = pad(sjis("はい") + b"\0" + sjis("古"), 16) + pad(sjis("一二三四五") + b"\0", 16) + pad(sjis("いいえ") + b"\0", 16)
+    case("rows-pointers",
+         "With rows.pointers each row is a 32-bit pointer to its text, stride bytes apart. A text is read to its "
+         "terminator or to max_bytes, whatever the stride. A null pointer is an empty row: kept in the middle, "
+         "dropped at the end.",
+         {"choices": listed(4)},
+         {0x80360000: records([0x80360100, 0, 0x80360110, 0]), 0x80360100: answers},
+         {"choices": ["はい", "", "一二三四"]})
+
+    case("rows-pointers-count",
+         "A record the game has stopped using keeps its old pointer; choice_count says how many rows count. "
+         "Big-endian pointers.",
+         {"endian": "big", "choices": listed(3), "choice_count": {"address": "0x80360024"},
+          "choice_cursor": {"address": "0x80360025"}},
+         {0x80360000: records([0x80360100, 0x80360120, 0x80360110], True) + bytes([2, 1]), 0x80360100: answers},
+         {"choices": ["はい", "いいえ"], "choice_count": 2, "choice_cursor": 1})
+
+    case("rows-pointers-outside",
+         "A pointer that leads outside memory: the text can't be read and is named in errors, the other fields "
+         "are still read.",
+         {"choices": listed(2), "choosing": {"address": "0x80360018"}},
+         {0x80360000: records([0x80360100, 0x90000000]) + bytes([1]), 0x80360100: answers},
+         {"choosing": True, "errors": {"choices": ""}})
+
     case("pointers-unreadable",
          "A field that can't be read is left out and named in errors; the others are still read. Here: a null "
          "pointer, a pointer that leads outside memory, a base outside memory, and a number that runs past the "
@@ -823,6 +855,40 @@ def cases() -> list[dict]:
          first, {0x80390000: asked + num(13, 2) + num(0xFFFF, 2) + num(0, 2)},
          {"message": "：う\n：え", "choosing": True, "choices": ["う", "え"], "choice_cursor": 0},
          entry=opened, tables={"tables/test/colon.tbl": colon})
+
+    # A buffer the game copies the stretch it is showing into, with a count of the codes it has typed: no code
+    # opens a text, so the script has no `open` and is one text from its start. Two pages, each ending in F003
+    # (page); F002 is a wait. FFFF ends the buffer.
+    typed = pad(b"".join(bytes.fromhex(w) for w in ["0001", "0002", "FFFE", "0003", "F003", "0004", "F002", "0005",
+                                                    "F003", "FFFF"]), 24)
+    counted = {"tables": ["tables/test/kana.tbl"], "unit": 2, "controls": {"F002": "wait", "F003": "page"}}
+
+    def buffer(cell: int, max_bytes: int = 24) -> dict:
+        offset = {"address": f"0x{0x803A0018 + 4 * cell:08X}", "type": "u32", "counts": "codes"}
+        return {"address": "0x803A0000", "charset": "table", "max_bytes": max_bytes, "script": {"offset": offset}}
+
+    case("script-no-open-typing",
+         "A script without an open code is one text from its start, read as far as the game has read it: two "
+         "codes in (message), four codes in, past a line break (speaker), and nothing at zero (choices).",
+         {"message": buffer(0), "speaker": buffer(1), "choices": buffer(2)},
+         {0x803A0000: typed + num(2) + num(4) + num(0)},
+         {"message": "あい", "speaker": "あい\nう", "choices": []}, entry=counted, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-no-open-pages",
+         "Page codes in such a script. Just past the first one the page it ended is still up (message); one "
+         "code on, the page starts anew (speaker). Past the last page code and past the end code after it, "
+         "the last page is still up, and the wait code in it is nothing (choices).",
+         {"message": buffer(0), "speaker": buffer(1), "choices": buffer(2)},
+         {0x803A0000: typed + num(5) + num(6) + num(10)},
+         {"message": "あい\nう", "speaker": "え", "choices": ["えお"]}, entry=counted,
+         tables={"tables/test/kana.tbl": KANA})
+
+    case("script-no-open-max-bytes",
+         "The text starts at the script's start, so the read has to reach back to it. Five codes in with 8 "
+         "bytes to read, it doesn't: nothing (message). With 10 it does (speaker).",
+         {"message": buffer(0, 8), "speaker": buffer(0, 10)},
+         {0x803A0000: typed + num(5)},
+         {"message": "", "speaker": "あい\nう"}, entry=counted, tables={"tables/test/kana.tbl": KANA})
 
     # Two layouts for one version: a game that loads a program per chapter keeps its cells elsewhere in each.
     def chapter(value: int, text: int) -> dict:

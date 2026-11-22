@@ -168,6 +168,9 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
     script = {"open": "8000", "offset": {"address": "0x2", "type": "u32"}}
     for odd in ({"blink": 1}, {"endian": "middle"}, {"message": {**text, "charset": "ebcdic"}},
                 {"message": {**text, "rows": {"count": 1, "stride": 8, "gap": 2}}},
+                {"choices": {**text, "rows": {"count": 2, "stride": 8, "pointers": False}}},
+                {"choices": {**text, "rows": {"count": 2, "stride": 8, "pointers": 1}}},
+                {"choices": {**text, "rows": {"count": 2, "stride": 8, "pointers": True, "lengths": {"address": "0x2"}}}},
                 {"message": {**text, "length": {"address": "0x2", "counts": "words"}}},
                 {"waiting": {"address": "0x2", "type": "u64"}}, {"shown": {"address": "0x2", "counts": "bytes"}},
                 {"speaker": {**text, "when": {"address": "0x2", "below": 3}}},
@@ -186,6 +189,8 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
                 {"message": {**text, "script": script}},                      # only a table has end codes
                 {"message": {**table, "script": {"open": "8000"}}}, {"message": {**table, "script": {**script, "to": 1}}},
                 {"message": {**table, "script": {**script, "open": "800"}}},
+                {"choices": {**table, "script": {"offset": script["offset"], "texts": "rows"}}},     # these need an open code
+                {"message": {**table, "script": {"offset": script["offset"], "rest": 2}}},
                 {"message": {**table, "script": {**script, "texts": "pages"}}},
                 {"message": {**table, "script": {**script, "rest": 0}}}, {"message": {**table, "script": {**script, "rest": 17}}},
                 {"message": {**table, "script": {**script, "rest": "2"}}}, {"message": {**table, "script": {**script, "rest": True}}},
@@ -203,9 +208,11 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
                 {"tables": {"by": by, "sets": {"1": ["tables/a.tbl"]}, "else": []}}):
         assert not layout.understood(odd), odd
     assert layout.understood({"message": {**text, "codes": {"07": 2, "1f03": 3}}})
+    assert layout.understood({"choices": {**text, "rows": {"count": 2, "stride": 8, "pointers": True}}})
     assert layout.understood({"choices": {**table, "script": {**script, "texts": "rows"}}})
     assert layout.understood({"choices": {**table, "script": {**script, "texts": "rows", "rest": 16}}})
     assert layout.understood({"message": {**table, "script": {**script, "rest": 1}}})
+    assert layout.understood({"message": {**table, "script": {"offset": {"address": "0x2", "counts": "codes"}}}})
     assert layout.understood({"message": {**table, "script": {**script, "offset": {"address": "0x2", "counts": "codes"}}}})
     assert layout.understood({"message": {**table, "script": {**script, "offset": {"address": "0x2", "counts": "bytes"}}}})
     assert layout.understood({"message": {**table, "codes": {"F001": 4}, "script": script, "when": {"address": "0x3"}},
@@ -265,9 +272,12 @@ def test_schema_and_catalog_rules(tmp_path):
     script = {"open": "8000", "offset": {"address": "0x2", "type": "u32"}}
     for wrong in ({"length": {"address": "0x1", "counts": "words"}}, {"length": {"address": "0x1", "equals": 1}},
                   {"rows": {"count": 2, "stride": 8, "lengths": {"type": "u8"}}}, {"when": {"address": "0x1", "counts": "bytes"}},
+                  {"rows": {"count": 2, "stride": 8, "pointers": False}},
+                  {"rows": {"count": 2, "stride": 8, "pointers": True, "lengths": {"address": "0x1"}}},
                   {"script": script}, {"charset": "table", "script": script, "terminator": "FFFF"},
                   {"charset": "table", "script": {"open": "8000", "offset": {"address": "0x2", "equals": 1}}},
-                  {"charset": "table", "script": {**script, "texts": "joined"}}):
+                  {"charset": "table", "script": {**script, "texts": "joined"}},
+                  {"charset": "table", "script": {"offset": script["offset"], "rest": 2}}):
         lay = {"message": {"address": "0x08800100", "charset": "utf16le", "max_bytes": 8, **wrong}}
         (tmp_path / "games" / "psp" / "ULJM00001.json").write_text(json.dumps(entry_with(lay)), encoding="utf-8")
         assert any("layouts/0/message" in str(p) for p in catalog.validate(tmp_path)), wrong

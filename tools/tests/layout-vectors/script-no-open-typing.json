@@ -1,0 +1,66 @@
+{
+ "name": "script-no-open-typing",
+ "checks": "A script without an open code is one text from its start, read as far as the game has read it: two codes in (message), four codes in, past a line break (speaker), and nothing at zero (choices).",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F002": "wait",
+   "F003": "page"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x803A0000",
+   "charset": "table",
+   "max_bytes": 24,
+   "script": {
+    "offset": {
+     "address": "0x803A0018",
+     "type": "u32",
+     "counts": "codes"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x803A0000",
+   "charset": "table",
+   "max_bytes": 24,
+   "script": {
+    "offset": {
+     "address": "0x803A001C",
+     "type": "u32",
+     "counts": "codes"
+    }
+   }
+  },
+  "choices": {
+   "address": "0x803A0000",
+   "charset": "table",
+   "max_bytes": 24,
+   "script": {
+    "offset": {
+     "address": "0x803A0020",
+     "type": "u32",
+     "counts": "codes"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x803A0000",
+   "hex": "00010002fffe0003f0030004f0020005f003ffff00000000020000000400000000000000"
+  }
+ ],
+ "expected": {
+  "message": "あい",
+  "speaker": "あい\nう",
+  "choices": []
+ }
+}

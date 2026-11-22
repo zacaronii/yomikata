@@ -10,11 +10,94 @@
     }
   ],
   "encoding": "shift_jis",
+  "tables": [
+    "tables/shift-jis-le16.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+    "0000": "end",
+    "0A0D": "newline",
+    "01FF": "page",
+    "02FF": "wait",
+    "03FF": "ignore",
+    "04FF": "ignore"
+  },
+  "layouts": [
+    {
+      "versions": [
+        "0fbbbf73b02ad1c3409c431ccf9be2c7f83c62c3"
+      ],
+      "poll": 20,
+      "when": {
+        "address": "0x80060E94",
+        "type": "u32"
+      },
+      "message": {
+        "address": "0x80061058",
+        "charset": "table",
+        "max_bytes": 2048
+      },
+      "choices": {
+        "address": "0x8015B5E0",
+        "charset": "shift_jis",
+        "max_bytes": 96,
+        "terminator": "00",
+        "rows": {
+          "count": 10,
+          "stride": 20,
+          "pointers": true
+        }
+      },
+      "choice_count": {
+        "address": "0x80060E94",
+        "type": "u32"
+      },
+      "choice_cursor": {
+        "address": "0x80060DE8",
+        "type": "u32"
+      },
+      "choosing": {
+        "address": "0x80060DDC",
+        "type": "u32"
+      },
+      "notes": "From a choice's first answer until one is picked: the u32 at 0x80060E94, how many answers are listed so far, is then not 0. Ten 20-byte records at 0x8015B5E0 each start with a pointer to an answer in the script (Shift-JIS, ended by 00); an unused record keeps its old pointer. The number and dot drawn before each answer are not in memory. The u32 at 0x80060DDC is 1 once the choice waits; the u32 at 0x80060DE8 is the cursor. The question is at 0x80061058, in the text buffer's cells, and is empty for a choice without one. Read in a replay (docs/replay.md) at 19 choices, not yet on a device."
+    },
+    {
+      "versions": [
+        "0fbbbf73b02ad1c3409c431ccf9be2c7f83c62c3"
+      ],
+      "poll": 20,
+      "message": {
+        "address": "0x80061858",
+        "charset": "table",
+        "max_bytes": 2048,
+        "script": {
+          "offset": {
+            "address": "0x80060D18",
+            "type": "u32",
+            "counts": "codes"
+          }
+        },
+        "when": {
+          "address": "0x80060CFC",
+          "type": "u32"
+        }
+      },
+      "waiting": {
+        "address": "0x80060D00",
+        "type": "u32"
+      },
+      "notes": "The text as it types. The stretch being shown is copied to 0x80061858 as 16-bit cells, and the u32 at 0x80060D18 counts the cells typed so far: the message is what is on screen and grows as it types. 0xFF01 ends a page, 0xFF02 is a wait inside a row, 0xFF03 an automatic wrap (13 characters a column); 0xFF04 is not known. The u32 at 0x80060CFC is 0 between stretches. A choice's answers are typed through this buffer too, but the choice's layout is read first from the first answer on, so they are not messages. Read in a replay (docs/replay.md) at 42 moments, not yet on a device."
+    }
+  ],
   "status": "auto",
   "sources": [
     "yomikata scan 0.1.0 of the disc files: shift_jis 1,308,331 characters of prose-like text",
     "Genkan memory search during play: menus in Shift-JIS (story not reached)",
-    "Headless replay from power-on into the first story (docs/replay.md): memory read at 42 moments, one choice included"
+    "Headless replay from power-on into the first story (docs/replay.md): memory read at 42 moments, one choice included",
+    "Layout: the same 42 moments read again with the buffer's control cells told apart, each compared with its screenshot",
+    "Choices: a second replay through 19 choices of two to five answers; the count read right at all 19, and question, answers and cursor were compared with the screenshot at six",
+    "Choices: the cells traced frame by frame through three choices; the count is 0 except from a choice's first answer until one is picked"
   ],
-  "notes": "In memory the script is plain Shift-JIS with CRLF line ends. The block being shown is held at 0x80061858 as 16-bit cells: the Shift-JIS code as a little-endian number, 0x0D0A for a line break, 0x0000 at the end. A block runs over many pages (500 characters and more), and the only position found (u32 at 0x80060D18) also counts automatic wraps, so a layout can't yet say which page is on screen. u32 at 0x80060D00: 0 while text appears, 2 waiting at a line end, 3 waiting at a page end. Text is vertical, 13 characters to a column."
+  "notes": "In memory the script is plain Shift-JIS with CRLF line ends, a full-width yen sign and p at each page end, and a choice's answers as bare strings among its instructions. The stretch being shown is laid out into a buffer of 16-bit cells at 0x80061858 (the Shift-JIS code as a little-endian number, 0x0D0A for a line break, 0x0000 at the end), which the layout reads. u32 at 0x80060D00: 0 while text appears, 2 waiting at a line end, 3 waiting at a page end. Text is vertical, 13 characters to a column. A choice has a layout of its own: the answers are read where they lie in the script."
 }
