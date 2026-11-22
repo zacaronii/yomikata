@@ -1,8 +1,22 @@
 # Twilight Syndrome: Tansaku-hen (SLPS-00102): 16-bit little-endian codes (01 00 = あ), keys in memory byte order.
-# Built from three Genkan RAM snapshots of the opening (yomikata locate + decoding against the OCR'd lines).
-# Confirmed in the decoded text: hiragana あ-ん 0x01-0x2E, katakana from 0x2F (シ ン ピ ア ノ ミ カ ユ リ ト イ レ),
-# が だ で ど (voiced from 0xA2), っ (small from 0x95), ョ (small katakana from 0x5F), パ (voiced katakana from 0x69),
-# ー 、 「 ・ and the digits ３ ４. The rest of each block follows the same order. Kanji are 0x0100 up in scene-font order.
+# This file is what every chapter shares: 0x0000 is a space and 0x0001-0x0108 the kana, digits, Latin letters and
+# punctuation. Kanji are 0x010C up and numbered anew by each chapter: one of SLPS-00102-ch0.tbl, -ch1, -ch2, -ch3,
+# -ch4 or -chX goes after this file (named after the disc folders DAT/CAP0 ... DAT/CAPX that hold the scripts).
+# Which byte in memory says the chapter isn't known yet. Not Kyuumei-hen's codes (SLPS-00405), though the engine
+# and the command words are the same.
+# Worked out from the disc: the font file's order, and every scene's script decoded and checked against a word
+# list. Then confirmed in play: five Genkan snapshots of the opening decode to the lines that were on screen.
+# Placed by their block's order only, since no scene uses them: ｚ (0x00EF), ￥ (0x00F9), ＝ (0x00FA), … (0x00FC),
+# ’ (0x00FF). The game writes ・・・ for an ellipsis. Not mapped: 0x0109-0x010B (icons, by Kyuumei-hen's layout;
+# 0x010A is used twice).
+# Words from 0x8000 up are commands: 0x8100 new line, 0x8500 wait for a press with the text going on below
+# (the window scrolls), 0x8600 wait for a press at a page's end (the window is cleared), 0x8D0n a speaker's page
+# (a name of n codes follows, then ：), 0x84nn indent, 0xFFFF the script's end; the rest drive answers, pauses
+# and pictures. 246 different ones are used. The meanings of the two waits are Kyuumei-hen's, seen in a replay
+# of that game; here the snapshots only show the game stopped just past each kind.
+# The running script is at 0x801FE800, and the u16 at 0x800A4CEA is the index of the next word the game will read
+# (just past the wait code while it waits for a press). Seen in the opening only (the five snapshots).
+0000=　
 0100=あ
 0200=い
 0300=う
@@ -95,6 +109,8 @@
 5A00=ワ
 5B00=ヲ
 5C00=ン
+5D00=ヰ
+5E00=ヱ
 5F00=ァ
 6000=ィ
 6100=ゥ
@@ -104,6 +120,7 @@
 6500=ュ
 6600=ョ
 6700=ッ
+6800=ヮ
 6900=ガ
 6A00=ギ
 6B00=グ
@@ -129,6 +146,8 @@
 7F00=プ
 8000=ペ
 8100=ポ
+8200=ヴ
+8300=ヵ
 8400=０
 8500=１
 8600=２
@@ -139,15 +158,26 @@
 8B00=７
 8C00=８
 8D00=９
-9500=ぁ
-9600=ぃ
-9700=ぅ
-9800=ぇ
-9900=ぉ
-9A00=ゃ
-9B00=ゅ
-9C00=ょ
+8E00=零
+8F00=一
+9000=二
+9100=三
+9200=四
+9300=五
+9400=六
+9500=七
+9600=八
+9700=九
+9800=ぁ
+9900=ぃ
+9A00=ぅ
+9B00=ぇ
+9C00=ぉ
 9D00=っ
+9E00=ゃ
+9F00=ゅ
+A000=ょ
+A100=ゎ
 A200=が
 A300=ぎ
 A400=ぐ
@@ -174,6 +204,82 @@ B800=ぷ
 B900=ぺ
 BA00=ぽ
 BB00=ー
+BC00=Ａ
+BD00=Ｂ
+BE00=Ｃ
+BF00=Ｄ
+C000=Ｅ
+C100=Ｆ
+C200=Ｇ
+C300=Ｈ
+C400=Ｉ
+C500=Ｊ
+C600=Ｋ
+C700=Ｌ
+C800=Ｍ
+C900=Ｎ
+CA00=Ｏ
+CB00=Ｐ
+CC00=Ｑ
+CD00=Ｒ
+CE00=Ｓ
+CF00=Ｔ
+D000=Ｕ
+D100=Ｖ
+D200=Ｗ
+D300=Ｘ
+D400=Ｙ
+D500=Ｚ
+D600=ａ
+D700=ｂ
+D800=ｃ
+D900=ｄ
+DA00=ｅ
+DB00=ｆ
+DC00=ｇ
+DD00=ｈ
+DE00=ｉ
+DF00=ｊ
+E000=ｋ
+E100=ｌ
+E200=ｍ
+E300=ｎ
+E400=ｏ
+E500=ｐ
+E600=ｑ
+E700=ｒ
+E800=ｓ
+E900=ｔ
+EA00=ｕ
+EB00=ｖ
+EC00=ｗ
+ED00=ｘ
+EE00=ｙ
+EF00=ｚ
+F000=。
 F100=、
-FB00=「
+F200=！
+F300=？
+F400=”
+F500=＄
+F600=％
+F700=＆
+F800=’
+F900=￥
+FA00=＝
+FB00=：
+FC00=…
 FD00=・
+FE00=．
+FF00=’
+0001=（
+0101=）
+0201=―
+0301=「
+0401=」
+0501=『
+0601=』
+0701=～
+0801=‥
+*0081
+/FFFF
