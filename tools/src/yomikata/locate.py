@@ -8,15 +8,23 @@ long run. Matches give code -> character pairs; pairs from all lines and snapsho
 two different characters (or a character with two codes) is reported as a conflict, not guessed.
 
 The kana layout is then easy to read off: `gojuon_offsets` shows code minus the character's gojuon position for the
-plain kana, which is a single number when a game keeps kana in gojuon order (Human's games do)."""
+plain kana, which is a single number when a game keeps kana in gojuon order (Human's games do).
+
+Most games on later systems use a standard encoding, and there the question is only *where* the line is (the
+address a layout needs). `find_standard` answers that first, by plain search, in a fraction of the time, and
+`propose` turns its matches into a layout's `message` block when the lines stand in one fixed buffer."""
 
 from __future__ import annotations
 
+import math
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 
 import numpy as np
+
+from .layout import LayoutError, Ram, read_text
 
 JP = re.compile(r"[\u3041-\u3096\u30a1-\u30fa\u30fc\u4e00-\u9fff\u3005\u3001\u3002\u300c-\u300f\uff01\uff1f\u2026\u30fb\uff10-\uff19]+")
 GOJUON = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん"
@@ -44,24 +52,153 @@ def pairs(seg: str) -> int:
 
 def codes(ram: bytes, dtype: str, align: int) -> np.ndarray:
     if dtype == "u1":
-        return np.frombuffer(ram, dtype=np.uint8).astype(np.int64)
+        return np.frombuffer(ram, dtype=np.uint8)
     n = (len(ram) - align) // 2
-    return np.frombuffer(ram, dtype=dtype, count=n, offset=align).astype(np.int64)
+    return np.frombuffer(ram, dtype=dtype, count=n, offset=align)
 
 
 def isomorph(a: np.ndarray, seg: str) -> np.ndarray:
+    """Every position where `a` repeats its codes exactly as `seg` repeats its characters (first code not zero)."""
     n = len(seg)
     L = len(a) - n
     if L <= 0:
         return np.array([], dtype=np.int64)
-    m = a[:L] != 0
-    for i in range(n):
-        for j in range(i + 1, n):
-            same = a[i:i + L] == a[j:j + L]
-            m &= same if seg[i] == seg[j] else ~same
-            if not m.any():
-                return np.array([], dtype=np.int64)
-    return np.nonzero(m)[0]
+    order = sorted(((i, j) for i in range(n) for j in range(i + 1, n)), key=lambda p: seg[p[0]] != seg[p[1]])
+    # The first repeated pair is checked over all of memory; it leaves so few places (one in 65,536 for two-byte
+    # codes) that the other pairs are only looked at there. Without a repeat, every nonzero place is a candidate.
+    (i, j), rest = (order[0], order[1:]) if order and seg[order[0][0]] == seg[order[0][1]] else ((0, 0), order)
+    at = np.nonzero((a[i:i + L] == a[j:j + L]) & (a[:L] != 0))[0]
+    for i, j in rest:
+        if not len(at):
+            break
+        same = a[at + i] == a[at + j]
+        at = at[same if seg[i] == seg[j] else ~same]
+    return at
+
+
+STANDARD = {"shift_jis": "cp932", "euc_jp": "euc_jp", "utf16le": "utf-16-le", "utf16be": "utf-16-be", "utf8": "utf-8"}
+
+
+def find_standard(snapshots: list[tuple[bytes, list[str]]], min_len: int = 4, max_hits: int = 16) -> dict[str, list[dict]]:
+    """Where the OCR'd lines stand in a standard encoding: {encoding: [{snapshot, offset, segment}]}, the encoding
+    with the most matched characters first. A run is matched piece by piece (`min_len` characters to start, then
+    as far as memory agrees), so a misread, a row break or a control code inside the line only splits it. Where
+    copies of the line break at different points (a window stored row by row beside a script copy in one piece),
+    the search goes on from the earliest break, so each copy's later pieces are found too. A piece found in more
+    than `max_hits` places says nothing and is skipped. UTF-16 is only looked for at even offsets."""
+    out: dict[str, list[dict]] = {}
+    for n, (ram, lines) in enumerate(snapshots):
+        for name, codec in STANDARD.items():
+            covered: list[range] = []                # bytes already matched in this snapshot: a longer copy's tail
+            for run in dict.fromkeys(r for line in lines for r in JP.findall(line)):
+                i = 0
+                while i + min_len <= len(run):
+                    try:
+                        key = run[i:i + min_len].encode(codec)
+                    except UnicodeEncodeError:
+                        i += 1
+                        continue
+                    hits, at = [], ram.find(key)
+                    while at >= 0 and len(hits) <= max_hits:
+                        if at % 2 == 0 or not name.startswith("utf16"):    # at an odd address it's the other byte
+                            hits.append(at)                                # order's text, read one byte off
+                        at = ram.find(key, at + 1)
+                    shortest = 0
+                    for at in hits if len(hits) <= max_hits else []:
+                        if any(at in r for r in covered):
+                            continue
+                        k = min_len
+                        while i + k < len(run):
+                            try:
+                                more = run[i:i + k + 1].encode(codec)
+                            except UnicodeEncodeError:
+                                break
+                            if ram[at:at + len(more)] != more:
+                                break
+                            k += 1
+                        out.setdefault(name, []).append({"snapshot": n, "offset": at, "segment": run[i:i + k]})
+                        covered.append(range(at, at + len(run[i:i + k].encode(codec))))
+                        shortest = min(shortest or k, k)
+                    i += shortest or 1
+    return dict(sorted(out.items(), key=lambda kv: -sum(len(h["segment"]) for h in kv[1])))
+
+
+TEXT = re.compile(r"[\u0020-\u007e\u2015\u2026\u3000-\u30ff\u4e00-\u9fff\uff00-\uffef]+")
+MAX_ROWS = 8
+
+
+def propose(snapshots: list[tuple[bytes, list[str]]], hits: list[dict], charset: str, base: int = 0,
+            reach: int = 4096, slack: int = 16) -> dict | None:
+    """A layout's `message` block from `find_standard`'s matches in one encoding, or None when no place was seen
+    to change from one line to another (a game also keeps script and backlog copies, where an old line stays put
+    and the next one stands further on, so a single line can't tell them from the window's buffer).
+
+    A place counts when one snapshot held a line there and another snapshot held a different line within `slack`
+    characters of it (OCR may miss a line's first characters) and no longer the first. The buffer starts at the
+    lowest such place, moved back over any text right before it that OCR missed. Matches further on that begin
+    right after empty space are taken as later rows of a window stored row by row; their distances give the
+    stride. The result is then read with the reference reader: `agreement` is how much of each snapshot's OCR it
+    gives back (0-1; None where the buffer reads empty while something else is on screen) and `longer` how many
+    more characters it held than the screen showed (a line still typing out, in a buffer filled at once)."""
+    unit = 2 if charset.startswith("utf16") else 1
+    zero = bytes(unit)
+    changed = Counter()
+    for a in hits:
+        was = a["segment"].encode(STANDARD[charset])
+        for b in hits:
+            if b["snapshot"] != a["snapshot"] and abs(b["offset"] - a["offset"]) <= slack * unit \
+                    and a["segment"] not in b["segment"] and b["segment"] not in a["segment"] \
+                    and snapshots[b["snapshot"]][0][a["offset"]:a["offset"] + len(was)] != was:
+                changed[a["offset"]] += 1
+    if not changed:
+        return None
+    groups: list[list[int]] = []
+    for o in sorted(changed):
+        groups[-1].append(o) if groups and o - groups[-1][-1] <= reach else groups.append([o])
+    start = max(groups, key=lambda g: sum(changed[o] for o in g))[0]
+
+    back = 0                                             # text right before the first match, in any snapshot
+    for ram, _ in snapshots:
+        k = unit
+        while k <= 32 * unit and start - k >= 0 and ram[start - k:start - k + unit] != zero:
+            try:
+                if TEXT.fullmatch(ram[start - k:start].decode(STANDARD[charset])):
+                    back = max(back, k)
+            except UnicodeDecodeError:
+                pass
+            k += unit
+    start -= back
+
+    later = {h["offset"] - start for h in hits if start < h["offset"] <= start + reach
+             and snapshots[h["snapshot"]][0][h["offset"] - unit:h["offset"]] == zero}
+    stride = math.gcd(*later) if later else 0
+    spec = {"address": f"0x{base + start:08X}", "charset": charset}
+    if stride >= 8 * unit:
+        seen = count = max(later) // stride + 1
+        while count <= MAX_ROWS and not any(any(ram[start + count * stride:start + (count + 1) * stride]) for ram, _ in snapshots):
+            count += 1                                   # rows nothing was seen in, up to where other data begins
+        count = seen if count > MAX_ROWS else count
+        spec.update(max_bytes=stride * count, terminator=zero.hex(), rows={"count": count, "stride": stride})
+    else:
+        seen, longest = 1, 0
+        for ram, _ in snapshots:
+            n = 0
+            while ram[start + n:start + n + unit] not in (zero, b""):
+                n += unit
+            longest = max(longest, n)
+        spec.update(max_bytes=max(64, 1 << (2 * longest - 1).bit_length()), terminator=zero.hex())
+
+    agreement, longer = [], []
+    for ram, lines in snapshots:
+        want = "".join(JP.findall("".join(lines)))
+        try:
+            got = "".join(JP.findall(read_text(spec, Ram(base, ram), {})))
+        except LayoutError:
+            got = ""
+        same = sum(m.size for m in SequenceMatcher(None, want, got, autojunk=False).get_matching_blocks())
+        agreement.append(None if want and not got else same / len(want) if want else float(not got))
+        longer.append(max(0, len(got) - len(want)))
+    return {"message": spec, "agreement": agreement, "longer": longer, "rows_seen": seen}
 
 
 @dataclass

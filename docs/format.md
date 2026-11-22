@@ -180,6 +180,9 @@ A *text* has:
 A length counts bytes unless it says `"counts": "characters"`. Games that write a new line over the old one
 without ending it need a length to tell where the new line stops.
 
+A game that keeps only a pointer to the page it shows gives that pointer twice with `pages`: as the text's
+address (`base` with the offset `0x0`) and as the cursor. The text is then the first page from there.
+
 ### Reading a text
 
 Every client should get the same string from the same bytes, so the steps are fixed:
