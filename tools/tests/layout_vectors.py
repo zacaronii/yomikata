@@ -571,6 +571,18 @@ def cases() -> list[dict]:
          entry={"tables": ["tables/test/kana.tbl"], "unit": 2, "controls": {"F001": "wait"}},
          tables={"tables/test/kana.tbl": KANA})
 
+    case("table-control-over-character",
+         "A code the entry's controls name is that control, also when a table file lists it as a character: F005 "
+         "(name) is nothing, though the second table has a character for it. F007 is only in the table, as a "
+         "space. And a code may be up to 32 bytes long: F019 here is 18, a control and eight argument words, "
+         "skipped whole.",
+         {"message": {"address": "0x80200000", "charset": "table", "max_bytes": 40, "terminator": "FFFF",
+                      "codes": {"F019": 18}}},
+         {0x80200000: pad(bytes.fromhex("0001 F005 0002 F019" + " FFFF" * 8 + " 0003 F007 0004 FFFF 0005"), 40)},
+         {"message": "あいう\u3000え"},
+         entry={"tables": ["tables/test/kana.tbl", "tables/test/marks.tbl"], "unit": 2, "controls": {"F005": "name"}},
+         tables={"tables/test/kana.tbl": KANA, "tables/test/marks.tbl": "F005=★\nF007=\u3000\n"})
+
     # A made-up script: instructions (27 01 05 and 00 28 12 34) around three texts, each after 80 00. The second
     # text carries the first one's page on; the third starts a new page, because F003 (page) stands before the
     # end code in front of it. The texts start at odd addresses.
