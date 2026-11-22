@@ -129,7 +129,9 @@ A *text* has:
 - optionally `pages: {break, cursor}`, for a game that keeps a whole stretch of script in one buffer and walks
   through it: `break` is the code between two pages (hex in memory byte order, one byte or more, matched only at
   character boundaries) and `cursor` a *number* holding the address the game is reading at. The text is the page
-  the cursor is on. Not together with `rows`;
+  the cursor is on. Not together with `rows`. A game that keeps only a pointer to the page it shows gives that
+  pointer twice, as the text's address (`base` with the offset `0x0`) and as the cursor: the text is then the
+  first page from there;
 - optionally `when`, a *flag* that is true while the text is on screen. Many games leave the last text in memory
   after its window closes; while `when` is false the text is empty;
 - its own `cleanup`, applied before the entry's.
