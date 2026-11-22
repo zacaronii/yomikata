@@ -231,7 +231,7 @@
   },
   "SLPS-01100": {
    "path": "games/ps1/SLPS-01100.json",
-   "sha256": "5a0cb54b944e01bfcd88cc716a53129bb5b72c0bf3a2aa4cd383afc7dd418199",
+   "sha256": "75de75f808c1cbffcaec915694358fcb3b7a7ff28bf24da665d37a9cb7bdae2a",
    "platform": "ps1",
    "encoding": "shift_jis",
    "status": "verified"
