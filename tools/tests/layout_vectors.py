@@ -243,6 +243,16 @@ def cases() -> list[dict]:
          {"message": "あいう", "waiting": True, "choosing": True, "shown": -2, "choice_cursor": -1,
           "choice_count": 3, "on_screen": ""})
 
+    case("flag-mask",
+         "A flag's mask keeps only those bits before the test: nonzero, or equals. The bits are the stored ones, so "
+         "a signed type's -1 under mask 3 is 3.",
+         {"waiting": {"address": "0x80600000", "mask": 3},
+          "choosing": {"address": "0x80600001", "mask": 3},
+          "choices": {"address": "0x80600010", "charset": "shift_jis", "max_bytes": 8, "terminator": "00",
+                      "when": {"address": "0x80600002", "type": "s8", "mask": 3, "equals": 3}}},
+         {0x80600000: bytes.fromhex("02 08 FF") + bytes(13) + pad(sjis("はい"), 8)},
+         {"waiting": True, "choosing": False, "choices": ["はい"]})
+
     case("speaker-number-unnamed",
          "A speaker number without a name stays a number. A flag with equals 0 is true at zero.",
          {"speaker": {"address": "0x80600000"}, "speaker_names": {"3": "先生"},

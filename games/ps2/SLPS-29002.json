@@ -1,0 +1,18 @@
+{
+  "id": "SLPS-29002",
+  "platform": "ps2",
+  "title": "ゼノサーガ エピソードI 力への意志",
+  "title_romaji": "Xenosaga Episode I: Der Wille zur Macht",
+  "versions": [
+    {
+      "exe": "SLPS_290.02",
+      "exe_sha1": "ee47118f427688840877be7bf62c4fb708b0b14e"
+    }
+  ],
+  "encoding": "compressed",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 18, utf16le 69, utf8 33 characters of prose-like text"
+  ],
+  "notes": "Most of the disc is compressed data and little script reads on it; the script is likely compressed on disc. A memory sample from play will settle the encoding."
+}

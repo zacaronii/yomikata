@@ -18,9 +18,11 @@
       "exe_sha1": "fc187181ed2ac3d3af6205964a71ae7dc986bddc"
     }
   ],
-  "encoding": "shift_jis",
-  "status": "auto",
+  "encoding": "unknown",
+  "status": "partial",
+  "notes": "The save menus and memory card messages are Shift-JIS, on disc and in RAM. The dialogue isn't: at the first conversation neither the line nor its はい/いいえ stands in RAM in a standard encoding, nor as 1- or 2-byte codes with one code per character (searched by the line's pattern of repeated characters, with and without codes for its spaces). Probably decoded a character at a time as it is drawn. Needs the game's own table and a way to follow the decoder.",
   "sources": [
-    "yomikata scan 0.1.0 of the disc files: shift_jis 32,909, utf16le 8 characters of prose-like text"
+    "yomikata scan 0.1.0 of the disc files: shift_jis 32,909, utf16le 8 characters of prose-like text",
+    "Headless replay from power-on to the first conversation: system messages found in RAM as Shift-JIS, the dialogue not"
   ]
 }
