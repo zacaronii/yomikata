@@ -123,7 +123,8 @@
       "properties": {
         "address": {"$ref": "#/$defs/address"}, "base": {"$ref": "#/$defs/address"}, "offsets": {"$ref": "#/$defs/offsets"},
         "type": {"enum": ["u8", "u16", "u32", "s8", "s16", "s32"], "description": "Default u8."},
-        "equals": {"type": "integer", "description": "For flags: true when the value equals this (default: true when nonzero)."}
+        "equals": {"type": "integer", "description": "For flags: true when the value equals this (default: true when nonzero)."},
+        "mask": {"type": "integer", "minimum": 1, "description": "For flags: only these bits of the value count, for nonzero and for equals."}
       }
     },
     "length": {
