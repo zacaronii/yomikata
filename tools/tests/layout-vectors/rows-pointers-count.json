@@ -1,0 +1,43 @@
+{
+ "name": "rows-pointers-count",
+ "checks": "A record the game has stopped using keeps its old pointer; choice_count says how many rows count. Big-endian pointers.",
+ "entry": {},
+ "layout": {
+  "endian": "big",
+  "choices": {
+   "address": "0x80360000",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "terminator": "00",
+   "rows": {
+    "count": 3,
+    "stride": 12,
+    "pointers": true
+   }
+  },
+  "choice_count": {
+   "address": "0x80360024"
+  },
+  "choice_cursor": {
+   "address": "0x80360025"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80360000",
+   "hex": "80360100eeeeeeeeeeeeeeee80360120eeeeeeeeeeeeeeee80360110eeeeeeeeeeeeeeee0201"
+  },
+  {
+   "address": "0x80360100",
+   "hex": "82cd82a2008cc300000000000000000088ea93f18e4f8e6c8cdc00000000000082a282a282a600000000000000000000"
+  }
+ ],
+ "expected": {
+  "choices": [
+   "はい",
+   "いいえ"
+  ],
+  "choice_count": 2,
+  "choice_cursor": 1
+ }
+}

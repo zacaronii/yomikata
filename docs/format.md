@@ -149,6 +149,10 @@ A *text* has:
   with newlines;
 - optionally `rows.lengths`, for a game that keeps one length per row: a *number* whose address is the first
   row's length, with the next rows' lengths right after it (a `u16` for row 2 is 4 bytes on);
+- optionally `rows.pointers: true`, for a game that keeps a list of records, each pointing at a text kept
+  somewhere else (a choice's answers left where they are in the script): a row is then a 32-bit pointer to its
+  text, in the layout's `endian`, and `stride` is how far apart the pointers are. Each text is read to its
+  terminator or to `max_bytes`. A pointer of 0 is an empty row. Not together with `rows.lengths`;
 - optionally `pages: {break, cursor}`, for a game that keeps a whole stretch of script in one buffer and walks
   through it: `break` is the code between two pages (hex in memory byte order, one byte or more, matched only at
   character boundaries) and `cursor` a *number* holding the address the game is reading at. The text is the page

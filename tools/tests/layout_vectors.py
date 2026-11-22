@@ -217,6 +217,38 @@ def cases() -> list[dict]:
          {0x08A20000: bytes(64)},
          {"choices": []})
 
+    # Rows of pointers: a list of records, each pointing at a text kept somewhere else.
+    def listed(count: int, **more) -> dict:
+        return {"address": "0x80360000", "charset": "shift_jis", "max_bytes": 8, "terminator": "00",
+                "rows": {"count": count, "stride": 12, "pointers": True}, **more}
+
+    def records(pointers: list[int], big: bool = False) -> bytes:
+        return b"".join(num(ptr, 4, big) + bytes([0xEE] * 8) for ptr in pointers)
+
+    answers = pad(sjis("はい") + b"\0" + sjis("古"), 16) + pad(sjis("一二三四五") + b"\0", 16) + pad(sjis("いいえ") + b"\0", 16)
+    case("rows-pointers",
+         "With rows.pointers each row is a 32-bit pointer to its text, stride bytes apart. A text is read to its "
+         "terminator or to max_bytes, whatever the stride. A null pointer is an empty row: kept in the middle, "
+         "dropped at the end.",
+         {"choices": listed(4)},
+         {0x80360000: records([0x80360100, 0, 0x80360110, 0]), 0x80360100: answers},
+         {"choices": ["はい", "", "一二三四"]})
+
+    case("rows-pointers-count",
+         "A record the game has stopped using keeps its old pointer; choice_count says how many rows count. "
+         "Big-endian pointers.",
+         {"endian": "big", "choices": listed(3), "choice_count": {"address": "0x80360024"},
+          "choice_cursor": {"address": "0x80360025"}},
+         {0x80360000: records([0x80360100, 0x80360120, 0x80360110], True) + bytes([2, 1]), 0x80360100: answers},
+         {"choices": ["はい", "いいえ"], "choice_count": 2, "choice_cursor": 1})
+
+    case("rows-pointers-outside",
+         "A pointer that leads outside memory: the text can't be read and is named in errors, the other fields "
+         "are still read.",
+         {"choices": listed(2), "choosing": {"address": "0x80360018"}},
+         {0x80360000: records([0x80360100, 0x90000000]) + bytes([1]), 0x80360100: answers},
+         {"choosing": True, "errors": {"choices": ""}})
+
     case("pointers-unreadable",
          "A field that can't be read is left out and named in errors; the others are still read. Here: a null "
          "pointer, a pointer that leads outside memory, a base outside memory, and a number that runs past the "
