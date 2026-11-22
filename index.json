@@ -262,14 +262,14 @@
   },
   "SLPS-01001": {
    "path": "games/ps1/SLPS-01001.json",
-   "sha256": "ce851ded52adcc6147cf49ab60d45311c7e9079c5a6559f73a90eb038caac55b",
+   "sha256": "160789e5438c8c841b32d8a99edb82ee0cf013be2e1976b7b770df96383b8e6c",
    "platform": "ps1",
    "encoding": "table",
    "status": "partial"
   },
   "SLPS-01002": {
    "path": "games/ps1/SLPS-01001.json",
-   "sha256": "ce851ded52adcc6147cf49ab60d45311c7e9079c5a6559f73a90eb038caac55b",
+   "sha256": "160789e5438c8c841b32d8a99edb82ee0cf013be2e1976b7b770df96383b8e6c",
    "platform": "ps1",
    "encoding": "table",
    "status": "partial",

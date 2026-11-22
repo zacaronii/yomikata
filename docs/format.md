@@ -156,7 +156,8 @@ A *text* has:
   `offset` is a *number* holding how many bytes into the script the game is reading, and `open` is the code a
   text starts after (hex in memory byte order). The text is the page the game is on, as far as it has read it,
   so it grows while the page types out. Only with `table`, and not together with `rows`, `pages`, `terminator`
-  or `length`;
+  or `length`. With `texts: "rows"` in it, each text of the page is a row of its own: for a list the game
+  writes as one text per item, such as a choice's answers;
 - optionally `when`, a *flag* that is true while the text is on screen. Many games leave the last text in memory
   after its window closes; while `when` is false the text is empty;
 - its own `cleanup`, applied before the entry's.
@@ -209,7 +210,7 @@ tables mark with `/` or `controls` calls `end`; a *page code* is one `controls` 
    the page starts more than `max_bytes` back).
 4. The page is what lies between its start and the position, split into codes; a code from `codes` is taken
    whole. Where an end code is followed directly by the open code, both are left out: two texts of the page
-   join there.
+   join there, with nothing between them, or with `texts: "rows"` a line break.
 
 Walking back can't tell an argument from a code. An argument that equals the open code or an end code cuts the
 page short there, so a script whose arguments can have those values isn't one for `script`.
