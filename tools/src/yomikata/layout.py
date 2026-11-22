@@ -6,6 +6,7 @@ Clients can compare their output with `read_layout()`, or run tools/tests/layout
 from __future__ import annotations
 
 import gzip
+import re
 import struct
 from dataclasses import dataclass
 from pathlib import Path
@@ -193,11 +194,15 @@ def _number_ok(spec, keys=_NUMBER) -> bool:
         and spec.get("counts", "bytes") in ("bytes", "characters")
 
 
+_BYTES = re.compile(r"([0-9A-Fa-f]{2})+")
+
+
 def _text_ok(spec) -> bool:
     if not isinstance(spec, dict) or not set(spec) <= _TEXT or spec.get("charset") not in (*CODEC, "table"):
         return False
     rows, pages = spec.get("rows", {}), spec.get("pages")
     if pages is not None and not ("rows" not in spec and isinstance(pages, dict) and set(pages) == {"break", "cursor"}
+                                  and isinstance(pages["break"], str) and _BYTES.fullmatch(pages["break"])
                                   and _number_ok(pages["cursor"], _WHERE | {"type"})):
         return False
     return set(rows) <= {"count", "stride", "lengths"} \
