@@ -461,6 +461,21 @@ def cases() -> list[dict]:
          book_at(0, at - 1, at + 16),
          {"message": "えお", "speaker": "えお", "choices": ["えお"]})
 
+    def pointed(cell: int) -> dict:
+        where = f"0x{cell:08X}"
+        return {"base": where, "offsets": ["0x0"], "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                "pages": {"break": "0C", "cursor": {"address": where, "type": "u32"}},
+                "when": {"address": where, "type": "u32"}}
+
+    case("pages-pointer-is-cursor",
+         "A game that keeps only a pointer to the page it shows: the pointer is the text's address and its page "
+         "cursor, so the text is the first page from there, up to a break (message) or the terminator (speaker). "
+         "The same cell is the text's `when`: at zero nothing is shown, and nothing is read (choices).",
+         {"message": pointed(0x80150010), "speaker": pointed(0x80150014), "choices": pointed(0x80150018)},
+         {0x80150000: pad(sjis("あ") + b"\x0c" + sjis("い") + b"\0" + sjis("う"), 16)
+          + num(0x80150000) + num(0x80150003) + num(0)},
+         {"message": "あ", "speaker": "い", "choices": []})
+
     wide = u16("あ\u0c05\u3000") + b"\x0c\0" + u16("い") + b"\0\0"
     case("pages-break-boundary",
          "A break counts only at the start of a character: 40 is also the second byte of ァ (83 40), and 0C 00 "

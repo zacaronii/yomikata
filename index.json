@@ -91,7 +91,7 @@
   },
   "SCPS-10088": {
    "path": "games/ps1/SCPS-10088.json",
-   "sha256": "50bc05c5e1f8778257f0726cc9e5f20239a7b9f7a14cc9dadf674d3e99d28d17",
+   "sha256": "39797f78ce0c3cb9fd4d896ac563d97477caa128dbbda8c771fcdba8dfc07d10",
    "platform": "ps1",
    "encoding": "table",
    "status": "partial"
