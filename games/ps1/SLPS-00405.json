@@ -957,7 +957,7 @@
       }
     },
     {
-      "notes": "While CAP7.EXE is loaded. Read in a replay of the chapter's first scene (1 page); not yet in real play. The cursor's cell was seen moving in a replay with one of the chapter's own choices written into script memory and the presses written into the game's pad buffer.",
+      "notes": "While CAP7.EXE is loaded. Read in a replay of the chapter's first scenes (75 pages, three choices), the presses written into the game's pad buffer; not yet in real play.",
       "when": {
         "address": "0x80041C78",
         "type": "u32",
