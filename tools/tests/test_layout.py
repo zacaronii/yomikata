@@ -151,8 +151,13 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
                 {"message": {**text, "pages": {"break": "0C", "cursor": {"address": "0x2", "equals": 1}}}},
                 {"message": {**text, "pages": {"break": "0C", "cursor": {"address": "0x2"}, "from": 1}}},
                 {"message": {**text, "rows": {"count": 2, "stride": 4},
-                             "pages": {"break": "0C", "cursor": {"address": "0x2"}}}}):
+                             "pages": {"break": "0C", "cursor": {"address": "0x2"}}}},
+                {"message": {**text, "codes": {}}}, {"message": {**text, "codes": {"7": 2}}},
+                {"message": {**text, "codes": {"07": "2"}}}, {"message": {**text, "codes": {"0703": 1}}},
+                {"message": {**text, "codes": {"07": 17}}}, {"message": {**text, "codes": ["07"]}},
+                {"message": {**text, "charset": "table", "codes": {"07": 2}}}):
         assert not layout.understood(odd), odd
+    assert layout.understood({"message": {**text, "codes": {"07": 2, "1f03": 3}}})
 
 
 def test_every_layout_the_schema_accepts_here_is_understood():

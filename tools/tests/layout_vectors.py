@@ -476,6 +476,58 @@ def cases() -> list[dict]:
           0x80140020: bytes(8) + num(0x80140003)},
          {"speaker": "CD", "errors": {"message": ""}})
 
+    styled = sjis("あ") + b"\x07\x01" + sjis("い") + b"\x07\0" + sjis("う") + b"\x03\x83" + b"A\0" + sjis("か")
+    case("codes-arguments",
+         "A code and its argument bytes are one character and nothing in the text, so an argument of 00 isn't "
+         "the terminator and an argument of 83 doesn't start a character (message). Without `codes` the same "
+         "bytes end at the first 00 (speaker).",
+         {"message": {"address": "0x80150000", "charset": "shift_jis", "max_bytes": 24, "terminator": "00",
+                      "codes": {"03": 2, "07": 2}},
+          "speaker": {"address": "0x80150000", "charset": "shift_jis", "max_bytes": 24, "terminator": "00"}},
+         {0x80150000: pad(styled, 24)},
+         {"message": "あいうA", "speaker": "あ\u0007\u0001い\u0007"})
+
+    case("codes-lengths",
+         "A code is one character for a length in characters (message: three characters are あ, a code, い). A "
+         "code that doesn't fit in what was read is dropped like any last character (speaker, where max_bytes "
+         "ends after the code's first byte; choices, where a length in bytes does).",
+         {"message": {"address": "0x80160000", "charset": "shift_jis", "max_bytes": 16, "codes": {"07": 2},
+                      "length": {"address": "0x80160010", "counts": "characters"}},
+          "speaker": {"address": "0x80160000", "charset": "shift_jis", "max_bytes": 3, "codes": {"07": 2}},
+          "choices": {"address": "0x80160000", "charset": "shift_jis", "max_bytes": 16, "codes": {"07": 2},
+                      "length": {"address": "0x80160011"}}},
+         {0x80160000: pad(sjis("あ") + b"\x07\x01" + sjis("いう"), 16) + bytes([3, 7])},
+         {"message": "あい", "speaker": "あ", "choices": ["あい"]})
+
+    case("codes-leads",
+         "Where two leads start at the same byte the longer one counts (message: 1F 03 takes three bytes, any "
+         "other 1F two). The terminator is looked for first (speaker: 07 FF ends the text though 07 is a "
+         "code). In UTF-16 a code's bytes are counted the same way, so its 00 00 isn't the terminator "
+         "(choices).",
+         {"message": {"address": "0x80170000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "codes": {"1F": 2, "1F03": 3}},
+          "speaker": {"address": "0x80170010", "charset": "shift_jis", "max_bytes": 16, "terminator": "07FF",
+                      "codes": {"07": 2}},
+          "choices": {"address": "0x80170020", "charset": "utf16le", "max_bytes": 16, "terminator": "0000",
+                      "codes": {"1B00": 4}}},
+         {0x80170000: pad(sjis("あ") + b"\x1f\x03\0" + sjis("い") + b"\x1f\0" + sjis("う"), 16)
+          + pad(sjis("あ") + b"\x07\x01" + sjis("い") + b"\x07\xff" + sjis("う"), 16)
+          + pad(u16("あ") + b"\x1b\0\0\0" + u16("い"), 16)},
+         {"message": "あいう", "speaker": "あい", "choices": ["あい"]})
+
+    case("codes-pages",
+         "With `pages`, a code's argument isn't a break: 03 0C stays inside the first page (message), and the "
+         "second page starts after the one real break (speaker).",
+         {"message": {"address": "0x80180000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "codes": {"03": 2},
+                      "pages": {"break": "0C", "cursor": {"address": "0x80180010", "type": "u32"}}},
+          "speaker": {"address": "0x80180000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "codes": {"03": 2},
+                      "pages": {"break": "0C", "cursor": {"address": "0x80180014", "type": "u32"}}}},
+         {0x80180000: pad(sjis("あ") + b"\x03\x0c" + sjis("い") + b"\x0c" + sjis("う"), 16)
+          + num(0x80180004) + num(0x80180007)},
+         {"message": "あい", "speaker": "う"})
+
     return out
 
 
