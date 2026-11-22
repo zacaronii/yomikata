@@ -757,6 +757,58 @@ def cases() -> list[dict]:
          {"message": "：う\n：え", "choosing": True, "choices": ["う", "え"], "choice_cursor": 0},
          entry=numbered, tables={"tables/test/colon.tbl": colon})
 
+    # A fifth made-up script: a game that starts a choice's first answer on a row of its own, whether or not the
+    # script has a line break before it. The code that opens the choice (0097) is a line break in `controls`, and
+    # the message's own cleanup takes out the doubled break that leaves before a colon.
+    opened = {**numbered, "controls": {**numbered["controls"], "0097": "newline"}}
+    doubled = [{"regex": "^\\n：", "replace": "："}, {"regex": "\\n\\n：", "replace": "\n："}]
+
+    def opening(address: int, words: list[str]) -> tuple[dict, bytes]:
+        fields, data = asking(address, words)
+        return {**fields, "message": {**fields["message"], "cleanup": doubled}}, data
+
+    glued, asked = opening(0x80370000, ["8000", "0001", "0002", "0097", "0198", "00C7", "0003", "FFFE", "0098",
+                                        "00C7", "0004", "0005", "FFFE", "FFFF", "0006", "0005"])
+
+    case("script-choice-row-no-break",
+         "The question runs straight into the choice, with no line break code before it. The code that opens the "
+         "choice is a newline in controls, so the first answer starts a row: the message has the question's row "
+         "and a row for each answer, and the answers are both there. Were that code nothing, the first answer "
+         "would sit on the question's row and be lost from the answers.",
+         glued, {0x80370000: asked + num(16, 2) + num(0xFFFF, 2) + num(0, 2)},
+         {"message": "あい\n：う\n：えお", "choosing": True, "choices": ["う", "えお"], "choice_cursor": 0},
+         entry=opened, tables={"tables/test/colon.tbl": colon})
+
+    case("script-choice-row-no-break-typing",
+         "The same script just past the code that opens the choice: the line break it gives ends the text so "
+         "far and is dropped with the other trailing line breaks.",
+         glued, {0x80370000: asked + num(4, 2) + num(0, 2) + num(0, 2)},
+         {"message": "あい", "choosing": False, "choices": [], "choice_cursor": 0},
+         entry=opened, tables={"tables/test/colon.tbl": colon})
+
+    broken, asked = opening(0x80380000, ["8000", "0001", "0002", "FFFE", "0097", "0198", "00C7", "0003", "FFFE",
+                                         "0098", "00C7", "0004", "0005", "FFFE", "FFFF", "0006", "0005"])
+
+    case("script-choice-row-break",
+         "The usual script: a line break code, then the choice. Now there are two line breaks before the first "
+         "colon, and the message's own cleanup makes them one (its second rule), so the message is the same as "
+         "with no line break code. The answers' cleanup takes everything up to the first row that starts with a "
+         "colon either way.",
+         broken, {0x80380000: asked + num(17, 2) + num(0xFFFF, 2) + num(1, 2)},
+         {"message": "あい\n：う\n：えお", "choosing": True, "choices": ["う", "えお"], "choice_cursor": 1},
+         entry=opened, tables={"tables/test/colon.tbl": colon})
+
+    first, asked = opening(0x80390000, ["8000", "0097", "0098", "00C7", "0003", "FFFE", "0198", "00C7", "0004",
+                                        "FFFE", "FFFF", "0005", "0006"])
+
+    case("script-choice-row-first",
+         "A choice with no question: the page starts with the code that opens it. The line break it gives is "
+         "the first thing in the text, and the cleanup's first rule (anchored at the start of the text, not of "
+         "each line) takes it out.",
+         first, {0x80390000: asked + num(13, 2) + num(0xFFFF, 2) + num(0, 2)},
+         {"message": "：う\n：え", "choosing": True, "choices": ["う", "え"], "choice_cursor": 0},
+         entry=opened, tables={"tables/test/colon.tbl": colon})
+
     # Two layouts for one version: a game that loads a program per chapter keeps its cells elsewhere in each.
     def chapter(value: int, text: int) -> dict:
         return {"when": {"address": "0x80330000", "type": "u32", "equals": value},
