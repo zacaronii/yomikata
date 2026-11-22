@@ -1,0 +1,53 @@
+{
+ "name": "script-no-open-max-bytes",
+ "checks": "The text starts at the script's start, so the read has to reach back to it. Five codes in with 8 bytes to read, it doesn't: nothing (message). With 10 it does (speaker).",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F002": "wait",
+   "F003": "page"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x803A0000",
+   "charset": "table",
+   "max_bytes": 8,
+   "script": {
+    "offset": {
+     "address": "0x803A0018",
+     "type": "u32",
+     "counts": "codes"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x803A0000",
+   "charset": "table",
+   "max_bytes": 10,
+   "script": {
+    "offset": {
+     "address": "0x803A0018",
+     "type": "u32",
+     "counts": "codes"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x803A0000",
+   "hex": "00010002fffe0003f0030004f0020005f003ffff0000000005000000"
+  }
+ ],
+ "expected": {
+  "message": "",
+  "speaker": "あい\nう"
+ }
+}

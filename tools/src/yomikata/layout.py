@@ -126,14 +126,17 @@ def _page(data: bytes, charset: str, unit: int, mark: bytes, cursor: int, codes:
     return data[slice(*full[-1])] if full else b""
 
 
-def _script(both: bytes, size: int, unit: int, mark: bytes, ends: set[bytes], breaks: set[bytes],
-            codes: dict | None, rows: bool = False, rest: int = 0) -> list[bytes]:
+def _script(both: bytes, size: int, unit: int, mark: bytes | None, ends: set[bytes], breaks: set[bytes],
+            codes: dict | None, rows: bool = False, rest: int = 0, whole: bool = False) -> list[bytes]:
     """The page a script's reading position is on, as far as it has been read: in one piece, or with `rows` a
     piece for each of its texts. `both` is `size` bytes of script up to the position, then what follows it, as
     long as `mark`. A text starts after a mark and stops at an end code; a mark right after an end code that has
     no page break before it carries the page on. A page break inside a text starts the page anew, unless only end
     codes follow it: the page it ended is still up. Nothing when the position isn't in a text, or a text is about
-    to start a new page. With `rest`, a position up to that many codes past an end code is read as just past it."""
+    to start a new page. With `rest`, a position up to that many codes past an end code is read as just past it.
+    Without a mark the script is one text from its start: nothing unless `both` reaches back to it (`whole`)."""
+    if mark is None:
+        return _pages(both[:size], 0, unit, None, ends, breaks, codes, False) if whole else []
     for k in range(rest + 1 if rest else 0):        # the nearest end code behind, k codes back
         if size >= (k + 1) * unit and both[size - (k + 1) * unit:size - k * unit] in ends:
             both, size = both[:size - k * unit + len(mark)], size - k * unit
@@ -157,13 +160,20 @@ def _script(both: bytes, size: int, unit: int, mark: bytes, ends: set[bytes], br
         p = q - unit                                # on through the text before
     if start is None:
         return []
+    return _pages(data, start, unit, mark, ends, breaks, codes, rows)
+
+
+def _pages(data: bytes, start: int, unit: int, mark: bytes | None, ends: set[bytes], breaks: set[bytes],
+           codes: dict | None, rows: bool) -> list[bytes]:
+    """What a script holds from `start` to its end, less the pages that are off the screen."""
+    code = lambda i: data[i:i + unit]
     tail = len(data)
     while tail - unit >= start and code(tail - unit) in ends:
         tail -= unit
     out, i = [bytearray()], start
     while i + unit <= len(data):
         n = _code_len(data, i, codes)
-        if not n and code(i) in ends and data.startswith(mark, i + unit):
+        if not n and mark is not None and code(i) in ends and data.startswith(mark, i + unit):
             i += unit + len(mark)                   # where two texts of the page join
             if rows:
                 out.append(bytearray())
@@ -222,11 +232,11 @@ def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, end
         means = entry.get("controls", {})
         ends = table.end | {bytes.fromhex(c) for c, what in means.items() if what == "end"}
         breaks = {bytes.fromhex(c) for c, what in means.items() if what in ("page", "clear")}
-        mark = bytes.fromhex(spec["script"]["open"])
+        mark = bytes.fromhex(spec["script"]["open"]) if "open" in spec["script"] else None
         texts = []
         if size:                                    # at or before the script's start there is nothing to read
-            texts = _script(read(start + at - size, size + len(mark)), size, unit, mark, ends, breaks, codes,
-                            spec["script"].get("texts") == "rows", spec["script"].get("rest", 0))
+            texts = _script(read(start + at - size, size + len(mark or b"")), size, unit, mark, ends, breaks, codes,
+                            spec["script"].get("texts") == "rows", spec["script"].get("rest", 0), size == at)
         text = "\n".join(_decode(raw, charset, entry, table, codes) for raw in texts)
         return apply(apply(text, spec.get("cleanup", [])), entry.get("cleanup", []))
     rows = spec.get("rows", {"count": 1, "stride": spec["max_bytes"]})
@@ -285,10 +295,11 @@ def _text_ok(spec) -> bool:
     rows, pages, codes, script = spec.get("rows", {}), spec.get("pages"), spec.get("codes"), spec.get("script")
     if script is not None and not (
             spec["charset"] == "table" and not set(spec) & {"rows", "pages", "terminator", "length"}
-            and isinstance(script, dict) and {"open", "offset"} <= set(script) <= {"open", "offset", "texts", "rest"}
+            and isinstance(script, dict) and "offset" in script and set(script) <= {"open", "offset", "texts", "rest"}
+            and ("open" in script or not set(script) & {"texts", "rest"})
             and script.get("texts", "rows") == "rows"
             and type(script.get("rest", 1)) is int and 1 <= script.get("rest", 1) <= 16
-            and isinstance(script["open"], str) and _BYTES.fullmatch(script["open"])
+            and isinstance(script.get("open", "00"), str) and _BYTES.fullmatch(script.get("open", "00"))
             and _number_ok(script["offset"], _LENGTH, ("bytes", "codes"))):
         return False
     if codes is not None and not (isinstance(codes, dict) and codes and all(
