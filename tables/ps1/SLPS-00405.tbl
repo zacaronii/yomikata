@@ -22,8 +22,9 @@
 # bytes before it is 0xFFFE while the game waits for a press (a small count while it types), the u16 four bytes
 # after it is 0 while no text is up (it counts characters as they are drawn), and the byte 0x28 after it is 1
 # while the text window is open.
-# Chapter 5 from ten snapshots of real play (two conversations, then walking); chapter 6 from a replay of its
-# first scene; the other chapters' addresses from matching chapter 5's code in each program, not yet run.
+# Chapter 5 from ten snapshots of real play (two conversations, then walking). The other chapters' addresses from
+# matching chapter 5's code in each program, then a replay of each one's first scene: the cells behave the same
+# there and each page reads as drawn (37 pages in chapter 6, 1 in 7, 10 in 8, 21 in 9, 32 in A, 5 in H).
 # Two script files on the disc look like leftovers and are not counted here: CAP6_K6LINK (its kana are blanked
 # and its kanji start at 0x010C, as in Tansaku-hen) and CAP7_YHLINK (chapter H's script in an earlier numbering).
 0000=　
