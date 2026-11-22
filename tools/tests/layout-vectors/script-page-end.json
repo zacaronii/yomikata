@@ -1,0 +1,59 @@
+{
+ "name": "script-page-end",
+ "checks": "The position is after the page's last character and its page code, before the end code (message), and after the end code of the last text, with an instruction next (speaker): the end code just behind the position is stepped over. The third text starts a new page, because a page code stands before the end code in front of it.",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F001": "wait",
+   "F003": "page"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80300000",
+   "charset": "table",
+   "max_bytes": 64,
+   "codes": {
+    "F001": 4
+   },
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80300040",
+     "type": "s32"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x80300000",
+   "charset": "table",
+   "max_bytes": 64,
+   "codes": {
+    "F001": 4
+   },
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80300044",
+     "type": "s32"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80300000",
+   "hex": "270105800000010002fffe0003ffff80000004f001001e0005f003ffff80000006ffff00281234000000000000000000000000000000000000000000000000001b00000023000000"
+  }
+ ],
+ "expected": {
+  "message": "あい\nうえお",
+  "speaker": "か"
+ }
+}

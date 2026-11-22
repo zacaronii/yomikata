@@ -1,0 +1,75 @@
+{
+ "name": "script-max-bytes",
+ "checks": "Never more than max_bytes behind the position. 8 bytes reach back to the second text's open code but not to the first text, so the page starts at the second (message); 6 bytes reach no open code at all (speaker). An offset below zero is nothing (choices).",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F001": "wait",
+   "F003": "page"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80300000",
+   "charset": "table",
+   "max_bytes": 8,
+   "codes": {
+    "F001": 4
+   },
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80300040",
+     "type": "s32"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x80300000",
+   "charset": "table",
+   "max_bytes": 6,
+   "codes": {
+    "F001": 4
+   },
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80300040",
+     "type": "s32"
+    }
+   }
+  },
+  "choices": {
+   "address": "0x80300000",
+   "charset": "table",
+   "max_bytes": 64,
+   "codes": {
+    "F001": 4
+   },
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80300044",
+     "type": "s32"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80300000",
+   "hex": "270105800000010002fffe0003ffff80000004f001001e0005f003ffff80000006ffff002812340000000000000000000000000000000000000000000000000017000000fcffffff"
+  }
+ ],
+ "expected": {
+  "message": "え",
+  "speaker": "",
+  "choices": []
+ }
+}

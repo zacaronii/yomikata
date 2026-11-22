@@ -1,0 +1,55 @@
+{
+ "name": "tables-unreadable",
+ "checks": "The number can't be read: the same. Here the entry has no tables of its own; a set can be all there is.",
+ "entry": {
+  "unit": 2
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n",
+  "tables/test/one.tbl": "0100=学\n",
+  "tables/test/two.tbl": "0100=校\n0002=胃\n"
+ },
+ "layout": {
+  "tables": {
+   "by": {
+    "base": "0x80210014",
+    "offsets": [
+     "0x0"
+    ],
+    "type": "u16"
+   },
+   "sets": {
+    "36": [
+     "tables/test/one.tbl"
+    ],
+    "94": [
+     "tables/test/two.tbl"
+    ]
+   }
+  },
+  "message": {
+   "address": "0x80210000",
+   "charset": "table",
+   "max_bytes": 16,
+   "terminator": "FFFF"
+  },
+  "speaker": {
+   "address": "0x80210008",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "terminator": "00"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80210000",
+   "hex": "000100020100ffff90e690b6000000005e00000000000000"
+  }
+ ],
+ "expected": {
+  "speaker": "先生",
+  "errors": {
+   "message": "no table to decode with"
+  }
+ }
+}
