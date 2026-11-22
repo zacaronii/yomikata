@@ -13,6 +13,8 @@
   "status": "auto",
   "sources": [
     "yomikata scan 0.1.0 of the disc files: shift_jis 1,308,331 characters of prose-like text",
-    "Genkan memory search during play: menus in Shift-JIS (story not reached)"
-  ]
+    "Genkan memory search during play: menus in Shift-JIS (story not reached)",
+    "Headless replay from power-on into the first story (docs/replay.md): memory read at 42 moments, one choice included"
+  ],
+  "notes": "In memory the script is plain Shift-JIS with CRLF line ends. The block being shown is held at 0x80061858 as 16-bit cells: the Shift-JIS code as a little-endian number, 0x0D0A for a line break, 0x0000 at the end. A block runs over many pages (500 characters and more), and the only position found (u32 at 0x80060D18) also counts automatic wraps, so a layout can't yet say which page is on screen. u32 at 0x80060D00: 0 while text appears, 2 waiting at a line end, 3 waiting at a page end. Text is vertical, 13 characters to a column."
 }
