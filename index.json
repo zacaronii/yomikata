@@ -164,7 +164,7 @@
   },
   "SLPS-00404": {
    "path": "games/ps1/SLPS-00404.json",
-   "sha256": "79d9dbca5b968f991395e0bc7aeb08d1109190f51705e5e34cb2097f743677c9",
+   "sha256": "6de96e1809e15302b69c6811e752fb6781e8e141100859e6b8ea8453ad2d7b22",
    "platform": "ps1",
    "encoding": "shift_jis",
    "status": "auto"
