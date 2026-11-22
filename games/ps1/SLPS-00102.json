@@ -230,7 +230,7 @@
   },
   "layouts": [
     {
-      "notes": "While CAP0.EXE is loaded. Checked in play on 14 snapshots and in a replay. The cursor's cell is from the program's code; not yet seen moving.",
+      "notes": "While CAP0.EXE is loaded. Checked in play on 14 snapshots and in a replay. The cursor's cell was seen moving in a replay with one of the chapter's own choices written into script memory.",
       "when": {
         "address": "0x8004AA1C",
         "type": "u32",
