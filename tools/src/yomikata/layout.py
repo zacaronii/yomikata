@@ -165,7 +165,7 @@ _LENGTH = _WHERE | {"type", "counts"}
 _TEXT = _WHERE | {"charset", "max_bytes", "terminator", "length", "rows", "when", "cleanup"}
 _FIELDS = {"message": "text", "choices": "text", "speaker": "either", "shown": "number", "waiting": "number",
            "choosing": "number", "choice_count": "number", "choice_cursor": "number"}
-_OTHER = {"versions", "endian", "poll", "speaker_names", "notes"}
+_OTHER = {"versions", "endian", "poll", "speaker_names", "notes", "when"}
 
 
 def _number_ok(spec, keys=_NUMBER) -> bool:
@@ -186,6 +186,8 @@ def understood(layout: dict) -> bool:
     """Whether this reader knows every key in the layout. A newer key can change what the others mean (a text
     without its `when` would show what is no longer on screen), so a reader leaves such a layout alone."""
     if not set(layout) <= set(_FIELDS) | _OTHER or layout.get("endian", "little") not in ("little", "big"):
+        return False
+    if "when" in layout and not _number_ok(layout["when"]):
         return False
     for key, kind in _FIELDS.items():
         if key in layout:
@@ -213,10 +215,23 @@ def pick(entry: dict, exe_sha1: str | None = None, release_id: str | None = None
 
 
 def read_layout(layout: dict, entry: dict, read, table: tbl.Table | None = None) -> dict:
-    """Everything the layout names, as plain values. A field that can't be read is left out and listed in `errors`."""
+    """Everything the layout names, as plain values. A field that can't be read is left out and listed in `errors`.
+    While the layout's own `when` is false nothing else is read: texts are empty, flags false, numbers left out."""
     endian = layout.get("endian", "little")
     out: dict = {}
     errors: dict[str, str] = {}
+
+    if "when" in layout:
+        try:
+            live = read_flag(layout["when"], read, endian)
+        except (LayoutError, struct.error, KeyError) as e:
+            return {"errors": {"when": str(e)}}
+        if not live:
+            out = {name: "" for name in ("message", "speaker") if "charset" in layout.get(name, {})}
+            out.update({name: False for name in ("waiting", "choosing") if name in layout})
+            if "choices" in layout:
+                out["choices"] = []
+            return out
 
     def attempt(name, fn):
         try:

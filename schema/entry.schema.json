@@ -92,6 +92,8 @@
           "choices": {"$ref": "#/$defs/text", "description": "The answers, one per row."},
           "choice_count": {"$ref": "#/$defs/int"},
           "choice_cursor": {"$ref": "#/$defs/int", "description": "Which answer (from 0) the cursor is on."},
+          "when": {"$ref": "#/$defs/int",
+                   "description": "Flag: the addresses hold what the layout says. While it is false nothing else is read: texts are empty, flags false, numbers left out."},
           "notes": {"type": "string", "maxLength": 600}
         }
       }

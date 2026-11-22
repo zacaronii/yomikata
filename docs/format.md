@@ -87,7 +87,14 @@ Every field is optional, and a layout with only `message` is already useful.
 | `shown` | *number*: how many characters of the message are on screen |
 | `waiting`, `choosing` | *flag*: the line is complete and waits for a press; a choice is up |
 | `choices`, `choice_count`, `choice_cursor` | *text* with one answer per row; how many rows count; which answer (from 0) the cursor is on |
+| `when` | *flag*: the addresses hold what the layout says (see below) |
 | `notes` | Short; no script text |
+
+Some games use the same memory for something else outside their script: a movie's frames, the title screen. A
+layout's own `when` is true only while its addresses mean what it says. While it is false a reader reads
+nothing else: every *text* is empty, `waiting` and `choosing` are false, and the numbers (`shown`,
+`choice_count`, `choice_cursor`, a speaker number) are left out. If `when` can't be read, nothing else is read
+either, and `when` is the field that failed.
 
 Every *number*, *flag* and *text* says where it is in one of two ways:
 

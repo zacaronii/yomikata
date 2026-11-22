@@ -1,0 +1,36 @@
+{
+ "name": "layout-when-false-speaker-number",
+ "checks": "A speaker given as a number is a number like the others: left out while the layout's `when` is false. The fields' own memory isn't there at all, and that is no error.",
+ "entry": {},
+ "layout": {
+  "when": {
+   "address": "0x02000000"
+  },
+  "message": {
+   "address": "0x09000000",
+   "charset": "utf8",
+   "max_bytes": 16,
+   "terminator": "00"
+  },
+  "speaker": {
+   "address": "0x09000010",
+   "type": "u16"
+  },
+  "speaker_names": {
+   "3": "先生"
+  },
+  "waiting": {
+   "address": "0x09000012"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x02000000",
+   "hex": "00"
+  }
+ ],
+ "expected": {
+  "message": "",
+  "waiting": false
+ }
+}

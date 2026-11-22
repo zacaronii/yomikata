@@ -145,7 +145,8 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
                 {"message": {**text, "rows": {"count": 1, "stride": 8, "gap": 2}}},
                 {"message": {**text, "length": {"address": "0x2", "counts": "words"}}},
                 {"waiting": {"address": "0x2", "type": "u64"}}, {"shown": {"address": "0x2", "counts": "bytes"}},
-                {"speaker": {**text, "when": {"address": "0x2", "below": 3}}}):
+                {"speaker": {**text, "when": {"address": "0x2", "below": 3}}},
+                {"message": text, "when": {"address": "0x2", "counts": "bytes"}}, {"message": text, "when": 1}):
         assert not layout.understood(odd), odd
 
 

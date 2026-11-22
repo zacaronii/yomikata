@@ -373,6 +373,51 @@ def cases() -> list[dict]:
                       + bytes([0, 0, 3, 3])},
          {"speaker": "い", "errors": {"message": "", "choices": ""}})
 
+    state = {"message": {"address": "0x80100000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00"},
+             "speaker": {"address": "0x80100010", "charset": "shift_jis", "max_bytes": 8, "terminator": "00"},
+             "shown": {"address": "0x80100028"},
+             "waiting": {"address": "0x80100029"},
+             "choosing": {"address": "0x8010002A"},
+             "choices": {"address": "0x80100018", "charset": "shift_jis", "max_bytes": 8, "terminator": "00",
+                         "rows": {"count": 2, "stride": 8}},
+             "choice_count": {"address": "0x8010002B"},
+             "choice_cursor": {"address": "0x8010002C", "type": "s8"}}
+    block = pad(sjis("おはよう"), 16) + pad(sjis("先生"), 8) + rows([sjis("はい"), sjis("いいえ")], 8) \
+        + bytes([3, 1, 1, 2, 1])
+
+    case("layout-when-true",
+         "A layout with its own `when` reads as usual while the flag is true (here: a 32-bit mode that "
+         "`equals` 1).",
+         {**state, "when": {"address": "0x80090000", "type": "u32", "equals": 1}},
+         {0x80100000: block, 0x80090000: num(1)},
+         {"message": "おはよう", "speaker": "先生", "shown": 3, "on_screen": "おはよ", "waiting": True,
+          "choosing": True, "choices": ["はい", "いいえ"], "choice_count": 2, "choice_cursor": 1})
+
+    case("layout-when-false",
+         "While the layout's `when` is false nothing else is read, whatever the memory holds (the same bytes "
+         "as in layout-when-true): the texts are empty, the flags false, there are no answers, and the "
+         "numbers are left out, so nothing is on screen either.",
+         {**state, "when": {"address": "0x80090000", "type": "u32", "equals": 1}},
+         {0x80100000: block, 0x80090000: num(4)},
+         {"message": "", "speaker": "", "waiting": False, "choosing": False, "choices": []})
+
+    case("layout-when-false-speaker-number",
+         "A speaker given as a number is a number like the others: left out while the layout's `when` is "
+         "false. The fields' own memory isn't there at all, and that is no error.",
+         {"when": {"address": "0x02000000"},
+          "message": {"address": "0x09000000", "charset": "utf8", "max_bytes": 16, "terminator": "00"},
+          "speaker": {"address": "0x09000010", "type": "u16"}, "speaker_names": {"3": "先生"},
+          "waiting": {"address": "0x09000012"}},
+         {0x02000000: bytes([0])},
+         {"message": "", "waiting": False})
+
+    case("layout-when-unreadable",
+         "If the layout's `when` can't be read, nothing else is read, and `when` is the one field that "
+         "failed.",
+         {**state, "when": {"base": "0x80090000", "offsets": ["0x4"]}},
+         {0x80100000: block, 0x80090000: num(0)},
+         {"errors": {"when": ""}})
+
     return out
 
 
