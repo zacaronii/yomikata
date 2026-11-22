@@ -1,0 +1,86 @@
+{
+ "name": "script-rest-choice",
+ "checks": "A choice in one text: the question's row, then a row for each answer, a colon before its words. The game waits two codes past the end code; with rest the message is the whole page. The answers are the same text with a cleanup of their own, which runs over the whole text before it is split into rows: the first rule takes everything up to the first row that starts with a colon, line breaks included (its group is optional and lazy, ??), the second the other rows' colons.",
+ "entry": {
+  "tables": [
+   "tables/test/colon.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "0098": "choice",
+   "0198": "choice"
+  }
+ },
+ "tables": {
+  "tables/test/colon.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n00C7=：\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80350000",
+   "charset": "table",
+   "max_bytes": 32,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80350020",
+     "type": "u16",
+     "counts": "codes"
+    }
+   }
+  },
+  "choosing": {
+   "address": "0x80350022",
+   "type": "u16",
+   "equals": 65535
+  },
+  "choices": {
+   "address": "0x80350000",
+   "charset": "table",
+   "max_bytes": 32,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80350020",
+     "type": "u16",
+     "counts": "codes"
+    }
+   },
+   "when": {
+    "address": "0x80350022",
+    "type": "u16",
+    "equals": 65535
+   },
+   "cleanup": [
+    {
+     "regex": "(?s)^(.*?\\n)??：",
+     "replace": ""
+    },
+    {
+     "regex": "\\n：",
+     "replace": "\n"
+    }
+   ]
+  },
+  "choice_cursor": {
+   "address": "0x80350024",
+   "type": "u16"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80350000",
+   "hex": "800000010002fffe019800c70003fffe009800c700040005fffeffff000600051000ffff0100"
+  }
+ ],
+ "expected": {
+  "message": "あい\n：う\n：えお",
+  "choosing": true,
+  "choices": [
+   "う",
+   "えお"
+  ],
+  "choice_cursor": 1
+ }
+}

@@ -230,7 +230,7 @@
   },
   "layouts": [
     {
-      "notes": "While CAP0.EXE is loaded. Checked in play on 14 snapshots.",
+      "notes": "While CAP0.EXE is loaded. Checked in play on 14 snapshots and in a replay. The cursor's cell is from the program's code; not yet seen moving.",
       "when": {
         "address": "0x8004AA1C",
         "type": "u32",
@@ -331,7 +331,8 @@
             "address": "0x800A4CEA",
             "type": "u16",
             "counts": "codes"
-          }
+          },
+          "rest": 4
         },
         "when": {
           "address": "0x800A4CEE",
@@ -342,10 +343,122 @@
         "address": "0x800A4CE4",
         "type": "u16",
         "equals": 65534
+      },
+      "choosing": {
+        "address": "0x800A4CE4",
+        "type": "u16",
+        "equals": 65535
+      },
+      "choices": {
+        "address": "0x801FE800",
+        "charset": "table",
+        "max_bytes": 2048,
+        "codes": {
+          "00C8": 4,
+          "01C8": 4,
+          "02C8": 4,
+          "03C8": 4,
+          "04C8": 4,
+          "05C8": 4,
+          "06C8": 4,
+          "07C8": 4,
+          "09C8": 4,
+          "0AC8": 4,
+          "0CC8": 4,
+          "0DC8": 4,
+          "0EC8": 4,
+          "0FC8": 4,
+          "10C8": 4,
+          "11C8": 4,
+          "12C8": 4,
+          "13C8": 4,
+          "14C8": 4,
+          "15C8": 4,
+          "16C8": 4,
+          "17C8": 4,
+          "18C8": 4,
+          "19C8": 4,
+          "1AC8": 4,
+          "1BC8": 4,
+          "1DC8": 4,
+          "1EC8": 4,
+          "1FC8": 4,
+          "20C8": 4,
+          "21C8": 4,
+          "22C8": 4,
+          "24C8": 4,
+          "25C8": 4,
+          "26C8": 4,
+          "27C8": 4,
+          "28C8": 4,
+          "29C8": 4,
+          "2AC8": 4,
+          "2BC8": 4,
+          "2CC8": 4,
+          "2EC8": 4,
+          "2FC8": 4,
+          "30C8": 4,
+          "31C8": 4,
+          "34C8": 4,
+          "35C8": 4,
+          "36C8": 4,
+          "37C8": 4,
+          "38C8": 4,
+          "3BC8": 4,
+          "3CC8": 4,
+          "3DC8": 4,
+          "3EC8": 4,
+          "3FC8": 4,
+          "40C8": 4,
+          "41C8": 4,
+          "42C8": 4,
+          "44C8": 4,
+          "A2C8": 4,
+          "00CD": 4,
+          "80CD": 4,
+          "01CE": 4,
+          "03CE": 4,
+          "00D0": 4,
+          "F1D0": 4,
+          "00D1": 4,
+          "00D2": 4,
+          "02D2": 4,
+          "00D6": 4,
+          "00D7": 4,
+          "00D8": 4
+        },
+        "script": {
+          "open": "0089",
+          "offset": {
+            "address": "0x800A4CEA",
+            "type": "u16",
+            "counts": "codes"
+          },
+          "rest": 4
+        },
+        "when": {
+          "address": "0x800A4CE4",
+          "type": "u16",
+          "equals": 65535
+        },
+        "cleanup": [
+          {
+            "regex": "(?s)^(.*?\\n)??：",
+            "replace": ""
+          },
+          {
+            "regex": "\\n：",
+            "replace": "\n"
+          }
+        ]
+      },
+      "choice_cursor": {
+        "address": "0x80094D28",
+        "type": "u16"
       }
     },
     {
-      "notes": "While CAP1.EXE is loaded. From the program's code; not yet run.",
+      "notes": "While CAP1.EXE is loaded. Cells from the program's code; checked in a replay (68 pages).",
       "when": {
         "address": "0x8004AA1C",
         "type": "u32",
@@ -446,7 +559,8 @@
             "address": "0x800A39EE",
             "type": "u16",
             "counts": "codes"
-          }
+          },
+          "rest": 4
         },
         "when": {
           "address": "0x800A39F2",
@@ -457,10 +571,122 @@
         "address": "0x800A39E8",
         "type": "u16",
         "equals": 65534
+      },
+      "choosing": {
+        "address": "0x800A39E8",
+        "type": "u16",
+        "equals": 65535
+      },
+      "choices": {
+        "address": "0x801FE800",
+        "charset": "table",
+        "max_bytes": 2048,
+        "codes": {
+          "00C8": 4,
+          "01C8": 4,
+          "02C8": 4,
+          "03C8": 4,
+          "04C8": 4,
+          "05C8": 4,
+          "06C8": 4,
+          "07C8": 4,
+          "09C8": 4,
+          "0AC8": 4,
+          "0CC8": 4,
+          "0DC8": 4,
+          "0EC8": 4,
+          "0FC8": 4,
+          "10C8": 4,
+          "11C8": 4,
+          "12C8": 4,
+          "13C8": 4,
+          "14C8": 4,
+          "15C8": 4,
+          "16C8": 4,
+          "17C8": 4,
+          "18C8": 4,
+          "19C8": 4,
+          "1AC8": 4,
+          "1BC8": 4,
+          "1DC8": 4,
+          "1EC8": 4,
+          "1FC8": 4,
+          "20C8": 4,
+          "21C8": 4,
+          "22C8": 4,
+          "24C8": 4,
+          "25C8": 4,
+          "26C8": 4,
+          "27C8": 4,
+          "28C8": 4,
+          "29C8": 4,
+          "2AC8": 4,
+          "2BC8": 4,
+          "2CC8": 4,
+          "2EC8": 4,
+          "2FC8": 4,
+          "30C8": 4,
+          "31C8": 4,
+          "34C8": 4,
+          "35C8": 4,
+          "36C8": 4,
+          "37C8": 4,
+          "38C8": 4,
+          "3BC8": 4,
+          "3CC8": 4,
+          "3DC8": 4,
+          "3EC8": 4,
+          "3FC8": 4,
+          "40C8": 4,
+          "41C8": 4,
+          "42C8": 4,
+          "44C8": 4,
+          "A2C8": 4,
+          "00CD": 4,
+          "80CD": 4,
+          "01CE": 4,
+          "03CE": 4,
+          "00D0": 4,
+          "F1D0": 4,
+          "00D1": 4,
+          "00D2": 4,
+          "02D2": 4,
+          "00D6": 4,
+          "00D7": 4,
+          "00D8": 4
+        },
+        "script": {
+          "open": "0089",
+          "offset": {
+            "address": "0x800A39EE",
+            "type": "u16",
+            "counts": "codes"
+          },
+          "rest": 4
+        },
+        "when": {
+          "address": "0x800A39E8",
+          "type": "u16",
+          "equals": 65535
+        },
+        "cleanup": [
+          {
+            "regex": "(?s)^(.*?\\n)??：",
+            "replace": ""
+          },
+          {
+            "regex": "\\n：",
+            "replace": "\n"
+          }
+        ]
+      },
+      "choice_cursor": {
+        "address": "0x800926EC",
+        "type": "u16"
       }
     },
     {
-      "notes": "While CAP2.EXE is loaded. From the program's code; not yet run.",
+      "notes": "While CAP2.EXE is loaded. Cells from the program's code; checked in a replay (7 pages).",
       "when": {
         "address": "0x8004AA1C",
         "type": "u32",
@@ -561,7 +787,8 @@
             "address": "0x8009F8E6",
             "type": "u16",
             "counts": "codes"
-          }
+          },
+          "rest": 4
         },
         "when": {
           "address": "0x8009F8EA",
@@ -572,10 +799,122 @@
         "address": "0x8009F8E0",
         "type": "u16",
         "equals": 65534
+      },
+      "choosing": {
+        "address": "0x8009F8E0",
+        "type": "u16",
+        "equals": 65535
+      },
+      "choices": {
+        "address": "0x801FE800",
+        "charset": "table",
+        "max_bytes": 2048,
+        "codes": {
+          "00C8": 4,
+          "01C8": 4,
+          "02C8": 4,
+          "03C8": 4,
+          "04C8": 4,
+          "05C8": 4,
+          "06C8": 4,
+          "07C8": 4,
+          "09C8": 4,
+          "0AC8": 4,
+          "0CC8": 4,
+          "0DC8": 4,
+          "0EC8": 4,
+          "0FC8": 4,
+          "10C8": 4,
+          "11C8": 4,
+          "12C8": 4,
+          "13C8": 4,
+          "14C8": 4,
+          "15C8": 4,
+          "16C8": 4,
+          "17C8": 4,
+          "18C8": 4,
+          "19C8": 4,
+          "1AC8": 4,
+          "1BC8": 4,
+          "1DC8": 4,
+          "1EC8": 4,
+          "1FC8": 4,
+          "20C8": 4,
+          "21C8": 4,
+          "22C8": 4,
+          "24C8": 4,
+          "25C8": 4,
+          "26C8": 4,
+          "27C8": 4,
+          "28C8": 4,
+          "29C8": 4,
+          "2AC8": 4,
+          "2BC8": 4,
+          "2CC8": 4,
+          "2EC8": 4,
+          "2FC8": 4,
+          "30C8": 4,
+          "31C8": 4,
+          "34C8": 4,
+          "35C8": 4,
+          "36C8": 4,
+          "37C8": 4,
+          "38C8": 4,
+          "3BC8": 4,
+          "3CC8": 4,
+          "3DC8": 4,
+          "3EC8": 4,
+          "3FC8": 4,
+          "40C8": 4,
+          "41C8": 4,
+          "42C8": 4,
+          "44C8": 4,
+          "A2C8": 4,
+          "00CD": 4,
+          "80CD": 4,
+          "01CE": 4,
+          "03CE": 4,
+          "00D0": 4,
+          "F1D0": 4,
+          "00D1": 4,
+          "00D2": 4,
+          "02D2": 4,
+          "00D6": 4,
+          "00D7": 4,
+          "00D8": 4
+        },
+        "script": {
+          "open": "0089",
+          "offset": {
+            "address": "0x8009F8E6",
+            "type": "u16",
+            "counts": "codes"
+          },
+          "rest": 4
+        },
+        "when": {
+          "address": "0x8009F8E0",
+          "type": "u16",
+          "equals": 65535
+        },
+        "cleanup": [
+          {
+            "regex": "(?s)^(.*?\\n)??：",
+            "replace": ""
+          },
+          {
+            "regex": "\\n：",
+            "replace": "\n"
+          }
+        ]
+      },
+      "choice_cursor": {
+        "address": "0x8008E3FC",
+        "type": "u16"
       }
     },
     {
-      "notes": "While CAP3.EXE is loaded. From the program's code; not yet run.",
+      "notes": "While CAP3.EXE is loaded. Cells from the program's code; checked in a replay (20 pages).",
       "when": {
         "address": "0x8004AA1C",
         "type": "u32",
@@ -676,7 +1015,8 @@
             "address": "0x800A47FE",
             "type": "u16",
             "counts": "codes"
-          }
+          },
+          "rest": 4
         },
         "when": {
           "address": "0x800A4802",
@@ -687,10 +1027,122 @@
         "address": "0x800A47F8",
         "type": "u16",
         "equals": 65534
+      },
+      "choosing": {
+        "address": "0x800A47F8",
+        "type": "u16",
+        "equals": 65535
+      },
+      "choices": {
+        "address": "0x801FE800",
+        "charset": "table",
+        "max_bytes": 2048,
+        "codes": {
+          "00C8": 4,
+          "01C8": 4,
+          "02C8": 4,
+          "03C8": 4,
+          "04C8": 4,
+          "05C8": 4,
+          "06C8": 4,
+          "07C8": 4,
+          "09C8": 4,
+          "0AC8": 4,
+          "0CC8": 4,
+          "0DC8": 4,
+          "0EC8": 4,
+          "0FC8": 4,
+          "10C8": 4,
+          "11C8": 4,
+          "12C8": 4,
+          "13C8": 4,
+          "14C8": 4,
+          "15C8": 4,
+          "16C8": 4,
+          "17C8": 4,
+          "18C8": 4,
+          "19C8": 4,
+          "1AC8": 4,
+          "1BC8": 4,
+          "1DC8": 4,
+          "1EC8": 4,
+          "1FC8": 4,
+          "20C8": 4,
+          "21C8": 4,
+          "22C8": 4,
+          "24C8": 4,
+          "25C8": 4,
+          "26C8": 4,
+          "27C8": 4,
+          "28C8": 4,
+          "29C8": 4,
+          "2AC8": 4,
+          "2BC8": 4,
+          "2CC8": 4,
+          "2EC8": 4,
+          "2FC8": 4,
+          "30C8": 4,
+          "31C8": 4,
+          "34C8": 4,
+          "35C8": 4,
+          "36C8": 4,
+          "37C8": 4,
+          "38C8": 4,
+          "3BC8": 4,
+          "3CC8": 4,
+          "3DC8": 4,
+          "3EC8": 4,
+          "3FC8": 4,
+          "40C8": 4,
+          "41C8": 4,
+          "42C8": 4,
+          "44C8": 4,
+          "A2C8": 4,
+          "00CD": 4,
+          "80CD": 4,
+          "01CE": 4,
+          "03CE": 4,
+          "00D0": 4,
+          "F1D0": 4,
+          "00D1": 4,
+          "00D2": 4,
+          "02D2": 4,
+          "00D6": 4,
+          "00D7": 4,
+          "00D8": 4
+        },
+        "script": {
+          "open": "0089",
+          "offset": {
+            "address": "0x800A47FE",
+            "type": "u16",
+            "counts": "codes"
+          },
+          "rest": 4
+        },
+        "when": {
+          "address": "0x800A47F8",
+          "type": "u16",
+          "equals": 65535
+        },
+        "cleanup": [
+          {
+            "regex": "(?s)^(.*?\\n)??：",
+            "replace": ""
+          },
+          {
+            "regex": "\\n：",
+            "replace": "\n"
+          }
+        ]
+      },
+      "choice_cursor": {
+        "address": "0x80093878",
+        "type": "u16"
       }
     },
     {
-      "notes": "While CAP4.EXE is loaded. From the program's code; not yet run.",
+      "notes": "While CAP4.EXE is loaded. Cells from the program's code; checked in a replay (59 pages).",
       "when": {
         "address": "0x8004AA1C",
         "type": "u32",
@@ -791,7 +1243,8 @@
             "address": "0x800A4796",
             "type": "u16",
             "counts": "codes"
-          }
+          },
+          "rest": 4
         },
         "when": {
           "address": "0x800A479A",
@@ -802,10 +1255,122 @@
         "address": "0x800A4790",
         "type": "u16",
         "equals": 65534
+      },
+      "choosing": {
+        "address": "0x800A4790",
+        "type": "u16",
+        "equals": 65535
+      },
+      "choices": {
+        "address": "0x801FE800",
+        "charset": "table",
+        "max_bytes": 2048,
+        "codes": {
+          "00C8": 4,
+          "01C8": 4,
+          "02C8": 4,
+          "03C8": 4,
+          "04C8": 4,
+          "05C8": 4,
+          "06C8": 4,
+          "07C8": 4,
+          "09C8": 4,
+          "0AC8": 4,
+          "0CC8": 4,
+          "0DC8": 4,
+          "0EC8": 4,
+          "0FC8": 4,
+          "10C8": 4,
+          "11C8": 4,
+          "12C8": 4,
+          "13C8": 4,
+          "14C8": 4,
+          "15C8": 4,
+          "16C8": 4,
+          "17C8": 4,
+          "18C8": 4,
+          "19C8": 4,
+          "1AC8": 4,
+          "1BC8": 4,
+          "1DC8": 4,
+          "1EC8": 4,
+          "1FC8": 4,
+          "20C8": 4,
+          "21C8": 4,
+          "22C8": 4,
+          "24C8": 4,
+          "25C8": 4,
+          "26C8": 4,
+          "27C8": 4,
+          "28C8": 4,
+          "29C8": 4,
+          "2AC8": 4,
+          "2BC8": 4,
+          "2CC8": 4,
+          "2EC8": 4,
+          "2FC8": 4,
+          "30C8": 4,
+          "31C8": 4,
+          "34C8": 4,
+          "35C8": 4,
+          "36C8": 4,
+          "37C8": 4,
+          "38C8": 4,
+          "3BC8": 4,
+          "3CC8": 4,
+          "3DC8": 4,
+          "3EC8": 4,
+          "3FC8": 4,
+          "40C8": 4,
+          "41C8": 4,
+          "42C8": 4,
+          "44C8": 4,
+          "A2C8": 4,
+          "00CD": 4,
+          "80CD": 4,
+          "01CE": 4,
+          "03CE": 4,
+          "00D0": 4,
+          "F1D0": 4,
+          "00D1": 4,
+          "00D2": 4,
+          "02D2": 4,
+          "00D6": 4,
+          "00D7": 4,
+          "00D8": 4
+        },
+        "script": {
+          "open": "0089",
+          "offset": {
+            "address": "0x800A4796",
+            "type": "u16",
+            "counts": "codes"
+          },
+          "rest": 4
+        },
+        "when": {
+          "address": "0x800A4790",
+          "type": "u16",
+          "equals": 65535
+        },
+        "cleanup": [
+          {
+            "regex": "(?s)^(.*?\\n)??：",
+            "replace": ""
+          },
+          {
+            "regex": "\\n：",
+            "replace": "\n"
+          }
+        ]
+      },
+      "choice_cursor": {
+        "address": "0x80092758",
+        "type": "u16"
       }
     },
     {
-      "notes": "While CAPX.EXE is loaded. From the program's code; not yet run.",
+      "notes": "While CAPX.EXE is loaded. Cells from the program's code; checked in a replay (57 pages).",
       "when": {
         "address": "0x8004AA1C",
         "type": "u32",
@@ -906,7 +1471,8 @@
             "address": "0x8009444E",
             "type": "u16",
             "counts": "codes"
-          }
+          },
+          "rest": 4
         },
         "when": {
           "address": "0x80094452",
@@ -917,6 +1483,118 @@
         "address": "0x80094448",
         "type": "u16",
         "equals": 65534
+      },
+      "choosing": {
+        "address": "0x80094448",
+        "type": "u16",
+        "equals": 65535
+      },
+      "choices": {
+        "address": "0x801FE800",
+        "charset": "table",
+        "max_bytes": 2048,
+        "codes": {
+          "00C8": 4,
+          "01C8": 4,
+          "02C8": 4,
+          "03C8": 4,
+          "04C8": 4,
+          "05C8": 4,
+          "06C8": 4,
+          "07C8": 4,
+          "09C8": 4,
+          "0AC8": 4,
+          "0CC8": 4,
+          "0DC8": 4,
+          "0EC8": 4,
+          "0FC8": 4,
+          "10C8": 4,
+          "11C8": 4,
+          "12C8": 4,
+          "13C8": 4,
+          "14C8": 4,
+          "15C8": 4,
+          "16C8": 4,
+          "17C8": 4,
+          "18C8": 4,
+          "19C8": 4,
+          "1AC8": 4,
+          "1BC8": 4,
+          "1DC8": 4,
+          "1EC8": 4,
+          "1FC8": 4,
+          "20C8": 4,
+          "21C8": 4,
+          "22C8": 4,
+          "24C8": 4,
+          "25C8": 4,
+          "26C8": 4,
+          "27C8": 4,
+          "28C8": 4,
+          "29C8": 4,
+          "2AC8": 4,
+          "2BC8": 4,
+          "2CC8": 4,
+          "2EC8": 4,
+          "2FC8": 4,
+          "30C8": 4,
+          "31C8": 4,
+          "34C8": 4,
+          "35C8": 4,
+          "36C8": 4,
+          "37C8": 4,
+          "38C8": 4,
+          "3BC8": 4,
+          "3CC8": 4,
+          "3DC8": 4,
+          "3EC8": 4,
+          "3FC8": 4,
+          "40C8": 4,
+          "41C8": 4,
+          "42C8": 4,
+          "44C8": 4,
+          "A2C8": 4,
+          "00CD": 4,
+          "80CD": 4,
+          "01CE": 4,
+          "03CE": 4,
+          "00D0": 4,
+          "F1D0": 4,
+          "00D1": 4,
+          "00D2": 4,
+          "02D2": 4,
+          "00D6": 4,
+          "00D7": 4,
+          "00D8": 4
+        },
+        "script": {
+          "open": "0089",
+          "offset": {
+            "address": "0x8009444E",
+            "type": "u16",
+            "counts": "codes"
+          },
+          "rest": 4
+        },
+        "when": {
+          "address": "0x80094448",
+          "type": "u16",
+          "equals": 65535
+        },
+        "cleanup": [
+          {
+            "regex": "(?s)^(.*?\\n)??：",
+            "replace": ""
+          },
+          {
+            "regex": "\\n：",
+            "replace": "\n"
+          }
+        ]
+      },
+      "choice_cursor": {
+        "address": "0x80084DCC",
+        "type": "u16"
       }
     }
   ],
@@ -928,5 +1606,5 @@
     "Fourteen Genkan RAM snapshots of the first chapter (inbox): seven scripts decode to the lines that were on screen with no unmapped code, and its layout reads the page on screen in each",
     "The six chapter programs on the disc (CAP0.EXE to CAPX.EXE): each keeps the same cells at its own addresses, found by matching the code around the first chapter's. Which command words take an argument word is read from the script interpreter's code; the words in use, from every scene's script"
   ],
-  "notes": "16-bit little-endian codes, not Kyuumei-hen's (SLPS-00405): 0x0000-0x0108 are shared; kanji are 0x010C up and each chapter numbers its own. Each chapter is a program of its own with its cells elsewhere, so there is one layout per program, told apart by the instruction at 0x8004AA1C, and each names its chapter's table. Only the first chapter's was checked in play. The script at 0x801FE800 is one record at a time. The message is the page so far (the window shows its last rows); answers are rows of it. Without a layout only the shared table applies. Two more fonts on the disc belong to no script."
+  "notes": "16-bit little-endian codes, not Kyuumei-hen's (SLPS-00405): 0x0000-0x0108 are shared; kanji are 0x010C up, numbered anew by each chapter. Each chapter is its own program with its cells elsewhere: one layout per program, told apart by the word at 0x8004AA1C, each with its chapter's table. The script at 0x801FE800 is one record at a time. The message is the page so far (the window shows its last rows). A choice's answers are rows of it, each after a colon; the game draws their letters and waits up to four words past the end code. Waiting is true for a frame or two after an answer is taken."
 }

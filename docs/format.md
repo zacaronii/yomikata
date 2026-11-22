@@ -163,7 +163,9 @@ A *text* has:
   how many codes of `unit` bytes), and `open` is the code a text starts after (hex in memory byte order). The
   text is the page the game is on, as far as it has read it, so it grows while the page types out. Only with
   `table`, and not together with `rows`, `pages`, `terminator` or `length`. With `texts: "rows"` in it, each text
-  of the page is a row of its own: for a list the game writes as one text per item, such as a choice's answers;
+  of the page is a row of its own: for a list the game writes as one text per item, such as a choice's answers.
+  With `rest` (1 to 16), a game may stop up to that many codes past a text's end code while the text stays up,
+  as one does that reads a choice's jump targets after its answers and waits there;
 - optionally `when`, a *flag* that is true while the text is on screen. Many games leave the last text in memory
   after its window closes; while `when` is false the text is empty;
 - its own `cleanup`, applied before the entry's.
@@ -205,6 +207,10 @@ tables mark with `/` or `controls` calls `end`; a *page code* is one `controls` 
    below the text is the empty string.
    Otherwise read the bytes of script that end at the position, `max_bytes` of them or `offset` if that is
    less, and as many bytes after the position as `open` has. If the read fails, the field fails.
+   With `rest`: look at the code just behind the position, then the one before it, and so on: `rest` + 1 codes
+   at most, and none that starts before the bytes read. At the first end code among them the looking stops,
+   and from here on the position is just past that code, and the bytes after the position are those after it.
+   (A text that starts within `rest` codes of an end code is read late, so `rest` isn't for such a script.)
 2. An open code *carries the page on* when the code just before it is an end code and the code before that
    isn't a page code: the text after it goes on the same page as the text before it. If the bytes after the
    position are the open code and it doesn't carry the page on, the text is the empty string: the old page is
