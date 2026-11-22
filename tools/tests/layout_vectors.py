@@ -418,6 +418,64 @@ def cases() -> list[dict]:
          {0x80100000: block, 0x80090000: num(0)},
          {"errors": {"when": ""}})
 
+    # several pages in one buffer: an empty page, あ/い, う, an empty page, えお, the end, and an older text's rest
+    book = b"\x0c" + sjis("あ\nい") + b"\x0c" + sjis("う") + b"\x0c\x0c" + sjis("えお") + b"\0" + sjis("か")
+    at = 0x80120000
+
+    def paged(cursor: int) -> dict:
+        return {"address": f"0x{at:08X}", "charset": "shift_jis", "max_bytes": 32, "terminator": "00",
+                "pages": {"break": "0C", "cursor": {"address": f"0x{cursor:08X}", "type": "u32"}}}
+
+    def book_at(*cursors: int) -> dict:
+        return {at: pad(book, 32) + b"".join(num(c) for c in cursors)}
+
+    case("pages-cursor",
+         "A buffer of pages with breaks between them: the text is the page the cursor's address is in, from the "
+         "page's first character (message) to its last (choices). What follows the terminator is no page.",
+         {"message": paged(at + 32), "speaker": paged(at + 36), "choices": paged(at + 40)},
+         book_at(at + 1, at + 7, at + 13),
+         {"message": "あ\nい", "speaker": "う", "choices": ["えお"]})
+
+    case("pages-cursor-on-break",
+         "A cursor on a break is still on the page before it (message). An empty page isn't a page: past it the "
+         "cursor is still on the last page with anything in it (speaker, on the second of two breaks). Before "
+         "the first such page there is nothing to show (choices, on the break the buffer starts with).",
+         {"message": paged(at + 32), "speaker": paged(at + 36), "choices": paged(at + 40)},
+         book_at(at + 6, at + 10, at),
+         {"message": "あ\nい", "speaker": "う", "choices": []})
+
+    case("pages-cursor-outside",
+         "A cursor outside the text is on the last page: zero (message), before the text's address (speaker), "
+         "past the terminator (choices).",
+         {"message": paged(at + 32), "speaker": paged(at + 36), "choices": paged(at + 40)},
+         book_at(0, at - 1, at + 16),
+         {"message": "えお", "speaker": "えお", "choices": ["えお"]})
+
+    wide = u16("あ\u0c05\u3000") + b"\x0c\0" + u16("い") + b"\0\0"
+    case("pages-break-boundary",
+         "A break counts only at the start of a character: 40 is also the second byte of ァ (83 40), and 0C 00 "
+         "also lies across two UTF-16 units (05 0C, 00 30). The cursor may point into a character.",
+         {"message": {"address": "0x80130000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "pages": {"break": "40", "cursor": {"address": "0x80130010", "type": "u32"}}},
+          "speaker": {"address": "0x80130000", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                      "pages": {"break": "40", "cursor": {"address": "0x80130014", "type": "u32"}}},
+          "choices": {"address": "0x80130020", "charset": "utf16le", "max_bytes": 16, "terminator": "0000",
+                      "pages": {"break": "0C00", "cursor": {"address": "0x80130018", "type": "u32"}}}},
+         {0x80130000: pad(sjis("ァ") + b"@" + sjis("あ"), 16) + num(0x80130001) + num(0x80130003)
+          + num(0x80130022) + bytes(4) + pad(wide, 16)},
+         {"message": "ァ", "speaker": "あ", "choices": ["あ\u0c05\u3000"]})
+
+    case("pages-pointers",
+         "The buffer and the cursor behind pointer chains: the cursor is measured from where the text was found "
+         "(speaker). A cursor that can't be read fails the field (message).",
+         {"message": {"address": "0x80140000", "charset": "utf8", "max_bytes": 8, "terminator": "00",
+                      "pages": {"break": "0C", "cursor": {"base": "0x80140014", "offsets": ["0x0"], "type": "u32"}}},
+          "speaker": {"base": "0x80140010", "offsets": ["0x4"], "charset": "utf8", "max_bytes": 8, "terminator": "00",
+                      "pages": {"break": "0C", "cursor": {"base": "0x80140018", "offsets": ["0x8"], "type": "u32"}}}},
+         {0x80140000: pad(b"AB\x0cCD", 16) + num(0x8013FFFC) + num(0x90000000) + num(0x80140020),
+          0x80140020: bytes(8) + num(0x80140003)},
+         {"speaker": "CD", "errors": {"message": ""}})
+
     return out
 
 

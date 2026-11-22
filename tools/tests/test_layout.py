@@ -146,7 +146,15 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
                 {"message": {**text, "length": {"address": "0x2", "counts": "words"}}},
                 {"waiting": {"address": "0x2", "type": "u64"}}, {"shown": {"address": "0x2", "counts": "bytes"}},
                 {"speaker": {**text, "when": {"address": "0x2", "below": 3}}},
-                {"message": text, "when": {"address": "0x2", "counts": "bytes"}}, {"message": text, "when": 1}):
+                {"message": text, "when": {"address": "0x2", "counts": "bytes"}}, {"message": text, "when": 1},
+                {"message": {**text, "pages": {"break": "0C"}}},
+                {"message": {**text, "pages": {"break": "", "cursor": {"address": "0x2"}}}},
+                {"message": {**text, "pages": {"break": "0", "cursor": {"address": "0x2"}}}},
+                {"message": {**text, "pages": {"break": 12, "cursor": {"address": "0x2"}}}},
+                {"message": {**text, "pages": {"break": "0C", "cursor": {"address": "0x2", "equals": 1}}}},
+                {"message": {**text, "pages": {"break": "0C", "cursor": {"address": "0x2"}, "from": 1}}},
+                {"message": {**text, "rows": {"count": 2, "stride": 4},
+                             "pages": {"break": "0C", "cursor": {"address": "0x2"}}}}):
         assert not layout.understood(odd), odd
 
 

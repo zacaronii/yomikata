@@ -1,0 +1,59 @@
+{
+ "name": "pages-break-boundary",
+ "checks": "A break counts only at the start of a character: 40 is also the second byte of ァ (83 40), and 0C 00 also lies across two UTF-16 units (05 0C, 00 30). The cursor may point into a character.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80130000",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00",
+   "pages": {
+    "break": "40",
+    "cursor": {
+     "address": "0x80130010",
+     "type": "u32"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x80130000",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00",
+   "pages": {
+    "break": "40",
+    "cursor": {
+     "address": "0x80130014",
+     "type": "u32"
+    }
+   }
+  },
+  "choices": {
+   "address": "0x80130020",
+   "charset": "utf16le",
+   "max_bytes": 16,
+   "terminator": "0000",
+   "pages": {
+    "break": "0C00",
+    "cursor": {
+     "address": "0x80130018",
+     "type": "u32"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80130000",
+   "hex": "83404082a00000000000000000000000010013800300138022001380000000004230050c00300c004430000000000000"
+  }
+ ],
+ "expected": {
+  "message": "ァ",
+  "speaker": "あ",
+  "choices": [
+   "あఅ　"
+  ]
+ }
+}

@@ -6,6 +6,7 @@ Clients can compare their output with `read_layout()`, or run tools/tests/layout
 from __future__ import annotations
 
 import gzip
+import re
 import struct
 from dataclasses import dataclass
 from pathlib import Path
@@ -98,6 +99,23 @@ def _cut(data: bytes, charset: str, unit: int, terminator: bytes | None, chars: 
     return data[:i]
 
 
+def _page(data: bytes, charset: str, unit: int, mark: bytes, cursor: int) -> bytes:
+    """The page a script cursor is on. `data` is split at each `mark` that starts a character; the page is the
+    last one with anything in it that starts at or before the cursor (an offset into data). A cursor outside the
+    text is on its last page: a game may drop its cursor once the last page is typed out."""
+    pages, start, i = [], 0, 0
+    while i < len(data):
+        if data[i:i + len(mark)] == mark:
+            pages.append((start, i))
+            start = i = i + len(mark)
+        else:
+            i += _char_len(data, i, charset, unit)
+    pages.append((start, len(data)))
+    inside = 0 <= cursor <= len(data)
+    full = [(a, b) for a, b in pages if b > a and (a <= cursor or not inside)]
+    return data[slice(*full[-1])] if full else b""
+
+
 def _char(code: bytes, charset: str) -> str:
     """One character. Bytes that aren't one are U+FFFD, whatever a codec would make of them: the only single
     bytes from 0x80 up that mean anything are Shift-JIS's half-width kana."""
@@ -144,6 +162,9 @@ def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, end
             else:
                 size = min(size, n)
         raw = _cut(read(start + r * rows["stride"], size), charset, unit, term, chars)
+        if "pages" in spec:
+            cursor = read_int(spec["pages"]["cursor"], read, endian) - start
+            raw = _page(raw, charset, unit, bytes.fromhex(spec["pages"]["break"]), cursor)
         lines.append(_decode(raw, charset, entry, table))
     if "rows" in spec:
         while lines and not lines[-1]:
@@ -162,7 +183,7 @@ def version_for(entry: dict, release_id: str | None) -> str | None:
 _WHERE = {"address", "base", "offsets"}
 _NUMBER = _WHERE | {"type", "equals"}
 _LENGTH = _WHERE | {"type", "counts"}
-_TEXT = _WHERE | {"charset", "max_bytes", "terminator", "length", "rows", "when", "cleanup"}
+_TEXT = _WHERE | {"charset", "max_bytes", "terminator", "length", "rows", "pages", "when", "cleanup"}
 _FIELDS = {"message": "text", "choices": "text", "speaker": "either", "shown": "number", "waiting": "number",
            "choosing": "number", "choice_count": "number", "choice_cursor": "number"}
 _OTHER = {"versions", "endian", "poll", "speaker_names", "notes", "when"}
@@ -173,10 +194,17 @@ def _number_ok(spec, keys=_NUMBER) -> bool:
         and spec.get("counts", "bytes") in ("bytes", "characters")
 
 
+_BYTES = re.compile(r"([0-9A-Fa-f]{2})+")
+
+
 def _text_ok(spec) -> bool:
     if not isinstance(spec, dict) or not set(spec) <= _TEXT or spec.get("charset") not in (*CODEC, "table"):
         return False
-    rows = spec.get("rows", {})
+    rows, pages = spec.get("rows", {}), spec.get("pages")
+    if pages is not None and not ("rows" not in spec and isinstance(pages, dict) and set(pages) == {"break", "cursor"}
+                                  and isinstance(pages["break"], str) and _BYTES.fullmatch(pages["break"])
+                                  and _number_ok(pages["cursor"], _WHERE | {"type"})):
+        return False
     return set(rows) <= {"count", "stride", "lengths"} \
         and all(_number_ok(n, _LENGTH) for n in (spec.get("length"), rows.get("lengths")) if n is not None) \
         and ("when" not in spec or _number_ok(spec["when"]))
