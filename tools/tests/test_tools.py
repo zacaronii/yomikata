@@ -84,6 +84,20 @@ def test_tables():
         tbl.parse("001=あ")
 
 
+def test_the_shift_jis_cell_table_follows_the_codec():
+    # tables/shift-jis-le16.tbl is made by rule: every two-byte cp932 code outside the user-defined area, its
+    # second byte first.
+    want = {}
+    for lead in (*range(0x81, 0xA0), *range(0xE0, 0xF0), *range(0xFA, 0xFD)):
+        for trail in (*range(0x40, 0x7F), *range(0x80, 0xFD)):
+            try:
+                want[bytes([trail, lead])] = bytes([lead, trail]).decode("cp932")
+            except UnicodeDecodeError:
+                pass
+    t = tbl.parse((REPO / "tables" / "shift-jis-le16.tbl").read_text(encoding="utf-8"))
+    assert t.chars == want and not t.end and not t.newline
+
+
 def test_the_repository_itself_is_valid():
     assert catalog.validate(REPO) == []
     idx = catalog.build_index(REPO)
