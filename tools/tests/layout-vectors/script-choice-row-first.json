@@ -1,0 +1,97 @@
+{
+ "name": "script-choice-row-first",
+ "checks": "A choice with no question: the page starts with the code that opens it. The line break it gives is the first thing in the text, and the cleanup's first rule (anchored at the start of the text, not of each line) takes it out.",
+ "entry": {
+  "tables": [
+   "tables/test/colon.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "0098": "choice",
+   "0198": "choice",
+   "0097": "newline"
+  }
+ },
+ "tables": {
+  "tables/test/colon.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n00C7=：\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80390000",
+   "charset": "table",
+   "max_bytes": 26,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x8039001A",
+     "type": "u16",
+     "counts": "codes"
+    }
+   },
+   "cleanup": [
+    {
+     "regex": "^\\n：",
+     "replace": "："
+    },
+    {
+     "regex": "\\n\\n：",
+     "replace": "\n："
+    }
+   ]
+  },
+  "choosing": {
+   "address": "0x8039001C",
+   "type": "u16",
+   "equals": 65535
+  },
+  "choices": {
+   "address": "0x80390000",
+   "charset": "table",
+   "max_bytes": 26,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x8039001A",
+     "type": "u16",
+     "counts": "codes"
+    }
+   },
+   "when": {
+    "address": "0x8039001C",
+    "type": "u16",
+    "equals": 65535
+   },
+   "cleanup": [
+    {
+     "regex": "(?s)^(.*?\\n)??：",
+     "replace": ""
+    },
+    {
+     "regex": "\\n：",
+     "replace": "\n"
+    }
+   ]
+  },
+  "choice_cursor": {
+   "address": "0x8039001E",
+   "type": "u16"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80390000",
+   "hex": "80000097009800c70003fffe019800c70004fffeffff000500060d00ffff0000"
+  }
+ ],
+ "expected": {
+  "message": "：う\n：え",
+  "choosing": true,
+  "choices": [
+   "う",
+   "え"
+  ],
+  "choice_cursor": 0
+ }
+}
