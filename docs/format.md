@@ -127,9 +127,9 @@ A *text* has:
 - optionally `rows.lengths`, for a game that keeps one length per row: a *number* whose address is the first
   row's length, with the next rows' lengths right after it (a `u16` for row 2 is 4 bytes on);
 - optionally `pages: {break, cursor}`, for a game that keeps a whole stretch of script in one buffer and walks
-  through it: `break` is the code between two pages (hex in memory byte order, one byte or more, matched only at character
-  boundaries) and `cursor` a *number* holding the address the game is reading at. The text is the page the cursor
-  is on. Not together with `rows`;
+  through it: `break` is the code between two pages (hex in memory byte order, one byte or more, matched only at
+  character boundaries) and `cursor` a *number* holding the address the game is reading at. The text is the page
+  the cursor is on. Not together with `rows`;
 - optionally `when`, a *flag* that is true while the text is on screen. Many games leave the last text in memory
   after its window closes; while `when` is false the text is empty;
 - its own `cleanup`, applied before the entry's.
