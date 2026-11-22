@@ -92,6 +92,8 @@
           "choices": {"$ref": "#/$defs/text", "description": "The answers, one per row."},
           "choice_count": {"$ref": "#/$defs/int"},
           "choice_cursor": {"$ref": "#/$defs/int", "description": "Which answer (from 0) the cursor is on."},
+          "when": {"$ref": "#/$defs/int",
+                   "description": "Flag: the addresses hold what the layout says. While it is false nothing else is read: texts are empty, flags false, numbers left out."},
           "notes": {"type": "string", "maxLength": 600}
         }
       }
@@ -124,6 +126,14 @@
         "equals": {"type": "integer", "description": "For flags: true when the value equals this (default: true when nonzero)."}
       }
     },
+    "length": {
+      "type": "object", "additionalProperties": false, "$ref": "#/$defs/where",
+      "properties": {
+        "address": {"$ref": "#/$defs/address"}, "base": {"$ref": "#/$defs/address"}, "offsets": {"$ref": "#/$defs/offsets"},
+        "type": {"enum": ["u8", "u16", "u32", "s8", "s16", "s32"], "description": "Default u8."},
+        "counts": {"enum": ["bytes", "characters"], "description": "What the number counts. Default bytes."}
+      }
+    },
     "text": {
       "type": "object", "additionalProperties": false, "$ref": "#/$defs/where", "required": ["charset", "max_bytes"],
       "properties": {
@@ -133,11 +143,15 @@
         "max_bytes": {"type": "integer", "minimum": 1, "maximum": 65536, "description": "Never read more than this (per row, with rows)."},
         "terminator": {"type": "string", "pattern": "^([0-9A-Fa-f]{2})+$",
                        "description": "Hex in memory byte order, checked at character boundaries: 00, 0000, FFFF."},
-        "length": {"$ref": "#/$defs/int", "description": "The text's length in bytes, read from memory."},
+        "length": {"$ref": "#/$defs/length", "description": "The text's length (each row's, with rows), read from memory."},
         "rows": {"type": "object", "additionalProperties": false, "required": ["count", "stride"],
                  "properties": {"count": {"type": "integer", "minimum": 1, "maximum": 64},
-                                "stride": {"type": "integer", "minimum": 1, "maximum": 65536}},
-                 "description": "Rows stride bytes apart, each read to its terminator (or the stride), joined with newlines."},
+                                "stride": {"type": "integer", "minimum": 1, "maximum": 65536},
+                                "lengths": {"$ref": "#/$defs/length",
+                                            "description": "One length per row, the numbers one after another in memory."}},
+                 "description": "Rows stride bytes apart, each read to its terminator, its length or the stride, joined with newlines."},
+        "when": {"$ref": "#/$defs/int",
+                 "description": "Flag: the text is on screen. While it is false the text is empty, whatever the memory holds."},
         "cleanup": {"$ref": "#/properties/cleanup"}
       }
     }

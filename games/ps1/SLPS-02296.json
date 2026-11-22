@@ -7,6 +7,20 @@
     {"exe": "SLPS_022.96", "exe_sha1": "e1db7cdd3b84deab40fe330d4d98451f52faf589"}
   ],
   "encoding": "shift_jis",
+  "layouts": [{
+    "versions": ["e1db7cdd3b84deab40fe330d4d98451f52faf589"],
+    "poll": 20,
+    "message": {"address": "0x800F6018", "charset": "shift_jis", "max_bytes": 57,
+                "rows": {"count": 3, "stride": 57,
+                         "lengths": {"address": "0x800F7220", "counts": "characters"}},
+                "when": {"address": "0x80074BA2"},
+                "cleanup": [{"regex": "(?m)　+$", "replace": ""}]},
+    "speaker": {"address": "0x800F3750", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                "when": {"address": "0x8007253D"}},
+    "waiting": {"address": "0x8007253B"},
+    "notes": "The window's three rows are written over in place and not ended, so the row lengths cut them. A page is whole in memory as soon as it starts to type, so there is no `shown`: the typing position is kept per segment (u16 at 0x80074CCC, rows revealed at 0x80074CD0). The name buffer keeps the last speaker during narration; the flag at 0x8007253D is the name plate. A wrapped row ends in the game's padding (full-width spaces), which the cleanup drops. Found by replaying the opening headless (docs/replay.md) and checked in a reader during play; choices not reached."
+  }],
   "status": "verified",
-  "sources": ["Genkan memory search during play"]
+  "sources": ["Genkan memory search during play", "Headless replay of the opening: 130 samples over 30 lines",
+              "Genkan live check of the layout from a new game: 26 waiting points over 13 pages, names and narration right"]
 }

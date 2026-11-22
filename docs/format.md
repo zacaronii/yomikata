@@ -87,7 +87,14 @@ Every field is optional, and a layout with only `message` is already useful.
 | `shown` | *number*: how many characters of the message are on screen |
 | `waiting`, `choosing` | *flag*: the line is complete and waits for a press; a choice is up |
 | `choices`, `choice_count`, `choice_cursor` | *text* with one answer per row; how many rows count; which answer (from 0) the cursor is on |
+| `when` | *flag*: the addresses hold what the layout says (see below) |
 | `notes` | Short; no script text |
+
+Some games use the same memory for something else outside their script: a movie's frames, the title screen. A
+layout's own `when` is true only while its addresses mean what it says. While it is false a reader reads
+nothing else: every *text* is empty, `waiting` and `choosing` are false, and the numbers (`shown`,
+`choice_count`, `choice_cursor`, a speaker number) are left out. If `when` can't be read, nothing else is read
+either, and `when` is the field that failed.
 
 Every *number*, *flag* and *text* says where it is in one of two ways:
 
@@ -98,6 +105,10 @@ Every *number*, *flag* and *text* says where it is in one of two ways:
 
 A *number* has a `type` (`u8` default, `u16`, `u32`, `s8`, `s16`, `s32`). As a *flag* it is true when nonzero, or
 when it `equals` a given value.
+
+A reader that finds a key or a named value (a `charset`, a `type`) it doesn't know anywhere in a layout treats
+that layout as not there: a newer key can change what the others mean (a text without its `when` would show
+what is no longer on screen).
 
 **Which layout:** a reader that knows the executable's SHA-1 picks the layout naming it, else the first one naming
 no versions. A reader that can't hash the executable (one that only sees the game's memory) still knows the release
@@ -111,21 +122,33 @@ A *text* has:
   `controls`);
 - `max_bytes`, which a reader never reads past;
 - optionally `terminator` (hex in memory byte order, matched only at character boundaries), `length` (a *number*
-  holding the length in bytes), and `rows: {count, stride}` for a buffer of rows, each read to its terminator and
-  joined with newlines;
+  holding the length), and `rows: {count, stride}` for a buffer of rows, each read to its terminator and joined
+  with newlines;
+- optionally `rows.lengths`, for a game that keeps one length per row: a *number* whose address is the first
+  row's length, with the next rows' lengths right after it (a `u16` for row 2 is 4 bytes on);
+- optionally `when`, a *flag* that is true while the text is on screen. Many games leave the last text in memory
+  after its window closes; while `when` is false the text is empty;
 - its own `cleanup`, applied before the entry's.
+
+A length counts bytes unless it says `"counts": "characters"`. Games that write a new line over the old one
+without ending it need a length to tell where the new line stops.
 
 ### Reading a text
 
 Every client should get the same string from the same bytes, so the steps are fixed:
 
-1. Read `max_bytes` bytes at the address (`stride` bytes if that is less; with `rows`, once per row, `stride`
-   apart). A `length` shortens the read; a length below zero is 0. If a read fails, the whole field fails.
-2. Split the bytes into characters by the lengths below. Stop at the `terminator` where it stands at the start of
-   a character, and drop a last character that doesn't fit in what was read.
-3. Decode each character on its own. One that doesn't decode is one U+FFFD, however many bytes it has.
-4. With `rows`: drop empty rows from the end, and join the rest with a newline.
-5. Apply the text's `cleanup`, then the entry's.
+1. With `when`: read the flag. If it is false the text is the empty string, and nothing else is read. If it
+   can't be read, the field fails.
+2. Read `max_bytes` bytes at the address (`stride` bytes if that is less; with `rows`, once per row, `stride`
+   apart). A length in bytes shortens the read; a length below zero is 0. If a read fails, the whole field fails,
+   and so it does if a length can't be read.
+3. Split the bytes into characters by the lengths below. Stop at the `terminator` where it stands at the start of
+   a character, and drop a last character that doesn't fit in what was read. A length in characters stops the
+   split after that many (a `table` code is one character here, whatever it decodes to). `length` applies to
+   every row and `rows.lengths` to its own row; where both are given, both hold.
+4. Decode each character on its own. One that doesn't decode is one U+FFFD, however many bytes it has.
+5. With `rows`: drop empty rows from the end, and join the rest with a newline.
+6. Apply the text's `cleanup`, then the entry's.
 
 | Charset | Bytes in a character, from its first byte | Decoded as |
 |---|---|---|
