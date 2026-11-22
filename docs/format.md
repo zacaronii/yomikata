@@ -158,7 +158,7 @@ A *text* has:
   included. `{"03": 2, "07": 2}` is two codes with one argument byte each. With `table` these are the controls
   that take arguments (`{"FFF9": 4}`: a two-byte control and its two-byte argument); a control without one
   needs no entry here;
-- optionally `script: {open, offset}`, for a game that keeps no copy of the text it shows and reads it straight
+- optionally `script: {offset, open}`, for a game that keeps no copy of the text it shows and reads it straight
   out of a script, with instructions between the texts. The text's address is then where the script starts,
   `offset` is a *number* holding how many bytes into the script the game is reading (with `"counts": "codes"`,
   how many codes of `unit` bytes), and `open` is the code a text starts after (hex in memory byte order). The
@@ -166,7 +166,9 @@ A *text* has:
   `table`, and not together with `rows`, `pages`, `terminator` or `length`. With `texts: "rows"` in it, each text
   of the page is a row of its own: for a list the game writes as one text per item, such as a choice's answers.
   With `rest` (1 to 16), a game may stop up to that many codes past a text's end code while the text stays up,
-  as one does that reads a choice's jump targets after its answers and waits there;
+  as one does that reads a choice's jump targets after its answers and waits there.
+  Without `open` the script is one text from its start: for a game that copies the stretch it is showing into a
+  buffer of its own, pages and all, and counts how far it has typed. `texts` and `rest` need `open`;
 - optionally `when`, a *flag* that is true while the text is on screen. Many games leave the last text in memory
   after its window closes; while `when` is false the text is empty;
 - its own `cleanup`, applied before the entry's.
@@ -232,6 +234,10 @@ tables mark with `/` or `controls` calls `end`; a *page code* is one `controls` 
    goes with it. Not so for a page code with nothing after it up to the position but end codes: the page it
    ended is still up, and stays until the game reads on. (A game that closes its window with a code of its
    own gets an empty text from this once it has read past that code, if `controls` calls it `clear`.)
+
+Without `open`, nothing is read after the position in step 1, and steps 2 and 3 are one rule: the page starts at
+the script's start. If the bytes read don't reach back to it (`offset` is more than `max_bytes`), the text is
+the empty string. Steps 4 and 5 are the same, with no texts to join.
 
 Walking back can't tell an argument from a code. An argument that equals the open code or an end code cuts the
 page short there, so a script whose arguments can have those values isn't one for `script`.

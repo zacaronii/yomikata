@@ -824,6 +824,40 @@ def cases() -> list[dict]:
          {"message": "：う\n：え", "choosing": True, "choices": ["う", "え"], "choice_cursor": 0},
          entry=opened, tables={"tables/test/colon.tbl": colon})
 
+    # A buffer the game copies the stretch it is showing into, with a count of the codes it has typed: no code
+    # opens a text, so the script has no `open` and is one text from its start. Two pages, each ending in F003
+    # (page); F002 is a wait. FFFF ends the buffer.
+    typed = pad(b"".join(bytes.fromhex(w) for w in ["0001", "0002", "FFFE", "0003", "F003", "0004", "F002", "0005",
+                                                    "F003", "FFFF"]), 24)
+    counted = {"tables": ["tables/test/kana.tbl"], "unit": 2, "controls": {"F002": "wait", "F003": "page"}}
+
+    def buffer(cell: int, max_bytes: int = 24) -> dict:
+        offset = {"address": f"0x{0x803A0018 + 4 * cell:08X}", "type": "u32", "counts": "codes"}
+        return {"address": "0x803A0000", "charset": "table", "max_bytes": max_bytes, "script": {"offset": offset}}
+
+    case("script-no-open-typing",
+         "A script without an open code is one text from its start, read as far as the game has read it: two "
+         "codes in (message), four codes in, past a line break (speaker), and nothing at zero (choices).",
+         {"message": buffer(0), "speaker": buffer(1), "choices": buffer(2)},
+         {0x803A0000: typed + num(2) + num(4) + num(0)},
+         {"message": "あい", "speaker": "あい\nう", "choices": []}, entry=counted, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-no-open-pages",
+         "Page codes in such a script. Just past the first one the page it ended is still up (message); one "
+         "code on, the page starts anew (speaker). Past the last page code and past the end code after it, "
+         "the last page is still up, and the wait code in it is nothing (choices).",
+         {"message": buffer(0), "speaker": buffer(1), "choices": buffer(2)},
+         {0x803A0000: typed + num(5) + num(6) + num(10)},
+         {"message": "あい\nう", "speaker": "え", "choices": ["えお"]}, entry=counted,
+         tables={"tables/test/kana.tbl": KANA})
+
+    case("script-no-open-max-bytes",
+         "The text starts at the script's start, so the read has to reach back to it. Five codes in with 8 "
+         "bytes to read, it doesn't: nothing (message). With 10 it does (speaker).",
+         {"message": buffer(0, 8), "speaker": buffer(0, 10)},
+         {0x803A0000: typed + num(5)},
+         {"message": "", "speaker": "あい\nう"}, entry=counted, tables={"tables/test/kana.tbl": KANA})
+
     # Two layouts for one version: a game that loads a program per chapter keeps its cells elsewhere in each.
     def chapter(value: int, text: int) -> dict:
         return {"when": {"address": "0x80330000", "type": "u32", "equals": value},
