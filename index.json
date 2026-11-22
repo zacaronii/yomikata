@@ -128,7 +128,7 @@
   },
   "SLPM-86168": {
    "path": "games/ps1/SLPM-86168.json",
-   "sha256": "8e3059e3a148d5d4a3f976c9b6cb148da8edc6bf215eb46cfe2165fc36acd17f",
+   "sha256": "24f61c1c88a22ad28f7f6aac7137c311f2c2540635c39d87f3ff28259b9de2ee",
    "platform": "ps1",
    "encoding": "table",
    "status": "partial"

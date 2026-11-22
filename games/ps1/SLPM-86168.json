@@ -23,16 +23,17 @@
                 "cleanup": [{"regex": "(?m)　+$", "replace": ""}, {"regex": "\\n+$", "replace": ""}]},
     "speaker": {"base": "0x8002590C", "offsets": ["0x80", "0x0"], "charset": "table", "max_bytes": 44,
                 "terminator": "0000", "cleanup": [{"regex": "　+$", "replace": ""}]},
-    "waiting": {"base": "0x8002590C", "offsets": ["0x21"], "equals": 2},
+    "waiting": {"base": "0x8002590C", "offsets": ["0x21"], "mask": 3},
     "choosing": {"base": "0x8002590C", "offsets": ["0x0C"]},
     "choices": {"base": "0x8002590C", "offsets": ["0x64", "0x0"], "charset": "table", "max_bytes": 46,
                 "rows": {"count": 4, "stride": 46}, "when": {"base": "0x8002590C", "offsets": ["0x0C"]},
                 "cleanup": [{"regex": "(?m)　+$", "replace": ""}, {"regex": "\\n+$", "replace": ""}]},
     "choice_cursor": {"base": "0x8002590C", "offsets": ["0x9F"]},
-    "notes": "0x8002590C points to the dialogue window while there is one, else 0; the window's address moves. In it: 0x64 points to the text, 4 rows of 23 16-bit cells filled as typed; 0x80 points to the speaker's name; byte 0x21 is 0 while typing, 2 while waiting for a press. A question's answers are typed into the same rows with the hero as speaker, so they are the message too; byte 0x0C (the widest answer's length, else 0) marks them and byte 0x9F is the cursor's row: seen in one question with two answers. Notices in their own window are not read. Another window size than 23 by 4 would be misread."
+    "notes": "0x8002590C points to the dialogue window, or is 0 without one; the window's address moves. In it: 0x64 points to the text, 4 rows of 23 16-bit cells filled as typed; 0x80 points to the speaker's name; byte 0x21 is 0 while typing, 8 in a timed pause, 1 waiting for a press inside a speech, 2 at its last page. A question's answers are typed into the same rows, so they are the message too; byte 0x0C (nonzero) marks them, byte 0x9F is the cursor's row. As a window opens, waiting and choosing can be true for a frame or two with nothing typed. Notices in their own window are not read."
   }],
   "sources": [
     "Headless replay from power-on: the opening scene's dialogue, its first choice with the cursor on each answer, the party notice, walking, and talking to a soldier outside; about 100 frames compared with the layout's reading",
+    "Played on a handheld in a libretro PCSX ReARMed build from power-on to the mountain path: 584 readings with no unmapped code, the speakers, a four-row page, the first question's answers and cursor, and the values of byte 0x21",
     "The game's font in video memory, matched glyph by glyph against the first game's table (SLPS-00097); the other glyphs read from the dialogue on the disc, which is in plain codes, and against a reference 12-pixel font"
   ],
   "notes": "One 16-bit table for the whole game (tables/ps1/SLPM-86168.tbl): the code is the glyph's place in the font. The dialogue is on the disc in plain codes (kana one byte, kanji two with a lead byte 01-03, 8 above the table's code) under CDROM/, so a scan in a standard encoding finds nothing. Not reached in the replay: towns, shops, battles, the war and duel screens. Window frame pieces, cursor marks and item icons (0x00-0x0F, 0x38-0x3B, 0xF2-0xF7) are not mapped."
