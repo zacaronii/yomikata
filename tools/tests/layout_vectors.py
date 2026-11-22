@@ -528,6 +528,116 @@ def cases() -> list[dict]:
           + num(0x80180004) + num(0x80180007)},
          {"message": "あい", "speaker": "う"})
 
+    case("codes-table",
+         "Codes with a table charset: a control that takes an argument is skipped whole, so an argument of FFFF "
+         "isn't the terminator (message). Without `codes` the same bytes end there (speaker).",
+         {"message": {"address": "0x80200000", "charset": "table", "max_bytes": 16, "terminator": "FFFF",
+                      "codes": {"F001": 4}},
+          "speaker": {"address": "0x80200000", "charset": "table", "max_bytes": 16, "terminator": "FFFF"}},
+         {0x80200000: pad(bytes.fromhex("0001 F001 FFFF 0002 FFFF 0003"), 16)},
+         {"message": "あい", "speaker": "あ"},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2, "controls": {"F001": "wait"}},
+         tables={"tables/test/kana.tbl": KANA})
+
+    # A made-up script: instructions (27 01 05 and 00 28 12 34) around three texts, each after 80 00. The second
+    # text carries the first one's page on; the third starts a new page, because F003 (page) stands before the
+    # end code in front of it. The texts start at odd addresses.
+    pieces = ["270105", "8000", "0001 0002 FFFE 0003", "FFFF", "8000", "0004", "F001 001E", "0005", "F003", "FFFF",
+              "8000", "0006", "FFFF", "0028 1234"]
+    script = pad(b"".join(bytes.fromhex(p) for p in pieces), 64)
+    at = [sum(len(bytes.fromhex(p)) for p in pieces[:n]) for n in range(len(pieces) + 1)]   # where each starts
+    told = {"tables": ["tables/test/kana.tbl"], "unit": 2, "controls": {"F001": "wait", "F003": "page"}}
+
+    def page(cell: int, **more) -> dict:
+        offset = {"address": f"0x{0x80300040 + 4 * cell:08X}", "type": "s32"}
+        return {"address": "0x80300000", "charset": "table", "max_bytes": 64, "codes": {"F001": 4},
+                "script": {"open": "8000", "offset": offset}, **more}
+
+    case("script-typing",
+         "A script page is read as far as the game has read it. The position is 6 bytes into the first text "
+         "(message), and in the second text after a wait code and its argument (speaker): the second text "
+         "follows the first one's end code directly, so it carries the page on, and neither the end code nor "
+         "the 80 00 shows.",
+         {"message": page(0), "speaker": page(1)},
+         {0x80300000: script + num(at[2] + 4) + num(at[7])},
+         {"message": "あい", "speaker": "あい\nうえ"}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-page-end",
+         "The position is after the page's last character and its page code, before the end code (message), "
+         "and after the end code of the last text, with an instruction next (speaker): the end code just "
+         "behind the position is stepped over. The third text starts a new page, because a page code stands "
+         "before the end code in front of it.",
+         {"message": page(0), "speaker": page(1)},
+         {0x80300000: script + num(at[9]) + num(at[13])},
+         {"message": "あい\nうえお", "speaker": "か"}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-between-texts",
+         "The position is on an open code that carries the page on: the page so far (message). Right after "
+         "that code it is the same (speaker).",
+         {"message": page(0), "speaker": page(1)},
+         {0x80300000: script + num(at[4]) + num(at[5])},
+         {"message": "あい\nう", "speaker": "あい\nう"}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-new-page",
+         "The position is on an open code that starts a new page: nothing, the old page is over (message). "
+         "Right after it nothing of the new page has been read yet (speaker), and then its first character "
+         "(choices).",
+         {"message": page(0), "speaker": page(1), "choices": page(2)},
+         {0x80300000: script + num(at[10]) + num(at[11]) + num(at[12])},
+         {"message": "", "speaker": "", "choices": ["か"]}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-not-in-a-text",
+         "A position that isn't in a text reads as nothing: on the first open code, which no end code "
+         "precedes (message); among the instructions after the last text, where walking back meets an end "
+         "code before an open code (speaker); at the script's start (choices: the offset is 0).",
+         {"message": page(0), "speaker": page(1), "choices": page(2)},
+         {0x80300000: script + num(at[1]) + num(at[14]) + num(0)},
+         {"message": "", "speaker": "", "choices": []}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-max-bytes",
+         "Never more than max_bytes behind the position. 8 bytes reach back to the second text's open code "
+         "but not to the first text, so the page starts at the second (message); 6 bytes reach no open code "
+         "at all (speaker). An offset below zero is nothing (choices).",
+         {"message": page(0, max_bytes=8), "speaker": page(0, max_bytes=6), "choices": page(1)},
+         {0x80300000: script + num(at[7]) + num(-4)},
+         {"message": "え", "speaker": "", "choices": []}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-unreadable",
+         "If the offset can't be read, the field fails (message), and so it does if the script can't be read "
+         "at the offset (speaker: the offset points far outside memory).",
+         {"message": {**page(0), "script": {"open": "8000", "offset": {"base": "0x80300044", "offsets": ["0x0"]}}},
+          "speaker": page(2)},
+         {0x80300000: script + num(at[7]) + num(0) + num(0x100000)},
+         {"errors": {"message": "", "speaker": ""}}, entry=told, tables={"tables/test/kana.tbl": KANA})
+
+    sets = {"tables": {"by": {"address": "0x80210010", "type": "u16"},
+                       "sets": {"36": ["tables/test/one.tbl"], "94": ["tables/test/two.tbl"]}},
+            "message": {"address": "0x80210000", "charset": "table", "max_bytes": 16, "terminator": "FFFF"},
+            "speaker": {"address": "0x80210008", "charset": "shift_jis", "max_bytes": 8, "terminator": "00"}}
+    chapters = {"tables/test/kana.tbl": KANA, "tables/test/one.tbl": "0100=学\n",
+                "tables/test/two.tbl": "0100=校\n0002=胃\n"}
+    words = bytes.fromhex("0001 0002 0100 FFFF") + pad(sjis("先生"), 8)
+    case("tables-set",
+         "A layout's own tables: the number is 94, so two.tbl follows the entry's table (and wins over it for "
+         "0002). The same bytes under 36 would be あい学.",
+         sets, {0x80210000: words + num(94, 2)},
+         {"message": "あ胃校", "speaker": "先生"},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2}, tables=chapters)
+
+    case("tables-no-set",
+         "No set for the number: a table text fails instead of being read with the wrong table. A text in a "
+         "standard charset is still read.",
+         sets, {0x80210000: words + num(7, 2)},
+         {"speaker": "先生", "errors": {"message": ""}},
+         entry={"tables": ["tables/test/kana.tbl"], "unit": 2}, tables=chapters)
+
+    case("tables-unreadable",
+         "The number can't be read: the same. Here the entry has no tables of its own; a set can be all there is.",
+         {**sets, "tables": {**sets["tables"], "by": {"base": "0x80210014", "offsets": ["0x0"], "type": "u16"}}},
+         {0x80210000: words + num(94, 2) + bytes(2) + num(0)},
+         {"speaker": "先生", "errors": {"message": ""}},
+         entry={"unit": 2}, tables=chapters)
+
     return out
 
 
@@ -546,12 +656,14 @@ def memory(vector: dict):
 def replay(vector: dict) -> dict:
     """What the reference reader reads from a vector."""
     entry = vector["entry"]
-    table = None
-    if entry.get("tables"):
+
+    def load(paths: list[str]) -> tbl.Table:
         table = tbl.Table()
-        for path in entry["tables"]:
+        for path in paths:
             table.update(tbl.parse(vector["tables"][path], path))
-    return layout.read_layout(vector["layout"], entry, memory(vector), table)
+        return table
+    table = load(entry["tables"]) if entry.get("tables") else None
+    return layout.read_layout(vector["layout"], entry, memory(vector), table, load)
 
 
 def agrees(read: dict, expected: dict) -> bool:

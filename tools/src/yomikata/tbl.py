@@ -58,13 +58,19 @@ def load(paths: list[Path]) -> Table:
     return out
 
 
-def decode(data: bytes, table: Table, unit: int, controls: dict[str, str] | None = None) -> str:
+def decode(data: bytes, table: Table, unit: int, controls: dict[str, str] | None = None,
+           codes: dict[bytes, int] | None = None) -> str:
     """`data` as text, `unit` bytes per code. An end code is a blank line and a newline code a line break, whether
     the table marks them or an entry's `controls` do; `page` and `clear` are a blank line too, any other control
-    is nothing, and a code the table lacks is U+FFFD."""
+    is nothing, and a code the table lacks is U+FFFD. `codes` (the bytes a code starts with -> its length with
+    its arguments) are looked for first and are nothing."""
     means = {bytes.fromhex(code): what for code, what in (controls or {}).items()}
     out, i = [], 0
     while i + unit <= len(data):
+        leads = [lead for lead in codes or () if data.startswith(lead, i)]
+        if leads:
+            i += codes[max(leads, key=len)]
+            continue
         code = data[i:i + unit]
         what = "end" if code in table.end else "newline" if code in table.newline else means.get(code)
         if what in ("end", "page", "clear"):

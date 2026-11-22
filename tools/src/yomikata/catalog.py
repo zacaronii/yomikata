@@ -77,9 +77,15 @@ def validate(root: Path) -> list[Problem]:
             for v in lay.get("versions", []):
                 if v not in listed:
                     problems.append(Problem(rel, f"layouts/{n}: version {v} isn't in the entry's versions"))
+            sets = lay["tables"].get("sets") if isinstance(lay.get("tables"), dict) else None
+            for t in sorted({t for paths in (sets or {}).values() for t in paths}):
+                if not (root / t).is_file():
+                    problems.append(Problem(rel, f"layouts/{n}: table {t} doesn't exist"))
+            if sets and "unit" not in e:
+                problems.append(Problem(rel, f"layouts/{n}: tables need a unit (bytes per code)"))
             texts = [lay.get(k) for k in ("message", "speaker", "choices")]
-            if any(isinstance(t, dict) and t.get("charset") == "table" for t in texts) and not e.get("tables"):
-                problems.append(Problem(rel, f"layouts/{n}: a table charset needs the entry's tables"))
+            if any(isinstance(t, dict) and t.get("charset") == "table" for t in texts) and not (e.get("tables") or sets):
+                problems.append(Problem(rel, f"layouts/{n}: a table charset needs the entry's tables, or the layout's own"))
     return problems
 
 
