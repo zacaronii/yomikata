@@ -1,0 +1,32 @@
+{
+ "name": "length-and-rows-lengths",
+ "checks": "With both a length and row lengths, both hold: here no row is longer than 4 bytes, and each row also stops at its own count of characters.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80110000",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "length": {
+    "address": "0x80110010"
+   },
+   "rows": {
+    "count": 2,
+    "stride": 8,
+    "lengths": {
+     "address": "0x80110011",
+     "counts": "characters"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80110000",
+   "hex": "82a082a282a482a682a982ab82ad82af040301"
+  }
+ ],
+ "expected": {
+  "message": "あい\nか"
+ }
+}
