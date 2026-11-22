@@ -1,15 +1,16 @@
 # Gensou Suikoden II (SLPM-86168): 16-bit codes, low byte first (46 00 = あ). One table for the whole game.
 # The code is the glyph's place in the game's 12x12 font (1000 cells), which stands whole in video memory during
 # play. 691 glyphs are pixel for pixel those of the first game's font (SLPS-00097), 688 of them at the same code,
-# and took its reading. The rest were read from sentences: the dialogue is on the disc as plain codes, so every
-# kanji used in it was read in several sentences, then checked glyph by glyph beside a reference 12-pixel font
-# (the glyph corrected four first readings: 0x0147, 0x02CA, 0x035B, 0x03DD). 17 characters no dialogue uses
-# were read from the glyph alone: 0x019F, 0x01B1, 0x01D8, 0x027B, 0x02AF, 0x02B0, 0x02B2, 0x02B8, 0x02BC, 0x02BE,
-# 0x02C3, 0x02F9, 0x0336, 0x03B5, 0x03C2, 0x03CD, 0x03E7. 0x0010 is the blank cell of the text grid.
-# 0x0035-0x0037 are the equipment labels 頭, 右手, 左手, each drawn in one cell. Not mapped: 0x0000-0x000F (window
+# and took its reading; those the first game never shows in a sentence were read again in this game's dialogue,
+# which corrected one (0x025B is 員, not 貫). The rest were read from sentences: the dialogue is on the disc as plain
+# codes, so every kanji used in it was read in several sentences, then checked glyph by glyph beside a reference
+# 12-pixel font (the glyph corrected four first readings: 0x0147, 0x02CA, 0x035B, 0x03DD). 17 characters no
+# dialogue uses were read from the glyph alone: 0x019F, 0x01B1, 0x01D8, 0x027B, 0x02AF, 0x02B0, 0x02B2, 0x02B8,
+# 0x02BC, 0x02BE, 0x02C3, 0x02F9, 0x0336, 0x03B5, 0x03C2, 0x03CD, 0x03E7. 0x0010 is the blank cell of the text
+# grid. 0x0035-0x0037 are the equipment labels 頭, 右手, 左手, each drawn in one cell. Not mapped: 0x0000-0x000F (window
 # frame pieces), 0x0038-0x003B (cursor and wait marks), 0x00F2-0x00F7 (item icons). Twice in the font: 退 (0x01EA,
-# 0x02B5), 牙 (0x02F7, 0x02F9), 頭 (0x01A9, 0x0035). The script on the disc writes kanji as a lead byte 01-03 and
-# a second byte, 8 above the code here; this table is for the codes as the window holds them in memory.
+# 0x02B5), 牙 (0x02F7, 0x02F9), 頭 (0x01A9, 0x0035). The script on the disc writes kanji as a lead byte 01-03 and a
+# second byte, 8 above the code here; this table is for the codes as the window holds them in memory.
 1000=　
 1100=０
 1200=１
@@ -587,7 +588,7 @@ FF01=毒
 5802=開
 5902=過
 5A02=隠
-5B02=貫
+5B02=員
 5C02=案
 5D02=料
 5E02=遊
