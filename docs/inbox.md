@@ -39,9 +39,9 @@ RAM** taken while a line is on screen, and let the inbox's side do the searching
 
 | Part | |
 |---|---|
-| `meta` | JSON: `id`, `platform` (`ps1`, `ps2`, `psp`), `base_address` (where the dump starts, e.g. `0x80000000` for PS1, `0x08000000` for PSP), `ocr` (the line or lines on screen, 1-10), and optionally `title`, `exe_sha1`, `captured_at`, `app`, `emulator`, `note` |
+| `meta` | JSON: `id`, `platform` (`ps1`, `ps2`, `psp`), `base_address` (where the dump starts, e.g. `0x80000000` for PS1, `0x08000000` for PSP), `ocr` (the line or lines on screen, 1-10; or `"no_text": true` and no lines, see below), and optionally `title`, `exe_sha1`, `captured_at`, `app`, `emulator`, `note` |
 | `ram` | The raw RAM bytes (PS1: 2 MB; PSP: up to 32 MB), optionally gzipped |
-| `state` | Optional: the emulator's savestate (libretro `retro_serialize`), gzipped, up to 32 MB. On PCSX ReARMed it holds the 1 MB of video memory, which `yomikata vram` extracts |
+| `state` | Optional: the emulator's savestate (libretro `retro_serialize`), gzipped, up to 64 MB once unpacked (PCSX ReARMed: 4 MB, PPSSPP: 40 MB). On PCSX ReARMed it holds the 1 MB of video memory, which `yomikata vram` extracts |
 | `vram` | Optional: the video memory itself, when the core gives it out (PS1: 1 MB) |
 | `screen` | Optional: the frame on screen as a PNG, up to 4 MB |
 
@@ -56,6 +56,10 @@ Upload at most 80 MB. Other parts are ignored.
   memory). Then the font in video memory and the frame on screen are what tie glyphs to characters.
 - Two or three snapshots taken at different lines of the same scene are far more useful than one: each line is a
   separate constraint when working out a game's own table.
+- A snapshot of a screen **with no text on it** (the window closed, a scene change) is worth sending beside
+  them: what differs from the snapshots with a line shows where the game keeps "the window is open", so a layout
+  can say when the text in memory is no longer on screen. Send it with `"no_text": true` and an empty `ocr`. An
+  empty `ocr` without it is refused, so a screen OCR failed on is never stored as an empty one.
 - For a game in a standard encoding, `yomikata locate <snapshots>` goes one step further: when a place in memory was
   seen to change from one line to another, it prints that buffer as a layout's `message` block (address, rows and
   stride if the window is stored row by row) and reads it back against each snapshot's OCR. Three snapshots of
