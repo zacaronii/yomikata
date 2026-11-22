@@ -1,0 +1,17 @@
+{
+  "id": "ULJM05353",
+  "platform": "psp",
+  "title": "英雄伝説 空の軌跡 the 3rd",
+  "title_romaji": "Eiyuu Densetsu: Sora no Kiseki the 3rd",
+  "versions": [
+    {
+      "exe": "EBOOT.BIN",
+      "exe_sha1": "0e7de6ff9e951f75069c12e54f9e9f76af7ae042"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 135,696, utf16le 8, utf8 9 characters of prose-like text"
+  ]
+}
