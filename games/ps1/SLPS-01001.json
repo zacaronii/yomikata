@@ -25,11 +25,21 @@
     "tables/human-kana.tbl"
   ],
   "unit": 2,
+  "controls": {
+    "FFFF": "end",
+    "FFFD": "newline",
+    "FFFC": "page",
+    "FFF9": "wait",
+    "FFFA": "pause"
+  },
   "status": "partial",
   "sources": [
     "Genkan memory search during play (scheme)",
     "RAM snapshot from Genkan (inbox): the line on screen found as 16-bit codes by its pattern of repeated characters; the kana fit the gojuon order exactly, and the surrounding dialogue decodes as Japanese",
-    "The same bytes are on disc in PROLOGUE.DAT, archive entry 0 (the prologue script), uncompressed"
+    "The same bytes are on disc in PROLOGUE.DAT, archive entry 0 (the prologue script), uncompressed",
+    "From the discs: each chapter archive's entry 0 is its script (a text follows the bytes 80 00 and ends at FFFF), entry 1 the kana sheet (identical in all twelve), entry 2 the kanji widths and entry 3 the kanji sheets, 256 cells each in code order",
+    "Glyphs: 3,626 kanji cells in twelve chapters, 1,123 different bitmaps, all read by eye. Every script was then decoded and checked against a word list, and the lines of each glyph the list didn't confirm were read; 89 glyphs no script uses are unchecked",
+    "Every text in the twelve scripts decodes with no unmapped character code, but for one line in MOWDEI that uses two codes (0x02E6, 0x02E7) the font has no glyph for"
   ],
-  "notes": "Kana are mapped (tables/human-kana.tbl). Codes are 2 bytes, high byte first, and in this RAM buffer they start at an odd address. Kanji are 0x0100 up in the order of the scene's own font (早 0x0104, 帰 0x0105 in the prologue), so they likely change between scenes: read them from the font or by OCR. 0xFFF9-0xFFFF are control codes, some followed by a parameter word (FFFA xx, FFF9 xxxx); their meanings aren't mapped yet."
+  "notes": "16-bit codes, high byte first; in RAM a text can start at an odd address. 0x0000-0x00EF are shared (tables/human-kana.tbl); kanji are 0x0100 up and each of the 12 chapters numbers its own, so one of tables/ps1/SLPS-01001-<chapter>.tbl (named after the discs' chapter archives) must follow. The format can't choose a table yet, so only the shared one is listed and kanji read as unmapped. FFF9 and FFFA are followed by a frame count (FFF9 012C waits for a press), which a table decode shows as a character; FFFE isn't settled. Where the game keeps its place in the script isn't known yet: no layout."
 }
