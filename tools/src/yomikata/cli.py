@@ -10,6 +10,7 @@ from pathlib import Path
 from . import catalog
 from .disc import DiscError
 from .identify import identify
+from .layout import RAM_BASE
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -102,7 +103,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "locate":
         import gzip
-        from .layout import RAM_BASE
         from .locate import find_standard, locate, propose
         snaps, bases = [], []
         for p in args.snapshots:
