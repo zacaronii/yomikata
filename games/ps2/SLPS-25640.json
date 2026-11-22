@@ -1,0 +1,27 @@
+{
+  "id": "SLPS-25640",
+  "aliases": [
+    "SLPS-25641"
+  ],
+  "platform": "ps2",
+  "title": "ゼノサーガ エピソードIII ツァラトゥストラはかく語りき",
+  "title_romaji": "Xenosaga Episode III: Also sprach Zarathustra",
+  "versions": [
+    {
+      "id": "SLPS-25640",
+      "exe": "SLPS_256.40",
+      "exe_sha1": "e8125f743e0e7fda0ec392ea845dd0069470af3b"
+    },
+    {
+      "id": "SLPS-25641",
+      "exe": "SLPS_256.41",
+      "exe_sha1": "e8125f743e0e7fda0ec392ea845dd0069470af3b"
+    }
+  ],
+  "encoding": "compressed",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 153, utf16le 82 characters of prose-like text"
+  ],
+  "notes": "Most of the disc is compressed data and little script reads on it; the script is likely compressed on disc. A memory sample from play will settle the encoding."
+}

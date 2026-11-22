@@ -1,0 +1,18 @@
+{
+  "id": "SLPM-65078",
+  "platform": "ps2",
+  "title": "METAL GEAR SOLID 2 SONS OF LIBERTY",
+  "title_romaji": "Metal Gear Solid 2: Sons of Liberty",
+  "versions": [
+    {
+      "exe": "SLPM_650.78",
+      "exe_sha1": "848b4ae3985f28b05e3e884e3e2df4c110f84d26"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0: no prose-like text on disc"
+  ],
+  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+}

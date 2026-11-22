@@ -67,6 +67,8 @@ def read_int(spec: dict, read, endian: str = "little", index: int = 0) -> int:
 
 def read_flag(spec: dict, read, endian: str = "little") -> bool:
     value = read_int(spec, read, endian)
+    if "mask" in spec:                              # only these bits count (of the value as stored, so never negative)
+        value &= spec["mask"]
     return value == spec["equals"] if "equals" in spec else value != 0
 
 
@@ -261,7 +263,7 @@ def version_for(entry: dict, release_id: str | None) -> str | None:
 
 
 _WHERE = {"address", "base", "offsets"}
-_NUMBER = _WHERE | {"type", "equals"}
+_NUMBER = _WHERE | {"type", "equals", "mask"}
 _LENGTH = _WHERE | {"type", "counts"}
 _TEXT = _WHERE | {"charset", "max_bytes", "terminator", "length", "rows", "pages", "script", "codes", "when",
                   "cleanup"}
