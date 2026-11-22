@@ -54,7 +54,7 @@
         "address": "0x08C9D41E",
         "equals": 2
       },
-      "notes": "The message window's rows as the game lays them out (5 rows of 54 characters, without the script's tags), whole from the moment the line starts typing; all zero when no message is up. `waiting` is a state byte: 3 while a line types, 2 once it waits for a press, 0 at a system prompt; the backlog and auto-advance are unchecked. Not mapped: the speaker (its name isn't in memory as text) and typing progress (u16 0x08C9A592 is the pen's x, 16 per character). The prompt about trial save data is the PSP's own dialog, not this buffer."
+      "notes": "The message window's rows as the game lays them out (5 rows of 54 characters, without the script's tags), whole from the moment the line starts; all zero when no message is up. `waiting` is a state byte: 3 for the few frames a line takes to draw, 2 once it waits for a press, 0 at a system prompt; the backlog and auto-advance are unchecked. A line is whole on screen within about 3 frames, so there is no typing progress to map. Not mapped: the speaker (its name isn't in memory as text). The prompt about trial save data is the PSP's own dialog, not this buffer."
     }
   ],
   "status": "auto",
@@ -63,7 +63,8 @@
     "Hook 0x0885AF64 (a0) found in play by Genkan 0.0.1 in PPSSPP v1.20.4, disc version 1.03: 8/8 lines matched OCR",
     "Layout from five Genkan snapshots (PPSSPP, disc version 1.03): the message buffer read back the line on screen in the three taken during dialogue, half-typed and complete, and read empty in the two taken at a system prompt",
     "Genkan read the layout at frame rate during play on the Thor: 21 of 21 lines in the game's backlog, none twice, none missing, none stale",
-    "Five more Genkan snapshots (two lines half-typed, then complete; one more complete line): with the first five, the state byte read 3 in all three half-typed, 2 in all five complete and 0 at both system prompts"
+    "Five more Genkan snapshots (two lines half-typed, then complete; one more complete line): with the first five, the state byte read 3 in all three half-typed, 2 in all five complete and 0 at both system prompts",
+    "Genkan on the Thor, frame and memory captured together 3, 6, 10 and 15 frames after the state byte went to 3, in four lines of a character's speech: each line was already whole on screen and the byte was back at 2"
   ],
   "notes": "The original release. The PSP the Best reissue (NPJH50515) uses a different hook address; its 0x088540B0 runs constantly on this release without pointing at text."
 }
