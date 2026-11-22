@@ -119,6 +119,116 @@ def test_pick_without_a_hash_takes_the_only_version_of_the_release():
     assert layout.pick(cart, None, "AXXJ")["notes"] == "general"       # no executable hash to name
 
 
+def test_layouts_for_gives_every_layout_of_the_version_in_order():
+    lays = [{"notes": "general"}, {"versions": ["b" * 40], "notes": "b1"}, {"versions": ["c" * 40], "notes": "c"},
+            {"versions": ["b" * 40], "notes": "b2"}, {"notes": "general 2"}]
+    e = {"layouts": lays}
+    assert [lay["notes"] for lay in layout.layouts_for(e, "b" * 40)] == ["b1", "b2"]
+    assert [lay["notes"] for lay in layout.layouts_for(e, "d" * 40)] == ["general", "general 2"]
+    assert layout.pick(e, "b" * 40)["notes"] == "b1"                   # a reader of one layout takes the first
+    assert layout.layouts_for({"layouts": lays[1:4]}, None) == []
+
+
+def test_live_reads_the_first_layout_whose_when_is_true():
+    m = ram()
+    put(m, BASE + 0x40, bytes([2]))
+    when = lambda n: {"address": "0x08800040", "equals": n}
+    lays = [{"notes": "one", "when": when(1)}, {"notes": "two", "when": when(2)}, {"notes": "always"}]
+    read = layout.Ram(BASE, bytes(m))
+    assert layout.live(lays, read)["notes"] == "two"
+    assert layout.live(lays[:1] + lays[2:], read)["notes"] == "always"
+    assert layout.live(lays[:1], read)["notes"] == "one"               # none is true: the first, which reads as off
+    assert layout.live([{"notes": "far", "when": {"address": "0x09900000"}}, lays[1]], read)["notes"] == "two"
+    assert layout.live([], read) is None
+
+
+def test_row_lengths_cut_a_line_written_over_an_older_one():
+    m = ram()
+    put(m, BASE + 0x100, "あいうえお".encode("cp932").ljust(16, b"\0") + "かきくけこ".encode("cp932"))
+    put(m, BASE + 0x30, bytes([2, 3, 1]))
+    lay = {"message": {"address": "0x08800100", "charset": "shift_jis", "max_bytes": 16,
+                       "rows": {"count": 2, "stride": 16, "lengths": {"address": "0x08800030", "counts": "characters"}},
+                       "when": {"address": "0x08800032"}}}
+    read = lambda: layout.read_layout(lay, entry_with(lay), layout.Ram(BASE, bytes(m)))["message"]
+    assert read() == "あい\nかきく"
+    lay["message"]["rows"]["lengths"]["counts"] = "bytes"
+    assert read() == "あ\nか"                                      # 2 bytes; 3 bytes end inside the second character
+    m[0x32] = 0
+    assert read() == ""                                            # the window is closed: the memory is stale
+
+
+def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
+    newer = {"versions": ["b" * 40], "message": {"address": "0x1", "charset": "utf8", "max_bytes": 8, "until": {}}}
+    e = {"layouts": [newer, {"notes": "general"}]}
+    assert not layout.understood(newer)
+    assert layout.pick(e, "b" * 40)["notes"] == "general"
+    assert layout.pick({"layouts": [newer]}, "b" * 40) is None
+    text = {"address": "0x1", "charset": "utf8", "max_bytes": 8}
+    table, by = {**text, "charset": "table"}, {"address": "0x2", "type": "u16"}
+    script = {"open": "8000", "offset": {"address": "0x2", "type": "u32"}}
+    for odd in ({"blink": 1}, {"endian": "middle"}, {"message": {**text, "charset": "ebcdic"}},
+                {"message": {**text, "rows": {"count": 1, "stride": 8, "gap": 2}}},
+                {"message": {**text, "length": {"address": "0x2", "counts": "words"}}},
+                {"waiting": {"address": "0x2", "type": "u64"}}, {"shown": {"address": "0x2", "counts": "bytes"}},
+                {"speaker": {**text, "when": {"address": "0x2", "below": 3}}},
+                {"message": text, "when": {"address": "0x2", "counts": "bytes"}}, {"message": text, "when": 1},
+                {"message": {**text, "pages": {"break": "0C"}}},
+                {"message": {**text, "pages": {"break": "", "cursor": {"address": "0x2"}}}},
+                {"message": {**text, "pages": {"break": "0", "cursor": {"address": "0x2"}}}},
+                {"message": {**text, "pages": {"break": 12, "cursor": {"address": "0x2"}}}},
+                {"message": {**text, "pages": {"break": "0C", "cursor": {"address": "0x2", "equals": 1}}}},
+                {"message": {**text, "pages": {"break": "0C", "cursor": {"address": "0x2"}, "from": 1}}},
+                {"message": {**text, "rows": {"count": 2, "stride": 4},
+                             "pages": {"break": "0C", "cursor": {"address": "0x2"}}}},
+                {"message": {**text, "codes": {}}}, {"message": {**text, "codes": {"7": 2}}},
+                {"message": {**text, "codes": {"07": "2"}}}, {"message": {**text, "codes": {"0703": 1}}},
+                {"message": {**text, "codes": {"07": 17}}}, {"message": {**text, "codes": ["07"]}},
+                {"message": {**text, "script": script}},                      # only a table has end codes
+                {"message": {**table, "script": {"open": "8000"}}}, {"message": {**table, "script": {**script, "to": 1}}},
+                {"message": {**table, "script": {**script, "open": "800"}}},
+                {"message": {**table, "script": {**script, "texts": "pages"}}},
+                {"message": {**table, "script": {**script, "rest": 0}}}, {"message": {**table, "script": {**script, "rest": 17}}},
+                {"message": {**table, "script": {**script, "rest": "2"}}}, {"message": {**table, "script": {**script, "rest": True}}},
+                {"message": {**table, "script": {**script, "offset": {"address": "0x2", "equals": 1}}}},
+                {"message": {**table, "script": {**script, "offset": {"address": "0x2", "counts": "characters"}}}},
+                {"message": {**table, "pages": {"break": "0C", "cursor": {"address": "0x2", "counts": "codes"}}}},
+                {"message": {**text, "length": {"address": "0x2", "counts": "codes"}}},
+                {"message": {**table, "script": script, "terminator": "FFFF"}},
+                {"message": {**table, "script": script, "length": {"address": "0x2"}}},
+                {"message": {**table, "script": script, "rows": {"count": 2, "stride": 4}}},
+                {"message": {**table, "script": script, "pages": {"break": "0C", "cursor": {"address": "0x2"}}}},
+                {"tables": {"by": by}}, {"tables": {"by": by, "sets": {}}}, {"tables": {"by": by, "sets": {"1": []}}},
+                {"tables": {"by": by, "sets": {"one": ["tables/a.tbl"]}}}, {"tables": {"by": by, "sets": {"1": "tables/a.tbl"}}},
+                {"tables": {"by": {**by, "equals": 1}, "sets": {"1": ["tables/a.tbl"]}}},
+                {"tables": {"by": by, "sets": {"1": ["tables/a.tbl"]}, "else": []}}):
+        assert not layout.understood(odd), odd
+    assert layout.understood({"message": {**text, "codes": {"07": 2, "1f03": 3}}})
+    assert layout.understood({"choices": {**table, "script": {**script, "texts": "rows"}}})
+    assert layout.understood({"choices": {**table, "script": {**script, "texts": "rows", "rest": 16}}})
+    assert layout.understood({"message": {**table, "script": {**script, "rest": 1}}})
+    assert layout.understood({"message": {**table, "script": {**script, "offset": {"address": "0x2", "counts": "codes"}}}})
+    assert layout.understood({"message": {**table, "script": {**script, "offset": {"address": "0x2", "counts": "bytes"}}}})
+    assert layout.understood({"message": {**table, "codes": {"F001": 4}, "script": script, "when": {"address": "0x3"}},
+                              "tables": {"by": by, "sets": {"1": ["tables/a.tbl"], "-2": ["tables/b.tbl"]}}})
+
+
+def test_every_layout_the_schema_accepts_here_is_understood():
+    # the reader's key lists and the schema say the same thing twice; the vectors and the catalog use every key
+    from layout_vectors import cases
+    from layout_vectors import layouts_of
+    lays = [lay for v in cases() for lay in layouts_of(v)]
+    lays += [lay for _, e in catalog.entries(REPO) for lay in e.get("layouts", [])]
+    assert len(lays) > 30 and all(layout.understood(lay) for lay in lays)
+    keys = lambda d: {k for k, v in d.items() for k in ([k] + sorted(keys(v)) if isinstance(v, dict) else [k])}
+    used = set().union(*(keys(lay) for lay in lays))
+    schema = json.loads((REPO / "schema" / "entry.schema.json").read_text(encoding="utf-8"))
+    named = set(schema["properties"]["layouts"]["items"]["properties"])
+    for d in ("int", "length", "text"):
+        named |= set(schema["$defs"][d]["properties"])
+    named |= set(schema["$defs"]["text"]["properties"]["rows"]["properties"])
+    assert named - used <= {"regex", "replace", "remap"}, named - used
+
+
 def test_big_endian_pointers():
     m = ram()
     put(m, BASE + 0x20, struct.pack(">I", BASE + 0x80))
@@ -152,6 +262,32 @@ def test_schema_and_catalog_rules(tmp_path):
     assert "isn't in the entry's versions" in msgs
     assert "a table charset needs the entry's tables" in msgs
 
+    script = {"open": "8000", "offset": {"address": "0x2", "type": "u32"}}
+    for wrong in ({"length": {"address": "0x1", "counts": "words"}}, {"length": {"address": "0x1", "equals": 1}},
+                  {"rows": {"count": 2, "stride": 8, "lengths": {"type": "u8"}}}, {"when": {"address": "0x1", "counts": "bytes"}},
+                  {"script": script}, {"charset": "table", "script": script, "terminator": "FFFF"},
+                  {"charset": "table", "script": {"open": "8000", "offset": {"address": "0x2", "equals": 1}}},
+                  {"charset": "table", "script": {**script, "texts": "joined"}}):
+        lay = {"message": {"address": "0x08800100", "charset": "utf16le", "max_bytes": 8, **wrong}}
+        (tmp_path / "games" / "psp" / "ULJM00001.json").write_text(json.dumps(entry_with(lay)), encoding="utf-8")
+        assert any("layouts/0/message" in str(p) for p in catalog.validate(tmp_path)), wrong
+
+    # a layout's own tables: the files have to be there, and so does the entry's unit
+    switch = {"by": {"address": "0x08800010", "type": "u16"}, "sets": {"1": ["tables/one.tbl"], "2": ["tables/two.tbl"]}}
+    lay = {"tables": switch, "message": {"address": "0x08800100", "charset": "table", "max_bytes": 8, "script": script}}
+    (tmp_path / "tables" / "one.tbl").write_text("0001=あ\n/FFFF\n", encoding="utf-8")
+    (tmp_path / "games" / "psp" / "ULJM00001.json").write_text(json.dumps(entry_with(lay)), encoding="utf-8")
+    msgs = [str(p) for p in catalog.validate(tmp_path)]
+    assert len(msgs) == 2 and "layouts/0: table tables/two.tbl doesn't exist" in msgs[0] and "need a unit" in msgs[1]
+    (tmp_path / "tables" / "two.tbl").write_text("0001=い\n", encoding="utf-8")
+    (tmp_path / "games" / "psp" / "ULJM00001.json").write_text(json.dumps(entry_with(lay, unit=2)), encoding="utf-8")
+    assert catalog.validate(tmp_path) == []
+    for wrong in ({"by": switch["by"]}, {**switch, "sets": {}}, {**switch, "sets": {"one": ["tables/one.tbl"]}},
+                  {**switch, "sets": {"1": ["one.tbl"]}}, {**switch, "by": {"address": "0x1", "equals": 1}}):
+        (tmp_path / "games" / "psp" / "ULJM00001.json").write_text(
+            json.dumps(entry_with({**lay, "tables": wrong}, unit=2)), encoding="utf-8")
+        assert any("layouts/0/tables" in str(p) for p in catalog.validate(tmp_path)), wrong
+
 
 def test_cli_reads_a_snapshot_with_its_meta(tmp_path, capsys):
     m = ram()
@@ -164,6 +300,21 @@ def test_cli_reads_a_snapshot_with_its_meta(tmp_path, capsys):
     snap.with_name("f" * 40 + ".json").write_text(json.dumps({"base_address": "0x08800000", "exe_sha1": "a" * 40}))
     assert main(["layout", str(entry), str(snap), "--root", str(tmp_path)]) == 0
     assert json.loads(capsys.readouterr().out) == {"message": "テスト"}
+
+
+def test_cli_reads_with_the_table_set_the_layout_names(tmp_path, capsys):
+    m = ram()
+    put(m, BASE + 0x100, bytes.fromhex("0001 0100 FFFF") + bytes([2]))
+    lay = {"tables": {"by": {"address": "0x08800106"}, "sets": {"1": ["tables/one.tbl"], "2": ["tables/two.tbl"]}},
+           "message": {"address": "0x08800100", "charset": "table", "max_bytes": 16, "terminator": "FFFF"}}
+    entry = write_catalog(tmp_path, entry_with(lay, tables=["tables/kana.tbl"], unit=2))
+    for name, text in (("kana", "0001=あ\n"), ("one", "0100=学\n"), ("two", "0100=校\n")):
+        (tmp_path / "tables" / f"{name}.tbl").write_text(text, encoding="utf-8")
+    snap = tmp_path / ("f" * 40 + ".ram.gz")
+    snap.write_bytes(gzip.compress(bytes(m)))
+    snap.with_name("f" * 40 + ".json").write_text(json.dumps({"base_address": "0x08800000"}))
+    assert main(["layout", str(entry), str(snap), "--root", str(tmp_path)]) == 0
+    assert json.loads(capsys.readouterr().out) == {"message": "あ校"}
 
 
 def test_catalog_entries_still_valid():

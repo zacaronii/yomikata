@@ -1,0 +1,17 @@
+{
+  "id": "SLPS-25041",
+  "platform": "ps2",
+  "title": "シャドウハーツ",
+  "title_romaji": "Shadow Hearts",
+  "versions": [
+    {
+      "exe": "SLPS_250.41",
+      "exe_sha1": "ff7158d20e59ae99114ad202f0fb28a6f7afc7e7"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 154,143, utf16le 36 characters of prose-like text"
+  ]
+}

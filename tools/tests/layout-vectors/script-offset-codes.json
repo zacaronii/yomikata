@@ -1,0 +1,72 @@
+{
+ "name": "script-offset-codes",
+ "checks": "An offset that counts codes: 5 codes of 2 bytes are 10 bytes into the script, after the first page's two characters (message). One code on, the position has passed the page code and nothing follows it yet: the page it ended is still up (speaker). And one more: a page code with something after it starts the page anew, so only the second page's first character is read (choices).",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F003": "page",
+   "F004": "clear",
+   "0028": "ignore"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80320000",
+   "charset": "table",
+   "max_bytes": 48,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80320030",
+     "type": "u16",
+     "counts": "codes"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x80320000",
+   "charset": "table",
+   "max_bytes": 48,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80320032",
+     "type": "u16",
+     "counts": "codes"
+    }
+   }
+  },
+  "choices": {
+   "address": "0x80320000",
+   "charset": "table",
+   "max_bytes": 48,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80320034",
+     "type": "u16",
+     "counts": "codes"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80320000",
+   "hex": "00270105800000010002f0030003fffe0004f003f0040028002880000005f003f004ffff000000000000000000000000050006000700"
+  }
+ ],
+ "expected": {
+  "message": "あい",
+  "speaker": "あい",
+  "choices": [
+   "う"
+  ]
+ }
+}

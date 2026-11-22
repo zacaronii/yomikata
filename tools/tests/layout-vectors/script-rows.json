@@ -1,0 +1,69 @@
+{
+ "name": "script-rows",
+ "checks": "With texts: rows each text of the page is a row of its own. The position is after the last answer's end code: four answers, the third an empty one (choices). The same bytes without texts run together (message). Partway through the list the rows so far are read, the last one as far as the game has read it (speaker: the position is one character into the second answer).",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "choices": {
+   "address": "0x80310000",
+   "charset": "table",
+   "max_bytes": 48,
+   "script": {
+    "open": "000001",
+    "offset": {
+     "address": "0x80310030",
+     "type": "u32"
+    },
+    "texts": "rows"
+   }
+  },
+  "message": {
+   "address": "0x80310000",
+   "charset": "table",
+   "max_bytes": 48,
+   "script": {
+    "open": "000001",
+    "offset": {
+     "address": "0x80310030",
+     "type": "u32"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x80310000",
+   "charset": "table",
+   "max_bytes": 48,
+   "script": {
+    "open": "000001",
+    "offset": {
+     "address": "0x80310034",
+     "type": "u32"
+    },
+    "texts": "rows"
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80310000",
+   "hex": "80070003001200000100010002ffff0000010003ffff000001ffff00000100040005ffff2700000000000000000000002400000014000000"
+  }
+ ],
+ "expected": {
+  "choices": [
+   "あい",
+   "う",
+   "",
+   "えお"
+  ],
+  "message": "あいうえお",
+  "speaker": "あい\nう"
+ }
+}

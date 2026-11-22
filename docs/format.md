@@ -87,7 +87,29 @@ Every field is optional, and a layout with only `message` is already useful.
 | `shown` | *number*: how many characters of the message are on screen |
 | `waiting`, `choosing` | *flag*: the line is complete and waits for a press; a choice is up |
 | `choices`, `choice_count`, `choice_cursor` | *text* with one answer per row; how many rows count; which answer (from 0) the cursor is on |
+| `when` | *flag*: the addresses hold what the layout says (see below) |
+| `tables` | `{by, sets}`: table files that follow the entry's, chosen by a *number* (see below) |
 | `notes` | Short; no script text |
+
+Some games use the same memory for something else outside their script: a movie's frames, the title screen. A
+layout's own `when` is true only while its addresses mean what it says. While it is false a reader reads
+nothing else: every *text* is empty, `waiting` and `choosing` are false, and the numbers (`shown`,
+`choice_count`, `choice_cursor`, a speaker number) are left out. If `when` can't be read, nothing else is read
+either, and `when` is the field that failed.
+
+Some games number their characters anew for each chapter, so no one table fits the whole game. A layout's own
+`tables` names the table files that go with what is loaded now: `by` is a *number*, and `sets` gives, for each
+value it can have (written in decimal), the files to apply after the entry's `tables`:
+
+```json
+"tables": {"by": {"address": "0x80101000", "type": "u32"},
+           "sets": {"36": ["tables/ps1/SLPS-00000-one.tbl"], "94": ["tables/ps1/SLPS-00000-two.tbl"]}}
+```
+
+Such a layout decodes its `table` texts with the entry's tables and then the set's. When the number has no set,
+or can't be read, there is no table: every `table` text fails and is left out, rather than being read with the
+wrong characters. The other fields are read as always. `by` can be anything that differs between the chapters;
+a count the game keeps of something in the loaded script will do.
 
 Every *number*, *flag* and *text* says where it is in one of two ways:
 
@@ -97,35 +119,119 @@ Every *number*, *flag* and *text* says where it is in one of two ways:
   "the pointer at B, plus 8".
 
 A *number* has a `type` (`u8` default, `u16`, `u32`, `s8`, `s16`, `s32`). As a *flag* it is true when nonzero, or
-when it `equals` a given value.
+when it `equals` a given value. A flag's `mask` keeps only those bits of the value before either test (the bits as
+stored, so the result is never below zero): `"mask": 3` is true at 1, 2 and 3 and false at 0, 4 and 8.
 
-**Which layout:** a reader that knows the executable's SHA-1 picks the layout naming it, else the first one naming
-no versions. A reader that can't hash the executable (one that only sees the game's memory) still knows the release
+A reader that finds a key or a named value (a `charset`, a `type`) it doesn't know anywhere in a layout treats
+that layout as not there: a newer key can change what the others mean (a text without its `when` would show
+what is no longer on screen).
+
+**Which layout:** a reader that knows the executable's SHA-1 picks the layouts naming it, else those naming no
+versions. A reader that can't hash the executable (one that only sees the game's memory) still knows the release
 id. If the entry's `versions` list exactly one version for that id (a version without `id` belongs to the entry's
 own), the reader takes that version's `exe_sha1` as its own and picks the same way. If the id has several versions,
 or none, only a layout naming no versions fits. Taking the only listed version is a guess: an unlisted revision
 of the same release would get a layout made for another one. Listing that revision in `versions` ends the guess.
+
+Usually that leaves one layout. A game that loads a different program for each chapter keeps its cells at other
+addresses in each, and gets one layout per program, each with a `when` that is true only while its program is
+the one loaded (a word of the program's code that differs between them will do). A reader takes the layouts
+left in the entry's order and, each time it reads, reads the first whose `when` is true; one without `when`
+is always true, and one whose `when` can't be read is passed over. If none is true it reads the first, which
+gives what a false `when` gives.
 
 A *text* has:
 - a `charset`: `shift_jis`, `euc_jp`, `utf16le`, `utf16be`, `utf8`, or `table` (the entry's `tables`, `unit` and
   `controls`);
 - `max_bytes`, which a reader never reads past;
 - optionally `terminator` (hex in memory byte order, matched only at character boundaries), `length` (a *number*
-  holding the length in bytes), and `rows: {count, stride}` for a buffer of rows, each read to its terminator and
-  joined with newlines;
+  holding the length), and `rows: {count, stride}` for a buffer of rows, each read to its terminator and joined
+  with newlines;
+- optionally `rows.lengths`, for a game that keeps one length per row: a *number* whose address is the first
+  row's length, with the next rows' lengths right after it (a `u16` for row 2 is 4 bytes on);
+- optionally `pages: {break, cursor}`, for a game that keeps a whole stretch of script in one buffer and walks
+  through it: `break` is the code between two pages (hex in memory byte order, one byte or more, matched only at
+  character boundaries) and `cursor` a *number* holding the address the game is reading at. The text is the page
+  the cursor is on. Not together with `rows`;
+- optionally `codes`, for the game's own codes that take arguments (a colour, a style, a pause): each key is
+  the bytes a code starts with (hex in memory byte order), its value how many bytes the code has in all, those
+  included. `{"03": 2, "07": 2}` is two codes with one argument byte each. With `table` these are the controls
+  that take arguments (`{"FFF9": 4}`: a two-byte control and its two-byte argument); a control without one
+  needs no entry here;
+- optionally `script: {open, offset}`, for a game that keeps no copy of the text it shows and reads it straight
+  out of a script, with instructions between the texts. The text's address is then where the script starts,
+  `offset` is a *number* holding how many bytes into the script the game is reading (with `"counts": "codes"`,
+  how many codes of `unit` bytes), and `open` is the code a text starts after (hex in memory byte order). The
+  text is the page the game is on, as far as it has read it, so it grows while the page types out. Only with
+  `table`, and not together with `rows`, `pages`, `terminator` or `length`. With `texts: "rows"` in it, each text
+  of the page is a row of its own: for a list the game writes as one text per item, such as a choice's answers.
+  With `rest` (1 to 16), a game may stop up to that many codes past a text's end code while the text stays up,
+  as one does that reads a choice's jump targets after its answers and waits there;
+- optionally `when`, a *flag* that is true while the text is on screen. Many games leave the last text in memory
+  after its window closes; while `when` is false the text is empty;
 - its own `cleanup`, applied before the entry's.
+
+A length counts bytes unless it says `"counts": "characters"`. Games that write a new line over the old one
+without ending it need a length to tell where the new line stops.
 
 ### Reading a text
 
 Every client should get the same string from the same bytes, so the steps are fixed:
 
-1. Read `max_bytes` bytes at the address (`stride` bytes if that is less; with `rows`, once per row, `stride`
-   apart). A `length` shortens the read; a length below zero is 0. If a read fails, the whole field fails.
-2. Split the bytes into characters by the lengths below. Stop at the `terminator` where it stands at the start of
-   a character, and drop a last character that doesn't fit in what was read.
-3. Decode each character on its own. One that doesn't decode is one U+FFFD, however many bytes it has.
-4. With `rows`: drop empty rows from the end, and join the rest with a newline.
-5. Apply the text's `cleanup`, then the entry's.
+1. With `when`: read the flag. If it is false the text is the empty string, and nothing else is read. If it
+   can't be read, the field fails.
+2. Read `max_bytes` bytes at the address (`stride` bytes if that is less; with `rows`, once per row, `stride`
+   apart). A length in bytes shortens the read; a length below zero is 0. If a read fails, the whole field fails,
+   and so it does if a length can't be read.
+3. Split the bytes into characters by the lengths below. Stop at the `terminator` where it stands at the start of
+   a character, and drop a last character that doesn't fit in what was read. A length in characters stops the
+   split after that many (a `table` code is one character here, whatever it decodes to). `length` applies to
+   every row and `rows.lengths` to its own row; where both are given, both hold.
+   With `codes`: where a character starts with one of the keys (the longest, if several fit), it is a code of
+   that many bytes, whatever the charset would make of them. The terminator is looked for first. A code is one
+   character here, so an argument byte is never a terminator, a page break or the start of a character.
+4. With `pages`: read the cursor (if it can't be read, the field fails) and split what step 3 left into pages
+   at each `break` standing at the start of a character. The text is the last page with anything in it that
+   starts at or before the cursor. A cursor on a break is still on the page before it, and a cursor outside what
+   step 3 left (before the text's address, or past its end) is on the last page with anything in it: a game may
+   drop its cursor once the last page is typed out. No such page: the empty string.
+5. Decode each character on its own. One that doesn't decode is one U+FFFD, however many bytes it has. A code
+   from `codes` is nothing.
+6. With `rows`: drop empty rows from the end, and join the rest with a newline.
+7. Apply the text's `cleanup`, then the entry's.
+
+With `script`, the steps below take the place of steps 2 to 4. Codes are `unit` bytes. An *end code* is one the
+tables mark with `/` or `controls` calls `end`; a *page code* is one `controls` calls `page` or `clear`. The
+*position* is the text's address plus `offset`.
+
+1. Read `offset`; if it can't be read, the field fails. If it counts codes, multiply it by `unit`. At zero or
+   below the text is the empty string.
+   Otherwise read the bytes of script that end at the position, `max_bytes` of them or `offset` if that is
+   less, and as many bytes after the position as `open` has. If the read fails, the field fails.
+   With `rest`: look at the code just behind the position, then the one before it, and so on: `rest` + 1 codes
+   at most, and none that starts before the bytes read. At the first end code among them the looking stops,
+   and from here on the position is just past that code, and the bytes after the position are those after it.
+   (A text that starts within `rest` codes of an end code is read late, so `rest` isn't for such a script.)
+2. An open code *carries the page on* when the code just before it is an end code and the code before that
+   isn't a page code: the text after it goes on the same page as the text before it. If the bytes after the
+   position are the open code and it doesn't carry the page on, the text is the empty string: the old page is
+   over and nothing of the new one has been read.
+3. If the code just behind the position is an end code, step back over it. Then walk back a code at a time
+   until the bytes just behind are the open code (a text starts here), or the code just behind is an end code,
+   or fewer bytes than the open code are left. Where that found a text whose open code carries the page on,
+   step back over the open code and the end code before it, and walk on the same way. The page starts at the
+   earliest text found. None found: the empty string (the position is among the instructions after a text, or
+   the page starts more than `max_bytes` back).
+4. The page is what lies between its start and the position, split into codes; a code from `codes` is taken
+   whole. Where an end code is followed directly by the open code, both are left out: two texts of the page
+   join there, with nothing between them, or with `texts: "rows"` a line break.
+5. A page code inside the page starts it anew: what was read before the code is off the screen, and the code
+   goes with it. Not so for a page code with nothing after it up to the position but end codes: the page it
+   ended is still up, and stays until the game reads on. (A game that closes its window with a code of its
+   own gets an empty text from this once it has read past that code, if `controls` calls it `clear`.)
+
+Walking back can't tell an argument from a code. An argument that equals the open code or an end code cuts the
+page short there, so a script whose arguments can have those values isn't one for `script`.
 
 | Charset | Bytes in a character, from its first byte | Decoded as |
 |---|---|---|
@@ -133,7 +239,7 @@ Every client should get the same string from the same bytes, so the steps are fi
 | `euc_jp` | 3 for `8F`, 2 for `8E` and up, else 1 | JIS X 0208, `8E` + half-width kana, `8F` + JIS X 0212. Vendor rows (NEC's row 13, IBM's extensions) aren't defined yet |
 | `utf8` | 4 for `F0` and up, 3 for `E0` and up, 2 for `C0` and up, else 1 | Strict UTF-8: an overlong form or an encoded surrogate doesn't decode |
 | `utf16le`, `utf16be` | 4 for a high surrogate followed by a low one when both fit, else 2 | A surrogate on its own doesn't decode |
-| `table` | the entry's `unit` | The table's character. An end code, or a code `controls` calls `page` or `clear`, is a blank line; a newline code is a line break; any other control is nothing; a code the table lacks is U+FFFD. Line breaks at the end are dropped |
+| `table` | the entry's `unit` | The table's character. An end code, or a code `controls` calls `page` or `clear`, is a blank line; a newline code is a line break; any other control is nothing; a code the table lacks is U+FFFD. A code from `codes` is looked for before any of these. Line breaks at the end are dropped |
 
 Any other single byte from `80` up is U+FFFD. Python's `cp932` and `euc_jp` codecs are the reference for the
 mappings.
@@ -157,7 +263,7 @@ What a reader derives from the fields:
 - A `speaker` number is the name `speaker_names` gives it, else the number.
 - A field that can't be read is left out; the others are still read.
 
-Reference implementation: `tools/src/yomikata/layout.py` (`read_layout(layout, entry, read)`). To check a layout
+Reference implementation: `tools/src/yomikata/layout.py` (`read_layout`). To check a layout
 against a RAM snapshot before a PR, run `yomikata layout games/<platform>/<id>.json <sha1>.ram.gz`; it prints what
 each field reads (the output is script text, so keep it out of the repo).
 

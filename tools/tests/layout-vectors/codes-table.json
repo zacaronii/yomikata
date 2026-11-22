@@ -1,0 +1,43 @@
+{
+ "name": "codes-table",
+ "checks": "Codes with a table charset: a control that takes an argument is skipped whole, so an argument of FFFF isn't the terminator (message). Without `codes` the same bytes end there (speaker).",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F001": "wait"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80200000",
+   "charset": "table",
+   "max_bytes": 16,
+   "terminator": "FFFF",
+   "codes": {
+    "F001": 4
+   }
+  },
+  "speaker": {
+   "address": "0x80200000",
+   "charset": "table",
+   "max_bytes": 16,
+   "terminator": "FFFF"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80200000",
+   "hex": "0001f001ffff0002ffff000300000000"
+  }
+ ],
+ "expected": {
+  "message": "あい",
+  "speaker": "あ"
+ }
+}

@@ -1,0 +1,59 @@
+{
+ "name": "pages-cursor-outside",
+ "checks": "A cursor outside the text is on the last page: zero (message), before the text's address (speaker), past the terminator (choices).",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80120000",
+   "charset": "shift_jis",
+   "max_bytes": 32,
+   "terminator": "00",
+   "pages": {
+    "break": "0C",
+    "cursor": {
+     "address": "0x80120020",
+     "type": "u32"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x80120000",
+   "charset": "shift_jis",
+   "max_bytes": 32,
+   "terminator": "00",
+   "pages": {
+    "break": "0C",
+    "cursor": {
+     "address": "0x80120024",
+     "type": "u32"
+    }
+   }
+  },
+  "choices": {
+   "address": "0x80120000",
+   "charset": "shift_jis",
+   "max_bytes": 32,
+   "terminator": "00",
+   "pages": {
+    "break": "0C",
+    "cursor": {
+     "address": "0x80120028",
+     "type": "u32"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80120000",
+   "hex": "0c82a00a82a20c82a40c0c82a682a80082a9000000000000000000000000000000000000ffff118010001280"
+  }
+ ],
+ "expected": {
+  "message": "えお",
+  "speaker": "えお",
+  "choices": [
+   "えお"
+  ]
+ }
+}

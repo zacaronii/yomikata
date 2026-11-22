@@ -1,0 +1,97 @@
+{
+ "name": "script-choice-row-break",
+ "checks": "The usual script: a line break code, then the choice. Now there are two line breaks before the first colon, and the message's own cleanup makes them one (its second rule), so the message is the same as with no line break code. The answers' cleanup takes everything up to the first row that starts with a colon either way.",
+ "entry": {
+  "tables": [
+   "tables/test/colon.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "0098": "choice",
+   "0198": "choice",
+   "0097": "newline"
+  }
+ },
+ "tables": {
+  "tables/test/colon.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n00C7=：\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80380000",
+   "charset": "table",
+   "max_bytes": 34,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80380022",
+     "type": "u16",
+     "counts": "codes"
+    }
+   },
+   "cleanup": [
+    {
+     "regex": "^\\n：",
+     "replace": "："
+    },
+    {
+     "regex": "\\n\\n：",
+     "replace": "\n："
+    }
+   ]
+  },
+  "choosing": {
+   "address": "0x80380024",
+   "type": "u16",
+   "equals": 65535
+  },
+  "choices": {
+   "address": "0x80380000",
+   "charset": "table",
+   "max_bytes": 34,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80380022",
+     "type": "u16",
+     "counts": "codes"
+    }
+   },
+   "when": {
+    "address": "0x80380024",
+    "type": "u16",
+    "equals": 65535
+   },
+   "cleanup": [
+    {
+     "regex": "(?s)^(.*?\\n)??：",
+     "replace": ""
+    },
+    {
+     "regex": "\\n：",
+     "replace": "\n"
+    }
+   ]
+  },
+  "choice_cursor": {
+   "address": "0x80380026",
+   "type": "u16"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80380000",
+   "hex": "800000010002fffe0097019800c70003fffe009800c700040005fffeffff000600051100ffff0100"
+  }
+ ],
+ "expected": {
+  "message": "あい\n：う\n：えお",
+  "choosing": true,
+  "choices": [
+   "う",
+   "えお"
+  ],
+  "choice_cursor": 1
+ }
+}

@@ -1,0 +1,63 @@
+{
+ "name": "script-unreadable",
+ "checks": "If the offset can't be read, the field fails (message), and so it does if the script can't be read at the offset (speaker: the offset points far outside memory).",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F001": "wait",
+   "F003": "page"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80300000",
+   "charset": "table",
+   "max_bytes": 64,
+   "codes": {
+    "F001": 4
+   },
+   "script": {
+    "open": "8000",
+    "offset": {
+     "base": "0x80300044",
+     "offsets": [
+      "0x0"
+     ]
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x80300000",
+   "charset": "table",
+   "max_bytes": 64,
+   "codes": {
+    "F001": 4
+   },
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80300048",
+     "type": "s32"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80300000",
+   "hex": "270105800000010002fffe0003ffff80000004f001001e0005f003ffff80000006ffff0028123400000000000000000000000000000000000000000000000000170000000000000000001000"
+  }
+ ],
+ "expected": {
+  "errors": {
+   "message": "0x00000000+1 is outside memory",
+   "speaker": "0x803FFFC0+66 is outside memory"
+  }
+ }
+}

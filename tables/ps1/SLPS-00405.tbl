@@ -1,0 +1,244 @@
+# Twilight Syndrome: Kyuumei-hen (SLPS-00405): 16-bit little-endian codes (01 00 = あ), keys in memory byte order.
+# This file is what every chapter shares: 0x0000 is a space and 0x0001-0x00DB the kana, digits and punctuation.
+# Kanji and Latin letters are 0x00DC up and numbered anew by each chapter: one of SLPS-00405-ch5.tbl, -ch6, -ch7,
+# -ch8, -ch9, -chA or -chH goes after this file, chosen by the byte at 0x80016635 (0-6 in that order).
+# Read from the game's own drawing: a replay made it draw every code, and each glyph was read by eye.
+# Not mapped: 0x00CA, 0x00CB (marks not made out), 0x00D6 (a page icon), 0x00D8-0x00DB (ornate A B C D); no
+# scene's text uses them. ° (0x00C5) stands in for an apostrophe the one time it is used. The program swaps
+# 0x00BC, 0x00BD and 0x00BE (ー 。 、) for 0x00C1, 0x00C5 and 0x00CB while one of its flags is set (read from its
+# code, not seen in play), so those three are probably the same marks set for text in columns.
+# Words from 0x8000 up are commands: 0x8100 new line, 0x8500 wait for a press with the text going on below
+# (the window scrolls), 0x8600 wait for a press at a page's end (the window is cleared), 0x8D0n a speaker's page
+# (a name of n codes follows, then ：), 0x84nn a pause of length nn, 0x8900 a window opening, 0x8A00 one closing,
+# 0xFFFF the script's end; the rest (high bytes 0x82-0x8B, 0x97, 0x98, 0xA7, 0xA8, 0xC2-0xD9) drive answers and
+# pictures. 288 different ones are used. Which take one more word (the entry's `codes`) is read from the script
+# interpreter's code, the same in all seven chapter programs: 0xC1nn, 0xC8nn, 0xCDnn, 0xD0nn-0xD2nn, 0xCE01,
+# 0xCE03, 0xCE04, and 0xD6nn-0xD8nn when nn is 0 or 1. In the scripts that word is always below 0x8000.
+# The running script is at 0x801FE800. Each chapter runs its own program (CAP5.EXE to CAPH.EXE), so where it
+# keeps its place moves: 0x800AAABE in chapter 5, 0x800A80E2 in 6, 0x800A5B02 in 7, 0x800AF726 in 8, 0x800A5D96
+# in 9, 0x800A86A2 in A and 0x80096742 in H. The instruction word at 0x80041C78 differs in every program, and
+# the entry's layouts tell them apart by it. That u16 is the index of the next word the game will read: just past
+# the wait code while it waits for a press, and just past 0xFFFF once the script is over. Beside it: the u16 six
+# bytes before it is 0xFFFE while the game waits for a press (a small count while it types), the u16 four bytes
+# after it is 0 while no text is up (it counts characters as they are drawn), and the byte 0x28 after it is 1
+# while the text window is open.
+# Chapter 5 from ten snapshots of real play (two conversations, then walking). The other chapters' addresses from
+# matching chapter 5's code in each program, then a replay of each one's first scene: the cells behave the same
+# there and each page reads as drawn (37 pages in chapter 6, 1 in 7, 10 in 8, 21 in 9, 32 in A, 5 in H).
+# Two script files on the disc look like leftovers and are not counted here: CAP6_K6LINK (its kana are blanked
+# and its kanji start at 0x010C, as in Tansaku-hen) and CAP7_YHLINK (chapter H's script in an earlier numbering).
+0000=　
+0100=あ
+0200=い
+0300=う
+0400=え
+0500=お
+0600=か
+0700=き
+0800=く
+0900=け
+0A00=こ
+0B00=さ
+0C00=し
+0D00=す
+0E00=せ
+0F00=そ
+1000=た
+1100=ち
+1200=つ
+1300=て
+1400=と
+1500=な
+1600=に
+1700=ぬ
+1800=ね
+1900=の
+1A00=は
+1B00=ひ
+1C00=ふ
+1D00=へ
+1E00=ほ
+1F00=ま
+2000=み
+2100=む
+2200=め
+2300=も
+2400=や
+2500=ゆ
+2600=よ
+2700=ら
+2800=り
+2900=る
+2A00=れ
+2B00=ろ
+2C00=わ
+2D00=を
+2E00=ん
+2F00=ア
+3000=イ
+3100=ウ
+3200=エ
+3300=オ
+3400=カ
+3500=キ
+3600=ク
+3700=ケ
+3800=コ
+3900=サ
+3A00=シ
+3B00=ス
+3C00=セ
+3D00=ソ
+3E00=タ
+3F00=チ
+4000=ツ
+4100=テ
+4200=ト
+4300=ナ
+4400=ニ
+4500=ヌ
+4600=ネ
+4700=ノ
+4800=ハ
+4900=ヒ
+4A00=フ
+4B00=ヘ
+4C00=ホ
+4D00=マ
+4E00=ミ
+4F00=ム
+5000=メ
+5100=モ
+5200=ヤ
+5300=ユ
+5400=ヨ
+5500=ラ
+5600=リ
+5700=ル
+5800=レ
+5900=ロ
+5A00=ワ
+5B00=ヲ
+5C00=ン
+5D00=ヰ
+5E00=ヱ
+5F00=ァ
+6000=ィ
+6100=ゥ
+6200=ェ
+6300=ォ
+6400=ャ
+6500=ュ
+6600=ョ
+6700=ッ
+6800=ヮ
+6900=ガ
+6A00=ギ
+6B00=グ
+6C00=ゲ
+6D00=ゴ
+6E00=ザ
+6F00=ジ
+7000=ズ
+7100=ゼ
+7200=ゾ
+7300=ダ
+7400=ヂ
+7500=ヅ
+7600=デ
+7700=ド
+7800=バ
+7900=ビ
+7A00=ブ
+7B00=ベ
+7C00=ボ
+7D00=パ
+7E00=ピ
+7F00=プ
+8000=ペ
+8100=ポ
+8200=ヴ
+8300=ヵ
+8400=０
+8500=１
+8600=２
+8700=３
+8800=４
+8900=５
+8A00=６
+8B00=７
+8C00=８
+8D00=９
+8E00=零
+8F00=一
+9000=二
+9100=三
+9200=四
+9300=五
+9400=六
+9500=七
+9600=八
+9700=九
+9800=十
+9900=ぁ
+9A00=ぃ
+9B00=ぅ
+9C00=ぇ
+9D00=ぉ
+9E00=っ
+9F00=ゃ
+A000=ゅ
+A100=ょ
+A200=ゎ
+A300=が
+A400=ぎ
+A500=ぐ
+A600=げ
+A700=ご
+A800=ざ
+A900=じ
+AA00=ず
+AB00=ぜ
+AC00=ぞ
+AD00=だ
+AE00=ぢ
+AF00=づ
+B000=で
+B100=ど
+B200=ば
+B300=び
+B400=ぶ
+B500=べ
+B600=ぼ
+B700=ぱ
+B800=ぴ
+B900=ぷ
+BA00=ぺ
+BB00=ぽ
+BC00=ー
+BD00=。
+BE00=、
+BF00=！
+C000=？
+C100=｜
+C200=＄
+C300=％
+C400=＆
+C500=°
+C600=＝
+C700=：
+C800=…
+C900=・
+CC00=（
+CD00=）
+CE00=―
+CF00=「
+D000=」
+D100=『
+D200=』
+D300=～
+D400=‥
+D500=▼
+D700=▶
+*0081
+/FFFF
