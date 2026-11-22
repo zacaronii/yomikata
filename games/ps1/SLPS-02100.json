@@ -90,14 +90,15 @@
   ],
   "status": "partial",
   "coverage": {
-    "chars_in_table": 2430,
-    "chars_seen_in_script": 2470
+    "chars_in_table": 2310,
+    "chars_seen_in_script": 2343
   },
   "sources": [
     "yomikata scan 0.1.0 of the disc files: shift_jis 609, utf16le 62 characters of prose-like text",
     "Genkan memory search during play: the game uses its own table",
     "Replay of a Genkan savestate (docs/replay.md): the 12x12 font in memory, the window's cells and the text pointer",
-    "The disc's packed scene files, unpacked: every message decoded to proofread the table; the control words counted"
+    "The disc's packed scene files, unpacked: every message decoded to proofread the table; the control words counted",
+    "Persona 2: Batsu's script (same font up to 0x0A0E), decoded the same way: 48 more codes confirmed, one doubtful code taken out"
   ],
-  "notes": "Own table: 16-bit glyph numbers into the game's 12x12 font. Words 0x11xx are controls without an argument, 0x12xx controls with one argument word (the layout's `codes`): 0x121D colour, 0x1205 pause, 0x1208 opens a choice of that many answers and 0x1109 waits for it, 0x120E a speaker's name by number, 0x1112 to 0x1114 the hero's names. Names put in by a code read as nothing. Partial: 40 codes the script uses are left out of the table (in doubt, 1 to 20 uses each on the whole disc) and read as U+FFFD; a choice's answers are part of its message."
+  "notes": "Own table: 16-bit glyph numbers into the game's 12x12 font. Words 0x11xx are controls without an argument, 0x12xx controls with one argument word (the layout's `codes`): 0x121D colour, 0x1205 pause, 0x1208 opens a choice of that many answers and 0x1109 waits for it, 0x120E a speaker's name by number, 0x1112 to 0x1114 the hero's names. Names put in by a code read as nothing. Partial: 33 codes the script uses are left out of the table (in doubt or blank, 125 uses on the whole disc) and read as U+FFFD; a choice's answers are part of its message."
 }
