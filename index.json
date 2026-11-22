@@ -10,7 +10,7 @@
   },
   "NPJH50372": {
    "path": "games/psp/NPJH50372.json",
-   "sha256": "3187a5bd7bff1c08ce7b0e277902f1872fd30e3c44d3c934fbafc78aa2a39690",
+   "sha256": "f2bc0ec9460d19803c0f8f2f81a08222be55b42c9000319585c93dfa539b71f6",
    "platform": "psp",
    "encoding": "utf16le",
    "status": "auto"
