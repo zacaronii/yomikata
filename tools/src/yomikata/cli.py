@@ -158,8 +158,8 @@ def main(argv: list[str] | None = None) -> int:
         entry = json.loads(args.entry.read_text(encoding="utf-8"))
         meta_path = args.ram.with_name(args.ram.name.split(".")[0] + ".json")
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
-        lay = layout.pick(entry, args.version or meta.get("exe_sha1"), meta.get("id"))
-        if lay is None:
+        lays = layout.layouts_for(entry, args.version or meta.get("exe_sha1"), meta.get("id"))
+        if not lays:
             print("no layout for that version", file=sys.stderr)
             return 1
         base = args.base or meta.get("base_address")
@@ -169,7 +169,8 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         table = tbl.load([args.root / t for t in entry["tables"]]) if entry.get("tables") else None
         load = lambda paths: tbl.load([args.root / t for t in paths])
-        read = layout.read_layout(lay, entry, layout.Ram.load(args.ram, base), table, load)
+        ram = layout.Ram.load(args.ram, base)
+        read = layout.read_layout(layout.live(lays, ram), entry, ram, table, load)
         print(json.dumps(read, ensure_ascii=False, indent=1))
         return 0
 

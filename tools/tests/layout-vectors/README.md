@@ -11,6 +11,7 @@ Nothing in them comes from a game.
 | `entry` | The parts of an entry a layout reads: `tables` (paths), `unit`, `controls`, `cleanup` |
 | `tables` | For each table path the entry or the layout names, the file's text |
 | `layout` | One item of an entry's `layouts` |
+| `layouts` | In place of `layout`: one version's layouts, in the entry's order. The reader reads the first whose own `when` is true (docs/format.md, "Which layout") |
 | `memory` | Blocks of memory: `address` and the bytes as `hex`. A read has to lie inside one block; any other read fails |
 | `expected` | What the reader gives: each field the layout names and could read, `on_screen` when both `message` and `shown` were read, and `errors` for the fields it couldn't read. While the layout's own `when` is false: the texts (empty), the flags (false) and `choices` (no answers), and no numbers |
 

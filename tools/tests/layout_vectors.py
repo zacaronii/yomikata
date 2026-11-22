@@ -53,8 +53,8 @@ def cases() -> list[dict]:
         v = {"name": name, "checks": checks, "entry": entry or {}}
         if tables:
             v["tables"] = tables
-        v.update(layout=layout, memory=[{"address": f"0x{a:08X}", "hex": d.hex()} for a, d in memory.items()],
-                 expected=expected)
+        v["layouts" if isinstance(layout, list) else "layout"] = layout      # a list: one version's layouts
+        v.update(memory=[{"address": f"0x{a:08X}", "hex": d.hex()} for a, d in memory.items()], expected=expected)
         out.append(v)
 
     case("sjis-message-state",
@@ -627,6 +627,69 @@ def cases() -> list[dict]:
          {0x80300000: script + num(at[7]) + num(0) + num(0x100000)},
          {"errors": {"message": "", "speaker": ""}}, entry=told, tables={"tables/test/kana.tbl": KANA})
 
+    # Another made-up script, counted in codes: an instruction (0027 0105), then a window that opens at 8000 and
+    # closes at F004. A text in it has two pages, each ending in F003 (page); after two instructions (0028) the
+    # window opens again for a third. FFFF ends the script. F003 and F004 are both page codes.
+    words = ["0027", "0105", "8000", "0001", "0002", "F003", "0003", "FFFE", "0004", "F003", "F004", "0028",
+             "0028", "8000", "0005", "F003", "F004", "FFFF"]
+    windows = pad(b"".join(bytes.fromhex(w) for w in words), 48)
+    shut = {"tables": ["tables/test/kana.tbl"], "unit": 2,
+            "controls": {"F003": "page", "F004": "clear", "0028": "ignore"}}
+
+    def window(cell: int) -> dict:
+        offset = {"address": f"0x{0x80320030 + 2 * cell:08X}", "type": "u16", "counts": "codes"}
+        return {"address": "0x80320000", "charset": "table", "max_bytes": 48, "script": {"open": "8000", "offset": offset}}
+
+    case("script-offset-codes",
+         "An offset that counts codes: 5 codes of 2 bytes are 10 bytes into the script, after the first page's "
+         "two characters (message). One code on, the position has passed the page code and nothing follows it "
+         "yet: the page it ended is still up (speaker). And one more: a page code with something after it "
+         "starts the page anew, so only the second page's first character is read (choices).",
+         {"message": window(0), "speaker": window(1), "choices": window(2)},
+         {0x80320000: windows + num(5, 2) + num(6, 2) + num(7, 2)},
+         {"message": "あい", "speaker": "あい", "choices": ["う"]}, entry=shut, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-page-codes",
+         "Page codes inside a text. The second page with its line break, the position past its page code "
+         "(message). Past the code that closes the window as well: that one is a page code too, and the page "
+         "after it is empty (speaker). The same among the instructions that follow, which are controls and "
+         "read as nothing (choices).",
+         {"message": window(0), "speaker": window(1), "choices": window(2)},
+         {0x80320000: windows + num(10, 2) + num(11, 2) + num(12, 2)},
+         {"message": "う\nえ", "speaker": "", "choices": []}, entry=shut, tables={"tables/test/kana.tbl": KANA})
+
+    case("script-page-codes-end",
+         "The window opened again: its one character with the position on the page code (message) and past it "
+         "(speaker). At the script's end, past the closing code and the end code: the end code is stepped "
+         "over, the closing code is the last thing read and so starts no page, and the page code before it has "
+         "the closing code after it, so the page is empty (choices).",
+         {"message": window(0), "speaker": window(1), "choices": window(2)},
+         {0x80320000: windows + num(15, 2) + num(16, 2) + num(18, 2)},
+         {"message": "お", "speaker": "お", "choices": []}, entry=shut, tables={"tables/test/kana.tbl": KANA})
+
+    # Two layouts for one version: a game that loads a program per chapter keeps its cells elsewhere in each.
+    def chapter(value: int, text: int) -> dict:
+        return {"when": {"address": "0x80330000", "type": "u32", "equals": value},
+                "message": {"address": f"0x{text:08X}", "charset": "shift_jis", "max_bytes": 8, "terminator": "00"},
+                "waiting": {"address": "0x80330004"}}
+    both = [chapter(0x27BD0018, 0x80330008), chapter(0xAFBF0020, 0x80330010)]
+    lines = num(1) + pad(sjis("一章"), 8) + pad(sjis("二章"), 8)
+    case("layouts-first-true",
+         "Several layouts for one version are taken in order, and the first whose own when is true is read. "
+         "Here it is the second.",
+         both, {0x80330000: num(0xAFBF0020) + lines}, {"message": "二章", "waiting": True})
+
+    case("layouts-none-true",
+         "No layout's when is true: the first is read, which gives what a false when gives.",
+         both, {0x80330000: num(0x3C028007) + lines}, {"message": "", "waiting": False})
+
+    case("layouts-without-when",
+         "A layout without a when is always true, so nothing after it is ever read. One whose when can't be "
+         "read is passed over.",
+         [{**both[0], "when": {"base": "0x80330020", "offsets": ["0x0"], "type": "u32"}},
+          {k: v for k, v in both[0].items() if k != "when"}, both[1]],
+         {0x80330000: num(0xAFBF0020) + lines + bytes(12) + num(0)}, {"message": "一章", "waiting": True})
+
     sets = {"tables": {"by": {"address": "0x80210010", "type": "u16"},
                        "sets": {"36": ["tables/test/one.tbl"], "94": ["tables/test/two.tbl"]}},
             "message": {"address": "0x80210000", "charset": "table", "max_bytes": 16, "terminator": "FFFF"},
@@ -680,7 +743,13 @@ def replay(vector: dict) -> dict:
             table.update(tbl.parse(vector["tables"][path], path))
         return table
     table = load(entry["tables"]) if entry.get("tables") else None
-    return layout.read_layout(vector["layout"], entry, memory(vector), table, load)
+    read = memory(vector)
+    lay = layout.live(vector["layouts"], read) if "layouts" in vector else vector["layout"]
+    return layout.read_layout(lay, entry, read, table, load)
+
+
+def layouts_of(vector: dict) -> list[dict]:
+    return vector.get("layouts") or [vector["layout"]]
 
 
 def agrees(read: dict, expected: dict) -> bool:
