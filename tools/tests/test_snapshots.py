@@ -42,11 +42,25 @@ def test_bad_snapshots_get_the_reason(tmp_path):
     for m, ram, says in ((meta(base_address="0x1FC00000"), small, "base_address"),       # the BIOS ROM
                          (meta(), os.urandom(0x200001), "main RAM"),                       # bigger than PS1 RAM
                          (meta(base_address="0x801FF000"), small + small, "runs past"),
-                         (meta(ocr=[]), small, "meta.ocr"), (meta(platform="nds"), small, "snapshots are taken")):
+                         (meta(ocr=[]), small, "meta.ocr"), (meta(platform="nds"), small, "snapshots are taken"),
+                         (meta(no_text=True), small, "no_text"), (meta(ocr=[], no_text="yes"), small, "meta.ocr")):
         r = send(c, ram, m)
         assert r.status_code == 400 and says in r.json()["detail"], (m, r.text)
     r = c.post("/api/snapshots", data={"meta": json.dumps(meta())}, headers=AUTH)
     assert r.status_code == 400 and "ram file part" in r.json()["detail"]
+
+
+def test_a_screen_without_text_is_stored_when_it_says_so(tmp_path):
+    c = TestClient(create_app("secret", tmp_path / "data"))
+    with_text, without = os.urandom(4096), os.urandom(4096)
+    send(c, with_text)
+    for m in (meta(ocr=[], no_text=True), {k: v for k, v in meta(no_text=True).items() if k != "ocr"}):
+        r = send(c, without, m).json()
+        assert r["ok"], r
+    stored = json.loads((tmp_path / f"data/snapshots/ps1/SLPS-01001/{r['sha1']}.json").read_text())
+    assert stored["ocr"] == [] and stored["no_text"] is True
+    game = c.get("/api/snapshots", headers=AUTH).json()["games"][0]
+    assert (game["snapshots"], game["lines"], game["no_text"]) == (2, 1, 1)
 
 
 def test_only_the_newest_snapshots_are_kept(tmp_path, monkeypatch):

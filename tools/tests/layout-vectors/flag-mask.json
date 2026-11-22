@@ -1,0 +1,40 @@
+{
+ "name": "flag-mask",
+ "checks": "A flag's mask keeps only those bits before the test: nonzero, or equals. The bits are the stored ones, so a signed type's -1 under mask 3 is 3.",
+ "entry": {},
+ "layout": {
+  "waiting": {
+   "address": "0x80600000",
+   "mask": 3
+  },
+  "choosing": {
+   "address": "0x80600001",
+   "mask": 3
+  },
+  "choices": {
+   "address": "0x80600010",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "terminator": "00",
+   "when": {
+    "address": "0x80600002",
+    "type": "s8",
+    "mask": 3,
+    "equals": 3
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80600000",
+   "hex": "0208ff0000000000000000000000000082cd82a200000000"
+  }
+ ],
+ "expected": {
+  "waiting": true,
+  "choosing": false,
+  "choices": [
+   "はい"
+  ]
+ }
+}

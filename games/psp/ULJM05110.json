@@ -1,0 +1,17 @@
+{
+  "id": "ULJM05110",
+  "platform": "psp",
+  "title": "かまいたちの夜2 特別篇",
+  "title_romaji": "Kamaitachi no Yoru 2: Tokubetsu-hen",
+  "versions": [
+    {
+      "exe": "EBOOT.BIN",
+      "exe_sha1": "7501692ee178670fea72a80406e397622611dd47"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 446,208, utf16le 1,148 characters of prose-like text"
+  ]
+}
