@@ -14,10 +14,23 @@
     "tables/ps1/SLPS-00102.tbl"
   ],
   "unit": 2,
+  "controls": {
+    "0085": "wait",
+    "0086": "page",
+    "018D": "name",
+    "028D": "name",
+    "038D": "name",
+    "048D": "name",
+    "058D": "name",
+    "068D": "name",
+    "078D": "name"
+  },
   "status": "partial",
   "sources": [
     "Genkan memory search during play: own 16-bit table, あ = 0x0001 in gojuon order",
-    "Three Genkan RAM snapshots of the opening (inbox): lines found with `yomikata locate`, and the layout read off by decoding them against the OCR'd text"
+    "From the disc: fonts and scripts decompressed, the font file's order worked out, and each of the six chapters' scripts paired with its font by how many of its kanji make words",
+    "Glyphs: 2,599 of the 2,881 chapter codes are bit for bit ones read for Kyuumei-hen (SLPS-00405); the other 282 (210 different glyphs) were read by eye. Every scene's script was then decoded and checked against a word list; 19 codes no scene uses are unchecked",
+    "Fourteen Genkan RAM snapshots of the first chapter (inbox): seven scripts decode to the lines that were on screen with no unmapped code; the script position, the waiting flag and the character count follow the screen in all of them"
   ],
-  "notes": "Kana mapped (tables/ps1/SLPS-00102.tbl): 16-bit little-endian, a different layout from Moonlight Syndrome. Kanji are 0x0100 up in the scene font's order (聞 0x0122, 雨 0x013E in the opening; 「」 also appear there as 0x0103/0x0104), so they likely change between scenes. 0x8xxx words are control codes (not mapped yet). The small katakana block is the least certain: only ョ was seen."
+  "notes": "16-bit little-endian codes, not Kyuumei-hen's (SLPS-00405): 0x0000-0x0108 are shared; kanji are 0x010C up and each chapter numbers its own, so one of SLPS-00102-ch0.tbl, -ch1, -ch2, -ch3, -ch4, -chX must follow the shared table. The format can't choose a table yet and the byte that says the chapter isn't known, so only the shared one is listed and kanji read as unmapped. The script is at 0x801FE800; the u16 at 0x800A4CEA counts the words read; the table has the flags beside it (first chapter only). No layout: a page cursor must be an address. Two more fonts on the disc belong to no script."
 }
