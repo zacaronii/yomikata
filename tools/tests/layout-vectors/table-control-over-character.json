@@ -1,0 +1,38 @@
+{
+ "name": "table-control-over-character",
+ "checks": "A code the entry's controls name is that control, also when a table file lists it as a character: F005 (name) is nothing, though the second table has a character for it. F007 is only in the table, as a space. And a code may be up to 32 bytes long: F019 here is 18, a control and eight argument words, skipped whole.",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl",
+   "tables/test/marks.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "F005": "name"
+  }
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n",
+  "tables/test/marks.tbl": "F005=★\nF007=　\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80200000",
+   "charset": "table",
+   "max_bytes": 40,
+   "terminator": "FFFF",
+   "codes": {
+    "F019": 18
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80200000",
+   "hex": "0001f0050002f019ffffffffffffffffffffffffffffffff0003f0070004ffff0005000000000000"
+  }
+ ],
+ "expected": {
+  "message": "あいう　え"
+ }
+}
