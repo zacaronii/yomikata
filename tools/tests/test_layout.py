@@ -185,7 +185,7 @@ def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
                              "pages": {"break": "0C", "cursor": {"address": "0x2"}}}},
                 {"message": {**text, "codes": {}}}, {"message": {**text, "codes": {"7": 2}}},
                 {"message": {**text, "codes": {"07": "2"}}}, {"message": {**text, "codes": {"0703": 1}}},
-                {"message": {**text, "codes": {"07": 17}}}, {"message": {**text, "codes": ["07"]}},
+                {"message": {**text, "codes": {"07": 33}}}, {"message": {**text, "codes": ["07"]}},
                 {"message": {**text, "script": script}},                      # only a table has end codes
                 {"message": {**table, "script": {"open": "8000"}}}, {"message": {**table, "script": {**script, "to": 1}}},
                 {"message": {**table, "script": {**script, "open": "800"}}},

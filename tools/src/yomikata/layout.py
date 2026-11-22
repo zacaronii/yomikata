@@ -311,7 +311,7 @@ def _text_ok(spec) -> bool:
             and _number_ok(script["offset"], _LENGTH, ("bytes", "codes"))):
         return False
     if codes is not None and not (isinstance(codes, dict) and codes and all(
-            isinstance(lead, str) and _HEX.fullmatch(lead) and type(n) is int and len(lead) // 2 <= n <= 16
+            isinstance(lead, str) and _HEX.fullmatch(lead) and type(n) is int and len(lead) // 2 <= n <= 32
             for lead, n in codes.items())):
         return False
     if pages is not None and not ("rows" not in spec and isinstance(pages, dict) and set(pages) == {"break", "cursor"}

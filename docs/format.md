@@ -159,9 +159,9 @@ A *text* has:
   the cursor is on. Not together with `rows`;
 - optionally `codes`, for the game's own codes that take arguments (a colour, a style, a pause): each key is
   the bytes a code starts with (hex in memory byte order), its value how many bytes the code has in all, those
-  included. `{"03": 2, "07": 2}` is two codes with one argument byte each. With `table` these are the controls
-  that take arguments (`{"FFF9": 4}`: a two-byte control and its two-byte argument); a control without one
-  needs no entry here;
+  included (32 at most). `{"03": 2, "07": 2}` is two codes with one argument byte each. With `table` these are
+  the controls that take arguments (`{"FFF9": 4}`: a two-byte control and its two-byte argument); a control
+  without one needs no entry here;
 - optionally `script: {offset, open}`, for a game that keeps no copy of the text it shows and reads it straight
   out of a script, with instructions between the texts. The text's address is then where the script starts,
   `offset` is a *number* holding how many bytes into the script the game is reading (with `"counts": "codes"`,
@@ -252,7 +252,7 @@ page short there, so a script whose arguments can have those values isn't one fo
 | `euc_jp` | 3 for `8F`, 2 for `8E` and up, else 1 | JIS X 0208, `8E` + half-width kana, `8F` + JIS X 0212. Vendor rows (NEC's row 13, IBM's extensions) aren't defined yet |
 | `utf8` | 4 for `F0` and up, 3 for `E0` and up, 2 for `C0` and up, else 1 | Strict UTF-8: an overlong form or an encoded surrogate doesn't decode |
 | `utf16le`, `utf16be` | 4 for a high surrogate followed by a low one when both fit, else 2 | A surrogate on its own doesn't decode |
-| `table` | the entry's `unit` | The table's character. An end code, or a code `controls` calls `page` or `clear`, is a blank line; a newline code is a line break; any other control is nothing; a code the table lacks is U+FFFD. A code from `codes` is looked for before any of these. Line breaks at the end are dropped |
+| `table` | the entry's `unit` | The table's character. An end code, or a code `controls` calls `page` or `clear`, is a blank line; a newline code is a line break; any other control is nothing; a code the table lacks is U+FFFD. A code `controls` names is that control, also when a table lists it as a character. A code from `codes` is looked for before any of these. Line breaks at the end are dropped |
 
 Any other single byte from `80` up is U+FFFD. Python's `cp932` and `euc_jp` codecs are the reference for the
 mappings.
