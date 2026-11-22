@@ -631,7 +631,7 @@
       }
     },
     {
-      "notes": "While CAP6.EXE is loaded. Read in a replay of the chapter's first scene (37 pages); not yet in real play. The cursor's cell is from the program's code; not yet seen moving.",
+      "notes": "While CAP6.EXE is loaded. Read in a replay of the chapter's first scene (37 pages); not yet in real play.",
       "when": {
         "address": "0x80041C78",
         "type": "u32",
@@ -1935,7 +1935,7 @@
       }
     },
     {
-      "notes": "While CAPA.EXE is loaded. Read in a replay of the chapter's first scene (32 pages); not yet in real play. The cursor's cell is from the program's code; not yet seen moving.",
+      "notes": "While CAPA.EXE is loaded. Read in a replay of the chapter's first scene (32 pages); not yet in real play.",
       "when": {
         "address": "0x80041C78",
         "type": "u32",
