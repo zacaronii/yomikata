@@ -1,0 +1,94 @@
+{
+ "name": "script-choice-row-no-break-typing",
+ "checks": "The same script just past the code that opens the choice: the line break it gives ends the text so far and is dropped with the other trailing line breaks.",
+ "entry": {
+  "tables": [
+   "tables/test/colon.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "0098": "choice",
+   "0198": "choice",
+   "0097": "newline"
+  }
+ },
+ "tables": {
+  "tables/test/colon.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n00C7=：\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80370000",
+   "charset": "table",
+   "max_bytes": 32,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80370020",
+     "type": "u16",
+     "counts": "codes"
+    }
+   },
+   "cleanup": [
+    {
+     "regex": "^\\n：",
+     "replace": "："
+    },
+    {
+     "regex": "\\n\\n：",
+     "replace": "\n："
+    }
+   ]
+  },
+  "choosing": {
+   "address": "0x80370022",
+   "type": "u16",
+   "equals": 65535
+  },
+  "choices": {
+   "address": "0x80370000",
+   "charset": "table",
+   "max_bytes": 32,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80370020",
+     "type": "u16",
+     "counts": "codes"
+    }
+   },
+   "when": {
+    "address": "0x80370022",
+    "type": "u16",
+    "equals": 65535
+   },
+   "cleanup": [
+    {
+     "regex": "(?s)^(.*?\\n)??：",
+     "replace": ""
+    },
+    {
+     "regex": "\\n：",
+     "replace": "\n"
+    }
+   ]
+  },
+  "choice_cursor": {
+   "address": "0x80370024",
+   "type": "u16"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80370000",
+   "hex": "8000000100020097019800c70003fffe009800c700040005fffeffff00060005040000000000"
+  }
+ ],
+ "expected": {
+  "message": "あい",
+  "choosing": false,
+  "choices": [],
+  "choice_cursor": 0
+ }
+}

@@ -1,0 +1,72 @@
+{
+ "name": "script-rest",
+ "checks": "The position is two codes past the end code, on neither a text nor an open code. With rest 2 it is read as just past the end code, so the page is still up: both texts, joined (message). With rest 1 the end code is too far back, and without rest nobody looks: nothing (speaker, shown as a text). With rows, each text is an answer (choices).",
+ "entry": {
+  "tables": [
+   "tables/test/kana.tbl"
+  ],
+  "unit": 2
+ },
+ "tables": {
+  "tables/test/kana.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80340000",
+   "charset": "table",
+   "max_bytes": 24,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80340018",
+     "type": "u16",
+     "counts": "codes"
+    },
+    "rest": 2
+   }
+  },
+  "speaker": {
+   "address": "0x80340000",
+   "charset": "table",
+   "max_bytes": 24,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80340018",
+     "type": "u16",
+     "counts": "codes"
+    },
+    "rest": 1
+   }
+  },
+  "choices": {
+   "address": "0x80340000",
+   "charset": "table",
+   "max_bytes": 24,
+   "script": {
+    "open": "8000",
+    "offset": {
+     "address": "0x80340018",
+     "type": "u16",
+     "counts": "codes"
+    },
+    "rest": 16,
+    "texts": "rows"
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80340000",
+   "hex": "80000001ffff800000020003ffff000600050000000000000900"
+  }
+ ],
+ "expected": {
+  "message": "あいう",
+  "speaker": "",
+  "choices": [
+   "あ",
+   "いう"
+  ]
+ }
+}

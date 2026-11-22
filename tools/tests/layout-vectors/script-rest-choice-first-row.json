@@ -1,0 +1,86 @@
+{
+ "name": "script-rest-choice-first-row",
+ "checks": "A choice with no question's row: the page starts with an answer. The first rule's group is lazy, so it matches nothing here and the first answer stays; a greedy one would take the first answer away.",
+ "entry": {
+  "tables": [
+   "tables/test/colon.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "0098": "choice",
+   "0198": "choice"
+  }
+ },
+ "tables": {
+  "tables/test/colon.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n00C7=：\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80360000",
+   "charset": "table",
+   "max_bytes": 24,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80360018",
+     "type": "u16",
+     "counts": "codes"
+    }
+   }
+  },
+  "choosing": {
+   "address": "0x8036001A",
+   "type": "u16",
+   "equals": 65535
+  },
+  "choices": {
+   "address": "0x80360000",
+   "charset": "table",
+   "max_bytes": 24,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80360018",
+     "type": "u16",
+     "counts": "codes"
+    }
+   },
+   "when": {
+    "address": "0x8036001A",
+    "type": "u16",
+    "equals": 65535
+   },
+   "cleanup": [
+    {
+     "regex": "(?s)^(.*?\\n)??：",
+     "replace": ""
+    },
+    {
+     "regex": "\\n：",
+     "replace": "\n"
+    }
+   ]
+  },
+  "choice_cursor": {
+   "address": "0x8036001C",
+   "type": "u16"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80360000",
+   "hex": "8000009800c70003fffe019800c70004fffeffff000500060c00ffff0000"
+  }
+ ],
+ "expected": {
+  "message": "：う\n：え",
+  "choosing": true,
+  "choices": [
+   "う",
+   "え"
+  ],
+  "choice_cursor": 0
+ }
+}

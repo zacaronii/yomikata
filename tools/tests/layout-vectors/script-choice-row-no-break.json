@@ -1,0 +1,97 @@
+{
+ "name": "script-choice-row-no-break",
+ "checks": "The question runs straight into the choice, with no line break code before it. The code that opens the choice is a newline in controls, so the first answer starts a row: the message has the question's row and a row for each answer, and the answers are both there. Were that code nothing, the first answer would sit on the question's row and be lost from the answers.",
+ "entry": {
+  "tables": [
+   "tables/test/colon.tbl"
+  ],
+  "unit": 2,
+  "controls": {
+   "0098": "choice",
+   "0198": "choice",
+   "0097": "newline"
+  }
+ },
+ "tables": {
+  "tables/test/colon.tbl": "0001=あ\n0002=い\n0003=う\n0004=え\n0005=お\n0006=か\n/FFFF\n*FFFE\n00C7=：\n"
+ },
+ "layout": {
+  "message": {
+   "address": "0x80370000",
+   "charset": "table",
+   "max_bytes": 32,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80370020",
+     "type": "u16",
+     "counts": "codes"
+    }
+   },
+   "cleanup": [
+    {
+     "regex": "^\\n：",
+     "replace": "："
+    },
+    {
+     "regex": "\\n\\n：",
+     "replace": "\n："
+    }
+   ]
+  },
+  "choosing": {
+   "address": "0x80370022",
+   "type": "u16",
+   "equals": 65535
+  },
+  "choices": {
+   "address": "0x80370000",
+   "charset": "table",
+   "max_bytes": 32,
+   "script": {
+    "open": "8000",
+    "rest": 2,
+    "offset": {
+     "address": "0x80370020",
+     "type": "u16",
+     "counts": "codes"
+    }
+   },
+   "when": {
+    "address": "0x80370022",
+    "type": "u16",
+    "equals": 65535
+   },
+   "cleanup": [
+    {
+     "regex": "(?s)^(.*?\\n)??：",
+     "replace": ""
+    },
+    {
+     "regex": "\\n：",
+     "replace": "\n"
+    }
+   ]
+  },
+  "choice_cursor": {
+   "address": "0x80370024",
+   "type": "u16"
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80370000",
+   "hex": "8000000100020097019800c70003fffe009800c700040005fffeffff000600051000ffff0000"
+  }
+ ],
+ "expected": {
+  "message": "あい\n：う\n：えお",
+  "choosing": true,
+  "choices": [
+   "う",
+   "えお"
+  ],
+  "choice_cursor": 0
+ }
+}
