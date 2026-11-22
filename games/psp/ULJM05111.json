@@ -1,0 +1,17 @@
+{
+  "id": "ULJM05111",
+  "platform": "psp",
+  "title": "街 ～運命の交差点～ 特別篇",
+  "title_romaji": "Machi: Unmei no Kousaten Tokubetsu-hen",
+  "versions": [
+    {
+      "exe": "EBOOT.BIN",
+      "exe_sha1": "601acebfd3c740546fce3b451c47c8bf9197c392"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 24,631, utf16le 34 characters of prose-like text"
+  ]
+}

@@ -119,7 +119,8 @@ Every *number*, *flag* and *text* says where it is in one of two ways:
   "the pointer at B, plus 8".
 
 A *number* has a `type` (`u8` default, `u16`, `u32`, `s8`, `s16`, `s32`). As a *flag* it is true when nonzero, or
-when it `equals` a given value.
+when it `equals` a given value. A flag's `mask` keeps only those bits of the value before either test (the bits as
+stored, so the result is never below zero): `"mask": 3` is true at 1, 2 and 3 and false at 0, 4 and 8.
 
 A reader that finds a key or a named value (a `charset`, a `type`) it doesn't know anywhere in a layout treats
 that layout as not there: a newer key can change what the others mean (a text without its `when` would show
@@ -178,6 +179,9 @@ A *text* has:
 
 A length counts bytes unless it says `"counts": "characters"`. Games that write a new line over the old one
 without ending it need a length to tell where the new line stops.
+
+A game that keeps only a pointer to the page it shows gives that pointer twice with `pages`: as the text's
+address (`base` with the offset `0x0`) and as the cursor. The text is then the first page from there.
 
 ### Reading a text
 

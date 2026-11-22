@@ -1,0 +1,18 @@
+{
+  "id": "ULJM05704",
+  "platform": "psp",
+  "title": "コープスパーティー ブラッドカバー リピーティッドフィアー",
+  "title_romaji": "Corpse Party: Blood Covered: Repeated Fear",
+  "versions": [
+    {
+      "exe": "EBOOT.BIN",
+      "exe_sha1": "a47b4c0e727178ef840c56a3dc12164382c573d5"
+    }
+  ],
+  "encoding": "compressed",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0: no prose-like text on disc"
+  ],
+  "notes": "Most of the disc is compressed data and little script reads on it; the script is likely compressed on disc. A memory sample from play will settle the encoding."
+}

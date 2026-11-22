@@ -1,0 +1,17 @@
+{
+  "id": "SLPM-65888",
+  "platform": "ps2",
+  "title": "ドラゴンクエストVIII 空と海と大地と呪われし姫君",
+  "title_romaji": "Dragon Quest VIII: Sora to Umi to Daichi to Norowareshi Himegimi",
+  "versions": [
+    {
+      "exe": "SLPM_658.88",
+      "exe_sha1": "a19d462b670b9ed3d1433284425f9885d212a1fb"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 165,675, utf16le 150 characters of prose-like text"
+  ]
+}
