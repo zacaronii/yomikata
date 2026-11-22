@@ -1,0 +1,17 @@
+{
+  "id": "ULJM05887",
+  "platform": "psp",
+  "title": "STEINS;GATE",
+  "title_romaji": "Steins;Gate",
+  "versions": [
+    {
+      "exe": "EBOOT.BIN",
+      "exe_sha1": "9daa9b5253adbcb3fce7bcd738c22a4384f97e64"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 852,681 characters of prose-like text"
+  ]
+}

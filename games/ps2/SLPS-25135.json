@@ -1,0 +1,18 @@
+{
+  "id": "SLPS-25135",
+  "platform": "ps2",
+  "title": "かまいたちの夜2 監獄島のわらべ唄",
+  "title_romaji": "Kamaitachi no Yoru 2: Kangoku-jima no Warabe-uta",
+  "versions": [
+    {
+      "exe": "SLPS_251.35",
+      "exe_sha1": "5c3632d45e65905c4b32d9b00e7f8540965eaef4"
+    }
+  ],
+  "encoding": "compressed",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 1,230, utf16le 10 characters of prose-like text"
+  ],
+  "notes": "Most of the disc is compressed data and little script reads on it; the script is likely compressed on disc. A memory sample from play will settle the encoding."
+}
