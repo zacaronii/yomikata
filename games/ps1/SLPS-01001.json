@@ -114,7 +114,31 @@
         "type": "s32",
         "equals": 4
       },
-      "notes": "The game reads the chapter's script in place, so the message is what has been read so far: while a line types, what is drawn. The script's label count names the chapter and so its kanji table (the twelve counts differ). State at 0x8008BF00: 1 typing, 2 waiting, 6 a pause in a line, 3 a timed wait, 0 between operations, 4 a choice up, 5 answered. Not read: a choice's answers (in the script operation, not a text) and the speaker's name beside some lines. Checked on the prologue only (replay and 28 device snapshots); the other chapters' counts come from the discs."
+      "choices": {
+        "base": "0x8008BEF0",
+        "offsets": [
+          "0x0"
+        ],
+        "charset": "table",
+        "max_bytes": 128,
+        "script": {
+          "open": "000001",
+          "offset": {
+            "address": "0x8008BEF4",
+            "type": "u32"
+          },
+          "texts": "rows"
+        },
+        "when": {
+          "address": "0x8008BF00",
+          "type": "s32",
+          "equals": 4
+        }
+      },
+      "choice_cursor": {
+        "address": "0x8008E33C"
+      },
+      "notes": "The game reads the chapter's script in place, so the message is what has been read so far: while a line types, what is drawn. The script's label count names the chapter and so its kanji table (the twelve counts differ). State at 0x8008BF00: 1 typing, 2 waiting, 6 a pause in a line, 3 a timed wait, 0 between operations, 4 a choice up, 5 answered. A choice is one operation (80 07) holding each answer after 00 00 01; while it is up the offset is at its end. Not read: the speaker's name beside some lines (a picture). Run in the prologue only; the other chapters are checked from the discs' scripts."
     }
   ],
   "status": "partial",
@@ -125,7 +149,8 @@
     "From the discs: each chapter archive's entry 0 is its script (a text follows the bytes 80 00 and ends at FFFF), entry 1 the kana sheet (identical in all twelve), entry 2 the kanji widths and entry 3 the kanji sheets, 256 cells each in code order",
     "Glyphs: 3,626 kanji cells in twelve chapters, 1,123 different bitmaps, all read by eye. Every script was then decoded and checked against a word list, and the lines of each glyph the list didn't confirm were read; 89 glyphs no script uses are unchecked",
     "Every text in the twelve scripts decodes with no unmapped character code, but for one line in MOWDEI that uses two codes (0x02E6, 0x02E7) the font has no glyph for",
-    "Replay from the BIOS in PCSX ReARMed: the script pointer, offset, state and window cells followed through the prologue. The layout then read 28 snapshots Genkan took on a device (9 at a wait, 6 mid-line, 3 at a choice, 10 with no window) as the screen showed. Other chapters and disc 2 not run"
+    "Replay from the BIOS in PCSX ReARMed: the script pointer, offset, state and window cells followed through the prologue. The layout then read 28 snapshots Genkan took on a device (9 at a wait, 6 mid-line, 3 at a choice, 10 with no window) as the screen showed. Other chapters and disc 2 not run",
+    "Choices: the layout reads every 80 07 operation of the twelve scripts (144, with 344 answers) from the script files as a plain parse gives them. The cursor cell followed in a replay through two prologue choices (2 and 3 answers, down and up); it stops at the first and the last answer"
   ],
   "notes": "16-bit codes, high byte first; a text can start at an odd address. 0x0000-0x00EF are shared (tables/human-kana.tbl); kanji (0x0100 up) are numbered per chapter (12), so one of tables/ps1/SLPS-01001-<chapter>.tbl must follow. The layout chooses it by the script's label count. FFF9/FFFA take a frame count (one more code). RAM, disc 1: u32 0x8008BEF0 points to the script, 0x8008BEF4 is the offset being read, 0x8008BEF8 the label count (one per chapter); s32 0x8008BF00: 1 typing, 2 waiting, 4 choice; u8 0x8008F0E4: 0x80 while the window is up."
 }
