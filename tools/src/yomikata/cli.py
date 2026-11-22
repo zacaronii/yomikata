@@ -13,6 +13,13 @@ from .identify import identify
 from .layout import RAM_BASE
 
 
+def _option(text: str) -> tuple[str, str]:
+    key, eq, value = text.partition("=")
+    if not (key and eq):
+        raise argparse.ArgumentTypeError(f"{text!r} isn't KEY=VALUE")
+    return key, value
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="yomikata", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -44,6 +51,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--game", type=Path, required=True, help="the game image (the one the savestate belongs to)")
     p.add_argument("--state", type=Path, help="savestate (<sha1>.state.gz from an inbox, or raw); without one the game boots")
     p.add_argument("--system", type=Path, help="the core's system folder, e.g. with your console's BIOS (default: <out>/system)")
+    p.add_argument("--option", action="append", default=[], metavar="KEY=VALUE", type=_option,
+                   help="a core option, e.g. pcsx_rearmed_memcard1=libretro for a game that wants a memory card (repeatable)")
     p.add_argument("--steps", help="a script instead of --press/--frames, e.g. 'wait:600,start:4,30x(a:4,wait:40,snap)'")
     p.add_argument("--watch", default="", help="with --steps: addresses (hex, comma separated) whose byte is printed at each snap")
     p.add_argument("--platform", default="ps1", choices=sorted(RAM_BASE), help="whose RAM addresses --watch takes")
@@ -149,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         from PIL import Image
         from .replay.libretro import Core
         args.out.mkdir(parents=True, exist_ok=True)
-        core = Core(args.core, args.system or args.out / "system")
+        core = Core(args.core, args.system or args.out / "system", dict(args.option))
         core.load_game(args.game)
         state = b""
         if args.state:

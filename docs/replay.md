@@ -31,6 +31,12 @@ docker run --rm --network none \
 Without `--state` the game boots from power-on, so a layout can be worked out for a game nobody has played on a
 device yet. A core that needs a BIOS looks for it in `--system`: use your own console's; the catalog has none.
 
+A core asks its frontend for its options and takes its own default where it gets no answer; `--option KEY=VALUE`
+answers (repeatable). PCSX ReARMed runs without a memory card unless told
+`--option pcsx_rearmed_memcard1=libretro`, and a game that won't start without one (Dragon Quest VII) stops at
+its first menu. The card is empty at each run and isn't part of a savestate, so a save made in one run is gone in
+the next: get past the menu and `save:` there.
+
 ```sh
 yomikata replay --core /cores/pcsx_rearmed_libretro.so --game "/games/Some Game (Japan).chd" --system /system \
   --steps "wait:900, start:4, wait:300, 30x(a:4, wait:40, snap), save:line30" --watch 0x8010AC4D -o /out/run1

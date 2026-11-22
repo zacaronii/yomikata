@@ -1,3 +1,4 @@
+import argparse
 import gzip
 
 import numpy as np
@@ -93,3 +94,11 @@ def test_cli_prints_addresses_not_text(tmp_path, capsys):
     assert capsys.readouterr().out == ""
     assert cli.main(["contrast", "--same", str(a), "--other", str(b), "--platform", "psp"]) == 0
     assert capsys.readouterr().out.splitlines()[-2:] == ["0x08000014 1, otherwise 0", "5 byte(s)"]
+
+
+def test_cli_takes_core_options_as_key_value():
+    assert cli._option("pcsx_rearmed_memcard1=libretro") == ("pcsx_rearmed_memcard1", "libretro")
+    assert cli._option("a=b=c") == ("a", "b=c")
+    for odd in ("libretro", "=libretro"):
+        with pytest.raises(argparse.ArgumentTypeError):
+            cli._option(odd)
