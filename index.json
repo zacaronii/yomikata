@@ -135,17 +135,17 @@
   },
   "SLPM-86500": {
    "path": "games/ps1/SLPM-86500.json",
-   "sha256": "a2b2b5f8232e7ab285356d95a36488df9108684e6a929e9ff64ae6672bce0de9",
+   "sha256": "289e5fafa2357c00bdab2a7163daa13562becfa38065f2ebaccee6c2761dfe9b",
    "platform": "ps1",
-   "encoding": "shift_jis",
-   "status": "auto"
+   "encoding": "unknown",
+   "status": "partial"
   },
   "SLPM-86501": {
    "path": "games/ps1/SLPM-86500.json",
-   "sha256": "a2b2b5f8232e7ab285356d95a36488df9108684e6a929e9ff64ae6672bce0de9",
+   "sha256": "289e5fafa2357c00bdab2a7163daa13562becfa38065f2ebaccee6c2761dfe9b",
    "platform": "ps1",
-   "encoding": "shift_jis",
-   "status": "auto",
+   "encoding": "unknown",
+   "status": "partial",
    "alias_of": "SLPM-86500"
   },
   "SLPS-00097": {
