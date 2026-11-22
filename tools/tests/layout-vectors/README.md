@@ -9,7 +9,7 @@ Nothing in them comes from a game.
 | `name` | The file's name without `.json` |
 | `checks` | What the case is there for |
 | `entry` | The parts of an entry a layout reads: `tables` (paths), `unit`, `controls`, `cleanup` |
-| `tables` | For each path in `entry.tables`, the table file's text |
+| `tables` | For each table path the entry or the layout names, the file's text |
 | `layout` | One item of an entry's `layouts` |
 | `memory` | Blocks of memory: `address` and the bytes as `hex`. A read has to lie inside one block; any other read fails |
 | `expected` | What the reader gives: each field the layout names and could read, `on_screen` when both `message` and `shown` were read, and `errors` for the fields it couldn't read. While the layout's own `when` is false: the texts (empty), the flags (false) and `choices` (no answers), and no numbers |

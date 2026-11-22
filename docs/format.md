@@ -88,6 +88,7 @@ Every field is optional, and a layout with only `message` is already useful.
 | `waiting`, `choosing` | *flag*: the line is complete and waits for a press; a choice is up |
 | `choices`, `choice_count`, `choice_cursor` | *text* with one answer per row; how many rows count; which answer (from 0) the cursor is on |
 | `when` | *flag*: the addresses hold what the layout says (see below) |
+| `tables` | `{by, sets}`: table files that follow the entry's, chosen by a *number* (see below) |
 | `notes` | Short; no script text |
 
 Some games use the same memory for something else outside their script: a movie's frames, the title screen. A
@@ -95,6 +96,20 @@ layout's own `when` is true only while its addresses mean what it says. While it
 nothing else: every *text* is empty, `waiting` and `choosing` are false, and the numbers (`shown`,
 `choice_count`, `choice_cursor`, a speaker number) are left out. If `when` can't be read, nothing else is read
 either, and `when` is the field that failed.
+
+Some games number their characters anew for each chapter, so no one table fits the whole game. A layout's own
+`tables` names the table files that go with what is loaded now: `by` is a *number*, and `sets` gives, for each
+value it can have (written in decimal), the files to apply after the entry's `tables`:
+
+```json
+"tables": {"by": {"address": "0x80101000", "type": "u32"},
+           "sets": {"36": ["tables/ps1/SLPS-00000-one.tbl"], "94": ["tables/ps1/SLPS-00000-two.tbl"]}}
+```
+
+Such a layout decodes its `table` texts with the entry's tables and then the set's. When the number has no set,
+or can't be read, there is no table: every `table` text fails and is left out, rather than being read with the
+wrong characters. The other fields are read as always. `by` can be anything that differs between the chapters;
+a count the game keeps of something in the loaded script will do.
 
 Every *number*, *flag* and *text* says where it is in one of two ways:
 
@@ -131,10 +146,17 @@ A *text* has:
   through it: `break` is the code between two pages (hex in memory byte order, one byte or more, matched only at
   character boundaries) and `cursor` a *number* holding the address the game is reading at. The text is the page
   the cursor is on. Not together with `rows`;
-- optionally `codes`, for a text in a standard charset with the game's own codes in it (a colour, a style, a
-  pause): each key is the bytes a code starts with (hex in memory byte order), its value how many bytes the code
-  has in all, those included. `{"03": 2, "07": 2}` is two codes with one argument byte each. Not with `table`,
-  whose codes are the entry's `controls`;
+- optionally `codes`, for the game's own codes that take arguments (a colour, a style, a pause): each key is
+  the bytes a code starts with (hex in memory byte order), its value how many bytes the code has in all, those
+  included. `{"03": 2, "07": 2}` is two codes with one argument byte each. With `table` these are the controls
+  that take arguments (`{"FFF9": 4}`: a two-byte control and its two-byte argument); a control without one
+  needs no entry here;
+- optionally `script: {open, offset}`, for a game that keeps no copy of the text it shows and reads it straight
+  out of a script, with instructions between the texts. The text's address is then where the script starts,
+  `offset` is a *number* holding how many bytes into the script the game is reading, and `open` is the code a
+  text starts after (hex in memory byte order). The text is the page the game is on, as far as it has read it,
+  so it grows while the page types out. Only with `table`, and not together with `rows`, `pages`, `terminator`
+  or `length`;
 - optionally `when`, a *flag* that is true while the text is on screen. Many games leave the last text in memory
   after its window closes; while `when` is false the text is empty;
 - its own `cleanup`, applied before the entry's.
@@ -168,13 +190,37 @@ Every client should get the same string from the same bytes, so the steps are fi
 6. With `rows`: drop empty rows from the end, and join the rest with a newline.
 7. Apply the text's `cleanup`, then the entry's.
 
+With `script`, the steps below take the place of steps 2 to 4. Codes are `unit` bytes. An *end code* is one the
+tables mark with `/` or `controls` calls `end`; a *page code* is one `controls` calls `page` or `clear`. The
+*position* is the text's address plus `offset`.
+
+1. Read `offset`; if it can't be read, the field fails. At zero or below the text is the empty string.
+   Otherwise read the bytes of script that end at the position, `max_bytes` of them or `offset` if that is
+   less, and as many bytes after the position as `open` has. If the read fails, the field fails.
+2. An open code *carries the page on* when the code just before it is an end code and the code before that
+   isn't a page code: the text after it goes on the same page as the text before it. If the bytes after the
+   position are the open code and it doesn't carry the page on, the text is the empty string: the old page is
+   over and nothing of the new one has been read.
+3. If the code just behind the position is an end code, step back over it. Then walk back a code at a time
+   until the bytes just behind are the open code (a text starts here), or the code just behind is an end code,
+   or fewer bytes than the open code are left. Where that found a text whose open code carries the page on,
+   step back over the open code and the end code before it, and walk on the same way. The page starts at the
+   earliest text found. None found: the empty string (the position is among the instructions after a text, or
+   the page starts more than `max_bytes` back).
+4. The page is what lies between its start and the position, split into codes; a code from `codes` is taken
+   whole. Where an end code is followed directly by the open code, both are left out: two texts of the page
+   join there.
+
+Walking back can't tell an argument from a code. An argument that equals the open code or an end code cuts the
+page short there, so a script whose arguments can have those values isn't one for `script`.
+
 | Charset | Bytes in a character, from its first byte | Decoded as |
 |---|---|---|
 | `shift_jis` | 2 for `81`–`9F` and `E0`–`FC`, else 1 | Windows' Shift-JIS (cp932): `8160` is U+FF5E, the user-defined area `F040`–`F9FC` is U+E000–U+E757, `5C` is a backslash. Single bytes `A1`–`DF` are half-width kana |
 | `euc_jp` | 3 for `8F`, 2 for `8E` and up, else 1 | JIS X 0208, `8E` + half-width kana, `8F` + JIS X 0212. Vendor rows (NEC's row 13, IBM's extensions) aren't defined yet |
 | `utf8` | 4 for `F0` and up, 3 for `E0` and up, 2 for `C0` and up, else 1 | Strict UTF-8: an overlong form or an encoded surrogate doesn't decode |
 | `utf16le`, `utf16be` | 4 for a high surrogate followed by a low one when both fit, else 2 | A surrogate on its own doesn't decode |
-| `table` | the entry's `unit` | The table's character. An end code, or a code `controls` calls `page` or `clear`, is a blank line; a newline code is a line break; any other control is nothing; a code the table lacks is U+FFFD. Line breaks at the end are dropped |
+| `table` | the entry's `unit` | The table's character. An end code, or a code `controls` calls `page` or `clear`, is a blank line; a newline code is a line break; any other control is nothing; a code the table lacks is U+FFFD. A code from `codes` is looked for before any of these. Line breaks at the end are dropped |
 
 Any other single byte from `80` up is U+FFFD. Python's `cp932` and `euc_jp` codecs are the reference for the
 mappings.
@@ -198,7 +244,7 @@ What a reader derives from the fields:
 - A `speaker` number is the name `speaker_names` gives it, else the number.
 - A field that can't be read is left out; the others are still read.
 
-Reference implementation: `tools/src/yomikata/layout.py` (`read_layout(layout, entry, read)`). To check a layout
+Reference implementation: `tools/src/yomikata/layout.py` (`read_layout`). To check a layout
 against a RAM snapshot before a PR, run `yomikata layout games/<platform>/<id>.json <sha1>.ram.gz`; it prints what
 each field reads (the output is script text, so keep it out of the repo).
 

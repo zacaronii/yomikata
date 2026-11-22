@@ -246,7 +246,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"give --base for {entry['platform']}", file=sys.stderr)
             return 1
         table = tbl.load([args.root / t for t in entry["tables"]]) if entry.get("tables") else None
-        print(json.dumps(layout.read_layout(lay, entry, layout.Ram.load(args.ram, base), table), ensure_ascii=False, indent=1))
+        load = lambda paths: tbl.load([args.root / t for t in paths])
+        read = layout.read_layout(lay, entry, layout.Ram.load(args.ram, base), table, load)
+        print(json.dumps(read, ensure_ascii=False, indent=1))
         return 0
 
     if args.cmd == "validate":
