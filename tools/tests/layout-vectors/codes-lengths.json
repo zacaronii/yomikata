@@ -1,0 +1,51 @@
+{
+ "name": "codes-lengths",
+ "checks": "A code is one character for a length in characters (message: three characters are あ, a code, い). A code that doesn't fit in what was read is dropped like any last character (speaker, where max_bytes ends after the code's first byte; choices, where a length in bytes does).",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80160000",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "codes": {
+    "07": 2
+   },
+   "length": {
+    "address": "0x80160010",
+    "counts": "characters"
+   }
+  },
+  "speaker": {
+   "address": "0x80160000",
+   "charset": "shift_jis",
+   "max_bytes": 3,
+   "codes": {
+    "07": 2
+   }
+  },
+  "choices": {
+   "address": "0x80160000",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "codes": {
+    "07": 2
+   },
+   "length": {
+    "address": "0x80160011"
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80160000",
+   "hex": "82a0070182a282a400000000000000000307"
+  }
+ ],
+ "expected": {
+  "message": "あい",
+  "speaker": "あ",
+  "choices": [
+   "あい"
+  ]
+ }
+}

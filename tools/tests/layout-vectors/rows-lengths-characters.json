@@ -1,0 +1,29 @@
+{
+ "name": "rows-lengths-characters",
+ "checks": "One length per row, counted in characters: a game that writes a new line over the old one leaves the old line's end behind, and only the lengths say where the new one stops. A one-byte character counts as one. A row of length 0 is empty, and empty rows at the end are dropped.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80110000",
+   "charset": "shift_jis",
+   "max_bytes": 12,
+   "rows": {
+    "count": 3,
+    "stride": 12,
+    "lengths": {
+     "address": "0x80110024",
+     "counts": "characters"
+    }
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80110000",
+   "hex": "4182a082a282a482a600000082a982ab82ad82af0000000082b382b50000000000000000030100"
+  }
+ ],
+ "expected": {
+  "message": "Aあい\nか"
+ }
+}

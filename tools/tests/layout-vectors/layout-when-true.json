@@ -1,0 +1,74 @@
+{
+ "name": "layout-when-true",
+ "checks": "A layout with its own `when` reads as usual while the flag is true (here: a 32-bit mode that `equals` 1).",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x80100000",
+   "charset": "shift_jis",
+   "max_bytes": 16,
+   "terminator": "00"
+  },
+  "speaker": {
+   "address": "0x80100010",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "terminator": "00"
+  },
+  "shown": {
+   "address": "0x80100028"
+  },
+  "waiting": {
+   "address": "0x80100029"
+  },
+  "choosing": {
+   "address": "0x8010002A"
+  },
+  "choices": {
+   "address": "0x80100018",
+   "charset": "shift_jis",
+   "max_bytes": 8,
+   "terminator": "00",
+   "rows": {
+    "count": 2,
+    "stride": 8
+   }
+  },
+  "choice_count": {
+   "address": "0x8010002B"
+  },
+  "choice_cursor": {
+   "address": "0x8010002C",
+   "type": "s8"
+  },
+  "when": {
+   "address": "0x80090000",
+   "type": "u32",
+   "equals": 1
+  }
+ },
+ "memory": [
+  {
+   "address": "0x80100000",
+   "hex": "82a882cd82e682a4000000000000000090e690b60000000082cd82a20000000082a282a282a600000301010201"
+  },
+  {
+   "address": "0x80090000",
+   "hex": "01000000"
+  }
+ ],
+ "expected": {
+  "message": "おはよう",
+  "speaker": "先生",
+  "shown": 3,
+  "on_screen": "おはよ",
+  "waiting": true,
+  "choosing": true,
+  "choices": [
+   "はい",
+   "いいえ"
+  ],
+  "choice_count": 2,
+  "choice_cursor": 1
+ }
+}

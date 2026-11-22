@@ -1,0 +1,18 @@
+{
+  "id": "SLPM-65790",
+  "platform": "ps2",
+  "title": "METAL GEAR SOLID 3 SNAKE EATER",
+  "title_romaji": "Metal Gear Solid 3: Snake Eater",
+  "versions": [
+    {
+      "exe": "SLPM_657.90",
+      "exe_sha1": "bd8a3bdefe021c2df49fccbd36e59e902bec5316"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 16, utf16le 186 characters of prose-like text"
+  ],
+  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+}
