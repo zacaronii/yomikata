@@ -1,0 +1,18 @@
+{
+  "id": "ULJS00219",
+  "platform": "psp",
+  "title": "428 ～封鎖された渋谷で～",
+  "title_romaji": "428: Fuusa Sareta Shibuya de",
+  "versions": [
+    {
+      "exe": "EBOOT.BIN",
+      "exe_sha1": "fdbb4181dd561d0f8abf1a6e69c467e8c66653fb"
+    }
+  ],
+  "encoding": "unknown",
+  "status": "auto",
+  "sources": [
+    "yomikata scan 0.2.0 of the disc files: shift_jis 116, utf16le 655, utf8 8 characters of prose-like text"
+  ],
+  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+}
