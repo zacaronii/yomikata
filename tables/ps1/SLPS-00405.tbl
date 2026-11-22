@@ -10,8 +10,14 @@
 # (a name of n codes follows, then ：), 0x84nn indent, 0xFFFF the script's end; the rest (high bytes 0x82-0x8B,
 # 0x97, 0x98, 0xA7, 0xA8, 0xC2-0xD9) drive answers, pauses and pictures. 288 different ones are used. Some seem
 # to take a word below 0x8000 as an argument (0x0002 after 0xCD00 and 0xCD80, 0x007F after 0xC804).
-# The running script is at 0x801FE800, and the u16 at 0x800A80E2 is the index of the next word the game will read
-# (just past the wait code while it waits for a press). Seen in chapter 6's first scene only.
+# The running script is at 0x801FE800. Each chapter runs its own program, so where it keeps its place moves:
+# chapter 5 has it at 0x800AAABE and chapter 6 at 0x800A80E2; the other chapters' addresses are not known. That
+# u16 is the index of the next word the game will read: just past the wait code while it waits for a press, and
+# just past 0xFFFF once the script is over. Beside it, in both chapters: the u16 six bytes before it is 0xFFFE
+# while the game waits for a press (a small count while it types), and the byte 0x28 after it is 1 while the
+# text window is open (0 with no window: seen in chapter 5 only).
+# Chapter 5 from ten snapshots of real play (two conversations, then walking); chapter 6 from a replay of its
+# first scene.
 0000=　
 0100=あ
 0200=い

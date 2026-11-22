@@ -2,6 +2,7 @@
 # This chapter's kanji and Latin letters, 0x00DC-0x031D, in the order the chapter itself numbers them;
 # 16-bit little-endian codes, keys in memory byte order. Goes after SLPS-00405.tbl (the shared codes).
 # Each code was drawn by the game in a replay and its glyph read by eye, then checked in the scenes' words.
+# Confirmed in play: two conversations (146 kanji codes) decode with none unmapped, and match the screen.
 # Read by eye only, since no scene uses them: 0x01FC, 0x020E, 0x0232, 0x0235, 0x026D, 0x026F, 0x0285, 0x0299,
 # 0x02A0, 0x02A5, 0x02B3, 0x02B4, 0x02B6, 0x02BB, 0x02C7, 0x02CD, 0x02D0.
 DC00=前
