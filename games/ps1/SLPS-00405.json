@@ -15,7 +15,8 @@
   ],
   "unit": 2,
   "controls": {
-    "0086": "wait",
+    "0085": "wait",
+    "0086": "page",
     "018D": "name",
     "028D": "name",
     "038D": "name"
@@ -24,7 +25,8 @@
   "sources": [
     "Headless replay from power-on: each of the seven chapters started in turn and made to draw every code it has, and the drawn glyphs matched against the chapter's font from the disc",
     "The 1,153 kanji and Latin glyphs read by eye, then checked by decoding every scene's script from the disc against a word list (nine readings corrected); the 18 codes no scene uses are read by eye only",
-    "The chapter byte found by comparing memory at each chapter's first scene"
+    "The chapter byte found by comparing memory at each chapter's first scene",
+    "The two wait codes and the script position seen in a replay of chapter 6's first scene: 60 presses through three scripts, the position compared with the script at each stop"
   ],
-  "notes": "Not Tansaku-hen's table (SLPS-00102). 16-bit little-endian codes: 0x0000-0x00DB are the same in every chapter (tables/ps1/SLPS-00405.tbl); kanji are 0x00DC up and each chapter numbers its own, so one of SLPS-00405-ch5.tbl, -ch6, -ch7, -ch8, -ch9, -chA, -chH must follow it, chosen by the byte at 0x80016635 (0-6 in that order). The format can't choose a table yet, so only the shared one is listed and kanji read as unmapped. A scene's script is at 0x801FE800, but the place the game has reached in it wasn't found: no layout. Scripts and fonts are compressed on the disc."
+  "notes": "Not Tansaku-hen's table (SLPS-00102). 16-bit little-endian codes: 0x0000-0x00DB are the same in every chapter; kanji are 0x00DC up and each chapter numbers its own, so one of SLPS-00405-ch5.tbl, -ch6, -ch7, -ch8, -ch9, -chA, -chH must follow it, chosen by the byte at 0x80016635 (0-6 in that order). The format can't choose a table yet, so only the shared one is listed and kanji read as unmapped. The running script is at 0x801FE800; the u16 at 0x800A80E2 counts the words read (chapter 6 only seen). No layout: a page cursor must be an address. Scripts and fonts are compressed on the disc."
 }

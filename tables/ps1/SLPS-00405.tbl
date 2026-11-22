@@ -5,9 +5,13 @@
 # Read from the game's own drawing: a replay made it draw every code, and each glyph was read by eye.
 # Not mapped: 0x00CA, 0x00CB (marks not made out), 0x00D6 (a page icon), 0x00D8-0x00DB (ornate A B C D); no
 # scene's text uses them. ° (0x00C5) stands in for an apostrophe the one time it is used.
-# Words from 0x8000 up are commands: 0x8100 new line, 0x8600 wait for a press, 0x8D0n a speaker's page (a name
-# of n codes follows, then ：), 0x84nn indent, 0xFFFF the scene's end; the rest (high bytes 0x82-0x8B, 0x97,
-# 0x98, 0xA7, 0xA8, 0xC2-0xD9) drive answers, pauses and pictures. 288 different ones are used.
+# Words from 0x8000 up are commands: 0x8100 new line, 0x8500 wait for a press with the text going on below
+# (the window scrolls), 0x8600 wait for a press at a page's end (the window is cleared), 0x8D0n a speaker's page
+# (a name of n codes follows, then ：), 0x84nn indent, 0xFFFF the script's end; the rest (high bytes 0x82-0x8B,
+# 0x97, 0x98, 0xA7, 0xA8, 0xC2-0xD9) drive answers, pauses and pictures. 288 different ones are used. Some seem
+# to take a word below 0x8000 as an argument (0x0002 after 0xCD00 and 0xCD80, 0x007F after 0xC804).
+# The running script is at 0x801FE800, and the u16 at 0x800A80E2 is the index of the next word the game will read
+# (just past the wait code while it waits for a press). Seen in chapter 6's first scene only.
 0000=　
 0100=あ
 0200=い
