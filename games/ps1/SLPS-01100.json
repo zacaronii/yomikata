@@ -7,6 +7,16 @@
     {"exe": "SLPS_011.00", "exe_sha1": "eba83e945427714cc1a2c0d8728f5821d5f60bea"}
   ],
   "encoding": "shift_jis",
+  "layouts": [{
+    "versions": ["eba83e945427714cc1a2c0d8728f5821d5f60bea"],
+    "poll": 20,
+    "when": {"address": "0x801BEA3A", "type": "u16"},
+    "message": {"address": "0x801C1870", "charset": "shift_jis", "max_bytes": 2048, "terminator": "00",
+                "pages": {"break": "0C", "cursor": {"address": "0x801BEA34", "type": "u32"}}},
+    "waiting": {"address": "0x801BEA3A", "type": "u16", "equals": 4},
+    "notes": "A stretch of script (several pages, 0C between them) sits in one buffer, and the game walks it with a pointer that is 0 once the stretch's last page is typed out. A page's first row is the speaker's name. The state at 0x801BEA3A: 0 no window, 1 opening, 2 closing, 3 typing or the last page complete, 4 waiting with more pages to come, 6 moving to the next page; so `waiting` isn't set on a stretch's last page. The pointer runs about one character ahead of what is drawn. Found by replaying the opening headless (docs/replay.md) over two maps; battles, shops, menus and choices not reached."
+  }],
   "status": "verified",
-  "sources": ["Genkan memory search during play (about 19k characters of script resident in RAM)"]
+  "sources": ["Genkan memory search during play (about 19k characters of script resident in RAM)",
+              "Headless replay of the opening: 69 samples over 20 pages on two maps"]
 }
