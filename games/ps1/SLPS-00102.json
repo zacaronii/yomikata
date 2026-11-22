@@ -323,8 +323,6 @@
           "02D2": 4,
           "00D6": 4,
           "00D7": 4,
-          "29D7": 4,
-          "A0D7": 4,
           "00D8": 4
         },
         "script": {
@@ -440,8 +438,6 @@
           "02D2": 4,
           "00D6": 4,
           "00D7": 4,
-          "29D7": 4,
-          "A0D7": 4,
           "00D8": 4
         },
         "script": {
@@ -557,8 +553,6 @@
           "02D2": 4,
           "00D6": 4,
           "00D7": 4,
-          "29D7": 4,
-          "A0D7": 4,
           "00D8": 4
         },
         "script": {
@@ -674,8 +668,6 @@
           "02D2": 4,
           "00D6": 4,
           "00D7": 4,
-          "29D7": 4,
-          "A0D7": 4,
           "00D8": 4
         },
         "script": {
@@ -791,8 +783,6 @@
           "02D2": 4,
           "00D6": 4,
           "00D7": 4,
-          "29D7": 4,
-          "A0D7": 4,
           "00D8": 4
         },
         "script": {
@@ -908,8 +898,6 @@
           "02D2": 4,
           "00D6": 4,
           "00D7": 4,
-          "29D7": 4,
-          "A0D7": 4,
           "00D8": 4
         },
         "script": {
@@ -938,7 +926,7 @@
     "From the disc: fonts and scripts decompressed, the font file's order worked out, and each of the six chapters' scripts paired with its font by how many of its kanji make words",
     "Glyphs: 2,599 of the 2,881 chapter codes are bit for bit ones read for Kyuumei-hen (SLPS-00405); the other 282 (210 different glyphs) were read by eye. Every scene's script was then decoded and checked against a word list; 19 codes no scene uses are unchecked",
     "Fourteen Genkan RAM snapshots of the first chapter (inbox): seven scripts decode to the lines that were on screen with no unmapped code, and its layout reads the page on screen in each",
-    "The six chapter programs on the disc (CAP0.EXE to CAPX.EXE): each keeps the same cells at its own addresses, found by matching the code around the first chapter's; the command words and which of them take an argument word, from every scene's script"
+    "The six chapter programs on the disc (CAP0.EXE to CAPX.EXE): each keeps the same cells at its own addresses, found by matching the code around the first chapter's. Which command words take an argument word is read from the script interpreter's code; the words in use, from every scene's script"
   ],
   "notes": "16-bit little-endian codes, not Kyuumei-hen's (SLPS-00405): 0x0000-0x0108 are shared; kanji are 0x010C up and each chapter numbers its own. Each chapter is a program of its own with its cells elsewhere, so there is one layout per program, told apart by the instruction at 0x8004AA1C, and each names its chapter's table. Only the first chapter's was checked in play. The script at 0x801FE800 is one record at a time. The message is the page so far (the window shows its last rows); answers are rows of it. Without a layout only the shared table applies. Two more fonts on the disc belong to no script."
 }

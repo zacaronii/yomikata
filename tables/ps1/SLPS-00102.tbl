@@ -12,10 +12,11 @@
 # 0x010A is used twice).
 # Words from 0x8000 up are commands: 0x8100 new line, 0x8500 wait for a press with the text going on below (the
 # window scrolls), 0x8600 wait for a press at a page's end (the window is cleared), 0x8D0n a speaker's page (a name
-# of n codes follows, then ：), 0x84nn a pause or an indent (not told apart), 0x8900 a window opening, 0x8A00 one
-# closing, 0xFFFF the script's end; the rest drive answers and pictures, and some take one more word (the entry's
-# `codes`). 246 different ones are used. The meanings of the two waits are Kyuumei-hen's, seen in a replay of that
-# game; here the snapshots only show the game stopped just past each kind.
+# of n codes follows, then ：), 0x84nn a pause of length nn, 0x8900 a window opening, 0x8A00 one closing, 0xFFFF
+# the script's end; the rest drive answers and pictures. 246 different ones are used. Which take one more word (the
+# entry's `codes`) is read from the script interpreter's code: 0xC1nn, 0xC8nn, 0xCDnn, 0xD0nn-0xD2nn, 0xCE01,
+# 0xCE03, 0xCE04, and 0xD6nn-0xD8nn when nn is 0 or 1. The meanings of the two waits are Kyuumei-hen's, seen in a
+# replay of that game; here the snapshots only show the game stopped just past each kind.
 # The running script is at 0x801FE800, and in the first chapter the u16 at 0x800A4CEA is the index of the next word
 # the game will read: just past the wait code while it waits for a press, and just past 0xFFFF once the script is
 # over. Beside it: the u16 at 0x800A4CE4 is 0xFFFE while the game waits for a press and 0 otherwise; the u16 at
