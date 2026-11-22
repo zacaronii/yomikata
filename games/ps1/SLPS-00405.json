@@ -2261,7 +2261,7 @@
       }
     },
     {
-      "notes": "While CAPH.EXE is loaded. Read in a replay of the chapter's first scene (5 pages); not yet in real play. The cursor's cell is from the program's code; not yet seen moving.",
+      "notes": "While CAPH.EXE is loaded. Read in a replay of the chapter's first scene (5 pages); not yet in real play. The cursor's cell was seen moving in a replay with one of the chapter's own choices written into script memory.",
       "when": {
         "address": "0x80041C78",
         "type": "u32",
