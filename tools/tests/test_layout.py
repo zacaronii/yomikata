@@ -119,6 +119,53 @@ def test_pick_without_a_hash_takes_the_only_version_of_the_release():
     assert layout.pick(cart, None, "AXXJ")["notes"] == "general"       # no executable hash to name
 
 
+def test_row_lengths_cut_a_line_written_over_an_older_one():
+    m = ram()
+    put(m, BASE + 0x100, "あいうえお".encode("cp932").ljust(16, b"\0") + "かきくけこ".encode("cp932"))
+    put(m, BASE + 0x30, bytes([2, 3, 1]))
+    lay = {"message": {"address": "0x08800100", "charset": "shift_jis", "max_bytes": 16,
+                       "rows": {"count": 2, "stride": 16, "lengths": {"address": "0x08800030", "counts": "characters"}},
+                       "when": {"address": "0x08800032"}}}
+    read = lambda: layout.read_layout(lay, entry_with(lay), layout.Ram(BASE, bytes(m)))["message"]
+    assert read() == "あい\nかきく"
+    lay["message"]["rows"]["lengths"]["counts"] = "bytes"
+    assert read() == "あ\nか"                                      # 2 bytes; 3 bytes end inside the second character
+    m[0x32] = 0
+    assert read() == ""                                            # the window is closed: the memory is stale
+
+
+def test_pick_passes_over_a_layout_with_keys_it_does_not_know():
+    newer = {"versions": ["b" * 40], "message": {"address": "0x1", "charset": "utf8", "max_bytes": 8, "until": {}}}
+    e = {"layouts": [newer, {"notes": "general"}]}
+    assert not layout.understood(newer)
+    assert layout.pick(e, "b" * 40)["notes"] == "general"
+    assert layout.pick({"layouts": [newer]}, "b" * 40) is None
+    text = {"address": "0x1", "charset": "utf8", "max_bytes": 8}
+    for odd in ({"blink": 1}, {"endian": "middle"}, {"message": {**text, "charset": "ebcdic"}},
+                {"message": {**text, "rows": {"count": 1, "stride": 8, "gap": 2}}},
+                {"message": {**text, "length": {"address": "0x2", "counts": "words"}}},
+                {"waiting": {"address": "0x2", "type": "u64"}}, {"shown": {"address": "0x2", "counts": "bytes"}},
+                {"speaker": {**text, "when": {"address": "0x2", "below": 3}}},
+                {"message": text, "when": {"address": "0x2", "counts": "bytes"}}, {"message": text, "when": 1}):
+        assert not layout.understood(odd), odd
+
+
+def test_every_layout_the_schema_accepts_here_is_understood():
+    # the reader's key lists and the schema say the same thing twice; the vectors and the catalog use every key
+    from layout_vectors import cases
+    lays = [v["layout"] for v in cases()]
+    lays += [lay for _, e in catalog.entries(REPO) for lay in e.get("layouts", [])]
+    assert len(lays) > 30 and all(layout.understood(lay) for lay in lays)
+    keys = lambda d: {k for k, v in d.items() for k in ([k] + sorted(keys(v)) if isinstance(v, dict) else [k])}
+    used = set().union(*(keys(lay) for lay in lays))
+    schema = json.loads((REPO / "schema" / "entry.schema.json").read_text(encoding="utf-8"))
+    named = set(schema["properties"]["layouts"]["items"]["properties"])
+    for d in ("int", "length", "text"):
+        named |= set(schema["$defs"][d]["properties"])
+    named |= set(schema["$defs"]["text"]["properties"]["rows"]["properties"])
+    assert named - used <= {"regex", "replace", "remap"}, named - used
+
+
 def test_big_endian_pointers():
     m = ram()
     put(m, BASE + 0x20, struct.pack(">I", BASE + 0x80))
@@ -151,6 +198,12 @@ def test_schema_and_catalog_rules(tmp_path):
     assert "layouts/0/message" in msgs                       # both an address and a pointer chain
     assert "isn't in the entry's versions" in msgs
     assert "a table charset needs the entry's tables" in msgs
+
+    for wrong in ({"length": {"address": "0x1", "counts": "words"}}, {"length": {"address": "0x1", "equals": 1}},
+                  {"rows": {"count": 2, "stride": 8, "lengths": {"type": "u8"}}}, {"when": {"address": "0x1", "counts": "bytes"}}):
+        lay = {"message": {"address": "0x08800100", "charset": "utf16le", "max_bytes": 8, **wrong}}
+        (tmp_path / "games" / "psp" / "ULJM00001.json").write_text(json.dumps(entry_with(lay)), encoding="utf-8")
+        assert any("layouts/0/message" in str(p) for p in catalog.validate(tmp_path)), wrong
 
 
 def test_cli_reads_a_snapshot_with_its_meta(tmp_path, capsys):

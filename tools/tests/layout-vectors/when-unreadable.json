@@ -1,0 +1,53 @@
+{
+ "name": "when-unreadable",
+ "checks": "A `when` that can't be read fails its text (the reader can't tell whether it is on screen), and so do row lengths that can't all be read. The other fields are still read.",
+ "entry": {},
+ "layout": {
+  "message": {
+   "address": "0x02000000",
+   "charset": "utf8",
+   "max_bytes": 8,
+   "terminator": "00",
+   "when": {
+    "base": "0x02000018",
+    "offsets": [
+     "0x0"
+    ]
+   }
+  },
+  "choices": {
+   "address": "0x02000000",
+   "charset": "utf8",
+   "max_bytes": 8,
+   "rows": {
+    "count": 3,
+    "stride": 8,
+    "lengths": {
+     "address": "0x0200001A"
+    }
+   }
+  },
+  "speaker": {
+   "address": "0x02000008",
+   "charset": "utf8",
+   "max_bytes": 8,
+   "terminator": "00",
+   "when": {
+    "address": "0x0200001A"
+   }
+  }
+ },
+ "memory": [
+  {
+   "address": "0x02000000",
+   "hex": "e381820000000000e381840000000000e38186000000000000000303"
+  }
+ ],
+ "expected": {
+  "speaker": "い",
+  "errors": {
+   "message": "0x03030000+1 is outside memory",
+   "choices": "0x0200001C+1 is outside memory"
+  }
+ }
+}

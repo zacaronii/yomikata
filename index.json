@@ -10,7 +10,7 @@
   },
   "NPJH50372": {
    "path": "games/psp/NPJH50372.json",
-   "sha256": "3187a5bd7bff1c08ce7b0e277902f1872fd30e3c44d3c934fbafc78aa2a39690",
+   "sha256": "f2bc0ec9460d19803c0f8f2f81a08222be55b42c9000319585c93dfa539b71f6",
    "platform": "psp",
    "encoding": "utf16le",
    "status": "auto"
@@ -291,7 +291,7 @@
   },
   "SLPS-02296": {
    "path": "games/ps1/SLPS-02296.json",
-   "sha256": "afb87a9497c21a591f1c7a9c918fd17a14717c421f3e183c2506d0bdf5b685b5",
+   "sha256": "b740e067072deb6cfa119aa2c04f94451db8ed064220b4f156bd42faf4756625",
    "platform": "ps1",
    "encoding": "shift_jis",
    "status": "verified"
@@ -336,18 +336,54 @@
   },
   "SLPS-03292": {
    "path": "games/ps1/SLPS-03292.json",
-   "sha256": "44e365efa593dea5fac23a05d9df04d6cd9331cd3d080dea58bea6dff7577437",
+   "sha256": "42577cdbec702aea77f9fd10df23aab95df1bc3e405d56a0076891ff0583e8cb",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "compressed",
    "status": "auto"
   },
   "SLPS-03293": {
    "path": "games/ps1/SLPS-03292.json",
-   "sha256": "44e365efa593dea5fac23a05d9df04d6cd9331cd3d080dea58bea6dff7577437",
+   "sha256": "42577cdbec702aea77f9fd10df23aab95df1bc3e405d56a0076891ff0583e8cb",
    "platform": "ps1",
-   "encoding": "unknown",
+   "encoding": "compressed",
    "status": "auto",
    "alias_of": "SLPS-03292"
+  },
+  "ULJM05110": {
+   "path": "games/psp/ULJM05110.json",
+   "sha256": "7ff48b3301229776c4d27f9c0229fff080edbefa5a725fa8810c348235bf0c62",
+   "platform": "psp",
+   "encoding": "shift_jis",
+   "status": "auto"
+  },
+  "ULJM05111": {
+   "path": "games/psp/ULJM05111.json",
+   "sha256": "750387fd112c6169519c5b8ddd219949b8f73dcbffe08423b1ce5297b7ac9575",
+   "platform": "psp",
+   "encoding": "shift_jis",
+   "status": "auto"
+  },
+  "ULJM05170": {
+   "path": "games/psp/ULJM05170.json",
+   "sha256": "0e1f8c1e1ba50469401f96078c256b9f5db46809806de67a300b861a3495d96f",
+   "platform": "psp",
+   "encoding": "shift_jis",
+   "status": "auto"
+  },
+  "ULJM05277": {
+   "path": "games/psp/ULJM05277.json",
+   "sha256": "351fc4f69f2bf4abcf4cd10a7f17bd35bda10f1e5e5d2f0138346ec5ed114c87",
+   "platform": "psp",
+   "encoding": "shift_jis",
+   "status": "auto"
+  },
+  "ULJM05278": {
+   "path": "games/psp/ULJM05277.json",
+   "sha256": "351fc4f69f2bf4abcf4cd10a7f17bd35bda10f1e5e5d2f0138346ec5ed114c87",
+   "platform": "psp",
+   "encoding": "shift_jis",
+   "status": "auto",
+   "alias_of": "ULJM05277"
   },
   "ULJM05338": {
    "path": "games/psp/ULJM05338.json",
@@ -364,12 +400,33 @@
    "status": "partial",
    "alias_of": "ULJM05338"
   },
+  "ULJM05353": {
+   "path": "games/psp/ULJM05353.json",
+   "sha256": "a7080bab88200c8faecf57633487b5b81a6f2c89ba209295f097ae49c260b5b5",
+   "platform": "psp",
+   "encoding": "shift_jis",
+   "status": "auto"
+  },
   "ULJM05603": {
    "path": "games/psp/ULJM05603.json",
    "sha256": "6f623f04e873d8966520d41414c1f689a798f06667abba302c1df3c145a9a0f4",
    "platform": "psp",
    "encoding": "shift_jis",
    "status": "partial"
+  },
+  "ULJM05704": {
+   "path": "games/psp/ULJM05704.json",
+   "sha256": "7765c467254daaf67c91fda170bb8609cdfc6c585ce3f298d9bbedbe34b00fe3",
+   "platform": "psp",
+   "encoding": "compressed",
+   "status": "auto"
+  },
+  "ULJM05887": {
+   "path": "games/psp/ULJM05887.json",
+   "sha256": "42cfd0528eb2d63e2bdc00d7976a7f54ff158ccd9310e30c77e3d9f29397d5ea",
+   "platform": "psp",
+   "encoding": "shift_jis",
+   "status": "auto"
   },
   "ULJM06119": {
    "path": "games/psp/ULJM06119.json",
@@ -392,6 +449,13 @@
    "encoding": "shift_jis",
    "status": "partial",
    "alias_of": "ULJM06232"
+  },
+  "ULJS00219": {
+   "path": "games/psp/ULJS00219.json",
+   "sha256": "c0036b8f0b19dcb910a4f6567a26ae32360d336469e8ed31f1670289c234d9fb",
+   "platform": "psp",
+   "encoding": "unknown",
+   "status": "auto"
   }
  }
 }
