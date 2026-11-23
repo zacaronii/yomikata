@@ -62,6 +62,10 @@ RAM = {
     "ps2": [(0x00000000, 0x02000000), (0x20000000, 0x22000000), (0x30000000, 0x32000000)],
     "psp": [(0x08000000, 0x0A000000), (0x48000000, 0x4A000000), (0x88000000, 0x8A000000)],
     "sfc": [(0x7E0000, 0x800000)],              # work RAM at its own bank addresses (not the low mirror in each bank)
+    "gba": [(0x02000000, 0x02040000), (0x03000000, 0x03008000)],        # the 256 KB on the board, the 32 KB in the CPU
+    "gb": [(0xC000, 0xE000)],
+    "gbc": [(0xC000, 0xE000)],                  # as the game sees it: the bank switched in at 0xD000
+    "nds": [(0x02000000, 0x02400000)],
 }
 
 
@@ -71,7 +75,11 @@ EXTRA_PARTS = {"state": 64 * 1024 * 1024,      # the emulator's savestate (holds
                "vram": 2 * 1024 * 1024,        # video memory, when the core gives it out
                "screen": 4 * 1024 * 1024}      # the frame on screen (PNG)
 # The largest RAM snapshot accepted per platform (main RAM size), and how many are kept per game.
-SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000, "sfc": 0x20000}
+SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000, "sfc": 0x20000, "gba": 0x40000,
+                "gb": 0x2000, "gbc": 0x2000, "nds": 0x400000}
+# Video memory is smaller than the general limit on most consoles; a part larger than the console has is refused.
+VRAM_MAX = {"ps1": 0x100000, "sfc": 0x10000, "gba": 0x18000, "gb": 0x2000, "gbc": 0x4000, "nds": 0xA4000}
+VRAM_FORMAT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
 SNAPSHOTS_PER_GAME = 40
 
 
@@ -115,6 +123,11 @@ def clean_snapshot_meta(meta: object) -> dict:
            "ocr": lines or []}
     if no_text:
         out["no_text"] = True
+    fmt = meta.get("vram_format")
+    if fmt is not None:
+        if not isinstance(fmt, str) or not VRAM_FORMAT_RE.fullmatch(fmt):
+            raise ValueError("meta.vram_format must be a short name in lowercase letters, digits and hyphens")
+        out["vram_format"] = fmt
     for k in ("title", "genkan_version", "captured_at", "exe_sha1", "note", "app", "emulator"):
         v = meta.get(k)
         if isinstance(v, (str, int, float)) and len(str(v)) <= 200:
@@ -285,9 +298,12 @@ class Inbox:
         for name, data in (extras or {}).items():
             if name not in EXTRA_PARTS or not data:
                 continue
-            raw = gunzip(data, EXTRA_PARTS[name], name)
-            if len(raw) > EXTRA_PARTS[name]:
-                raise ValueError(f"{name} is larger than {EXTRA_PARTS[name] // 1024 // 1024} MB")
+            limit = min(EXTRA_PARTS[name], VRAM_MAX.get(m["platform"], EXTRA_PARTS[name])) if name == "vram" \
+                else EXTRA_PARTS[name]
+            raw = gunzip(data, limit, name)
+            if len(raw) > limit:
+                raise ValueError(f"{name} is larger than " + (f"{limit // 1024 // 1024} MB" if limit % 0x100000 == 0
+                                                              else f"{limit // 1024} KB"))
             if name == "screen" and raw[:8] != b"\x89PNG\r\n\x1a\n":
                 raise ValueError("screen must be a PNG")
             kept[name] = raw

@@ -42,7 +42,7 @@ def test_bad_snapshots_get_the_reason(tmp_path):
     for m, ram, says in ((meta(base_address="0x1FC00000"), small, "base_address"),       # the BIOS ROM
                          (meta(), os.urandom(0x200001), "main RAM"),                       # bigger than PS1 RAM
                          (meta(base_address="0x801FF000"), small + small, "runs past"),
-                         (meta(ocr=[]), small, "meta.ocr"), (meta(platform="nds"), small, "snapshots are taken"),
+                         (meta(ocr=[]), small, "meta.ocr"), (meta(platform="n64"), small, "snapshots are taken"),
                          (meta(no_text=True), small, "no_text"), (meta(ocr=[], no_text="yes"), small, "meta.ocr")):
         r = send(c, ram, m)
         assert r.status_code == 400 and says in r.json()["detail"], (m, r.text)
@@ -83,3 +83,34 @@ def test_super_famicom_work_ram(tmp_path):
     assert send(c, ram[:0x10000], dict(m, base_address="0x7F8000")).status_code == 400     # runs past the end
     assert send(c, ram, dict(m, base_address="0x000000")).status_code == 400       # a low mirror isn't taken
     assert send(c, ram, dict(m, id="SFC-1A2B3C4D")).json()["added"]
+
+
+CONSOLES = [("gba", "0x02000000", 0x40000, 0x18000), ("gb", "0xC000", 0x2000, 0x2000), ("gbc", "0xC000", 0x2000, 0x4000),
+            ("nds", "0x02000000", 0x400000, 0xA4000), ("sfc", "0x7E0000", 0x20000, 0x10000)]
+
+
+def test_each_console_has_its_range_and_caps(tmp_path):
+    c = TestClient(create_app("secret", tmp_path / "data"))
+    for platform, base, size, vram in CONSOLES:
+        m = meta(id="ZQ-0001", platform=platform, base_address=base, vram_format=f"{platform}-raw")
+        ram = os.urandom(64) + bytes(size - 64)
+        video = {"vram": ("vram.bin", gzip.compress(bytes(vram)), "application/octet-stream")}
+        r = c.post("/api/snapshots", data={"meta": json.dumps(m)}, headers=AUTH,
+                   files={"ram": ("ram.bin", gzip.compress(ram), "application/octet-stream"), **video})
+        assert r.json()["parts"] == ["ram", "vram"], platform
+        stored = json.loads((tmp_path / f"data/snapshots/{platform}/ZQ-0001/{r.json()['sha1']}.json").read_text())
+        assert stored["vram_format"] == f"{platform}-raw"
+        assert send(c, ram + b"\0", m).status_code == 400, platform                 # more RAM than there is
+        assert send(c, ram, dict(m, base_address=hex(int(base, 16) + 0x1000))).status_code == 400, platform
+        assert send(c, ram, dict(m, base_address="0x10000000")).status_code == 400, platform
+        big = {"vram": ("vram.bin", gzip.compress(bytes(vram + 1)), "application/octet-stream")}
+        r = c.post("/api/snapshots", data={"meta": json.dumps(m)}, headers=AUTH,
+                   files={"ram": ("ram.bin", os.urandom(64), "application/octet-stream"), **big})
+        assert r.status_code == 400 and "vram" in r.json()["detail"], platform
+    assert send(c, bytes(64), meta(vram_format="Not A Name")).status_code == 400
+
+
+def test_a_nothing_on_screen_snapshot_of_a_cartridge(tmp_path):
+    c = TestClient(create_app("secret", tmp_path / "data"))
+    m = meta(id="SHVC-ZQ", platform="sfc", base_address="0x7E0000", ocr=[], no_text=True)
+    assert send(c, os.urandom(0x20000), m).json()["added"]
