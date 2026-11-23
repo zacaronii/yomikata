@@ -47,6 +47,26 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("state", type=Path, help="<sha1>.state.gz from an inbox (or a raw savestate)")
     p.add_argument("--ram", type=Path, help="the snapshot's RAM (<sha1>.ram.gz), to confirm the layout")
     p.add_argument("-o", "--out", type=Path, required=True, help="prefix for <prefix>-rgb.png, <prefix>-nibbles.png, <prefix>.vram")
+    p = sub.add_parser("font", help="a font out of video memory as a labelled sheet (scratch), and a table skeleton to fill in")
+    p.add_argument("vram", type=Path, help="video memory: a snapshot's vram part, or the .vram `yomikata vram` wrote (gzipped or not)")
+    p.add_argument("-o", "--out", type=Path, required=True, help="the sheet (PNG). The game's font: a scratch folder")
+    p.add_argument("--bpp", type=int, default=2, choices=(2, 4), help="tiles: bits a pixel")
+    p.add_argument("--packed", action="store_true", help="tiles: a nibble a pixel (Game Boy Advance) instead of bit planes")
+    p.add_argument("--base", help="tiles: where they start in video memory (hex). Without it, found from --cells")
+    p.add_argument("--cells", type=Path, help="tiles: a RAM snapshot holding a text buffer of tile numbers (see `yomikata where`)")
+    p.add_argument("--at", help="tiles: the buffer's address (hex)")
+    p.add_argument("--count", type=int, default=64, help="tiles: how many 2-byte cells of the buffer to look at")
+    p.add_argument("--ram-base", help="address of the RAM snapshot's first byte (default: its .json)")
+    p.add_argument("--mask", default="0x3FF", help="tiles: the bits of a cell that are the tile number (default 0x3FF)")
+    p.add_argument("--first", default="0", help="first code on the sheet (hex); for a grid, the first cell's code")
+    p.add_argument("--last", help="tiles: last tile on the sheet (hex)")
+    p.add_argument("--tall", type=int, help="tiles: characters are two tiles tall, the lower half this many tiles on")
+    p.add_argument("--grid", help="PS1: X,Y,WIDTH,HEIGHT,COLUMNS,ROWS of the cells in the 4-bit view (`yomikata vram`'s -nibbles.png)")
+    p.add_argument("--tbl", type=Path, help="write a table skeleton: a line per code, filled where --known has it")
+    p.add_argument("--unit", type=int, default=2, help="table: bytes per code")
+    p.add_argument("--big-endian", action="store_true", help="table: codes are high byte first in memory")
+    p.add_argument("--known", type=Path, help="table: HEX=character lines already found (`yomikata where --table`, another table)")
+    p.add_argument("--attributes", default="0", help="table: the list once per value OR'd into the codes, e.g. 0,0x400,0x1800")
     p = sub.add_parser("replay", help="run a libretro core headless, from a savestate or from power-on; record RAM and frames (docs/replay.md)")
     p.add_argument("--core", type=Path, required=True, help="the libretro core (.so), e.g. pcsx_rearmed_libretro.so")
     p.add_argument("--game", type=Path, required=True, help="the game image (the one the savestate belongs to)")
@@ -181,6 +201,58 @@ def main(argv: list[str] | None = None) -> int:
         for name, arr in views(got.vram).items():
             Image.fromarray(arr).save(f"{args.out}-{name}.png")
         print(f"video memory at offset {got.vram_offset:#x}" + (f", RAM at {got.ram_offset:#x}" if got.ram_offset is not None else ""))
+        return 0
+    if args.cmd == "font":
+        import gzip
+        from . import font
+        load = lambda p: (lambda b: gzip.decompress(b) if b[:2] == b"\x1f\x8b" else b)(p.read_bytes())
+        vram, first = load(args.vram), int(args.first, 16)
+        if args.grid:
+            x, y, w, h, columns, rows = (int(v) for v in args.grid.split(","))
+            cells = font.grid(vram, x, y, w, h, columns, rows)
+            glyphs = {first + n: g for n, g in enumerate(cells)}
+        else:
+            mask, base, columns = int(args.mask, 16), int(args.base, 16) if args.base else None, 16
+            if base is None:
+                if not (args.cells and args.at):
+                    print("give --base, or --cells and --at to find it", file=sys.stderr)
+                    return 1
+                meta_path = args.cells.with_name(args.cells.name.split(".")[0] + ".json")
+                meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
+                start = args.ram_base or meta.get("base_address")
+                start = int(start, 16) if start else RAM_BASE.get(meta.get("platform"), 0)
+                ram, at = load(args.cells), int(args.at, 16) - start
+                used = [int.from_bytes(ram[at + 2 * i:at + 2 * i + 2], "little") & mask for i in range(args.count)]
+                found = font.find_base(vram, used, args.bpp, args.packed)
+                if not found:
+                    print("no base fits those cells: wrong --bpp, or the buffer doesn't hold tile numbers", file=sys.stderr)
+                    return 1
+                ties = [b for b, score in found if score == found[0][1]]
+                if len(ties) > 1:
+                    print("these bases fit the buffer's cells equally well: " + ", ".join(f"0x{b:X}" for b in ties)
+                          + ". Try each with --base; more cells (--count) with different characters may settle it",
+                          file=sys.stderr)
+                    return 1
+                base = found[0][0]
+                print(f"tiles at 0x{base:X} ({found[0][1]} of the buffer's tiles are different pictures there"
+                      + (f"; next best 0x{found[1][0]:X} with {found[1][1]}" if len(found) > 1 else "") + ")")
+            last = int(args.last, 16) if args.last else mask
+            cut = font.tiles(vram, base, args.bpp, last + 1 + (args.tall or 0), args.packed)
+            if args.tall:
+                glyphs = {t: g for t, g in font.pair(cut[first:], args.tall).items()}
+                glyphs = {first + t: g for t, g in glyphs.items() if first + t <= last}
+            else:
+                glyphs = {t: cut[t] for t in range(first, min(last + 1, len(cut)))}
+        blanks = {code for code, g in glyphs.items() if font.blank(g)}
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        font.sheet(glyphs, columns).save(args.out)
+        print(f"{len(glyphs)} glyphs, {len(blanks)} blank -> {args.out} (the game's font: don't commit it)")
+        if args.tbl:
+            known = font.known_pairs(args.known.read_text(encoding="utf-8"), args.unit, args.big_endian,
+                                     None if args.grid else int(args.mask, 16)) if args.known else {}
+            attributes = [int(a, 16) for a in args.attributes.split(",")]
+            args.tbl.write_text(font.skeleton(sorted(glyphs), args.unit, known, blanks, attributes, args.big_endian), encoding="utf-8")
+            print(f"{args.tbl}: {len(glyphs) - len(blanks)} codes to read, {sum(1 for c in glyphs if c in known)} already known")
         return 0
     if args.cmd == "replay":
         import gzip
