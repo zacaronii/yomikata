@@ -72,6 +72,11 @@ Upload at most 80 MB. Other parts are ignored.
   all: the frame's cells are matched to the tiles in video memory, and memory is searched for those tile numbers.
   That gives the tile base, each buffer holding what is on screen (a window's own, or the whole screen's copy
   with attribute bits) and how far apart its rows are.
+- `yomikata check games/<platform>/<id>.json <snapshots> -o <scratch folder>` reads an entry's layout from every
+  snapshot and counts: how many give a message, how many agree with the lines the reader saw (80% of the reader's
+  characters, spaces aside: the lines hold misreads), how many marked `no_text` read nothing, how many characters
+  didn't decode. The counts hold no text and are what a pull request quotes; `report.html` (each reading beside
+  the frame and the reader's lines) is game text and stays in the scratch folder.
 - For a game in a standard encoding, `yomikata locate <snapshots>` goes one step further: when a place in memory was
   seen to change from one line to another, it prints that buffer as a layout's `message` block (address, rows and
   stride if the window is stored row by row) and reads it back against each snapshot's OCR. Three snapshots of
