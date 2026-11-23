@@ -290,3 +290,107 @@ def standard(snapshots: list[tuple[bytes, list[str]]], base: int) -> str | None:
                    "snapshot(s)" + ("; the same place each time: a buffer of what is shown" if len(place["snapshots"]) > 1 else ""))
     out.append("`yomikata locate` on the same snapshots proposes a layout's `message` from these.")
     return "\n".join(out)
+
+
+# --- tile consoles: from the frame itself, with no reader's lines at all
+
+def _shape(cell: np.ndarray) -> bytes:
+    """A cell's picture whatever its colours: each pixel numbered by the order its colour first appears."""
+    flat = cell.reshape(-1)
+    _, first, inverse = np.unique(flat, return_index=True, return_inverse=True)
+    return np.argsort(np.argsort(first))[inverse].astype(np.uint8).tobytes()
+
+
+def screen_tiles(vram: bytes, screen: np.ndarray, bpp: int = 2, step: int = 0x1000) -> list[tuple[int, tuple[int, int], dict]]:
+    """Which tiles the frame shows where. `screen` is the frame as (height, width) of colours packed into one
+    number each. Tried: every tile base and the eight by eight ways the layer can be shifted; kept: those that
+    explain the most cells (the same tiles count from several bases, under other numbers: memory tells which).
+    Each is the base, the shift, and {(row, column): [tile numbers with that picture]} for every cell that
+    isn't one flat colour."""
+    from .tiles import tiles
+    best: list = []
+    for base in range(0, len(vram), step):
+        shapes: dict[bytes, list[int]] = defaultdict(list)
+        for n, t in enumerate(tiles(vram, base, bpp, 1024)):
+            if t.min() != t.max():
+                shapes[_shape(t)].append(n)
+        if len(shapes) < 16:
+            continue
+        for oy in range(8):
+            for ox in range(8):
+                found = {}
+                for row in range((screen.shape[0] - oy) // 8):
+                    for col in range((screen.shape[1] - ox) // 8):
+                        cell = screen[oy + 8 * row:oy + 8 * row + 8, ox + 8 * col:ox + 8 * col + 8]
+                        if cell.min() != cell.max():
+                            hit = shapes.get(_shape(cell))
+                            if hit:
+                                found[row, col] = hit
+                if found and (not best or len(found) > len(best[0][2])):
+                    best = [(base, (ox, oy), found)]
+                elif best and len(found) == len(best[0][2]):
+                    best.append((base, (ox, oy), found))
+    return best
+
+
+def tile_runs(found: dict, least: int = 4) -> list[list[list[int]]]:
+    """The rows of tiles on screen as runs of `least` or more cells side by side, each cell its candidate tiles."""
+    runs, by_row = [], defaultdict(dict)
+    for (row, col), hit in found.items():
+        by_row[row][col] = hit
+    for row in sorted(by_row):
+        cols, run = sorted(by_row[row]), []
+        for col in cols + [None]:
+            if run and (col is None or col != run[-1] + 1):
+                if len(run) >= least:
+                    runs.append([by_row[row][c] for c in run])
+                run = []
+            if col is not None:
+                run.append(col)
+    return runs
+
+
+def find_tiles(ram: bytes, runs: list[list[list[int]]], mask: int = 0x3FF) -> dict[int, dict]:
+    """Where memory holds the screen's runs as 2-byte cells whose low bits (`mask`) are the tile numbers:
+    {offset: {"cells": how many, "bits": the other bits of the first cell}} for each run found, each place once."""
+    out = {}
+    for align in (0, 1):
+        a = _cells(ram, "u16le", align, len(ram))
+        low = a & mask
+        for run in runs:
+            n = len(a) - len(run)
+            at = np.ones(n, dtype=bool)
+            for i, candidates in enumerate(run):
+                at &= np.isin(low[i:i + n], candidates)
+            for p in np.nonzero(at)[0][:32]:
+                out[align + 2 * int(p)] = {"cells": len(run), "bits": int(a[int(p)]) & ~mask & 0xFFFF}
+    return out
+
+
+def tile_report(ram: bytes, vram: bytes, screen: np.ndarray, base: int, bpp: int = 2, mask: int = 0x3FF) -> str:
+    tried = []
+    for tile_base, shift, found in screen_tiles(vram, screen, bpp):
+        runs = tile_runs(found)
+        tried.append((find_tiles(ram, runs, mask) if runs else {}, tile_base, shift, found, runs))
+    if not tried or not tried[0][4]:
+        return "The frame's cells don't match the tiles in video memory (another bit depth, or text drawn as pixels)."
+    places, tile_base, shift, found, runs = max(tried, key=lambda t: len(t[0]))
+    out = [f"The frame shows {len(found)} cells of tiles from 0x{tile_base:X} in video memory (layer shifted by {shift[0]},"
+           f"{shift[1]}), in {len(runs)} runs of four or more. In memory as 2-byte cells (tile number in 0x{mask:X}):"]
+    groups: dict[int, list[int]] = {}
+    for at in sorted(places):
+        key = next((k for k in groups if at - groups[k][-1] < 0x400), at)
+        groups.setdefault(key, []).append(at)
+    for key, ats in groups.items():
+        bits = Counter(places[a]["bits"] for a in ats).most_common(1)[0][0]
+        cells = sum(places[a]["cells"] for a in ats)
+        line = (f"0x{base + key:06X}  runs found in {len(ats)} places from there, {cells} cells, the other bits "
+                + (f"0x{bits:04X} (attribute bits: a copy of the whole screen, or a highlighted line)" if bits else
+                   "clear: a window's own buffer"))
+        if len(ats) > 1:
+            gaps = Counter(b - a for a, b in zip(ats, ats[1:])).most_common(1)[0][0]
+            line += f"; rows {gaps} bytes apart ({gaps // 2} cells: a row of the buffer, lower halves counted as rows)"
+        out.append(line)
+    if not places:
+        out.append("nowhere: the game doesn't keep the screen's tiles in work RAM in this form")
+    return "\n".join(out)

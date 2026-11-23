@@ -68,6 +68,10 @@ Upload at most 80 MB. Other parts are ignored.
   attribute bits); the rest are counted as likely chance. So it needs snapshots of two or more different lines
   that share some characters. `--absent <snapshots without the text>` drops loaded script; `--table` adds the
   pairs it found.
+  Where text is tiles (cartridge consoles) and a snapshot has its video memory and frame, it needs no lines at
+  all: the frame's cells are matched to the tiles in video memory, and memory is searched for those tile numbers.
+  That gives the tile base, each buffer holding what is on screen (a window's own, or the whole screen's copy
+  with attribute bits) and how far apart its rows are.
 - For a game in a standard encoding, `yomikata locate <snapshots>` goes one step further: when a place in memory was
   seen to change from one line to another, it prints that buffer as a layout's `message` block (address, rows and
   stride if the window is stored row by row) and reads it back against each snapshot's OCR. Three snapshots of

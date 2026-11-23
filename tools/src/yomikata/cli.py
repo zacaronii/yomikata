@@ -48,6 +48,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--absent", nargs="*", default=[], type=Path, help="snapshots taken with other text or none: what they hold too is loaded script")
     p.add_argument("--table", action="store_true", help="also print the code=character pairs found (review only)")
     p.add_argument("--pattern", action="store_true", help="search by pattern even when a standard encoding fits")
+    p.add_argument("--frames", type=int, default=2, help="how many snapshots with video memory and a frame to read by their tiles (default 2)")
+    p.add_argument("--bpp", type=int, default=2, choices=(2, 4), help="tiles: bits a pixel of the text layer")
+    p.add_argument("--mask", default="0x3FF", help="tiles: the bits of a cell that are the tile number")
     p = sub.add_parser("vram", help="PS1 video memory from a PCSX ReARMed savestate, saved as PNG views for finding fonts")
     p.add_argument("state", type=Path, help="<sha1>.state.gz from an inbox (or a raw savestate)")
     p.add_argument("--ram", type=Path, help="the snapshot's RAM (<sha1>.ram.gz), to confirm the layout")
@@ -149,6 +152,20 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         buffers, mapping = where(snaps, [raw(p) for p in args.absent])
         print(report(buffers, mapping, base, len(snaps), args.table))
+        # A snapshot with its video memory and frame can be read without any lines, where text is tiles.
+        for p, (ram, _) in list(zip(args.snapshots, snaps))[:args.frames]:
+            stem = p.name.split(".")[0]
+            video, frame = p.with_name(stem + ".vram.gz"), p.with_name(stem + ".screen.png")
+            if video.is_file() and frame.is_file():
+                import numpy as np
+                from PIL import Image
+                from .where import tile_report
+                rgb = np.asarray(Image.open(frame).convert("RGB")).astype(np.int64)
+                if rgb.shape[1] > 256:                                  # a doubled frame
+                    rgb = rgb[::rgb.shape[1] // 256, ::rgb.shape[1] // 256]
+                packed = rgb[:, :, 0] << 16 | rgb[:, :, 1] << 8 | rgb[:, :, 2]
+                print(f"\n{stem[:8]}, from its frame and video memory:")
+                print(tile_report(ram, raw(video), packed, base, args.bpp, int(args.mask, 16)))
         return 0
     if args.cmd == "locate":
         import gzip

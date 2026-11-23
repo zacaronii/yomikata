@@ -69,3 +69,33 @@ def test_a_standard_encoding_is_answered_first():
     text = standard(snaps, 0x80000000)
     assert "plain shift_jis" in text and "0x80002000" in text and "2 of 2" in text and LINE[:4] not in text
     assert standard([(bytes(0x4000), [LINE])], 0) is None
+
+
+def test_tiles_on_the_frame_are_found_in_memory_without_any_lines():
+    import numpy as np
+    from yomikata.where import find_tiles, screen_tiles, tile_report, tile_runs
+    rng = np.random.default_rng(3)
+    made = {n: rng.integers(0, 4, (8, 8)).astype(np.uint8) for n in range(0x40, 0x80)}
+    made[0x40][:] = 3                                               # the blank
+    vram = bytearray(0x8000)
+    for n, t in made.items():                                       # two bit planes, row by row, from 0x2000
+        for plane in range(2):
+            for row in range(8):
+                vram[0x2000 + 16 * n + 2 * row + plane] = int(np.packbits((t[row] >> plane) & 1)[0])
+    palette = np.array([0x101010, 0x808080, 0xC0C0C0, 0x000000])
+    shown = [0x45, 0x52, 0x41, 0x45, 0x58, 0x5F, 0x61]
+    screen = np.full((64, 128), palette[3])
+    for i, n in enumerate(shown):                                   # drawn at row 2, from column 3, layer shifted by 5,2
+        screen[2 + 16:2 + 24, 5 + 8 * (3 + i):5 + 8 * (4 + i)] = palette[made[n]]
+    ram = bytearray(rng.integers(0, 256, 0x4000).astype(np.uint8).tobytes())
+    struct.pack_into("<7H", ram, 0x1200, *shown)
+    struct.pack_into("<7H", ram, 0x3000, *[n | 0x2000 for n in shown])
+    fits = screen_tiles(bytes(vram), screen)                         # the same pictures count from lower bases too
+    base, shift, found = next(f for f in fits if f[0] == 0x2000)
+    assert shift == (5, 2) and len(found) == 7 and {f[0] for f in fits} == {0, 0x1000, 0x2000}
+    runs = tile_runs(found)
+    assert [cell[0] for cell in runs[0]] == shown
+    places = find_tiles(bytes(ram), runs)
+    assert places[0x1200] == {"cells": 7, "bits": 0} and places[0x3000]["bits"] == 0x2000
+    text = tile_report(bytes(ram), bytes(vram), screen, 0x7E0000)
+    assert "0x7E1200" in text and "a window's own buffer" in text and "0x7E3000" in text and "from 0x2000" in text
