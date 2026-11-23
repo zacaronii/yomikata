@@ -47,7 +47,8 @@ def test_two_tile_characters_and_the_skeleton():
     text = font.skeleton([0xC7, 0xC8, 0x40], 2, {0xC7: "だ"}, blanks={0x40}, attributes=[0, 0x1800])
     assert text.splitlines() == ["C700=だ", ";C800=", ";4000=    (blank)", "; the same with 0x1800 set",
                                  "C718=だ", ";C818=", ";4018=    (blank)"]
-    assert font.known_pairs("== u16le: 2 codes\nC720=だ\nC800=な    conflict: also に\nnoise", 2, mask=0x3FF) == {0xC7: "だ", 0xC8: "な"}
+    assert font.known_pairs("== u16le: 2 codes\nC720=だ\nC800=な    conflict: also に\nnoise\n4000=　", 2, mask=0x3FF) \
+        == {0xC7: "だ", 0xC8: "な", 0x40: "　"}
 
 
 def test_a_grid_in_a_ps1_texture_and_the_sheet():

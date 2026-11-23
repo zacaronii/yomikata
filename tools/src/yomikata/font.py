@@ -123,7 +123,7 @@ def known_pairs(text: str, unit: int, big_endian: bool = False, mask: int | None
     lines are passed over. With `mask`, only those bits of a code count (to drop attribute bits)."""
     out = {}
     for line in text.splitlines():
-        key, eq, value = line.strip().partition("=")
+        key, eq, value = line.rstrip("\r\n").partition("=")         # not strip(): a full-width space is a value
         value = value.split("    ")[0]
         if eq and len(key) == 2 * unit and value and all(c in "0123456789ABCDEFabcdef" for c in key):
             code = int.from_bytes(bytes.fromhex(key), "big" if big_endian else "little")
