@@ -23,6 +23,11 @@ class GameInfo(C.Structure):
     _fields_ = [("path", C.c_char_p), ("data", C.c_void_p), ("size", C.c_size_t), ("meta", C.c_char_p)]
 
 
+class SystemInfo(C.Structure):
+    _fields_ = [("library_name", C.c_char_p), ("library_version", C.c_char_p), ("valid_extensions", C.c_char_p),
+                ("need_fullpath", C.c_bool), ("block_extract", C.c_bool)]
+
+
 class SystemAvInfo(C.Structure):
     _fields_ = [("base_width", C.c_uint), ("base_height", C.c_uint), ("max_width", C.c_uint),
                 ("max_height", C.c_uint), ("aspect_ratio", C.c_float), ("fps", C.c_double),
@@ -105,7 +110,12 @@ class Core:
 
     # --- control
     def load_game(self, path: Path) -> None:
+        system = SystemInfo()
+        self.lib.retro_get_system_info(C.byref(system))
         info = GameInfo(str(path).encode(), None, 0, None)
+        if not system.need_fullpath:                # the core wants the file's bytes (cartridge cores do)
+            self._game = C.create_string_buffer(path.read_bytes())      # kept: a core may go on reading it
+            info.data, info.size = C.cast(self._game, C.c_void_p), len(self._game) - 1
         if not self.lib.retro_load_game(C.byref(info)):
             raise RuntimeError(f"the core couldn't load {path}")
         av = SystemAvInfo()

@@ -273,9 +273,10 @@ def read_text(spec: dict, read, entry: dict, table: tbl.Table | None = None, end
 
 def version_for(entry: dict, release_id: str | None) -> str | None:
     """For a reader that can't hash the executable: the `exe_sha1` of the only version listed for its release id
-    (a version without `id` belongs to the entry's own). None when the id has several versions, or none."""
+    (a version without `id` belongs to the entry's own; a cartridge's version has a `header_crc32` instead).
+    None when the id has several versions, or none."""
     mine = [v for v in entry.get("versions", []) if v.get("id", entry.get("id")) == release_id]
-    return mine[0].get("exe_sha1") if len(mine) == 1 else None
+    return (mine[0].get("exe_sha1") or mine[0].get("header_crc32")) if len(mine) == 1 else None
 
 
 _WHERE = {"address", "base", "offsets"}

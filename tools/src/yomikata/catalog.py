@@ -72,7 +72,7 @@ def validate(root: Path) -> list[Problem]:
             problems.append(Problem(rel, "tables need a unit (bytes per code)"))
         if e.get("encoding") == "table" and not e.get("tables") and e.get("status") != "partial":
             problems.append(Problem(rel, "a table encoding needs tables, or status partial"))
-        listed = {v.get("exe_sha1") for v in e.get("versions", [])}
+        listed = {v.get(k) for v in e.get("versions", []) for k in ("exe_sha1", "header_crc32")}
         for n, lay in enumerate(e.get("layouts", [])):
             for v in lay.get("versions", []):
                 if v not in listed:
