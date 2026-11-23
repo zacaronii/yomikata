@@ -70,3 +70,16 @@ def test_only_the_newest_snapshots_are_kept(tmp_path, monkeypatch):
         send(c, os.urandom(2048))
     folder = tmp_path / "data/snapshots/ps1/SLPS-01001"
     assert len(list(folder.glob("*.json"))) == 2 and len(list(folder.glob("*.ram.gz"))) == 2
+
+
+def test_super_famicom_work_ram(tmp_path):
+    c = TestClient(create_app("secret", tmp_path / "data"))
+    m = meta(id="SHVC-ZQ", platform="sfc", base_address="0x7E0000", ocr=["つくりもののぎょう"])
+    ram = os.urandom(512) + bytes(0x20000 - 512)
+    assert send(c, ram, m).json()["added"]
+    assert (tmp_path / "data/snapshots/sfc/SHVC-ZQ").is_dir()
+    assert send(c, ram + b"\0", m).status_code == 400                             # more than the 128 KB there is
+    assert send(c, gzip.compress(bytes(0x200000)), m).status_code == 400            # also when it only unpacks to more
+    assert send(c, ram[:0x10000], dict(m, base_address="0x7F8000")).status_code == 400     # runs past the end
+    assert send(c, ram, dict(m, base_address="0x000000")).status_code == 400       # a low mirror isn't taken
+    assert send(c, ram, dict(m, id="SFC-1A2B3C4D")).json()["added"]

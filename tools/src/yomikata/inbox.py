@@ -61,6 +61,7 @@ RAM = {
     "ps1": [(0x00000000, 0x00200000), (0x80000000, 0x80200000), (0xA0000000, 0xA0200000), (0x1F800000, 0x1F800400)],
     "ps2": [(0x00000000, 0x02000000), (0x20000000, 0x22000000), (0x30000000, 0x32000000)],
     "psp": [(0x08000000, 0x0A000000), (0x48000000, 0x4A000000), (0x88000000, 0x8A000000)],
+    "sfc": [(0x7E0000, 0x800000)],              # work RAM at its own bank addresses (not the low mirror in each bank)
 }
 
 
@@ -70,7 +71,7 @@ EXTRA_PARTS = {"state": 64 * 1024 * 1024,      # the emulator's savestate (holds
                "vram": 2 * 1024 * 1024,        # video memory, when the core gives it out
                "screen": 4 * 1024 * 1024}      # the frame on screen (PNG)
 # The largest RAM snapshot accepted per platform (main RAM size), and how many are kept per game.
-SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000}
+SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000, "sfc": 0x20000}
 SNAPSHOTS_PER_GAME = 40
 
 
