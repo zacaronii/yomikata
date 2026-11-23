@@ -78,7 +78,8 @@ EXTRA_PARTS = {"state": 64 * 1024 * 1024,      # the emulator's savestate (holds
 SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000, "sfc": 0x20000, "gba": 0x40000,
                 "gb": 0x2000, "gbc": 0x2000, "nds": 0x400000}
 # Video memory is smaller than the general limit on most consoles; a part larger than the console has is refused.
-VRAM_MAX = {"ps1": 0x100000, "sfc": 0x10000, "gba": 0x18000, "gb": 0x2000, "gbc": 0x4000, "nds": 0xA4000}
+# (A core may hand out a Game Boy game the Color's 16 KB: the cap is the larger.)
+VRAM_MAX = {"ps1": 0x100000, "sfc": 0x10000, "gba": 0x18000, "gb": 0x4000, "gbc": 0x4000, "nds": 0xA4000}
 VRAM_FORMAT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
 SNAPSHOTS_PER_GAME = 40
 
