@@ -77,6 +77,13 @@ Upload at most 80 MB. Other parts are ignored.
   characters, spaces aside: the lines hold misreads), how many marked `no_text` read nothing, how many characters
   didn't decode. The counts hold no text and are what a pull request quotes; `report.html` (each reading beside
   the frame and the reader's lines) is game text and stays in the scratch folder.
+- `yomikata font <video memory> -o <scratch>/sheet.png --tbl <scratch>/draft.tbl` cuts a game's font into a sheet
+  with a code under each glyph, for a game whose codes are its glyphs' places in the font. Tiles (cartridge
+  consoles): give `--base`, or `--cells <ram snapshot> --at <a text buffer's address>` and the base is found from
+  the tiles the buffer uses; `--tall 16` for characters of two tiles. A PS1 texture: `--grid X,Y,WIDTH,HEIGHT,
+  COLUMNS,ROWS` read off `yomikata vram`'s 4-bit view. The table skeleton has a line per code, filled from
+  `--known` (what `yomikata where --table` printed, or another table) and commented out where a person still
+  has to read the glyph. The sheet is the game's font: scratch only.
 - For a game in a standard encoding, `yomikata locate <snapshots>` goes one step further: when a place in memory was
   seen to change from one line to another, it prints that buffer as a layout's `message` block (address, rows and
   stride if the window is stored row by row) and reads it back against each snapshot's OCR. Three snapshots of
