@@ -24,7 +24,7 @@ built from them come back as ordinary pull requests.
 
 - `id`, `platform`, `samples[].ocr` and `samples[].bytes_hex` are required; other small fields are kept as sent.
 - `address` must be in the console's main RAM (PS1 `0x00000000`–`0x001FFFFF` and its `0x80…`/`0xA0…` mirrors,
-  PSP `0x08000000`–`0x09FFFFFF` …). A match elsewhere, such as the BIOS ROM, is a coincidence, so it's refused.
+  PSP `0x08000000`–`0x09FFFFFF`, Super Famicom work RAM `0x7E0000`–`0x7FFFFF`, Game Boy Advance `0x02000000`–`0x0203FFFF` and `0x03000000`–`0x03007FFF`, Game Boy `0xC000`–`0xDFFF`, DS `0x02000000`–`0x023FFFFF`). A match elsewhere, such as the BIOS ROM, is a coincidence, so it's refused.
 - Send the whole file again whenever it grows: samples already stored are recognised and skipped
   (answer: `{"ok": true, "id": …, "added": 3, "stored": 41}`).
 - `exe_sha1` may be empty: an inbox with the library mounted identifies the release from the serial and fills it in.
@@ -39,10 +39,10 @@ RAM** taken while a line is on screen, and let the inbox's side do the searching
 
 | Part | |
 |---|---|
-| `meta` | JSON: `id`, `platform` (`ps1`, `ps2`, `psp`), `base_address` (where the dump starts, e.g. `0x80000000` for PS1, `0x08000000` for PSP), `ocr` (the line or lines on screen, 1-10; or `"no_text": true` and no lines, see below), and optionally `title`, `exe_sha1`, `captured_at`, `app`, `emulator`, `note` |
-| `ram` | The raw RAM bytes (PS1: 2 MB; PSP: up to 32 MB), optionally gzipped |
+| `meta` | JSON: `id`, `platform` (`ps1`, `ps2`, `psp`, `sfc`, `gba`, `gb`, `gbc`, `nds`), `base_address` (where the dump starts, e.g. `0x80000000` for PS1, `0x08000000` for PSP, `0x7E0000` for Super Famicom; one stretch of RAM per snapshot), `ocr` (the line or lines on screen, 1-10; or `"no_text": true` and no lines, see below), and optionally `vram_format` (a short name for how the `vram` part is laid out, e.g. `ps1-15bit`), `title`, `exe_sha1`, `captured_at`, `app`, `emulator`, `note` |
+| `ram` | The raw RAM bytes (PS1: 2 MB; PSP: up to 32 MB; Super Famicom: the 128 KB of work RAM; Game Boy Advance: 256 KB; Game Boy: 8 KB; DS: 4 MB), optionally gzipped |
 | `state` | Optional: the emulator's savestate (libretro `retro_serialize`), gzipped, up to 64 MB once unpacked (PCSX ReARMed: 4 MB, PPSSPP: 40 MB). On PCSX ReARMed it holds the 1 MB of video memory, which `yomikata vram` extracts |
-| `vram` | Optional: the video memory itself, when the core gives it out (PS1: 1 MB) |
+| `vram` | Optional: the video memory itself, when the core gives it out (PS1: 1 MB; Super Famicom: 64 KB, which holds the text font's tiles; Game Boy Advance: 96 KB; Game Boy: 8 KB, Color 16 KB; DS: 656 KB). More than the console has is refused |
 | `screen` | Optional: the frame on screen as a PNG, up to 4 MB |
 
 Upload at most 80 MB. Other parts are ignored.
