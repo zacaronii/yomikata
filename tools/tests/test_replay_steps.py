@@ -102,3 +102,31 @@ def test_cli_takes_core_options_as_key_value():
     for odd in ("libretro", "=libretro"):
         with pytest.raises(argparse.ArgumentTypeError):
             cli._option(odd)
+
+
+def test_a_cartridge_core_gets_the_file(tmp_path):
+    """A core that doesn't ask for a full path is handed the game's bytes; one that does gets only the path."""
+    from yomikata.replay.libretro import Core
+
+    class FakeLib:
+        def __init__(self, need_fullpath):
+            self.need_fullpath, self.got = need_fullpath, None
+
+        def retro_get_system_info(self, info):
+            info._obj.need_fullpath = self.need_fullpath
+
+        def retro_load_game(self, info):
+            self.got = bytes((C.c_char * info._obj.size).from_address(info._obj.data)) if info._obj.data else None
+            return True
+
+        def retro_get_system_av_info(self, av):
+            av._obj.fps = 60.0
+
+    import ctypes as C
+    game = tmp_path / "game.sfc"
+    game.write_bytes(b"made up\x00bytes")
+    for need_fullpath, want in ((False, b"made up\x00bytes"), (True, None)):
+        core = Core.__new__(Core)
+        core.lib = FakeLib(need_fullpath)
+        core.load_game(game)
+        assert core.lib.got == want

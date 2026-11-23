@@ -1,0 +1,47 @@
+[
+ {
+  "name": "hirom-game-code",
+  "size": 131072,
+  "copier_header": false,
+  "header_at": "0xFFB0",
+  "header": "3031415a514a000000000000000000004d414445205550205155455354202020202020202031020a03003300deb1214e",
+  "id": "SHVC-AZQJ",
+  "header_crc32": "cff90c3a"
+ },
+ {
+  "name": "hirom-short-game-code-copier-header",
+  "size": 131072,
+  "copier_header": true,
+  "header_at": "0xFFB0",
+  "header": "30315a512020000000000000000000004d414445205550205155455354203220202020202021020a0300330011f4ee0b",
+  "id": "SHVC-ZQ",
+  "header_crc32": "990117f5"
+ },
+ {
+  "name": "lorom-no-game-code",
+  "size": 65536,
+  "copier_header": false,
+  "header_at": "0x7FB0",
+  "header": "000000000000000000000000000000004d4144452055502054414c4520202020202020202020020a0300c3005f88a077",
+  "id": "SFC-097FAB2A",
+  "header_crc32": "097fab2a"
+ },
+ {
+  "name": "lorom-game-code-not-letters",
+  "size": 65536,
+  "copier_header": false,
+  "header_at": "0x7FB0",
+  "header": "3031412d5120000000000000000000004d4144452055502054414c4520322020202020202030020a03003300fae2051d",
+  "id": "SFC-B0C86312",
+  "header_crc32": "b0c86312"
+ },
+ {
+  "name": "no-valid-checksum-map-byte-decides",
+  "size": 65536,
+  "copier_header": false,
+  "header_at": "0x7FB0",
+  "header": "000000000000000000000000000000004d4144452055502044454d4f20202020202020202020020a0300010034120201",
+  "id": "SFC-C582E1B6",
+  "header_crc32": "c582e1b6"
+ }
+]

@@ -118,6 +118,13 @@
    "encoding": "unknown",
    "status": "auto"
   },
+  "SHVC-MB": {
+   "path": "games/sfc/SHVC-MB.json",
+   "sha256": "7cda49ea2d901787dad5e4681b803c653fa30b4f0b28e2e03c557e30766d6001",
+   "platform": "sfc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "SLPM-65078": {
    "path": "games/ps2/SLPM-65078.json",
    "sha256": "72fe17e986a38a8c6d62665532f5409e2ee25475fbe9fbd88a92b03bcb3d032a",

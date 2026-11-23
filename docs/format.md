@@ -11,8 +11,26 @@ An entry is keyed by **release**, not title: the id the hardware or emulator rep
 | GameCube | `GXXJ01` | first 6 bytes of the disc header |
 | DS | `AXXJ` | game code in the cartridge header (0x0C) |
 | 3DS | `CTR-P-AXXJ` | product code in the NCCH header (0x150) |
+| Super Famicom | `SHVC-AXXJ`, else `SFC-1A2B3C4D` | game code in the cartridge header where there is one, else the header's CRC-32 (see below) |
 
-`yomikata identify <image>` prints all of this for CHD, cue/bin and ISO images and DS/3DS card images.
+`yomikata identify <image>` prints all of this for CHD, cue/bin and ISO images, DS/3DS card images and Super
+Famicom images (`.sfc`, `.smc`, `.swc`, `.fig`, also inside a zip).
+
+**Super Famicom:** the header is the 48 bytes the console sees at 0xFFB0–0xFFDF. In the file:
+
+1. If the file's size leaves 512 when divided by 0x8000, the first 512 bytes are a copier's header: drop them.
+2. The header is at 0x7FB0 or at 0xFFB0. Give each place 2 points if its checksum (two bytes at 0x2E of the 48,
+   low byte first) and its complement (at 0x2C) add up to 0xFFFF bit for bit (one XOR the other is 0xFFFF), and
+   1 point if bit 0 of the map byte (at 0x25) fits the place: 0 at 0x7FB0, 1 at 0xFFB0. The place with more points
+   has the header; with the same points, 0x7FB0. A place the file is too short for is left out.
+3. `header_crc32` is the CRC-32 of those 48 bytes, as eight lowercase hex digits.
+4. If the maker byte (at 0x2A) is 0x33 and the four bytes at 0x02, without the spaces at their end, are two to four
+   characters from `A`–`Z` and `0`–`9`, they are the game code and the id is `SHVC-` and the code, whatever the
+   region (`SHVC-AXXJ`; early cartridges have two letters). Otherwise the id is `SFC-` and the same CRC-32 as
+   eight uppercase hex digits. The CRC-32 takes in the cartridge's own checksum, so it differs between games and
+   between revisions of one game.
+
+Clients check themselves against `tools/tests/identify-vectors/sfc.json` (made-up headers).
 
 **Multi-disc games:** each disc has its own serial. One entry covers the game; the other discs' serials go in
 `aliases`, and `versions[].id` says which disc a hash belongs to.
@@ -79,7 +97,7 @@ Every field is optional, and a layout with only `message` is already useful.
 
 | Field | |
 |---|---|
-| `versions` | `exe_sha1` values the layout was confirmed on; empty = every listed version. A reader picks the layout naming its version, else one naming none (see below) |
+| `versions` | `exe_sha1` values (`header_crc32` for a cartridge) the layout was confirmed on; empty = every listed version. A reader picks the layout naming its version, else one naming none (see below) |
 | `endian` | Of pointers and numbers: `little` (default) or `big` (GameCube, Wii) |
 | `poll` | How often reading is enough: `"frame"`, or a rate in Hz |
 | `message` | *text*: what the message window shows |
@@ -132,6 +150,8 @@ id. If the entry's `versions` list exactly one version for that id (a version wi
 own), the reader takes that version's `exe_sha1` as its own and picks the same way. If the id has several versions,
 or none, only a layout naming no versions fits. Taking the only listed version is a guess: an unlisted revision
 of the same release would get a layout made for another one. Listing that revision in `versions` ends the guess.
+A cartridge has no executable: its version is its `header_crc32`, which a reader works out from the file and uses
+the same way.
 
 Usually that leaves one layout. A game that loads a different program for each chapter keeps its cells at other
 addresses in each, and gets one layout per program, each with a `when` that is true only while its program is

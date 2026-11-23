@@ -7,7 +7,7 @@
   "required": ["id", "platform", "title", "encoding", "status"],
   "properties": {
     "id": {
-      "description": "The release's id (PS1/PS2 serial SLPS-01234, PSP DISC_ID ULJM06119, DS game code AXXJ, 3DS product code CTR-P-XXXJ, GameCube GXXJ01). The file is games/<platform>/<id>.json.",
+      "description": "The release's id (PS1/PS2 serial SLPS-01234, PSP DISC_ID ULJM06119, DS game code AXXJ, 3DS product code CTR-P-XXXJ, GameCube GXXJ01, Super Famicom SHVC-XXXX or SFC-1A2B3C4D). The file is games/<platform>/<id>.json.",
       "type": "string", "pattern": "^[A-Z0-9][A-Z0-9-]{3,19}$"
     },
     "aliases": {
@@ -75,8 +75,8 @@
       "items": {
         "type": "object", "additionalProperties": false,
         "properties": {
-          "versions": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
-                       "description": "exe_sha1 values this layout was confirmed on; empty = all listed versions."},
+          "versions": {"type": "array", "items": {"type": "string", "pattern": "^([0-9a-f]{40}|[0-9a-f]{8})$"},
+                       "description": "exe_sha1 values (header_crc32 for a cartridge) this layout was confirmed on; empty = all listed versions."},
           "endian": {"enum": ["little", "big"], "description": "Of pointers and numbers. Default little (GameCube/Wii: big)."},
           "poll": {"oneOf": [{"const": "frame"}, {"type": "integer", "minimum": 1, "maximum": 60}],
                    "description": "How often reading is enough: every frame, or a rate in Hz."},

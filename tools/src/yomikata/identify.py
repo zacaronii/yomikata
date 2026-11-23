@@ -80,8 +80,47 @@ def identify_cart(path: Path) -> Release:
     raise DiscError("not a DS or 3DS card image")
 
 
+SFC_SUFFIXES = (".sfc", ".smc", ".swc", ".fig")
+
+
+def sfc_header(rom: bytes) -> bytes:
+    """The 48 header bytes of a Super Famicom image (bus addresses 0xFFB0-0xFFDF), by the rule in docs/format.md."""
+    if len(rom) % 0x8000 == 512:                                        # a copier's own header comes first
+        rom = rom[512:]
+    best, best_score = b"", -1
+    for offset, hirom in ((0x7FB0, 0), (0xFFB0, 1)):
+        h = rom[offset:offset + 0x30]
+        if len(h) < 0x30:
+            continue
+        complement, checksum = struct.unpack("<HH", h[0x2C:0x30])
+        score = 2 * (complement ^ checksum == 0xFFFF) + ((h[0x25] & 1) == hirom)
+        if score > best_score:                                          # on a tie, the first (0x7FB0)
+            best, best_score = h, score
+    if not best:
+        raise DiscError("too short for a Super Famicom image")
+    return best
+
+
+def identify_sfc(rom: bytes) -> Release:
+    h = sfc_header(rom)
+    crc = zlib.crc32(h)
+    code = h[2:6].decode("ascii", "replace").rstrip(" ")
+    if h[0x2A] == 0x33 and re.fullmatch(r"[A-Z0-9]{2,4}", code):         # a maker byte of 0x33: the game code is there
+        return Release("sfc", f"SHVC-{code}", header_crc32=f"{crc:08x}")
+    return Release("sfc", f"SFC-{crc:08X}", header_crc32=f"{crc:08x}")
+
+
+def _cart_name(path: Path) -> str:
+    if path.suffix.lower() == ".zip":
+        with zipfile.ZipFile(path) as z:
+            return max(z.infolist(), key=lambda i: i.file_size).filename
+    return path.name
+
+
 def identify(path: Path, scratch: Path | None = None) -> Release:
     path = Path(path)
     if path.suffix.lower() in (".chd", ".cue", ".bin", ".iso", ".img"):
         return identify_disc(path, scratch)
+    if _cart_name(path).lower().endswith(SFC_SUFFIXES):
+        return identify_sfc(_cart_bytes(path, 0x800000))
     return identify_cart(path)

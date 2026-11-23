@@ -56,6 +56,11 @@ got to) and `end.state.gz`. `--watch` prints the byte at each address per snap, 
 changes. A core is deterministic: the same steps from the same start reach the same moment every time, so a run can
 be repeated with snaps at other delays.
 
+A cartridge core (one that doesn't ask for a path) is handed the file's bytes, so the image must be the plain
+file, not a zip. Such a console starts with whatever was in its memory: a core may fill work RAM at random on
+each power-on (bsnes does), so two runs from power-on differ in every byte the game hasn't written yet. Save a
+state once the game is up and start the runs to be compared from it.
+
 ## From snaps to a layout
 
 The way the PS1 layouts of Memories Off and Memories Off 2nd were found, without a device:
