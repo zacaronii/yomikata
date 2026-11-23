@@ -9,29 +9,52 @@ what each one is, which is what an entry needs:
 - the same line elsewhere with one constant OR'd into every cell is a copy with attribute bits (the whole screen's
   tile map beside a window's own buffer). The copy without the bits is the one to read.
 
-Nothing here knows the table: the code -> character pairs come out of it."""
+A place that fits one line's pattern can be chance: memory is large and a short stretch has few repeats. So each
+place's codes are put to the test: with the code -> character pairs it gives, the *other* snapshots' lines are
+looked for. Real text is found again, wherever the game put it; a chance fit predicts nothing.
+
+Nothing here knows the table beforehand: the pairs come out of it."""
 
 from __future__ import annotations
 
+import math
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
 import numpy as np
 
-from .locate import VARIANTS, locate
+from .locate import JP, VARIANTS, find_standard, locate
 
 DTYPE = {name: dtype for name, dtype, _ in VARIANTS}
-NEAR = 0x100            # bytes between two hits that still belong to one buffer
+NEAR = 0x100            # bytes between two hits that still belong to one buffer of what is on screen
+CHANCE = 0.001          # how often a stretch's known codes may line up by chance for it to count as found
+KNOWN = {1: 4, 2: 3}    # by cell size: characters of another line that must stand where the table says
+FAR = 0x4000            # the same for text kept loaded: a script's lines lie further apart
 
 
 @dataclass
 class Buffer:
     encoding: str                   # u8, u16le or u16be
     offset: int                     # bytes into the snapshot, of the earliest cell found
-    snapshots: set[int] = field(default_factory=set)
-    cells: int = 0                  # characters found there, over all snapshots
+    lines: set[tuple[int, str]] = field(default_factory=set)    # (snapshot, line) found there by its pattern
+    cells: int = 0                  # different cells found holding a character of a line
+    agree: int = 0                  # lines found with the table the other lines' hits here give
+    loaded: bool = False            # a snapshot showing other text holds the same cells: text kept loaded
     lower_row: tuple[int, int] | None = None        # (cells to the lower-half row, what is added to each cell)
     copy_of: tuple[int, int] | None = None          # (offset of the plain buffer, the bits this one adds)
+    table: dict[str, int] = field(default_factory=dict)         # character -> code
+
+    @property
+    def snapshots(self) -> set[int]:
+        return {n for n, _ in self.lines}
+
+    @property
+    def size(self) -> int:
+        return 1 if self.encoding == "u8" else 2
+
+
+def believed(b: Buffer) -> bool:
+    return b.agree >= 1
 
 
 def _cells(ram: bytes, encoding: str, offset: int, n: int) -> np.ndarray:
@@ -55,66 +78,149 @@ def lower_row(ram: bytes, encoding: str, offset: int, found: list[int], reach: i
 
 
 def _hits(snapshots: list[tuple[bytes, list[str]]], absent: list[bytes]) -> list[dict]:
-    """locate's hits, each with its snapshot, without those the `absent` snapshots hold too, and with one reading
-    kept of the several that fit the same bytes."""
+    """locate's hits, one for each snapshot that shows the hit's line and holds its codes there. Left out: what
+    the `absent` snapshots hold too; all but one of the readings that fit the same bytes."""
     out = {}
     for res in locate(snapshots, max_hits_per_window=16):       # a tile window alone holds a line four times over
         for hit in res.hits:
             raw = np.array(hit["codes"], dtype=DTYPE[res.encoding]).tobytes()
             at = hit["offset"]
             if any(a[at:at + len(raw)] == raw for a in absent):
-                continue                                        # there with other text on screen: loaded script
-            for n, (ram, _) in enumerate(snapshots):
-                if ram[at:at + len(raw)] != raw:
+                continue
+            holds = [ram[at:at + len(raw)] == raw for ram, _ in snapshots]
+            shows = [[line for line in lines if hit["segment"] in line] for _, lines in snapshots]
+            for n in range(len(snapshots)):
+                if not (holds[n] and shows[n]):
                     continue
                 # Two-byte cells with one byte the same in all of them read just as well a byte earlier or in
                 # the other byte order. Keep the reading at an even place whose codes are the smaller numbers.
                 key = (n, hit["segment"], at if res.encoding == "u8" else (at + 1) // 2 * 2, res.encoding == "u8")
-                mine = {**hit, "encoding": res.encoding, "snapshot": n}
+                mine = {**hit, "encoding": res.encoding, "snapshot": n, "line": shows[n][0],
+                        "loaded": any(h and not s for h, s in zip(holds, shows))}
                 rank = (at % 2, max(hit["codes"]))
                 if key not in out or rank < out[key][0]:
                     out[key] = (rank, mine)
     return [h for _, h in out.values()]
 
 
+def predicted(snapshots: list[tuple[bytes, list[str]]], b: Buffer, kept: list[dict], span: int = 12) -> set[str]:
+    """The lines that stand somewhere in their snapshot as this place's table says, the table being made each time
+    without the hits of the line looked for (a line can't confirm itself): within some stretch of `span` characters,
+    KNOWN different characters the table has, each at its place with its code. (Only a stretch, because a reader's
+    line may miss a character or have one too many.)"""
+    need, found, arrays = KNOWN[b.size], set(), {}
+    for n, (ram, lines) in enumerate(snapshots):
+        for line in lines:
+            if line in found:
+                continue
+            table = {}
+            for hit in kept:
+                if hit["segment"] not in line:
+                    table.update(zip(hit["segment"], hit["codes"]))
+            if len(table) < need:
+                continue
+            tries = []
+            for run in JP.finditer(line):
+                text = run.group()
+                for start in range(max(1, len(text) - span + 1)):
+                    known = {}
+                    for i, ch in enumerate(text[start:start + span]):
+                        if ch in table:
+                            known.setdefault(ch, i)
+                    if len(known) >= need:
+                        tries.append((known, text[start:start + span]))
+            if tries and n not in arrays:
+                a = _cells(ram, b.encoding, b.offset % b.size, len(ram))
+                arrays[n] = (a, np.bincount(a, minlength=256 ** b.size) / max(1, len(a)))
+            # Memory is full of zeros, small numbers and tables: codes that are common there are found by chance.
+            # Each stretch is worth how often its known codes would line up by chance in memory this size; only
+            # stretches that wouldn't once in a thousand snapshots count, the least likely first.
+            def chance(t):
+                return len(arrays[n][0]) * math.prod(float(arrays[n][1][table[ch]]) for ch in t[0])
+            for known, text in sorted((t for t in tries if chance(t) < CHANCE), key=chance)[:4]:
+                a = arrays[n][0]
+                size = len(a) - span
+                at = np.ones(size, dtype=bool)
+                for ch, i in known.items():
+                    at &= a[i:i + size] == table[ch]
+                for hit in kept:                # not where the table's own text still stands: a line that differs
+                    if hit["segment"] in line:
+                        continue
+                    raw = np.array(hit["codes"], dtype=DTYPE[b.encoding]).tobytes()     # a little from it is no news
+                    if ram[hit["offset"]:hit["offset"] + len(raw)] == raw:
+                        first = (hit["offset"] - b.offset % b.size) // b.size
+                        at[max(0, first - span):first + len(hit["codes"])] = False
+                # and the rest of the stretch must read as text with the same table: one code a character
+                if any(_fits(a[int(p):int(p) + len(text)].tolist(), text, table) for p in np.nonzero(at)[0][:64]):
+                    found.add(line)
+                    break
+    return found
+
+
+def _fits(cells: list[int], text: str, table: dict[str, int]) -> bool:
+    code_of, char_of = dict(table), {c: ch for ch, c in table.items()}
+    for ch, c in zip(text, cells):
+        if code_of.setdefault(ch, c) != c or char_of.setdefault(c, ch) != ch:
+            return False
+    return len(cells) == len(text)
+
+
 def where(snapshots: list[tuple[bytes, list[str]]], absent: list[bytes] = ()) -> tuple[list[Buffer], dict]:
     """The buffers the lines were found in, best first, and per encoding the code -> characters seen for it
-    (from the buffers that aren't copies)."""
+    (from the believed buffers that aren't copies; from all, when none is believed)."""
     hits = _hits(snapshots, list(absent))
     for hit in hits:
         hit["lower"] = lower_row(snapshots[hit["snapshot"]][0], hit["encoding"], hit["offset"], hit["codes"])
     # the lower halves of a window's characters are found as a line of their own: leave them out
-    upper = {(h["snapshot"], h["segment"], h["encoding"], h["offset"] + 4 * h["lower"][0] // 2) for h in hits if h["lower"]}
-    hits = [h for h in hits if (h["snapshot"], h["segment"], h["encoding"], h["offset"]) not in upper]
-    buffers: dict[tuple[str, int], Buffer] = {}
-    last: dict[str, tuple[int, int]] = {}                       # per encoding: where the last hit ended, its buffer
+    lower = {(h["snapshot"], h["segment"], h["encoding"], h["offset"] + 2 * h["lower"][0]) for h in hits if h["lower"]}
+    hits = [h for h in hits if (h["snapshot"], h["segment"], h["encoding"], h["offset"]) not in lower]
+    groups: dict[tuple, list[dict]] = defaultdict(list)
+    last: dict[tuple, tuple[int, int]] = {}                     # per kind: where the last hit ended, its group
     for hit in sorted(hits, key=lambda h: h["offset"]):
-        end, key = last.get(hit["encoding"], (-NEAR, 0))
-        if hit["offset"] - end >= NEAR:                         # hits close together stand in one buffer
+        kind = (hit["encoding"], hit["loaded"])
+        end, key = last.get(kind, (-FAR, 0))
+        if hit["offset"] - end >= (FAR if hit["loaded"] else NEAR):     # hits close together stand in one buffer
             key = hit["offset"]
-        last[hit["encoding"]] = (max(end, hit["offset"] + len(hit["codes"]) * (1 if hit["encoding"] == "u8" else 2)), key)
-        b = buffers.setdefault((hit["encoding"], key), Buffer(hit["encoding"], hit["offset"]))
-        b.snapshots.add(hit["snapshot"])
-        b.cells += len(hit["codes"])
-        b.lower_row = b.lower_row or hit["lower"]
-        hit["buffer"] = b
+        size = 1 if hit["encoding"] == "u8" else 2
+        last[kind] = (max(end, hit["offset"] + size * len(hit["codes"])), key)
+        groups[(*kind, key)].append(hit)
+    found, kept = [], []
+    for (encoding, loaded, _), group in groups.items():
+        # One table fits all of a real buffer's lines. Take the longest hit, then every hit that gives no character
+        # a second code and no code a second character; chance hits beside real text, or beside each other, fall out.
+        b, char_of, cells = Buffer(encoding, min(h["offset"] for h in group), loaded=loaded), {}, set()
+        for hit in sorted(group, key=lambda h: -len(h["codes"])):
+            pairs = list(zip(hit["segment"], hit["codes"]))
+            if any(b.table.get(ch, c) != c or char_of.get(c, ch) != ch for ch, c in pairs):
+                continue
+            for ch, c in pairs:
+                b.table[ch], char_of[c] = c, ch
+            b.lines.add((hit["snapshot"], hit["line"]))
+            cells.update(range(hit["offset"], hit["offset"] + b.size * len(pairs), b.size))
+            b.lower_row = b.lower_row or hit["lower"]
+            hit["buffer"] = b
+            kept.append(hit)
+        b.offset, b.cells = min(cells), len(cells)
+        b.agree = len(predicted(snapshots, b, [h for h in kept if h["buffer"] is b]))
+        found.append(b)
     # A copy with attribute bits holds the same line with one constant set in every cell.
     by_line = defaultdict(list)
-    for hit in hits:
+    for hit in kept:
         by_line[hit["snapshot"], hit["segment"], hit["encoding"]].append(hit)
     for group in by_line.values():
         for h in group:
             for plain in group:
                 bits = {c ^ p for c, p in zip(h["codes"], plain["codes"])}
-                if plain["buffer"] is not h["buffer"] and len(bits) == 1 and 0 not in bits and all(c & p == p for c, p in zip(h["codes"], plain["codes"])):
+                if plain["buffer"] is not h["buffer"] and len(bits) == 1 and 0 not in bits \
+                        and all(c & p == p for c, p in zip(h["codes"], plain["codes"])):
                     h["buffer"].copy_of = (plain["buffer"].offset, bits.pop())
-    found = list(buffers.values())
     mapping: dict[str, dict[int, Counter]] = defaultdict(lambda: defaultdict(Counter))
-    for hit in hits:
-        if hit["buffer"] in found and hit["buffer"].copy_of is None:
+    sure = any(believed(b) for b in found)
+    for hit in kept:
+        if hit["buffer"].copy_of is None and (believed(hit["buffer"]) or not sure):
             for code, ch in zip(hit["codes"], hit["segment"]):
                 mapping[hit["encoding"]][code][ch] += 1
-    found.sort(key=lambda b: (b.copy_of is not None, -len(b.snapshots), b.lower_row is None, -b.cells))
+    found.sort(key=lambda b: (b.copy_of is not None, -b.agree, -len(b.lines), -b.cells))
     return found, mapping
 
 
@@ -122,14 +228,21 @@ def report(buffers: list[Buffer], mapping: dict, base: int, snapshots: int, tabl
     if not buffers:
         return ("The lines weren't found by their pattern of repeated characters in 1- or 2-byte cells. Longer lines, "
                 "or lines with more repeated characters, give the search more to hold on to.")
+    # A place whose codes find no other line is as likely chance as text: counted, not listed, when better exist.
+    shown = [b for b in buffers if believed(b)]
     out = []
-    for b in buffers:
+    if not shown:
+        shown = buffers[:5]
+        out.append("No place's codes found another snapshot's line, so these may all be chance (or the lines share too "
+                   "few characters). The best:")
+    for b in shown:
         size = "1-byte" if b.encoding == "u8" else "2-byte " + ("little" if b.encoding == "u16le" else "big") + "-endian"
-        line = f"0x{base + b.offset:06X}  {size} cells, {b.cells} characters in {len(b.snapshots)} of {snapshots} snapshot(s)"
-        if len(b.snapshots) > 1:
-            line += "; the same place each time: a buffer of what is on screen"
-        elif snapshots > 1:
-            line += "; seen once: by chance, or a place the game doesn't reuse"
+        line = (f"0x{base + b.offset:06X}  {size} cells: {len(b.lines)} line(s) of {len(b.snapshots)} snapshot(s) "
+                f"(of {snapshots}), {b.cells} cells; {b.agree} line(s) found again with the codes of the others. ")
+        line += ("Kept loaded: other snapshots hold the same cells while showing other text (a script; look for the "
+                 "cell that says where the game is reading)" if b.loaded else
+                 "Only there while on screen" + (", a different line each time: a buffer of what is shown"
+                                                 if len(b.snapshots) > 1 else ""))
         out.append(line)
         if b.lower_row:
             d, k = b.lower_row
@@ -138,6 +251,8 @@ def report(buffers: list[Buffer], mapping: dict, base: int, snapshots: int, tabl
         if b.copy_of:
             out.append(f"    a copy of 0x{base + b.copy_of[0]:06X} with 0x{b.copy_of[1]:04X} set in every cell "
                        "(attribute bits): read the other one")
+    if len(shown) < len(buffers):
+        out.append(f"{len(buffers) - len(shown)} more place(s) whose codes found no other line: likely chance, left out")
     if table:
         for encoding, seen in mapping.items():
             out.append(f"== {encoding}: {len(seen)} codes (memory byte order)")
@@ -145,4 +260,33 @@ def report(buffers: list[Buffer], mapping: dict, base: int, snapshots: int, tabl
                 raw = np.array([code], dtype=DTYPE[encoding]).tobytes().hex().upper()
                 out.append(f"{raw}={chars.most_common(1)[0][0]}" + ("" if len(chars) == 1 else
                            "    conflict: also " + " ".join(c for c, _ in chars.most_common()[1:])))
+    return "\n".join(out)
+
+
+def standard(snapshots: list[tuple[bytes, list[str]]], base: int) -> str | None:
+    """The report for a game that keeps its lines in a standard encoding: where, and in how many snapshots. None
+    when less than half of the lines' characters are found that way."""
+    found = find_standard(snapshots)
+    wanted = sum(len(run) for _, lines in snapshots for line in lines for run in JP.findall(line))
+    if not found:
+        return None
+    encoding, hits = next(iter(found.items()))
+    best = defaultdict(int)                                     # per snapshot and run, a line may stand in several places
+    places: dict[int, dict] = {}
+    last = (-NEAR, 0)
+    for hit in sorted(hits, key=lambda h: h["offset"]):
+        key = hit["offset"] if hit["offset"] - last[0] >= NEAR else last[1]
+        last = (hit["offset"] + 2 * len(hit["segment"]), key)
+        place = places.setdefault(key, {"snapshots": set(), "characters": 0})
+        place["snapshots"].add(hit["snapshot"])
+        place["characters"] += len(hit["segment"])
+    for hit in hits:
+        best[hit["snapshot"], hit["segment"]] = len(hit["segment"])
+    if 2 * sum(best.values()) < wanted:
+        return None
+    out = [f"The lines stand in memory as plain {encoding}. Where:"]
+    for at, place in sorted(places.items(), key=lambda kv: (-len(kv[1]["snapshots"]), -kv[1]["characters"]))[:12]:
+        out.append(f"0x{base + at:06X}  {place['characters']} characters in {len(place['snapshots'])} of {len(snapshots)} "
+                   "snapshot(s)" + ("; the same place each time: a buffer of what is shown" if len(place["snapshots"]) > 1 else ""))
+    out.append("`yomikata locate` on the same snapshots proposes a layout's `message` from these.")
     return "\n".join(out)

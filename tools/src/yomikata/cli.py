@@ -47,6 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("snapshots", nargs="+", type=Path, help="<sha1>.ram.gz files from an inbox (their .json beside them)")
     p.add_argument("--absent", nargs="*", default=[], type=Path, help="snapshots taken with other text or none: what they hold too is loaded script")
     p.add_argument("--table", action="store_true", help="also print the code=character pairs found (review only)")
+    p.add_argument("--pattern", action="store_true", help="search by pattern even when a standard encoding fits")
     p = sub.add_parser("vram", help="PS1 video memory from a PCSX ReARMed savestate, saved as PNG views for finding fonts")
     p.add_argument("state", type=Path, help="<sha1>.state.gz from an inbox (or a raw savestate)")
     p.add_argument("--ram", type=Path, help="the snapshot's RAM (<sha1>.ram.gz), to confirm the layout")
@@ -130,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "where":
         import gzip
-        from .where import report, where
+        from .where import report, standard, where
 
         def raw(p: Path) -> bytes:
             data = p.read_bytes()
@@ -141,8 +142,13 @@ def main(argv: list[str] | None = None) -> int:
             print("the snapshots start at different addresses", file=sys.stderr)
             return 1
         snaps = [(raw(p), m.get("ocr") or []) for p, m in zip(args.snapshots, metas)]
+        base = bases.pop()
+        plain = None if args.pattern else standard(snaps, base)
+        if plain:
+            print(plain)
+            return 0
         buffers, mapping = where(snaps, [raw(p) for p in args.absent])
-        print(report(buffers, mapping, bases.pop(), len(snaps), args.table))
+        print(report(buffers, mapping, base, len(snaps), args.table))
         return 0
     if args.cmd == "locate":
         import gzip
