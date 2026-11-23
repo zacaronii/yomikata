@@ -60,6 +60,10 @@ Upload at most 80 MB. Other parts are ignored.
   them: what differs from the snapshots with a line shows where the game keeps "the window is open", so a layout
   can say when the text in memory is no longer on screen. Send it with `"no_text": true` and an empty `ocr`. An
   empty `ocr` without it is refused, so a screen OCR failed on is never stored as an empty one.
+- For a game with its own codes, `yomikata where <snapshots> --absent <snapshots without that text>` says what
+  holds the lines: each buffer's address and cell size, whether it is the same place in every snapshot, whether
+  the characters are two tiles tall (a window kept as tiles, with the `rows` numbers for a layout), and which
+  buffer is only a copy with attribute bits. `--table` adds the code=character pairs it found.
 - For a game in a standard encoding, `yomikata locate <snapshots>` goes one step further: when a place in memory was
   seen to change from one line to another, it prints that buffer as a layout's `message` block (address, rows and
   stride if the window is stored row by row) and reads it back against each snapshot's OCR. Three snapshots of
