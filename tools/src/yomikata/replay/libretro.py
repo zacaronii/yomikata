@@ -14,7 +14,7 @@ from pathlib import Path
 ENV_GET_OVERSCAN, ENV_GET_CAN_DUPE, ENV_SET_PIXEL_FORMAT = 2, 3, 10
 ENV_GET_SYSTEM_DIRECTORY, ENV_GET_VARIABLE, ENV_GET_VARIABLE_UPDATE = 9, 15, 17
 ENV_GET_SAVE_DIRECTORY = 31
-MEMORY_SYSTEM_RAM = 2
+MEMORY_SYSTEM_RAM, MEMORY_VIDEO_RAM = 2, 3
 JOYPAD = {"b": 0, "y": 1, "select": 2, "start": 3, "up": 4, "down": 5, "left": 6, "right": 7,
           "a": 8, "x": 9, "l": 10, "r": 11}       # libretro RetroPad ids (PS1: a = circle, b = cross)
 
@@ -149,6 +149,12 @@ class Core:
         if not ptr or not size:
             raise RuntimeError("the core doesn't expose system RAM")
         return C.string_at(ptr, size)
+
+    def video_ram(self) -> bytes | None:
+        """The console's video memory, from a core that gives it out (cartridge consoles' cores do)."""
+        ptr = self.lib.retro_get_memory_data(MEMORY_VIDEO_RAM)
+        size = self.lib.retro_get_memory_size(MEMORY_VIDEO_RAM)
+        return C.string_at(ptr, size) if ptr and size else None
 
     def frame_rgb(self):
         """The last frame as an RGB numpy array (the core sends XRGB8888, RGB565 or 0RGB1555)."""

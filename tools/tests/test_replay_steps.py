@@ -130,3 +130,14 @@ def test_a_cartridge_core_gets_the_file(tmp_path):
         core.lib = FakeLib(need_fullpath)
         core.load_game(game)
         assert core.lib.got == want
+
+
+def test_a_snap_keeps_video_memory_when_the_core_gives_it(tmp_path):
+    class WithVideo(FakeCore):
+        def video_ram(self):
+            return b"made up video memory"
+
+    steps.run(WithVideo(), steps.parse("wait:2,snap"), tmp_path / "a")
+    assert gzip.decompress((tmp_path / "a/s000.vram.gz").read_bytes()) == b"made up video memory"
+    steps.run(FakeCore(), steps.parse("wait:2,snap"), tmp_path / "b")
+    assert not (tmp_path / "b/s000.vram.gz").exists()

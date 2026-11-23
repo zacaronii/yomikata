@@ -11,8 +11,13 @@
    tables. Validation decodes the script and checks that it segments into dictionary words and that control codes
    fall at line ends. A review sheet (glyph, guess, confidence) lets a person confirm a table quickly; doubtful
    glyphs stay `partial`, never guesses.
+   So far the matching is done by a person: `yomikata font` cuts the font out of video memory (tiles on cartridge
+   consoles, a grid in a PS1 texture) into a sheet with each glyph's code, and writes the table's skeleton, filled
+   where `yomikata where` already found a pair. Matching glyphs by machine was tried on two games and misread
+   too many kanji to trust.
 4. **M3:** PSP hook profiles move into the catalog; DS and 3DS sorting (PS2 and GameCube when there are games to test).
 5. **M4:** tables learned by readers during play (OCR text paired with the bytes in memory) arrive as pull requests.
 6. **M5:** layouts, for reading depth without hooks: where each game keeps its message, speaker, how much is shown,
    and its choices (`layouts`, docs/format.md). Found with `locate`, snapshots and `replay`, and checked with
-   `yomikata layout` against a snapshot before a PR.
+   `yomikata layout` against a snapshot before a PR. For text kept as tiles, `yomikata where` (from the frame), `yomikata font` and
+   `yomikata propose` do the finding from a few snapshots with video memory; `yomikata check` counts the result.

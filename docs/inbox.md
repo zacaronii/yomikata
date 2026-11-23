@@ -60,6 +60,37 @@ Upload at most 80 MB. Other parts are ignored.
   them: what differs from the snapshots with a line shows where the game keeps "the window is open", so a layout
   can say when the text in memory is no longer on screen. Send it with `"no_text": true` and an empty `ocr`. An
   empty `ocr` without it is refused, so a screen OCR failed on is never stored as an empty one.
+- `yomikata where <snapshots>` says what holds the lines. For a standard encoding: the places, and which is the
+  same in every snapshot. For a game's own codes it searches by pattern of repeated characters, and then puts each
+  place to the test: with the code=character pairs a place gives, are the *other* lines found too, in codes too
+  rare in that memory to line up by chance? Places that pass are listed (address, cell size, kept loaded like a
+  script or only there while on screen, two-tile characters with the `rows` numbers for a layout, copies with
+  attribute bits); the rest are counted as likely chance. So it needs snapshots of two or more different lines
+  that share some characters. `--absent <snapshots without the text>` drops loaded script; `--table` adds the
+  pairs it found.
+  Where text is tiles (cartridge consoles) and a snapshot has its video memory and frame, it needs no lines at
+  all: the frame's cells are matched to the tiles in video memory, and memory is searched for those tile numbers.
+  That gives the tile base, each buffer holding what is on screen (a window's own, or the whole screen's copy
+  with attribute bits) and how far apart its rows are.
+- `yomikata check games/<platform>/<id>.json <snapshots> -o <scratch folder>` reads an entry's layout from every
+  snapshot and counts: how many give a message, how many agree with the lines the reader saw (80% of the reader's
+  characters, spaces aside: the lines hold misreads), how many marked `no_text` read nothing, how many characters
+  didn't decode. The counts hold no text and are what a pull request quotes; `report.html` (each reading beside
+  the frame and the reader's lines) is game text and stays in the scratch folder.
+- `yomikata font <video memory> -o <scratch>/sheet.png --tbl <scratch>/draft.tbl` cuts a game's font into a sheet
+  with a code under each glyph, for a game whose codes are its glyphs' places in the font. Tiles (cartridge
+  consoles): give `--base`, or `--cells <ram snapshot> --at <a text buffer's address>` and the base is found from
+  the tiles the buffer uses; `--tall 16` for characters of two tiles. A PS1 texture: `--grid X,Y,WIDTH,HEIGHT,
+  COLUMNS,ROWS` read off `yomikata vram`'s 4-bit view. The table skeleton has a line per code, filled from
+  `--known` (what `yomikata where --table` printed, or another table) and commented out where a person still
+  has to read the glyph. The sheet is the game's font: scratch only.
+- `yomikata propose <snapshots> --table <table>` drafts a layout where text is tiles, from snapshots with video
+  memory and a frame. It finds each window on screen in memory: its buffer, its width (from how far apart the
+  frame's rows lie in the buffer), its rows (as far as frame and buffer agree cell by cell), and whether characters
+  are two tiles tall. A window seen at several addresses a fixed step apart gets a layout per slot, with a `when`
+  on the cell that holds the slot's number in every snapshot. Then it reads the draft back from every snapshot
+  and prints `check`'s counts. Send the window in different situations (alone, with a menu open, and snapshots
+  with other windows but not this one): that is what tells the slot cell from cells that fit by chance.
 - For a game in a standard encoding, `yomikata locate <snapshots>` goes one step further: when a place in memory was
   seen to change from one line to another, it prints that buffer as a layout's `message` block (address, rows and
   stride if the window is stored row by row) and reads it back against each snapshot's OCR. Three snapshots of
