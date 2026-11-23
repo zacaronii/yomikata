@@ -92,6 +92,9 @@ def run(core, steps: list[Step], out: Path, watch: dict[str, int] | None = None)
                 ram = core.ram()
                 image.save(out / f"s{n:03d}.png")
                 (out / f"s{n:03d}.ram.gz").write_bytes(gzip.compress(ram, 1))
+                video = core.video_ram() if hasattr(core, "video_ram") else None
+                if video:                               # with it a snap is what a reader's snapshot is
+                    (out / f"s{n:03d}.vram.gz").write_bytes(gzip.compress(video, 1))
                 lines.append(" ".join([f"s{n:03d}"] + [f"{k}={ram[at]}" for k, at in (watch or {}).items()]))
                 n += 1
     (out / "end.state.gz").write_bytes(gzip.compress(core.save_state(), 1))

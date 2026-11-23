@@ -112,6 +112,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--base", default=None, help="address of the snapshots' first byte (default: their .json, else the platform's RAM)")
     p.add_argument("--version", help="exe_sha1 or header_crc32 to pick the layout for")
     p.add_argument("--root", type=Path, default=Path("."), help="catalog root, for table charsets")
+    p = sub.add_parser("propose", help="draft a layout for text kept as tiles, from snapshots with video memory and a frame; read it back")
+    p.add_argument("snapshots", nargs="+", type=Path, help="RAM snapshots with <name>.vram.gz and a frame beside them (an inbox's, or `replay` snaps)")
+    p.add_argument("--table", action="append", default=[], help="a table file to read the draft back with (repeatable), relative to --root")
+    p.add_argument("--unit", type=int, default=2, help="bytes per code of the table")
+    p.add_argument("--platform", default="sfc", choices=sorted(RAM_BASE), help="whose RAM the snapshots are, when they have no .json")
+    p.add_argument("--bpp", type=int, default=2, choices=(2, 4), help="bits a pixel of the text layer's tiles")
+    p.add_argument("--mask", default="0x3FF", help="the bits of a cell that are the tile number")
+    p.add_argument("--kind", help="draft this window instead of the best: WIDTHxROWS as listed, e.g. 17x3")
+    p.add_argument("--root", type=Path, default=Path("."), help="catalog root, for --table")
+    p.add_argument("-o", "--out", type=Path, help="write the draft's layouts here (JSON)")
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -388,6 +398,66 @@ def main(argv: list[str] | None = None) -> int:
             args.out.mkdir(parents=True, exist_ok=True)
             (args.out / "report.html").write_text(page(result, entry["id"]), encoding="utf-8")
             print(f"{args.out / 'report.html'} (game text and frames: don't commit it)")
+        return 0
+    if args.cmd == "propose":
+        import gzip
+        from collections import defaultdict
+        import numpy as np
+        from PIL import Image
+        from . import propose as pr
+        from .check import check, sidecars
+        load = lambda p: (lambda b: gzip.decompress(b) if b[:2] == b"\x1f\x8b" else b)(p.read_bytes())
+        rams, found, base, platform, looked = [], [], None, args.platform, set()
+        for n, path in enumerate(args.snapshots):
+            meta, frame = sidecars(path)
+            video = path.with_name(path.name.split(".")[0] + ".vram.gz")
+            rams.append(load(path))
+            platform = meta.get("platform", platform)
+            base = int(meta["base_address"], 16) if meta.get("base_address") else RAM_BASE[platform]
+            if not (frame and video.is_file()):
+                continue
+            rgb = np.asarray(Image.open(frame).convert("RGB")).astype(np.int64)
+            if rgb.min() == rgb.max():                  # a blank frame (a replay's first snap) shows nothing either way
+                continue
+            looked.add(n)
+            if rgb.shape[1] > 256:
+                rgb = rgb[::rgb.shape[1] // 256, ::rgb.shape[1] // 256]
+            found += pr.windows(rams[-1], load(video), rgb[:, :, 0] << 16 | rgb[:, :, 1] << 8 | rgb[:, :, 2], n,
+                                args.bpp, int(args.mask, 16))
+        kinds = defaultdict(list)
+        for w in found:
+            kinds[w.kind].append(w)
+        if not kinds:
+            print("no window of tiles found: the snapshots need their video memory and frame, and two rows of text on screen",
+                  file=sys.stderr)
+            return 1
+        entry = {"id": "DRAFT", "platform": platform, "encoding": "table", "tables": args.table, "unit": args.unit}
+        scored = []
+        for kind, ws in kinds.items():
+            layouts, notes = pr.draft(ws, base, args.table, rams, [w for w in found if w.kind != kind], looked)
+            counts = check({**entry, "layouts": layouts}, args.snapshots, args.root, base).counts() if args.table else {}
+            agree = next((v for k, v in counts.items() if k.startswith("of those, agreeing")), 0)
+            scored.append((agree, sum(w.cells for w in ws), kind, ws, layouts, notes, counts))
+        scored.sort(key=lambda t: (-t[0], -t[1]))
+        print("Windows of tiles found (cells wide x rows of text):")
+        for agree, cells, kind, ws, layouts, notes, counts in scored:
+            where_at = sorted({f"0x{base + w.offset:06X}" for w in ws})
+            print(f"  {kind[0]}x{kind[1]}" + (" two-tile characters" if kind[2] else "") + f": in {len({w.snapshot for w in ws})} of "
+                  f"{len(rams)} snapshot(s), at {', '.join(where_at)}; {cells} cells seen"
+                  + (f"; agrees with the reader's lines in {agree}" if counts else ""))
+        pick = next((t for t in scored if f"{t[2][0]}x{t[2][1]}" == args.kind), scored[0])
+        _, _, kind, ws, layouts, notes, counts = pick
+        print(f"\nDraft for {kind[0]}x{kind[1]}:")
+        for note in notes:
+            print(f"  - {note}")
+        text = json.dumps(layouts, ensure_ascii=False, indent=1)
+        print(text if not args.out else f"  {len(layouts)} layout(s) -> {args.out}")
+        if args.out:
+            args.out.write_text(text + "\n", encoding="utf-8")
+        if counts:
+            print("Read back with the draft:")
+            for name, n in counts.items():
+                print(f"{n:5d}  {name}")
         return 0
     if args.cmd == "validate":
         problems = catalog.validate(args.root)

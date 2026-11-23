@@ -303,34 +303,35 @@ def _shape(cell: np.ndarray) -> bytes:
 
 def screen_tiles(vram: bytes, screen: np.ndarray, bpp: int = 2, step: int = 0x1000) -> list[tuple[int, tuple[int, int], dict]]:
     """Which tiles the frame shows where. `screen` is the frame as (height, width) of colours packed into one
-    number each. Tried: every tile base and the eight by eight ways the layer can be shifted; kept: those that
-    explain the most cells (the same tiles count from several bases, under other numbers: memory tells which).
-    Each is the base, the shift, and {(row, column): [tile numbers with that picture]} for every cell that
-    isn't one flat colour."""
+    number each. Tried: every tile base, and for each the eight by eight ways the layer can be shifted, of which
+    the one explaining the most cells is kept. One entry per base that explains six cells or more, the most
+    first: (base, shift, {(row, column): [tile numbers with that picture]}) for cells that aren't one flat colour.
+    Which base is the text's is for memory to tell: a scene's own tiles fit by chance at other bases, and the same
+    tiles count from lower bases under other numbers."""
     from .tiles import tiles
-    best: list = []
+    cells = {}                                                  # shift -> {(row, column): picture}
+    for oy in range(8):
+        for ox in range(8):
+            here = cells[ox, oy] = {}
+            for row in range((screen.shape[0] - oy) // 8):
+                for col in range((screen.shape[1] - ox) // 8):
+                    cell = screen[oy + 8 * row:oy + 8 * row + 8, ox + 8 * col:ox + 8 * col + 8]
+                    if cell.min() != cell.max():
+                        here[row, col] = _shape(cell)
+    out = []
     for base in range(0, len(vram), step):
         shapes: dict[bytes, list[int]] = defaultdict(list)
         for n, t in enumerate(tiles(vram, base, bpp, 1024)):
             if t.min() != t.max():
                 shapes[_shape(t)].append(n)
-        if len(shapes) < 16:
-            continue
-        for oy in range(8):
-            for ox in range(8):
-                found = {}
-                for row in range((screen.shape[0] - oy) // 8):
-                    for col in range((screen.shape[1] - ox) // 8):
-                        cell = screen[oy + 8 * row:oy + 8 * row + 8, ox + 8 * col:ox + 8 * col + 8]
-                        if cell.min() != cell.max():
-                            hit = shapes.get(_shape(cell))
-                            if hit:
-                                found[row, col] = hit
-                if found and (not best or len(found) > len(best[0][2])):
-                    best = [(base, (ox, oy), found)]
-                elif best and len(found) == len(best[0][2]):
-                    best.append((base, (ox, oy), found))
-    return best
+        best: tuple[tuple[int, int], dict] = ((0, 0), {})
+        for shift, here in cells.items():
+            found = {at: shapes[shape] for at, shape in here.items() if shape in shapes}
+            if len(found) > len(best[1]):
+                best = (shift, found)
+        if len(best[1]) >= 6:
+            out.append((base, *best))
+    return sorted(out, key=lambda t: -len(t[2]))
 
 
 def tile_runs(found: dict, least: int = 4) -> list[list[list[int]]]:

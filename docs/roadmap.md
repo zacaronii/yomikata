@@ -19,4 +19,5 @@
 5. **M4:** tables learned by readers during play (OCR text paired with the bytes in memory) arrive as pull requests.
 6. **M5:** layouts, for reading depth without hooks: where each game keeps its message, speaker, how much is shown,
    and its choices (`layouts`, docs/format.md). Found with `locate`, snapshots and `replay`, and checked with
-   `yomikata layout` against a snapshot before a PR.
+   `yomikata layout` against a snapshot before a PR. For text kept as tiles, `yomikata where` (from the frame), `yomikata font` and
+   `yomikata propose` do the finding from a few snapshots with video memory; `yomikata check` counts the result.

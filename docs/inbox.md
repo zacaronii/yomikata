@@ -84,6 +84,13 @@ Upload at most 80 MB. Other parts are ignored.
   COLUMNS,ROWS` read off `yomikata vram`'s 4-bit view. The table skeleton has a line per code, filled from
   `--known` (what `yomikata where --table` printed, or another table) and commented out where a person still
   has to read the glyph. The sheet is the game's font: scratch only.
+- `yomikata propose <snapshots> --table <table>` drafts a layout where text is tiles, from snapshots with video
+  memory and a frame. It finds each window on screen in memory: its buffer, its width (from how far apart the
+  frame's rows lie in the buffer), its rows (as far as frame and buffer agree cell by cell), and whether characters
+  are two tiles tall. A window seen at several addresses a fixed step apart gets a layout per slot, with a `when`
+  on the cell that holds the slot's number in every snapshot. Then it reads the draft back from every snapshot
+  and prints `check`'s counts. Send the window in different situations (alone, with a menu open, and snapshots
+  with other windows but not this one): that is what tells the slot cell from cells that fit by chance.
 - For a game in a standard encoding, `yomikata locate <snapshots>` goes one step further: when a place in memory was
   seen to change from one line to another, it prints that buffer as a layout's `message` block (address, rows and
   stride if the window is stored row by row) and reads it back against each snapshot's OCR. Three snapshots of
