@@ -41,3 +41,16 @@ def test_agreement_ignores_spaces_and_tolerates_a_misread():
     assert agreement("あいうえお\nかきくけこ", ["あいうえお かきくけこ"]) == 1.0
     assert agreement("あいうえおかきくけこ", ["あいうえおかきくげこ"]) == 0.9
     assert agreement("", []) == 1.0 and agreement("のこり", []) == 0.0
+
+
+def test_a_choice_counts_as_text_read(tmp_path):
+    entry = dict(ENTRY, layouts=[{"choices": {"address": "0x80000100", "charset": "shift_jis", "max_bytes": 16,
+                                              "terminator": "00", "rows": {"count": 2, "stride": 16}}}])
+    ram = bytearray(0x400)
+    for i, answer in enumerate(("はい", "いいえ")):
+        raw = answer.encode("cp932")
+        ram[0x100 + 16 * i:0x100 + 16 * i + len(raw)] = raw
+    (tmp_path / "a.ram.gz").write_bytes(gzip.compress(bytes(ram)))
+    (tmp_path / "a.json").write_text(json.dumps({"base_address": "0x80000000", "ocr": ["はい いいえ"]}), encoding="utf-8")
+    result = check(entry, [tmp_path / "a.ram.gz"], tmp_path)
+    assert result.rows[0].agreement == 1.0 and result.counts()["with a choice's answers"] == 1

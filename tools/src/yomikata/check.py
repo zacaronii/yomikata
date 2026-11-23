@@ -26,11 +26,18 @@ class Row:
     read: dict                      # what read_layout gave
     seen: list[str] | None          # the reader's lines; None when the snapshot has none (not the same as no text)
     screen: Path | None
-    agreement: float | None = None  # 0..1 between the message and the lines, spaces aside; None without lines
+    agreement: float | None = None  # 0..1 between all the text read and the lines, spaces aside; None without lines
 
     @property
     def message(self) -> str:
         return self.read.get("message") or ""
+
+    @property
+    def text(self) -> str:
+        """All the text the layout read: the speaker's name, the message, a choice's answers."""
+        speaker = self.read.get("speaker")
+        parts = [speaker if isinstance(speaker, str) else "", self.message, *(self.read.get("choices") or [])]
+        return "\n".join(p for p in parts if p)
 
 
 @dataclass
@@ -43,17 +50,18 @@ class Result:
         return {
             "snapshots": len(self.rows),
             "with a message": sum(1 for r in self.rows if r.message),
+            "with a choice's answers": sum(1 for r in self.rows if r.read.get("choices")),
             "fields that couldn't be read": sum(len(r.read.get("errors", {})) for r in self.rows),
             "characters that didn't decode": sum(r.message.count("�") for r in self.rows),
             "with a reader's lines": len(with_lines),
             f"of those, agreeing {round(enough * 100)}% or more": sum(1 for r in with_lines if (r.agreement or 0) >= enough),
             "marked as showing no text": len(empty),
-            "of those, reading nothing": sum(1 for r in empty if not r.message),
+            "of those, reading nothing": sum(1 for r in empty if not r.text),
         }
 
 
 def agreement(message: str, lines: list[str]) -> float:
-    """How much of what the reader saw is in the message, as a share of the reader's characters, spaces aside. A
+    """How much of what the reader saw is in the text read, as a share of the reader's characters, spaces aside. A
     reader's lines hold misreads and may hold more than the message window, so this is a guide, not a verdict."""
     want, got = SPACE.sub("", "".join(lines)), SPACE.sub("", message)
     if not want:
@@ -90,7 +98,7 @@ def check(entry: dict, snapshots: list[Path], root: Path, base: int | None = Non
         seen = None if "ocr" not in meta and not meta.get("no_text") else list(meta.get("ocr") or [])
         row = Row(path.name.split(".")[0], read, seen, screen)
         if seen is not None:
-            row.agreement = agreement(row.message, seen)
+            row.agreement = agreement(row.text, seen)
         out.rows.append(row)
     return out
 
