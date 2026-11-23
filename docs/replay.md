@@ -75,8 +75,10 @@ The way the PS1 layouts of Memories Off and Memories Off 2nd were found, without
    game waits> --other <snaps where it types>`: it lists the bytes that hold one value in all of the first group and
    never in the second. The more snaps on both sides, the shorter the list; a flag worth using sits near the
    game's other text state, not on the stack. The same works for a name plate, a hidden window, an open choice.
-5. **Write the layout and read it back** from every snap with `yomikata layout` (docs/format.md), comparing with
-   the frames. Then a reader checks it during play; until one has, the entry stays `auto`.
+5. **Write the layout and read it back** from every snap: `yomikata check games/<platform>/<id>.json s*.ram.gz
+   -o <scratch folder>` prints the counts (snapshots, with a message, fields that failed, characters that didn't
+   decode) and writes `report.html`, each reading beside its frame, to go through by eye. `yomikata layout` shows
+   one snap in full (docs/format.md). Then a reader checks it during play; until one has, the entry stays `auto`.
 
 First use (Persona 2, SLPS-02100): a Genkan state loaded and replayed pixel-identical to the device's screenshot;
 recording 150 frames after pressing confirm showed the character card typing at one character per 4 frames.

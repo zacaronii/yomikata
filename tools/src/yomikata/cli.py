@@ -77,6 +77,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--base", default=None, help="address of the snapshot's first byte (default: its .json, else the platform's RAM)")
     p.add_argument("--version", help="exe_sha1 to pick the layout for (default: its .json's, else the only version of its id, else the general one)")
     p.add_argument("--root", type=Path, default=Path("."), help="catalog root, for table charsets")
+    p = sub.add_parser("check", help="read an entry's layout from many snapshots: counts, and a page of each reading beside its frame")
+    p.add_argument("entry", type=Path, help="games/<platform>/<id>.json")
+    p.add_argument("snapshots", nargs="+", type=Path, help="RAM snapshots (their .json and frame beside them, if any)")
+    p.add_argument("-o", "--out", type=Path, help="folder for report.html (game text and frames: a scratch folder)")
+    p.add_argument("--base", default=None, help="address of the snapshots' first byte (default: their .json, else the platform's RAM)")
+    p.add_argument("--version", help="exe_sha1 or header_crc32 to pick the layout for")
+    p.add_argument("--root", type=Path, default=Path("."), help="catalog root, for table charsets")
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -252,6 +259,21 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(read, ensure_ascii=False, indent=1))
         return 0
 
+    if args.cmd == "check":
+        from .check import check, page
+        entry = json.loads(args.entry.read_text(encoding="utf-8"))
+        try:
+            result = check(entry, args.snapshots, args.root, int(args.base, 16) if args.base else None, args.version)
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 1
+        for name, n in result.counts().items():
+            print(f"{n:5d}  {name}")
+        if args.out:
+            args.out.mkdir(parents=True, exist_ok=True)
+            (args.out / "report.html").write_text(page(result, entry["id"]), encoding="utf-8")
+            print(f"{args.out / 'report.html'} (game text and frames: don't commit it)")
+        return 0
     if args.cmd == "validate":
         problems = catalog.validate(args.root)
         for pr in problems:
