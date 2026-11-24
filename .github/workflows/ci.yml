@@ -51,6 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/yomikata-tools
+      HARNESS: ghcr.io/${{ github.repository_owner }}/yomikata-harness
     steps:
       - uses: actions/checkout@v4
       - name: Build the tools image
@@ -59,6 +60,12 @@ jobs:
         run: |
           docker run --rm "$IMAGE:latest" validate --help > /dev/null
           docker run --rm --entrypoint python "$IMAGE:latest" -c "from yomikata import reader; print('reader', reader.version())"
+      - name: Build the harness image
+        run: docker build -t "$HARNESS:latest" -t "$HARNESS:sha-${{ github.sha }}" -f tools/Dockerfile.harness --build-arg BASE="$IMAGE:latest" .
+      - name: The harness answers, and has an OpenGL context without a screen
+        run: |
+          echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | docker run --rm -i --network none --tmpfs /scratch:uid=99,gid=100 "$HARNESS:latest" | grep -q '"script_try"'
+          docker run --rm --network none --tmpfs /scratch:uid=99,gid=100 --entrypoint python "$HARNESS:latest" -c "from yomikata.replay import glcontext; c = glcontext.Context(); c.make_framebuffer(640, 480); print(c.version, '|', c.renderer)" | grep llvmpipe
       - uses: docker/login-action@v3
         if: github.event_name == 'push'
         with:
@@ -67,4 +74,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push
         if: github.event_name == 'push'
-        run: docker push --all-tags "$IMAGE"
+        run: |
+          docker push --all-tags "$IMAGE"
+          docker push --all-tags "$HARNESS"

@@ -186,7 +186,7 @@ class Core:
         av = SystemAvInfo()
         self.lib.retro_get_system_av_info(C.byref(av))
         self.fps = av.fps
-        if self.hw is not None:
+        if getattr(self, "hw", None) is not None:
             self.gl.make_framebuffer(max(av.max_width, av.base_width, 640), max(av.max_height, av.base_height, 480))
             self.hw.context_reset()
 
