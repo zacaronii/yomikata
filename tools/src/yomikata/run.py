@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import reader as rd
+from .bundle import bundle
 from .check import sidecars
 from .layout import RAM_BASE
 
@@ -75,7 +76,7 @@ def _open(script: Path, snapshot: Path, platform: str | None, base: int | None, 
 
 def run(script: Path, snapshots: list[Path], *, platform: str | None = None, base: int | None = None,
         frames: int = 2, sequence: bool = False, **limits) -> list[Reading]:
-    source = script.read_bytes()
+    source = bundle(script).encode("utf-8")
     out = [Reading(path.name.split(".")[0]) for path in snapshots]
     if sequence:
         with _open(script, snapshots[0], platform, base, limits) as reader:

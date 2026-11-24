@@ -11,7 +11,8 @@ from jsonschema import Draft202012Validator
 
 from . import tbl
 
-ALLOWED = {"games": {".json"}, "tables": {".tbl"}}
+# Entries, and scripts with their data files (docs/script-api.md); tables.
+ALLOWED = {"games": {".json", ".lua", ".tbl", ".charset"}, "tables": {".tbl"}}
 
 
 @dataclass
