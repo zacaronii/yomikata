@@ -36,6 +36,8 @@ from .identify import identify
 log = logging.getLogger(__name__)
 ID_RE = re.compile(r"^[A-Z0-9][A-Z0-9-]{3,19}$")
 PLATFORMS = {"ps1", "ps2", "psp", "nds", "3ds", "gc", "saturn", "sfc", "fc", "fds", "gba", "gb", "gbc", "n64", "md"}
+# What a reader may call a platform, where it isn't the catalog's name (Genkan and RomM say ngc for the GameCube).
+PLATFORM_ALIASES = {"ngc": "gc"}
 # RomM-style library folders for each catalog platform (only these are identified)
 LIBRARY_DIRS = {"ps1": "psx", "ps2": "ps2", "psp": "psp", "nds": "nds", "3ds": "3ds"}
 IMAGE_EXT = {".chd", ".cue", ".iso", ".3ds", ".cci", ".nds", ".zip"}
@@ -66,6 +68,7 @@ RAM = {
     "gb": [(0xC000, 0xE000)],
     "gbc": [(0xC000, 0xE000)],                  # as the game sees it: the bank switched in at 0xD000
     "nds": [(0x02000000, 0x02400000)],
+    "gc": [(0x80000000, 0x81800000), (0xC0000000, 0xC1800000)],        # MEM1, and the same 24 MB uncached
 }
 
 
@@ -76,7 +79,7 @@ EXTRA_PARTS = {"state": 64 * 1024 * 1024,      # the emulator's savestate (holds
                "screen": 4 * 1024 * 1024}      # the frame on screen (PNG)
 # The largest RAM snapshot accepted per platform (main RAM size), and how many are kept per game.
 SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000, "sfc": 0x20000, "gba": 0x40000,
-                "gb": 0x2000, "gbc": 0x2000, "nds": 0x400000}
+                "gb": 0x2000, "gbc": 0x2000, "nds": 0x400000, "gc": 0x1800000}
 # Video memory is smaller than the general limit on most consoles; a part larger than the console has is refused.
 # (A core may hand out a Game Boy game the Color's 16 KB: the cap is the larger.)
 VRAM_MAX = {"ps1": 0x100000, "sfc": 0x10000, "gba": 0x18000, "gb": 0x4000, "gbc": 0x4000, "nds": 0xA4000}
@@ -99,10 +102,32 @@ def gunzip(data: bytes, limit: int, name: str) -> bytes:
     return out
 
 
+GC_MAGIC = bytes.fromhex("C2339F3D")           # at 0x1C of a GameCube disc's header
+
+
+def gamecube_header(meta: dict, ram: bytes) -> dict:
+    """A GameCube keeps its disc's header at the start of memory: the id, the disc number and version, a magic
+    word. A dump that starts there must show them, which also proves its bytes are in the console's order (a core
+    on a little-endian device may hand memory out with each word turned round). Gives what to add to the meta."""
+    if int(meta["base_address"], 16) & 0x3FFFFFFF or len(ram) < 0x20:
+        return {}
+    if ram[0x1C:0x20] == GC_MAGIC[::-1]:
+        raise ValueError("ram has each 32-bit word turned round: send GameCube memory in the console's own byte "
+                         "order (big-endian), as the game reads it")
+    if ram[0x1C:0x20] != GC_MAGIC:
+        raise ValueError("ram doesn't start with a GameCube disc header (no C2339F3D at 0x1C): is it MEM1 from "
+                         "0x80000000, taken while a game runs?")
+    found = ram[:6].decode("ascii", "replace")
+    if found != meta["id"]:
+        raise ValueError(f"meta.id is {meta['id']} but the memory is {found}'s (the six characters at its start)")
+    return {"disc_number": ram[6], "disc_version": ram[7]}
+
+
 def clean_snapshot_meta(meta: object) -> dict:
     if not isinstance(meta, dict):
         raise ValueError("meta must be a JSON object")
     game_id, platform = meta.get("id"), meta.get("platform")
+    platform = PLATFORM_ALIASES.get(platform, platform) if isinstance(platform, str) else platform
     if not isinstance(game_id, str) or not ID_RE.fullmatch(game_id):
         raise ValueError("meta.id must be a release id such as SLPS-01001")
     if platform not in SNAPSHOT_MAX:
@@ -259,6 +284,7 @@ class Inbox:
         if not isinstance(body, dict):
             raise ValueError("expected a JSON object")
         game_id, platform = body.get("id"), body.get("platform")
+        platform = PLATFORM_ALIASES.get(platform, platform) if isinstance(platform, str) else platform
         if not isinstance(game_id, str) or not ID_RE.fullmatch(game_id):
             raise ValueError("id must be a release id such as SLPS-01001")
         if platform not in PLATFORMS:
@@ -315,6 +341,8 @@ class Inbox:
         end = int(m["base_address"], 16) + len(ram) - 1
         if not in_ram(m["platform"], hex(end)):
             raise ValueError("base_address + size runs past main RAM")
+        if m["platform"] == "gc":
+            m.update(gamecube_header(m, ram))
         digest = hashlib.sha1(ram).hexdigest()
         folder = self.data / "snapshots" / m["platform"] / m["id"]
         with self.lock:

@@ -18,7 +18,7 @@ from .layout import RAM_BASE
 
 # What a host calls a platform, where it isn't the catalog's name.
 PLATFORM_ALIASES = {"ngc": "gc", "psx": "ps1", "snes": "sfc"}
-RAM_BASES = {**RAM_BASE, "gc": 0x80000000, "wii": 0x80000000}
+RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 # Other addresses the same main memory answers at.
 MIRRORS = {"ps1": (0x00000000, 0xA0000000)}
 
