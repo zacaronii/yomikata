@@ -4,7 +4,7 @@ Anyone can add or fix an entry. Every step can be repeated with the tools in `to
 through the Docker image (which includes `chdman` for CHD images).
 
 ```sh
-docker build -t yomikata-tools tools/
+docker build -t yomikata-tools -f tools/Dockerfile .
 alias yomikata='docker run --rm -v "$PWD:/catalog" -v /path/to/your/games:/games:ro yomikata-tools'
 ```
 
