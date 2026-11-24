@@ -124,6 +124,14 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("bundle", help="a script as it is run and published: one file, with the lib/ modules it asks for inside it")
     p.add_argument("script", type=Path, help="games/<platform>/<id>.lua")
     p.add_argument("-o", "--out", type=Path, help="write it here (default: print it)")
+    p = sub.add_parser("compare", help="a script beside its entry's layout on the same snapshots: how many read the same (counts only)")
+    p.add_argument("script", type=Path, help="games/<platform>/<id>.lua")
+    p.add_argument("entry", type=Path, help="games/<platform>/<id>.json")
+    p.add_argument("snapshots", nargs="+", type=Path, help="RAM snapshots (an inbox's, or a harness's snaps)")
+    p.add_argument("--base", default=None, help="address of the snapshots' first byte (default: their .json, else the platform's RAM)")
+    p.add_argument("--version", help="exe_sha1 or header_crc32 to pick the layout for, when the snapshots don't say")
+    p.add_argument("--frames", type=int, default=2, help="ticks the script gets over each snapshot")
+    p.add_argument("--show", action="store_true", help="print what differs, both readings (game text: for a terminal, not the catalog)")
     p = sub.add_parser("propose", help="draft a layout for text kept as tiles, from snapshots with video memory and a frame; read it back")
     p.add_argument("snapshots", nargs="+", type=Path, help="RAM snapshots with <name>.vram.gz and a frame beside them (an inbox's, or `replay` snaps)")
     p.add_argument("--table", action="append", default=[], help="a table file to read the draft back with (repeatable), relative to --root")
@@ -435,6 +443,25 @@ def main(argv: list[str] | None = None) -> int:
         else:
             sys.stdout.write(text)
         return 0
+    if args.cmd == "compare":
+        from . import reader as rd
+        from .compare import compare
+        entry = json.loads(args.entry.read_text(encoding="utf-8"))
+        try:
+            result = compare(args.script, entry, args.snapshots, args.entry.resolve().parents[2],
+                             int(args.base, 16) if args.base else None, args.version, args.frames)
+        except (rd.ReaderUnavailable, ValueError, OSError) as e:
+            print(e, file=sys.stderr)
+            return 1
+        for name, n in result.counts().items():
+            print(f"{n:5d}  {name}")
+        for row in result.rows:
+            if row.verdict in ("different", "the script didn't load"):
+                print(f"{row.name[:12]}: {row.error or ', '.join(row.differing())}", file=sys.stderr)
+                if args.show and row.error is None:
+                    for key in row.differing():
+                        print(f"  layout {key}: {row.layout[key]!r}\n  script {key}: {row.script[key]!r}", file=sys.stderr)
+        return 0 if result.agrees else 1
     if args.cmd == "run":
         from . import reader as rd
         from .run import STORY_CHANNELS, run
