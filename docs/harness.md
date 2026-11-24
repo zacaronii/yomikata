@@ -68,8 +68,8 @@ Dolphin (`dolphin_libretro.so`, a GameCube or Wii game):
 
 - It has no renderer that works without a context: the core sets its video side up only when a frontend's
   context comes up, and without one the first frame crashes. The harness gives it OpenGL drawn by the CPU (Mesa's
-  llvmpipe), so no graphics card is used. On a 2025 desktop processor that runs a GameCube game at about real
-  speed or better.
+  llvmpipe), so no graphics card is used. Measured with 8 processors allowed: 45 frames a second in a scene of
+  the game, over 100 while it starts.
 - Give it the option `dolphin_main_cpu_thread=disabled` (one emulation thread). With it, two runs of 900 frames
   from power-on ended with 117 of memory's 24 million bytes different, all in the console's clock and what
   derives from it: close to repeatable, not exactly.
