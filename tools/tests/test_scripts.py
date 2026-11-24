@@ -255,3 +255,90 @@ def test_paper_mario_another_build():
         with rd.Reader(read, platform="gc", game_id="G8MJ01") as r:
             with pytest.raises(rd.ScriptError, match="another build"):
                 r.load(bundle(ROOT / "games/gc/G8MJ01.lua"))
+
+
+# ---- games/ps1/SLPS-02100.lua ----
+#
+# A scene made up of the table's own characters: two messages, a control with an argument inside the first.
+
+P2_SCENE, P2_WINDOW, P2_UP = 0x800DE014, 0x8007B6E0, 0x8007B708
+P2_TEXT_AT, P2_OBJECT_AT = 0x80150000, 0x80170000
+
+
+def p2_codes(text: str) -> bytes:
+    from yomikata import tbl
+    table = tbl.parse((ROOT / "games/ps1/SLPS-02100.tbl").read_text(encoding="utf-8"))
+    back = {}
+    for code, ch in table.chars.items():
+        back.setdefault(ch, code)
+    return b"".join(back[ch] for ch in text)
+
+
+def p2_memory(reading: int, up: int = 1, kind: int = 0x2408, word: int = 0x02603821):
+    wide = p2_codes("　")
+    first = (wide + p2_codes("きょう") + bytes.fromhex("1D12 0300") + p2_codes("は") + bytes.fromhex("0111")
+             + p2_codes("あめ") + bytes.fromhex("0611"))
+    second = p2_codes("あした") + bytes.fromhex("1F11") + p2_codes("も")
+    scene = first + bytes.fromhex("0311") + second + bytes.fromhex("0311")
+    window = bytearray(0x20)
+    struct.pack_into("<H", window, 0x04, kind)
+    struct.pack_into("<I", window, 0x0C, P2_TEXT_AT + reading)
+    return sparse({0x80018000: struct.pack("<I", 0xAC4A0010), 0x80020000: struct.pack("<I", word),
+                   0x80030000: struct.pack("<I", 0x8FB3002C), P2_SCENE: struct.pack("<I", P2_TEXT_AT),
+                   P2_WINDOW: struct.pack("<I", P2_OBJECT_AT), P2_UP: struct.pack("<I", up),
+                   P2_TEXT_AT: scene + bytes(64), P2_OBJECT_AT: bytes(window)}), len(first)
+
+
+def p2_reader(read):
+    r = rd.Reader(read, platform="ps1", game_id="SLPS-02100",
+                  data={"tbl": (ROOT / "games/ps1/SLPS-02100.tbl").read_bytes()})
+    r.load(bundle(ROOT / "games/ps1/SLPS-02100.lua"), "SLPS-02100.lua")
+    r.take()
+    return r
+
+
+def test_persona_2_the_message_the_game_is_reading():
+    read, first = p2_memory(4)
+    with p2_reader(read) as r:
+        r.frame(1)
+        r.read = p2_memory(first)[0]                    # resting on the first message's end code
+        r.frame(2)
+        (event,) = r.take("text")
+        assert event["text"] == "きょうは\nあめ"         # the wide space at the start and the codes are gone
+        r.read = p2_memory(first + 4)[0]                # into the second
+        r.frame(3)
+        (event,) = r.take("text")
+        assert event["text"] == "あした" + p2_gap() + "も"
+        r.read = p2_memory(first + 4, up=0)[0]          # the window goes: nothing, and the message again after
+        r.frame(4)
+        r.read = p2_memory(first + 4)[0]
+        r.frame(5)
+        assert len(r.take("text")) == 1
+        r.read = p2_memory(first + 4, kind=0x1234)[0]   # another kind of window
+        r.frame(6)
+        assert r.take("text") == []
+
+
+def p2_gap() -> str:
+    from yomikata import tbl
+    return tbl.parse((ROOT / "games/ps1/SLPS-02100.tbl").read_text(encoding="utf-8")).chars[bytes.fromhex("1F11")]
+
+
+def test_persona_2_another_build_and_a_missing_table():
+    with rd.Reader(p2_memory(0, word=0x12345678)[0], platform="ps1", game_id="SLPS-02100",
+                   data={"tbl": b"0001=a\n"}) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-02100.lua"))
+    with rd.Reader(p2_memory(0)[0], platform="ps1", game_id="SLPS-02100") as r:
+        with pytest.raises(rd.ScriptError, match="SLPS-02100.tbl is missing"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-02100.lua"))
+
+
+def test_tbl_module():
+    source = "# a comment\n0100=学\n0101=校\n/FFFF\n*FFFE\n;another\nbad line\n"
+    with rd.Reader(sparse({}), data={"tbl": source.encode()}) as r:
+        r.load(bundle_text('local tbl = require("lib.tbl")\nT = tbl.parse(reader.data("tbl"))\n'
+                           'function trim(s) return tbl.trim_wide(s) end'))
+        assert r.eval('T.chars["\\x01\\x00"], T.chars["\\x01\\x01"], T.ends["\\xFF\\xFF"], T.newlines["\\xFF\\xFE"]') == \
+            "学\t校\ttrue\ttrue"
+        assert r.eval('trim("　　あ　い　"), trim("　"), trim("")') == "あ　い\t\t"

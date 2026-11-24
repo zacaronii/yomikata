@@ -38,8 +38,10 @@ class Machine:
         """Bytes at one of the console's addresses without copying all of memory; fewer where memory ends."""
         import ctypes as C
         from ..replay.libretro import MEMORY_SYSTEM_RAM
-        if self.core.maps:
-            return self.core.read(address, size)
+        if self.core.maps:                      # where the core says its memory is; a core may say it at
+            data = self.core.read(address, size)        # other addresses than the game uses (PS1: from 0)
+            if data:
+                return data
         ptr = self.core.lib.retro_get_memory_data(MEMORY_SYSTEM_RAM)
         length = self.core.lib.retro_get_memory_size(MEMORY_SYSTEM_RAM)
         for start in (RAM_BASES.get(self.platform, 0), *self.mirrors()):
