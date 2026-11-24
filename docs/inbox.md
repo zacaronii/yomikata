@@ -41,7 +41,7 @@ RAM** taken while a line is on screen, and let the inbox's side do the searching
 |---|---|
 | `meta` | JSON: `id`, `platform` (`ps1`, `ps2`, `psp`, `sfc`, `gba`, `gb`, `gbc`, `nds`, `gc`; `ngc` is taken as `gc`), `base_address` (where the dump starts, e.g. `0x80000000` for PS1, `0x08000000` for PSP, `0x7E0000` for Super Famicom; one stretch of RAM per snapshot), `ocr` (the line or lines on screen, 1-10; or `"no_text": true` and no lines, see below), and optionally `vram_format` (a short name for how the `vram` part is laid out, e.g. `ps1-15bit`), `title`, `exe_sha1`, `captured_at`, `app`, `emulator`, `note` |
 | `ram` | The raw RAM bytes (PS1: 2 MB; PSP: up to 32 MB; Super Famicom: the 128 KB of work RAM; Game Boy Advance: 256 KB; Game Boy: 8 KB; DS: 4 MB; GameCube: the 24 MB of MEM1), optionally gzipped |
-| `state` | Optional: the emulator's savestate (libretro `retro_serialize`), gzipped, up to 64 MB once unpacked (PCSX ReARMed: 4 MB, PPSSPP: 40 MB). On PCSX ReARMed it holds the 1 MB of video memory, which `yomikata vram` extracts |
+| `state` | Optional: the emulator's savestate (libretro `retro_serialize`), gzipped, up to 64 MB once unpacked (PCSX ReARMed: 4 MB, PPSSPP: 40 MB), and up to 128 MB for a GameCube (Dolphin: 92–93 MB, about 17 MB gzipped). On PCSX ReARMed it holds the 1 MB of video memory, which `yomikata vram` extracts |
 | `vram` | Optional: the video memory itself, when the core gives it out (PS1: 1 MB; Super Famicom: 64 KB, which holds the text font's tiles; Game Boy Advance: 96 KB; Game Boy and Game Boy Color: 16 KB (a core may give a Game Boy game the Color's two banks); DS: 656 KB). More than that is refused |
 | `screen` | Optional: the frame on screen as a PNG, up to 4 MB |
 
@@ -53,7 +53,7 @@ Upload at most 80 MB. Other parts are ignored.
   (`GXXJ01`), which the console keeps at the very start of memory, with the disc's number and version after them
   and the word `C2339F3D` at `0x1C`. The inbox checks all three, so a dump with its words turned round, or of
   another game, is refused with the reason; it adds `disc_number` and `disc_version` to what it stores. Gzip the
-  parts: an upload is at most 80 MB, and a savestate beside 24 MB of RAM doesn't fit otherwise. Video memory and
+  parts: an upload is at most 80 MB, and Dolphin's savestate alone is larger than that before it is gzipped. Video memory and
   the audio RAM aren't needed.
 - Answers: `{"ok": true, "id": …, "added": true, "sha1": …, "stored": 3}`. The same RAM sent again gives
   `"added": false`. `400` with the reason, `401`, `413`.

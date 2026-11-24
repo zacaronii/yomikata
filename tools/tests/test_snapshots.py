@@ -156,3 +156,19 @@ def test_gamecube_samples(tmp_path):
     assert post("0x80550384").json()["added"] == 1
     assert (tmp_path / "data/samples/gc/GXXJ01.json").is_file()
     assert post("0x90000000").status_code == 400
+
+
+def test_gamecube_savestate_cap(tmp_path):
+    c = TestClient(create_app("secret", tmp_path / "data"))
+    def post(m, ram, state):
+        return c.post("/api/snapshots", data={"meta": json.dumps(m)}, headers=AUTH,
+                      files={"ram": ("ram.bin", gzip.compress(ram), "application/octet-stream"),
+                             "state": ("state.bin", gzip.compress(bytes(state), 1), "application/octet-stream")})
+    m = meta(id="GXXJ01", platform="ngc", base_address="0x80000000")
+    r = post(m, gamecube(), 93 * 1024 * 1024)                # as large as Dolphin's
+    assert r.json()["parts"] == ["ram", "state"]
+    r = post(m, gamecube(version=1), 128 * 1024 * 1024 + 1)
+    assert r.status_code == 400 and "state is larger than 128 MB" in r.json()["detail"]
+    # Elsewhere the cap is what it was.
+    r = post(meta(), os.urandom(64), 64 * 1024 * 1024 + 1)
+    assert r.status_code == 400 and "state is larger than 64 MB" in r.json()["detail"]

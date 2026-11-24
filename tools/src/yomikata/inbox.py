@@ -83,6 +83,8 @@ SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000, "sfc": 0x20
 # Video memory is smaller than the general limit on most consoles; a part larger than the console has is refused.
 # (A core may hand out a Game Boy game the Color's 16 KB: the cap is the larger.)
 VRAM_MAX = {"ps1": 0x100000, "sfc": 0x10000, "gba": 0x18000, "gb": 0x4000, "gbc": 0x4000, "nds": 0xA4000}
+# A savestate holds the whole machine. Dolphin's is 92-93 MB (17 MB gzipped): the GameCube's cap is its own.
+STATE_MAX = {"gc": 128 * 1024 * 1024}
 VRAM_FORMAT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
 SNAPSHOTS_PER_GAME = 40
 
@@ -325,8 +327,8 @@ class Inbox:
         for name, data in (extras or {}).items():
             if name not in EXTRA_PARTS or not data:
                 continue
-            limit = min(EXTRA_PARTS[name], VRAM_MAX.get(m["platform"], EXTRA_PARTS[name])) if name == "vram" \
-                else EXTRA_PARTS[name]
+            limit = {"vram": min(EXTRA_PARTS[name], VRAM_MAX.get(m["platform"], EXTRA_PARTS[name])),
+                     "state": STATE_MAX.get(m["platform"], EXTRA_PARTS[name])}.get(name, EXTRA_PARTS[name])
             raw = gunzip(data, limit, name)
             if len(raw) > limit:
                 raise ValueError(f"{name} is larger than " + (f"{limit // 1024 // 1024} MB" if limit % 0x100000 == 0
