@@ -16,7 +16,7 @@ from .cleanup import apply
 
 INT = {"u8": "B", "u16": "H", "u32": "I", "s8": "b", "s16": "h", "s32": "i"}
 RAM_BASE = {"ps1": 0x80000000, "psp": 0x08000000, "ps2": 0x00000000, "nds": 0x02000000, "gba": 0x02000000,
-            "sfc": 0x7E0000, "gb": 0xC000, "gbc": 0xC000}
+            "sfc": 0x7E0000, "gb": 0xC000, "gbc": 0xC000, "gc": 0x80000000}
 CODEC = {"shift_jis": "cp932", "euc_jp": "euc_jp", "utf16le": "utf-16-le", "utf16be": "utf-16-be", "utf8": "utf-8"}
 
 

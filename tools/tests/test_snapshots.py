@@ -114,3 +114,45 @@ def test_a_nothing_on_screen_snapshot_of_a_cartridge(tmp_path):
     c = TestClient(create_app("secret", tmp_path / "data"))
     m = meta(id="SHVC-ZQ", platform="sfc", base_address="0x7E0000", ocr=[], no_text=True)
     assert send(c, os.urandom(0x20000), m).json()["added"]
+
+
+def gamecube(game_id=b"GXXJ01", version=2, magic="C2339F3D") -> bytes:
+    """24 MB as a GameCube game has it: the disc's header at its start, made up."""
+    head = game_id + bytes([0, version]) + bytes(0x14) + bytes.fromhex(magic)
+    return head + os.urandom(64) + bytes(0x1800000 - len(head) - 64)
+
+
+def test_gamecube_main_memory(tmp_path):
+    c = TestClient(create_app("secret", tmp_path / "data"))
+    m = meta(id="GXXJ01", platform="ngc", base_address="0x80000000")       # as Genkan names the console
+    ram = gamecube()
+    r = send(c, gzip.compress(ram), m).json()
+    assert r["added"] and r["parts"] == ["ram"]
+    stored = json.loads((tmp_path / f"data/snapshots/gc/GXXJ01/{r['sha1']}.json").read_text())
+    assert (stored["platform"], stored["size"], stored["disc_version"], stored["disc_number"]) == ("gc", 0x1800000, 2, 0)
+    assert send(c, ram, dict(m, platform="gc")).json()["added"] is False    # the same memory under the catalog's name
+    listing = c.get("/api/snapshots", headers=AUTH).json()["games"]
+    assert [(g["id"], g["platform"]) for g in listing] == [("GXXJ01", "gc")]
+
+    def reason(ram, **kw):
+        r = send(c, ram, dict(m, **kw))
+        assert r.status_code == 400
+        return r.json()["detail"]
+    assert "24 MB" in reason(ram + b"\0")
+    assert "past main RAM" in reason(ram[:0x1000], base_address="0x817FF800")
+    assert "base_address" in reason(ram, base_address="0x90000000")
+    assert "byte order" in reason(gamecube(magic="3D9F33C2"))                # each word turned round
+    assert "disc header" in reason(bytes(0x1800000))
+    assert "GXXJ01" in reason(gamecube(b"GYYJ01"))
+    # A stretch that doesn't start at the start has no header to show.
+    assert send(c, os.urandom(0x1000), dict(m, base_address="0x80400000")).json()["added"]
+
+
+def test_gamecube_samples(tmp_path):
+    c = TestClient(create_app("secret", tmp_path / "data"))
+    def post(address):
+        return c.post("/api/samples", headers=AUTH, json={"id": "GXXJ01", "platform": "ngc", "samples": [
+            {"ocr": "あいうえお", "bytes_hex": "82a082a282a482a682a8", "address": address}]})
+    assert post("0x80550384").json()["added"] == 1
+    assert (tmp_path / "data/samples/gc/GXXJ01.json").is_file()
+    assert post("0x90000000").status_code == 400
