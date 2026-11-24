@@ -42,7 +42,14 @@ def validate(root: Path) -> list[Problem]:
             if p.is_file() and p.suffix not in exts and p.name != ".gitkeep":
                 problems.append(Problem(str(p.relative_to(root)), f"only {', '.join(sorted(exts))} files belong here"))
 
-    for p in sorted((root / "tables").rglob("*.tbl")):
+    # A script's own table (games/<platform>/<id>.tbl, docs/script-api.md) and the entry's (tables/<platform>/<id>.tbl)
+    # are the same table for as long as both are kept: they may not drift apart.
+    for p in sorted((root / "games").glob("*/*.tbl")):
+        other = root / "tables" / p.parent.name / p.name
+        if other.is_file() and other.read_bytes() != p.read_bytes():
+            problems.append(Problem(str(p.relative_to(root)), f"differs from {other.relative_to(root)}"))
+
+    for p in sorted([*(root / "tables").rglob("*.tbl"), *(root / "games").glob("*/*.tbl")]):
         try:
             tbl.parse(p.read_text(encoding="utf-8"), str(p.relative_to(root)))
         except (tbl.TableError, UnicodeDecodeError) as e:

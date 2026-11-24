@@ -6,8 +6,8 @@ a session, offered as tools over [MCP](https://modelcontextprotocol.io) on stand
 
 **Status:** the tools and the server are tested on a made-up machine, and have been run end to end with the
 Dolphin core on a GameCube game: loaded, a reader's savestate from the inbox restored, the game's script
-tried, lines advanced with presses and read, the layout overlaid on the frame. Software-rendered cores go
-through the same runner `yomikata replay` uses; the tools haven't been run with one yet.
+tried, lines advanced with presses and read, the layout overlaid on the frame. The same was done with PCSX
+ReARMed on a PS1 game, from a reader's savestate, and that game's script written and checked with it.
 
 ## Shut in
 
