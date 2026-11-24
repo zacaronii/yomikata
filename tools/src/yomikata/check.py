@@ -95,7 +95,9 @@ def check(entry: dict, snapshots: list[Path], root: Path, base: int | None = Non
             raise ValueError(f"{path.name}: give the address its first byte has (--base)")
         ram = layout.Ram.load(path, start)
         read = layout.read_layout(layout.live(lays, ram), entry, ram, table, load)
-        seen = None if "ocr" not in meta and not meta.get("no_text") else list(meta.get("ocr") or [])
+        # No lines at all, or lines the reader couldn't read: what the screen showed isn't known.
+        unknown = meta.get("ocr_unavailable") or ("ocr" not in meta and not meta.get("no_text"))
+        seen = None if unknown else list(meta.get("ocr") or [])
         row = Row(path.name.split(".")[0], read, seen, screen)
         if seen is not None:
             row.agreement = agreement(row.text, seen)

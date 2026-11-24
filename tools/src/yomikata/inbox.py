@@ -141,16 +141,24 @@ def clean_snapshot_meta(meta: object) -> dict:
     if isinstance(lines, str):
         lines = [lines]
     no_text = meta.get("no_text") is True           # said outright, so a failed OCR can't pass for an empty screen
-    if no_text and lines not in ([], None):
-        raise ValueError("meta.no_text goes with an empty meta.ocr")
-    if not no_text and (not isinstance(lines, list) or not lines or len(lines) > 10 or
-                        not all(isinstance(x, str) and x.strip() and len(x) <= 400 for x in lines)):
+    # The reader read no line, which isn't the same as there being none: what is on screen isn't known.
+    unavailable = meta.get("ocr_unavailable") is True
+    if no_text and unavailable:
+        raise ValueError("meta.no_text says the screen shows no text and meta.ocr_unavailable that it isn't known: "
+                         "send one of them")
+    if (no_text or unavailable) and lines not in ([], None):
+        raise ValueError(f"meta.{'no_text' if no_text else 'ocr_unavailable'} goes with an empty meta.ocr")
+    if not (no_text or unavailable) and (not isinstance(lines, list) or not lines or len(lines) > 10 or
+                                         not all(isinstance(x, str) and x.strip() and len(x) <= 400 for x in lines)):
         raise ValueError("meta.ocr must be the line(s) on screen: 1-10 strings of at most 400 characters "
-                         "(or no_text: true with none, for a screen that shows no text)")
+                         "(or no_text: true with none, for a screen that shows no text; or ocr_unavailable: true "
+                         "with none, when no line could be read)")
     out = {"id": game_id, "platform": platform, "base_address": "0x" + base[2:].upper() if base.startswith("0x") else base,
            "ocr": lines or []}
     if no_text:
         out["no_text"] = True
+    if unavailable:
+        out["ocr_unavailable"] = True
     fmt = meta.get("vram_format")
     if fmt is not None:
         if not isinstance(fmt, str) or not VRAM_FORMAT_RE.fullmatch(fmt):
@@ -376,6 +384,7 @@ class Inbox:
                     out.append({"id": folder.name, "platform": folder.parent.name, "snapshots": len(metas),
                                 "lines": sum(len(m["ocr"]) for m in metas),
                                 "no_text": sum(1 for m in metas if m.get("no_text")),
+                                "ocr_unavailable": sum(1 for m in metas if m.get("ocr_unavailable")),
                                 "with": {p: sum(1 for m in metas if p in m.get("parts", [])) for p in EXTRA_PARTS},
                                 "last_upload": max(m["received_at"] for m in metas)})
         return out

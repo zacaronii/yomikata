@@ -54,3 +54,11 @@ def test_a_choice_counts_as_text_read(tmp_path):
     (tmp_path / "a.json").write_text(json.dumps({"base_address": "0x80000000", "ocr": ["はい いいえ"]}), encoding="utf-8")
     result = check(entry, [tmp_path / "a.ram.gz"], tmp_path)
     assert result.rows[0].agreement == 1.0 and result.counts()["with a choice's answers"] == 1
+
+
+def test_a_screen_the_reader_could_not_read_is_unknown(tmp_path):
+    snaps = [snapshot(tmp_path, "a", "つくりもののぎょう", {"ocr": [], "ocr_unavailable": True}),
+             snapshot(tmp_path, "b", "", {"ocr": [], "no_text": True})]
+    counts = check(ENTRY, snaps, tmp_path, base=0x80000000).counts()
+    assert counts["with a reader's lines"] == 0
+    assert counts["marked as showing no text"] == 1 and counts["of those, reading nothing"] == 1

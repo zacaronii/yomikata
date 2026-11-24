@@ -39,7 +39,7 @@ RAM** taken while a line is on screen, and let the inbox's side do the searching
 
 | Part | |
 |---|---|
-| `meta` | JSON: `id`, `platform` (`ps1`, `ps2`, `psp`, `sfc`, `gba`, `gb`, `gbc`, `nds`, `gc`; `ngc` is taken as `gc`), `base_address` (where the dump starts, e.g. `0x80000000` for PS1, `0x08000000` for PSP, `0x7E0000` for Super Famicom; one stretch of RAM per snapshot), `ocr` (the line or lines on screen, 1-10; or `"no_text": true` and no lines, see below), and optionally `vram_format` (a short name for how the `vram` part is laid out, e.g. `ps1-15bit`), `title`, `exe_sha1`, `captured_at`, `app`, `emulator`, `note` |
+| `meta` | JSON: `id`, `platform` (`ps1`, `ps2`, `psp`, `sfc`, `gba`, `gb`, `gbc`, `nds`, `gc`; `ngc` is taken as `gc`), `base_address` (where the dump starts, e.g. `0x80000000` for PS1, `0x08000000` for PSP, `0x7E0000` for Super Famicom; one stretch of RAM per snapshot), `ocr` (the line or lines on screen, 1-10; or `"no_text": true` and no lines, or `"ocr_unavailable": true` and no lines, see below), and optionally `vram_format` (a short name for how the `vram` part is laid out, e.g. `ps1-15bit`), `title`, `exe_sha1`, `captured_at`, `app`, `emulator`, `note` |
 | `ram` | The raw RAM bytes (PS1: 2 MB; PSP: up to 32 MB; Super Famicom: the 128 KB of work RAM; Game Boy Advance: 256 KB; Game Boy: 8 KB; DS: 4 MB; GameCube: the 24 MB of MEM1), optionally gzipped |
 | `state` | Optional: the emulator's savestate (libretro `retro_serialize`), gzipped, up to 64 MB once unpacked (PCSX ReARMed: 4 MB, PPSSPP: 40 MB), and up to 128 MB for a GameCube (Dolphin: 92–93 MB, about 17 MB gzipped). On PCSX ReARMed it holds the 1 MB of video memory, which `yomikata vram` extracts |
 | `vram` | Optional: the video memory itself, when the core gives it out (PS1: 1 MB; Super Famicom: 64 KB, which holds the text font's tiles; Game Boy Advance: 96 KB; Game Boy and Game Boy Color: 16 KB (a core may give a Game Boy game the Color's two banks); DS: 656 KB). More than that is refused |
@@ -67,6 +67,10 @@ Upload at most 80 MB. Other parts are ignored.
   them: what differs from the snapshots with a line shows where the game keeps "the window is open", so a layout
   can say when the text in memory is no longer on screen. Send it with `"no_text": true` and an empty `ocr`. An
   empty `ocr` without it is refused, so a screen OCR failed on is never stored as an empty one.
+- A snapshot taken while the reader **couldn't read a line** (OCR off, or it read nothing it trusts) says
+  `"ocr_unavailable": true` with an empty `ocr`. It is stored as sent, and the tools take what its screen showed
+  as unknown: `yomikata check` counts it with neither the snapshots that have lines nor those that show no text,
+  and it isn't one for `--absent`. Never send `no_text` for it: `no_text` is the reader saying it knows.
 - `yomikata where <snapshots>` says what holds the lines. For a standard encoding: the places, and which is the
   same in every snapshot. For a game's own codes it searches by pattern of repeated characters, and then puts each
   place to the test: with the code=character pairs a place gives, are the *other* lines found too, in codes too
