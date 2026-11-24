@@ -165,11 +165,28 @@ hosts count what was read. A text that types out is emitted when it starts, whol
 |---|---|
 | `text` | Required. UTF-8, lines separated by `\n`, without furigana readings and without the game's codes. An empty text emits nothing |
 | `speaker` | The name the game shows, if any |
-| `channel` | `"dialogue"` (default) or `"choice"`: a choice's answers, one per line |
+| `channel` | `"dialogue"` (default); `"choice"`: a choice's answers, one per line; `"interface"`: text of the game's menus and screens, not of its story (below) |
 | `id` | What this text is in the game, the same every time it is shown: best a hash of its bytes (`text.hash`). The same id again means the player is rereading. Default: a hash of channel, speaker and text |
 | `ruby` | The game's own furigana: `{ {start, length, reading}, … }`, counted in code points of `text` from 0. `reader.builder()` keeps the counts right |
 | `window` | A name or number for what the text is shown in. Needed for `reader.layout`; a later text in the same window takes this one's place |
 | `meta` | A flat table of strings, numbers and booleans, kept with the event and not shown |
+
+### The `interface` channel
+
+**Added.** A game shows text that isn't its story: menu labels, the names of items and skills, their
+descriptions, a status screen. A script may emit it with `channel = "interface"`, so that a player can look a
+word of it up, and it is kept apart from what is read:
+
+- It is emitted like any text: once when it is shown, with the same `id` when it is shown again.
+- Give it a `window` and a `reader.layout` wherever the script can: pointing at it on the picture is the only way
+  it is looked up.
+- **A host must keep it out of the reader, the backlog and the reading counts.** It may offer it only as
+  something to look up on the picture, and only while it is shown.
+- It is gone when its layout is closed or its window shows something else.
+
+A script may leave interface text out altogether: a host has OCR for menus otherwise. A host that doesn't
+know the channel must drop it, not show it as dialogue. *Open: Furoshiki has no such channel; there a script
+that emits one would have it shown as a line of its own channel.*
 
 ### `reader.layout`
 

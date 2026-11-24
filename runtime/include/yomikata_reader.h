@@ -36,6 +36,9 @@ typedef struct yk_reader yk_reader;
 /* What comes out. Each is one line of JSON, UTF-8, valid only during the call.
  *   YK_TEXT    {"seq","frame","channel","speaker","text","ruby":[[start,length,"reading"]…],"id","meta":{…},
  *              "window"?}
+ *              channel is "dialogue", "choice" or "interface". Interface text (menus, item names, status
+ *              screens) is for looking up on the picture only: a host keeps it out of its reader, its
+ *              backlog and its reading counts, and drops a channel it doesn't know.
  *   YK_LAYOUT  {"window","seq","screen"?:1,"space":[w,h],"box"?:[x,y,w,h],"glyphs":[[x,y,w,h]|null…]}
  *              or {"window","seq","closed":true}
  *   YK_CURSOR  {"index":n,"horizontal":bool} or {"closed":true}

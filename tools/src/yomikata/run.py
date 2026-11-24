@@ -17,6 +17,9 @@ from .bundle import bundle
 from .check import sidecars
 from .layout import RAM_BASE
 
+STORY_CHANNELS = ("dialogue", "choice")
+CHANNELS = (*STORY_CHANNELS, "interface")
+
 # What a host calls a platform, where it isn't the catalog's name.
 PLATFORM_ALIASES = {"ngc": "gc", "psx": "ps1", "snes": "sfc"}
 RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
@@ -36,7 +39,13 @@ class Reading:
     error: str | None = None        # the script didn't load over this snapshot
 
     def texts(self) -> list[dict]:
+        """Every text emitted, whatever its channel."""
         return [e for kind, e in self.events if kind == "text"]
+
+    def story(self) -> list[dict]:
+        """What is read: dialogue and choices. Interface text (menus, names, status screens) is only ever looked
+        up on the picture, and a channel a host doesn't know is dropped (docs/script-api.md)."""
+        return [e for e in self.texts() if e["channel"] in STORY_CHANNELS]
 
 
 def platform_of(script: Path, given: str | None, meta: dict) -> str | None:
