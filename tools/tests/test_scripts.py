@@ -129,7 +129,7 @@ def pm_records(*items) -> bytes:
 
 
 def pm_memory(records: bytes | None, at: int = 0, started: int = 1, window_type: int = 0, slot: int = 0,
-              version: int = 0, font: bytes | None = None):
+              version: int = 0, font: bytes | None = None, place: tuple = (-280.0, 225.0), cursor: int = 0):
     chunks = {0x80000000: b"G8MJ01" + bytes([0, version]) + bytes(0x14) + bytes.fromhex("C2339F3D"),
               0x80073C00: bytes.fromhex("80CD14F8"), 0x8007EF18: bytes.fromhex("83ED15A8"),
               PM_FONT: struct.pack(">I", FONT_AT), FONT_AT: pm_font() if font is None else font,
@@ -137,9 +137,12 @@ def pm_memory(records: bytes | None, at: int = 0, started: int = 1, window_type:
     slots = bytearray(7 * 0x48)
     if records is not None:
         struct.pack_into(">HHhi", slots, slot * 0x48 + 2, 3, 0, 255, window_type)
+        struct.pack_into(">ff", slots, slot * 0x48 + 0x0C, *place)
         struct.pack_into(">I", slots, slot * 0x48 + 0x28, HOLDER_AT)
         count = len(records) // 0x18 - 1                     # the end code isn't counted
         data = bytearray(0x3C) + records
+        data += bytes(0x7A58 - len(data))
+        data[0x7A43] = cursor
         struct.pack_into(">i", data, 0x10, at)
         struct.pack_into(">Q", data, 0x18, started)
         struct.pack_into(">i", data, 0x38, count)
@@ -147,6 +150,10 @@ def pm_memory(records: bytes | None, at: int = 0, started: int = 1, window_type:
         chunks[DATA_AT] = bytes(data)
     chunks[SLOTS_AT] = bytes(slots)
     return sparse(chunks)
+
+
+def of(events, kind):
+    return [e for k, e in events if k == kind]
 
 
 def pm_reader(read):
@@ -166,9 +173,16 @@ def test_paper_mario_pages_as_the_window_reaches_them():
     with pm_reader(pm_memory(BUBBLE, at=3)) as r:                        # typing its first page
         r.frame(1)
         r.frame(2)
-        (first,) = r.take("text")
+        events = r.take()
+        (first,) = of(events, "text")
         assert (first["text"], first["ruby"]) == ("やあ、勇者よ。\nよくきたな", [[3, 2, "ゆうしゃ"]])
         assert first["meta"] == {"page": 1, "pages": 2} and first["channel"] == "dialogue"
+        # Where each character is: 608 by 480, the slot's corner at 24, 15, the text 62.5 and 47 in from it.
+        (layout,) = of(events, "layout")
+        assert (layout["window"], layout["space"]) == (first["window"], [608, 480])
+        assert len(layout["glyphs"]) == len(first["text"])
+        assert layout["glyphs"][:2] == [[86.5, 62, 22, 24], [108.5, 62, 22, 24]]
+        assert layout["glyphs"][7] is None and layout["glyphs"][8] == [86.5, 94, 22, 24]       # the second line
         r.read = pm_memory(BUBBLE, at=BUBBLE_KEY)                        # waiting at the end of it
         r.frame(3)
         r.read = pm_memory(BUBBLE, at=BUBBLE_KEY + 1)                    # at the scroll, not through it
@@ -178,10 +192,12 @@ def test_paper_mario_pages_as_the_window_reaches_them():
         r.frame(5)
         r.read = pm_memory(BUBBLE, at=BUBBLE_END)
         r.frame(6)
-        (second,) = r.take("text")
+        events = r.take()
+        (second,) = of(events, "text")
+        assert of(events, "layout")[0]["glyphs"][0] == [86.5, 62, 22, 24]    # the page's first line is at the top again
         assert (second["text"], second["ruby"]) == ("さあ、旅にでよう", [[3, 1, "たび"]])
         assert second["meta"] == {"page": 2, "pages": 2} and second["id"] != first["id"]
-        assert not [e for e in r.take("log") if e["level"] == "error"]
+        assert not [e for e in of(events, "log") if e["level"] == "error"]
 
 
 def test_paper_mario_window_closed_and_opened_again():
@@ -196,15 +212,27 @@ def test_paper_mario_window_closed_and_opened_again():
         r.frame(4)
         r.state_loaded()
         r.frame(5)                                           # after a savestate: said again
-        assert [e["text"][:3] for e in r.take("text")] == ["やあ、"] * 3
+        events = r.take()
+        assert [e["text"][:3] for e in of(events, "text")] == ["やあ、"] * 3
+        assert of(events, "layout")[1] == {"window": "window 0", "seq": 1, "closed": True}
 
 
 def test_paper_mario_choice():
     answers = pm_records("はい", LINE, "いいえ", END)
-    with pm_reader(pm_memory(answers, at=6, window_type=5)) as r:
+    box = dict(window_type=5, slot=1, place=(-75.0, 40.0))
+    with pm_reader(pm_memory(answers, at=6, **box)) as r:
         r.frame(1)
-        (event,) = r.take("text")
+        events = r.take()
+        (event,) = [e for k, e in events if k == "text"]
         assert (event["channel"], event["text"]) == ("choice", "はい\nいいえ")
+        (layout,) = [e for k, e in events if k == "layout"]
+        assert layout["glyphs"][0] == [269.4, 236, 22, 24] and layout["glyphs"][3] == [269.4, 268, 22, 24]
+        assert [e for k, e in events if k == "cursor"] == [{"index": 0, "horizontal": False}]
+        r.read = pm_memory(answers, at=6, cursor=1, **box)
+        r.frame(2)
+        r.read = pm_memory(None)
+        r.frame(3)
+        assert r.take("cursor") == [{"index": 1, "horizontal": False}, {"closed": True}]
 
 
 def test_paper_mario_furigana_only_over_the_kanji_they_reach():
