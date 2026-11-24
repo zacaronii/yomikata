@@ -20,6 +20,7 @@ text instead of falling back to OCR.
 | [tools/](tools/) | `yomikata` command line: identify images, validate, build the index (Docker image included) |
 | [docs/inbox.md](docs/inbox.md) | The inbox readers upload memory samples and hook reports to (`yomikata serve`) |
 | [docs/hook-finder.md](docs/hook-finder.md) | How a reader app finds and checks a hook during play, and the report format |
+| [docs/script-api.md](docs/script-api.md) | **Draft:** per-game Lua scripts that read memory, the format layouts are to give way to |
 | [docs/replay.md](docs/replay.md) | Running a game headless, from a reader's savestate or from power-on, and finding a layout in what it records (`yomikata replay`, `find`, `contrast`) |
 
 ## Using the catalog (clients)
@@ -38,8 +39,8 @@ building tables from game fonts is in [docs/roadmap.md](docs/roadmap.md).
 
 ## Licences
 
-Everything here, tools and catalog data (entries and tables), is under the GNU General Public License,
-version 3 only (GPL-3.0-only, `LICENSE`). Entries that adapt someone else's work credit it in `sources`:
-MIT-licensed hooks and tables can be adapted into it as they are, and work under licences that conflict with
-the GPL doesn't belong here.
+Everything here, tools and catalog data (entries, tables and scripts), is under the GNU General Public License,
+version 3 or any later version (GPL-3.0-or-later, `LICENSE`). Entries that adapt someone else's work credit it in
+`sources`: MIT-licensed hooks and tables can be adapted into it as they are, and work under licences that conflict
+with the GPL doesn't belong here.
 Third-party notices (copyright lines and licence texts for adapted work) are in [NOTICE.md](NOTICE.md).

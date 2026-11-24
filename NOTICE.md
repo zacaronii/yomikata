@@ -1,6 +1,6 @@
 # Third-party notices
 
-The catalog is under GPL-3.0-only (`LICENSE`). Some entries adapt published work; each says so in its
+The catalog is under GPL-3.0-or-later (`LICENSE`). Some entries adapt published work; each says so in its
 `sources`, and the notices those licences ask for are kept here.
 
 ## 0xDC00/scripts (MIT)
@@ -37,8 +37,13 @@ SOFTWARE.
 
 https://github.com/HIllya51/LunaTranslator — PPSSPP hook addresses
 (`src/NativeImpl/LunaHook/LunaHook/emulators/ppsspp_1.cpp`) and the katakana remap from
-`util/stringfilters.cpp`. GPL-3.0, the same licence as this repository's GPL-3.0-only.
+`util/stringfilters.cpp`. GPL-3.0, compatible with this repository's GPL-3.0-or-later.
 
 Used by: `games/psp/ULJM05603.json` (My Merry May with be), `games/psp/NPJH50515.json` (ダンガンロンパ),
 `games/psp/NPJH50631.json` (スーパーダンガンロンパ2), `games/psp/ULJM06232.json` (グリザイアの果実),
 `games/psp/ULJM05338.json` (CLANNAD).
+
+## Furoshiki (GPL-3.0-or-later)
+
+https://github.com/sommepo/furoshiki-scripts — the script API that `docs/script-api.md` follows: the `reader`,
+`mem` and `text` functions, the header lines and the `.charset` table format are Furoshiki's.
