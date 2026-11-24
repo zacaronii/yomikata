@@ -520,17 +520,16 @@ def main(argv: list[str] | None = None) -> int:
         for pr in problems:
             print(pr, file=sys.stderr)
         n = sum(1 for _ in catalog.entries(args.root))
-        print(f"{n} entries, {len(problems)} problem(s)")
+        print(f"{n} entries, {len(catalog.scripts(args.root))} scripts, {len(problems)} problem(s)")
         return 1 if problems else 0
     if args.cmd == "index":
         if args.check:
-            current = (args.root / "index.json").read_text(encoding="utf-8") if (args.root / "index.json").exists() else ""
-            wanted = json.dumps(catalog.build_index(args.root), ensure_ascii=False, indent=1) + "\n"
-            if current != wanted:
-                print("index.json is out of date: run `yomikata index`", file=sys.stderr)
+            stale = catalog.stale(args.root)
+            if stale:
+                print(f"out of date: {', '.join(stale)}: run `yomikata index`", file=sys.stderr)
                 return 1
             return 0
-        print("index.json updated" if catalog.write_index(args.root) else "index.json unchanged")
+        print("index.json and scripts/ updated" if catalog.write_index(args.root) else "index.json and scripts/ unchanged")
         return 0
     return 2
 

@@ -85,6 +85,19 @@ end)
 - A script may `require` a module from `lib/` (walking tags, tiles, reading a `.tbl`). What is run and published
   is one file per game with its modules put in (`yomikata bundle`, which `yomikata run` does by itself), header
   lines still first, so a host never loads anything but the script and its data.
+- **What a host fetches** is never the source: it is `scripts/<platform>/<id>.lua`, the script with its modules
+  in it, which `yomikata index` writes beside `index.json` (CI fails when either is out of date; nobody edits
+  them by hand). `index.json` lists each under `scripts`, by game id:
+
+  ```json
+  "scripts": {"GXXJ01": {"path": "scripts/gc/GXXJ01.lua", "sha256": "…", "platform": "gc",
+                         "title": "…", "reads": "…", "builds": ["GXXJ01-00"], "needs": [],
+                         "data": {"tbl": {"path": "games/gc/GXXJ01.tbl", "sha256": "…"}}}}
+  ```
+
+  A host fetches the index, takes the script for the running game's id when one of its `builds` is the game's
+  (or when it can't tell the build: the script's own check decides then), and fetches the script and each of
+  its `data` files again only when their `sha256` changes. `needs` are the regions the script can't do without.
 - **No game data,** as everywhere in this repository: addresses, codes, tables and logic are fine; script text,
   glyph pictures and dumps are not. A name plate drawn as a picture may have its names listed by number.
 
@@ -362,4 +375,3 @@ From reading `shared/reader/core` in Furoshiki (GPL-2.0-or-later) and one `.char
 3. Whether Furoshiki's checker accepts header lines it doesn't know.
 4. Default `space`: Furoshiki's sizes for the PSP and the DS.
 5. The limits' floor, once measured.
-6. Where the built scripts are published, and what `index.json` says about them.

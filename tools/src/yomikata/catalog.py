@@ -4,12 +4,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
 from . import tbl
+from .bundle import BundleError, bundle, header
+
+SCRIPT_ID = re.compile(r"[A-Z0-9][A-Z0-9-]{3,19}")
+SCRIPT_NEEDS = ("title", "reads", "version", "build", "no hooks")
+DATA_CALL = re.compile(r"""reader\.data\(\s*(["'])([a-z0-9_]{1,16})\1\s*\)""")
+# What a script here may not do (docs/script-api.md): stop the game at an instruction, or write its memory.
+FORBIDDEN = {re.compile(r"\breader\.hook\b"): "reader.hook: a script here only reads memory",
+             re.compile(r"\bmem\.w(8|16|32|64)\b"): "mem.w…: a script never writes the game's memory"}
 
 # Entries, and scripts with their data files (docs/script-api.md); tables.
 ALLOWED = {"games": {".json", ".lua", ".tbl", ".charset"}, "tables": {".tbl"}}
@@ -55,6 +64,8 @@ def validate(root: Path) -> list[Problem]:
         except (tbl.TableError, UnicodeDecodeError) as e:
             problems.append(Problem(str(p.relative_to(root)), str(e)))
 
+    problems += validate_scripts(root)
+
     for p in sorted((root / "games").glob("*/*.json")):
         rel = str(p.relative_to(root))
         try:
@@ -97,6 +108,49 @@ def validate(root: Path) -> list[Problem]:
     return problems
 
 
+def scripts(root: Path):
+    """Each script's source file: games/<platform>/<id>.lua."""
+    return sorted(Path(root).glob("games/*/*.lua"))
+
+
+def script_data(root: Path, path: Path) -> dict[str, Path]:
+    """The data files a script asks for by reader.data("name"): name -> games/<platform>/<id>.<name>."""
+    names = sorted({m.group(2) for m in DATA_CALL.finditer(path.read_text(encoding="utf-8"))})
+    return {name: path.with_suffix("." + name) for name in names}
+
+
+def validate_scripts(root: Path) -> list[Problem]:
+    """A script's form: its name, its header lines, that it bundles, that its data files are there, and that it
+    asks for nothing a script here may not do. Whether it reads its game is for snapshots to say."""
+    problems = []
+    for path in scripts(root):
+        rel = str(path.relative_to(root))
+        source = path.read_text(encoding="utf-8")
+        if not SCRIPT_ID.fullmatch(path.stem):
+            problems.append(Problem(rel, "a script is named after its game's id: games/<platform>/<id>.lua"))
+        keys = [key for key, _ in header(source)]
+        for key in SCRIPT_NEEDS:
+            if key not in keys:
+                problems.append(Problem(rel, f"no `-- reader: {key}` line"))
+        for pattern, why in FORBIDDEN.items():
+            if pattern.search(source):
+                problems.append(Problem(rel, why))
+        try:
+            bundle(path, root)
+        except BundleError as e:
+            problems.append(Problem(rel, str(e)))
+        for name, data in script_data(root, path).items():
+            if not data.is_file():
+                problems.append(Problem(rel, f"reader.data(\"{name}\") needs {data.relative_to(root)}"))
+    return problems
+
+
+def build_scripts(root: Path) -> dict[str, str]:
+    """What is published of the scripts: scripts/<platform>/<id>.lua -> the script with its modules in it."""
+    root = Path(root)
+    return {f"scripts/{p.parent.name}/{p.name}": bundle(p, root) for p in scripts(root)}
+
+
 def build_index(root: Path) -> dict:
     """id (and alias) -> entry path and SHA-256, so clients fetch one small file first and refetch only changes."""
     root = Path(root)
@@ -110,14 +164,52 @@ def build_index(root: Path) -> dict:
             aliases.setdefault(a, {**rec, "alias_of": e["id"]})
     for a, rec in aliases.items():                    # a main id always wins over another entry's alias
         out.setdefault(a, rec)
-    return {"format": 1, "entries": dict(sorted(out.items()))}
+    index = {"format": 1, "entries": dict(sorted(out.items()))}
+    listed = {}
+    for path in scripts(root):
+        published = f"scripts/{path.parent.name}/{path.name}"
+        lines = header(path.read_text(encoding="utf-8"))
+        first = lambda key: next((rest for k, rest in lines if k == key), "")        # noqa: E731
+        listed[path.stem] = {
+            "path": published, "sha256": hashlib.sha256(bundle(path, root).encode("utf-8")).hexdigest(),
+            "platform": path.parent.name, "title": first("title"), "reads": first("reads"),
+            "builds": [rest for k, rest in lines if k == "build"],
+            "needs": sorted({word for k, rest in lines if k == "needs" for word in rest.replace(",", " ").split()}),
+            "data": {name: {"path": str(data.relative_to(root)), "sha256": hashlib.sha256(data.read_bytes()).hexdigest()}
+                     for name, data in script_data(root, path).items() if data.is_file()}}
+    if listed:
+        index["scripts"] = dict(sorted(listed.items()))
+    return index
+
+
+def stale(root: Path) -> list[str]:
+    """What `yomikata index` would change: index.json, and published scripts that differ, are missing or are left
+    over from a script that is gone."""
+    root = Path(root)
+    out = []
+    current = (root / "index.json").read_text(encoding="utf-8") if (root / "index.json").exists() else ""
+    if current != json.dumps(build_index(root), ensure_ascii=False, indent=1) + "\n":
+        out.append("index.json")
+    wanted = build_scripts(root)
+    for rel, text in wanted.items():
+        path = root / rel
+        if not path.is_file() or path.read_text(encoding="utf-8") != text:
+            out.append(rel)
+    out += [str(p.relative_to(root)) for p in sorted(root.glob("scripts/*/*")) if str(p.relative_to(root)) not in wanted]
+    return out
 
 
 def write_index(root: Path) -> bool:
     """Write index.json; True if it changed."""
-    path = Path(root) / "index.json"
-    text = json.dumps(build_index(root), ensure_ascii=False, indent=1) + "\n"
-    old = path.read_text(encoding="utf-8") if path.exists() else None
-    if old != text:
-        path.write_text(text, encoding="utf-8")
-    return old != text
+    root = Path(root)
+    changed = bool(stale(root))
+    path = root / "index.json"
+    path.write_text(json.dumps(build_index(root), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    wanted = build_scripts(root)
+    for rel, text in wanted.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text(text, encoding="utf-8")
+    for left in root.glob("scripts/*/*"):               # a script that is gone takes its published file with it
+        if str(left.relative_to(root)) not in wanted:
+            left.unlink()
+    return changed

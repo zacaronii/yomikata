@@ -34,6 +34,11 @@ text instead of falling back to OCR.
 4. Decode: standard encodings directly; `table` entries by applying the tables in order with the entry's `unit`
    and `controls`; then apply `cleanup` in order.
 
+**Scripts** (docs/script-api.md) are the newer way, for readers that embed the reader runtime: `index.json`
+lists them under `scripts`, by game id, each with the path of its published file (`scripts/<platform>/<id>.lua`),
+its hash, the builds it was checked on and its data files. A reader runs a game's script where there is one,
+and falls back on the entry.
+
 ## Status
 
 Early. Entries so far are hand-made from testing in play; the plan for sorting a whole library automatically and

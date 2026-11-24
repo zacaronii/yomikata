@@ -26,6 +26,30 @@ class BundleError(ValueError):
     pass
 
 
+def header(source: str) -> list[tuple[str, str]]:
+    """A script's header lines as (key, rest): each "-- reader: <key> <rest>" among the comments it begins with.
+    "no hooks" and "no layout" are keys of two words. The reader runtime's yk_header reads them the same way."""
+    out = []
+    for raw in source.split("\n"):
+        line = raw.strip(" \t\r")
+        if not line:
+            continue
+        if not line.startswith("--"):
+            break
+        line = line[2:].strip(" \t")
+        if not line.startswith("reader:"):
+            continue
+        words = line[len("reader:"):].split(None, 1)
+        if not words:
+            continue
+        key, rest = words[0], words[1] if len(words) > 1 else ""
+        if key == "no" and rest:
+            more = rest.split(None, 1)
+            key, rest = "no " + more[0], more[1] if len(more) > 1 else ""
+        out.append((key, rest.strip(" \t")))
+    return out
+
+
 def root_of(script: Path) -> Path | None:
     """The catalog a script is in: the nearest folder above it that has a lib/."""
     for folder in Path(script).resolve().parents:

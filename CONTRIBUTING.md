@@ -26,6 +26,14 @@ Follow [docs/hook-finder.md](docs/hook-finder.md). Either send the report to an 
 entry yourself: `hooks[]` with `address`, `register`, `charset` and the exe SHA-1 it was checked on in `versions`,
 plus a `sources` line saying how many lines matched OCR.
 
+## Adding a script
+
+A script (`games/<platform>/<id>.lua`, docs/script-api.md) reads a game where a layout can't, or better. Write it
+from snapshots or with the harness (docs/harness.md), check it with `yomikata run` against snapshots, then run
+`yomikata validate` and `yomikata index`: the index and the published copy under `scripts/` are written for
+you and belong in the same pull request. In the pull request, give the counts: how many snapshots, how many
+texts, how many agree with what was on screen.
+
 ## Rules
 
 - **No game data in the repository:** no script text, fonts, images, executables or disc files. Only mappings,
