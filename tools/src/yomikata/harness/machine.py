@@ -9,6 +9,7 @@ from ..layout import RAM_BASE
 from ..run import MIRRORS, PLATFORM_ALIASES
 
 RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
+WARM_UP = 300
 
 
 class Machine:
@@ -58,4 +59,9 @@ class Machine:
         return self.core.save_state()
 
     def load_state(self, state: bytes) -> None:
+        # A core that draws with the card isn't fully up in its first frames: a state loaded then is taken
+        # and the game stands still (seen with Dolphin at two frames; at 300 it goes on).
+        if self.core.hw is not None and self.frames < WARM_UP:
+            self.core.run(WARM_UP - self.frames)
         self.core.load_state(gzip.decompress(state) if state[:2] == b"\x1f\x8b" else state)
+        self.frames = max(self.frames, WARM_UP if self.core.hw is not None else 0)

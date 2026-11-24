@@ -39,7 +39,7 @@ local SLOT_FLAGS, SLOT_TYPE, SLOT_X, SLOT_Y, SLOT_DATA = 0x02, 0x08, 0x0C, 0x10,
 local IN_USE = 1
 local TYPE_SELECT = 5
 -- A window's data: the header, then the records.
-local DATA_AT, DATA_STARTED, DATA_COUNT, DATA_RECORDS = 0x10, 0x18, 0x38, 0x3C
+local DATA_AT, DATA_COUNT, DATA_RECORDS = 0x10, 0x38, 0x3C
 local DATA_CURSOR = 0x7A43 -- a choice's: the answer its cursor is on, from 0
 local RECORD_SIZE, MAX_RECORDS = 0x18, 1298
 local RECORD = ">I4 I2 i2 i2 xx I4 f xxxx" -- flags, glyph, x, y, when it appears, scale
@@ -253,11 +253,12 @@ reader.on_frame(function()
             reader.layout("window " .. slot, nil)
         else
             local select = mem.s32be(entry + SLOT_TYPE) == TYPE_SELECT
-            -- The same data at the same place can be another message: the time it began tells them apart.
-            local key = data .. ":" .. (mem.u64be(data + DATA_STARTED) or 0) .. ":" .. count
+            -- The same data at the same place can be another message, and a message's header is still being
+            -- filled in over its first frames: what tells messages apart is the records themselves.
+            local records = mem.read(data + DATA_RECORDS, count * RECORD_SIZE)
+            local key = data .. ":" .. count .. ":" .. text.hash(records)
             local message = messages[slot]
             if not message or message.key ~= key then
-                local records = mem.read(data + DATA_RECORDS, count * RECORD_SIZE)
                 if #records == count * RECORD_SIZE then
                     message = { key = key, records = records, pages = read_pages(records, count, select) }
                     messages[slot] = message

@@ -76,6 +76,7 @@ class Core:
         self.options = {k.encode(): v.encode() for k, v in (options or {}).items()}
         self.held: set[str] = set()
         self.stick: tuple[float, float] = (0.0, 0.0)        # the left stick, each way from -1 to 1 (up is -1)
+        self.asked: set[tuple[int, int, int, int]] = set()  # what the core has asked of the pad, for finding out
         self.maps: list[tuple[int, int, int]] = []          # (address, size, where the core keeps it)
         self.gl = None                                      # the context of a core that draws with the card
         self.hw: HwRender | None = None
@@ -161,11 +162,15 @@ class Core:
             self.frame = (C.string_at(data, pitch * height), width, height, pitch)
 
     def _input(self, port, device, index, button):
+        device &= 0xFF                              # a core may ask by a kind of its own of pad or stick
+        self.asked.add((port, device, index, button))
         if port != 0:
             return 0
         if device == DEVICE_ANALOG:
             if index == 0 and button in (0, 1):
                 return max(-0x7FFF, min(0x7FFF, round(self.stick[button] * 0x7FFF)))
+            if index == 2:                          # a button, as how far it is pressed
+                return 0x7FFF if any(JOYPAD[b] == button for b in self.held) else 0
             return 0
         if device != DEVICE_JOYPAD:
             return 0
@@ -186,6 +191,7 @@ class Core:
         av = SystemAvInfo()
         self.lib.retro_get_system_av_info(C.byref(av))
         self.fps = av.fps
+        self.lib.retro_set_controller_port_device(0, DEVICE_JOYPAD)
         if getattr(self, "hw", None) is not None:
             self.gl.make_framebuffer(max(av.max_width, av.base_width, 640), max(av.max_height, av.base_height, 480))
             self.hw.context_reset()

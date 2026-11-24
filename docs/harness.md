@@ -4,9 +4,10 @@ A game run headless and kept at hand, so that an agent can play to a text, find 
 it, without a device and without a person passing snapshots. It is `yomikata replay`'s core runner kept alive as
 a session, offered as tools over [MCP](https://modelcontextprotocol.io) on standard input and output.
 
-**Status:** the tools and the server are tested on a made-up machine. Software-rendered cores go through the
-same runner `yomikata replay` uses. A core that draws with the graphics card (Dolphin) gets an OpenGL context
-without a window, drawn by the CPU; that path is written and its context checked alone, not yet with the core.
+**Status:** the tools and the server are tested on a made-up machine, and have been run end to end with the
+Dolphin core on a GameCube game: loaded, a reader's savestate from the inbox restored, the game's script
+tried, lines advanced with presses and read, the layout overlaid on the frame. Software-rendered cores go
+through the same runner `yomikata replay` uses; the tools haven't been run with one yet.
 
 ## Shut in
 
@@ -62,7 +63,18 @@ Notes on cores:
 
 - A savestate loads only in the core build that made it. Note the core's SHA-256 with every state kept.
 - The same steps from the same state reach the same moment on the software-rendered cores (docs/replay.md).
-  Whether Dolphin does is still to be measured.
-- Dolphin has no renderer that works without a context: its `Software` and `Null` settings crash on the first
-  frame, because the core sets its video side up only when a frontend's context comes up. It needs `/dev/shm`
-  larger than Docker's default (the script gives 2 GB).
+
+Dolphin (`dolphin_libretro.so`, a GameCube or Wii game):
+
+- It has no renderer that works without a context: the core sets its video side up only when a frontend's
+  context comes up, and without one the first frame crashes. The harness gives it OpenGL drawn by the CPU (Mesa's
+  llvmpipe), so no graphics card is used. On a 2025 desktop processor that runs a GameCube game at about real
+  speed or better.
+- Give it the option `dolphin_main_cpu_thread=disabled` (one emulation thread). With it, two runs of 900 frames
+  from power-on ended with 117 of memory's 24 million bytes different, all in the console's clock and what
+  derives from it: close to repeatable, not exactly.
+- A savestate made by the same build on an Android device (arm64) loads here (x86-64) and goes on. It must not be
+  loaded in the core's first frames, or the game stands still: the harness runs 300 frames first.
+- It needs `/dev/shm` larger than Docker's default (the script gives 2 GB), and libcurl, libEGL and libusb
+  (in the harness image).
+- Memory is given by address (the 24 MB from `0x80000000`), in the console's byte order.
