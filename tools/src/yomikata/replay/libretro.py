@@ -1,8 +1,9 @@
 """A minimal headless libretro frontend (ctypes, no screen, no sound).
 
-It loads a core and a game, restores a savestate, runs frames (optionally holding buttons), and reads the console's
-RAM and the last frame. That's all the analysis needs: the point is to reproduce a moment a reader captured during
-play, as often as we like. Run it in an isolated container: the core is native code downloaded from libretro."""
+It loads a core and a game, restores a savestate, runs frames (optionally holding buttons and a stick), and reads
+the console's memory and the last frame. That's all the analysis needs: the point is to reproduce a moment a reader
+captured during play, as often as we like. A core that draws with the graphics card gets a context without a
+window (glcontext.py). Run it in an isolated container: the core is native code downloaded from libretro."""
 
 from __future__ import annotations
 
@@ -14,6 +15,10 @@ from pathlib import Path
 ENV_GET_OVERSCAN, ENV_GET_CAN_DUPE, ENV_SET_PIXEL_FORMAT = 2, 3, 10
 ENV_GET_SYSTEM_DIRECTORY, ENV_GET_VARIABLE, ENV_GET_VARIABLE_UPDATE = 9, 15, 17
 ENV_GET_SAVE_DIRECTORY = 31
+ENV_SET_HW_RENDER, ENV_SET_MEMORY_MAPS, ENV_GET_PREFERRED_HW_RENDER = 14, 36, 56
+HW_OPENGL, HW_OPENGL_CORE = 1, 3
+HW_FRAME = C.c_void_p(-1).value                 # the frame is in the framebuffer, not in memory
+DEVICE_JOYPAD, DEVICE_ANALOG, JOYPAD_MASK = 1, 5, 256
 MEMORY_SYSTEM_RAM, MEMORY_VIDEO_RAM = 2, 3
 JOYPAD = {"b": 0, "y": 1, "select": 2, "start": 3, "up": 4, "down": 5, "left": 6, "right": 7,
           "a": 8, "x": 9, "l": 10, "r": 11}       # libretro RetroPad ids (PS1: a = circle, b = cross)
@@ -38,6 +43,24 @@ class Variable(C.Structure):
     _fields_ = [("key", C.c_char_p), ("value", C.c_char_p)]
 
 
+class HwRender(C.Structure):
+    _fields_ = [("context_type", C.c_int), ("context_reset", C.CFUNCTYPE(None)),
+                ("get_current_framebuffer", C.CFUNCTYPE(C.c_size_t)),
+                ("get_proc_address", C.CFUNCTYPE(C.c_void_p, C.c_char_p)),
+                ("depth", C.c_bool), ("stencil", C.c_bool), ("bottom_left_origin", C.c_bool),
+                ("version_major", C.c_uint), ("version_minor", C.c_uint), ("cache_context", C.c_bool),
+                ("context_destroy", C.CFUNCTYPE(None)), ("debug_context", C.c_bool)]
+
+
+class MemoryDescriptor(C.Structure):
+    _fields_ = [("flags", C.c_uint64), ("ptr", C.c_void_p), ("offset", C.c_size_t), ("start", C.c_size_t),
+                ("select", C.c_size_t), ("disconnect", C.c_size_t), ("len", C.c_size_t), ("addrspace", C.c_char_p)]
+
+
+class MemoryMap(C.Structure):
+    _fields_ = [("descriptors", C.POINTER(MemoryDescriptor)), ("num", C.c_uint)]
+
+
 ENV_CB = C.CFUNCTYPE(C.c_bool, C.c_uint, C.c_void_p)
 VIDEO_CB = C.CFUNCTYPE(None, C.c_void_p, C.c_uint, C.c_uint, C.c_size_t)
 AUDIO_CB = C.CFUNCTYPE(None, C.c_int16, C.c_int16)
@@ -52,6 +75,10 @@ class Core:
         self.system_dir = str(system_dir or tempfile.mkdtemp(prefix="yomikata-system-")).encode()
         self.options = {k.encode(): v.encode() for k, v in (options or {}).items()}
         self.held: set[str] = set()
+        self.stick: tuple[float, float] = (0.0, 0.0)        # the left stick, each way from -1 to 1 (up is -1)
+        self.maps: list[tuple[int, int, int]] = []          # (address, size, where the core keeps it)
+        self.gl = None                                      # the context of a core that draws with the card
+        self.hw: HwRender | None = None
         self.frame: tuple[bytes, int, int, int] | None = None
         self.pixel_format = 0
         self.fps = 60.0
@@ -97,15 +124,53 @@ class Core:
         if cmd in (ENV_GET_CAN_DUPE, ENV_GET_OVERSCAN):
             C.cast(data, C.POINTER(C.c_bool))[0] = True
             return True
+        if cmd == ENV_GET_PREFERRED_HW_RENDER:
+            C.cast(data, C.POINTER(C.c_uint))[0] = HW_OPENGL_CORE
+            return True
+        if cmd == ENV_SET_HW_RENDER:
+            return self._hw_render(C.cast(data, C.POINTER(HwRender)))
+        if cmd == ENV_SET_MEMORY_MAPS:
+            m = C.cast(data, C.POINTER(MemoryMap))[0]
+            self.maps = [(d.start, d.len, d.ptr) for d in (m.descriptors[i] for i in range(m.num)) if d.ptr and d.len]
+            return True
         return False
 
+    def _hw_render(self, asked) -> bool:
+        """A core asks for a context to draw with: OpenGL is given where there is a driver, nothing else."""
+        from . import glcontext
+        want = asked[0]
+        if want.context_type not in (HW_OPENGL, HW_OPENGL_CORE):
+            return False
+        try:
+            if self.gl is None:
+                core_profile = want.context_type == HW_OPENGL_CORE
+                self.gl = glcontext.Context(want.version_major or 3, want.version_minor or 3, core_profile)
+        except glcontext.GLError as e:
+            self.gl_error = str(e)
+            return False
+        self._hw_cbs = [type(want.get_current_framebuffer)(lambda: self.gl.framebuffer),
+                        type(want.get_proc_address)(lambda name: self.gl.address(name))]
+        want.get_current_framebuffer, want.get_proc_address = self._hw_cbs
+        self.hw = HwRender.from_buffer_copy(want)
+        return True
+
     def _video(self, data, width, height, pitch):
-        if data:
+        if data == HW_FRAME and self.gl is not None:
+            self.frame = (None, width, height, 0)           # read from the framebuffer when asked for
+        elif data:
             self.frame = (C.string_at(data, pitch * height), width, height, pitch)
 
     def _input(self, port, device, index, button):
-        if port != 0 or device != 1:
+        if port != 0:
             return 0
+        if device == DEVICE_ANALOG:
+            if index == 0 and button in (0, 1):
+                return max(-0x7FFF, min(0x7FFF, round(self.stick[button] * 0x7FFF)))
+            return 0
+        if device != DEVICE_JOYPAD:
+            return 0
+        if button == JOYPAD_MASK:
+            return sum(1 << JOYPAD[b] for b in self.held)
         return 1 if any(JOYPAD[b] == button for b in self.held) else 0
 
     # --- control
@@ -121,6 +186,9 @@ class Core:
         av = SystemAvInfo()
         self.lib.retro_get_system_av_info(C.byref(av))
         self.fps = av.fps
+        if self.hw is not None:
+            self.gl.make_framebuffer(max(av.max_width, av.base_width, 640), max(av.max_height, av.base_height, 480))
+            self.hw.context_reset()
 
     def state_size(self) -> int:
         return int(self.lib.retro_serialize_size())
@@ -137,18 +205,34 @@ class Core:
             raise RuntimeError("the core couldn't save its state")
         return buf.raw
 
-    def run(self, frames: int = 1, hold: set[str] | None = None) -> None:
-        self.held = set(hold or ())
+    def run(self, frames: int = 1, hold: set[str] | None = None, stick: tuple[float, float] = (0.0, 0.0)) -> None:
+        self.held, self.stick = set(hold or ()), stick
         for _ in range(frames):
             self.lib.retro_run()
-        self.held = set()
+        self.held, self.stick = set(), (0.0, 0.0)
 
     def ram(self) -> bytes:
         ptr = self.lib.retro_get_memory_data(MEMORY_SYSTEM_RAM)
         size = self.lib.retro_get_memory_size(MEMORY_SYSTEM_RAM)
         if not ptr or not size:
+            if self.maps:                           # a core that only describes its memory: the largest stretch
+                start, size, ptr = max(self.maps, key=lambda m: m[1])
+                return C.string_at(ptr, size)
             raise RuntimeError("the core doesn't expose system RAM")
         return C.string_at(ptr, size)
+
+    def ram_base(self) -> int | None:
+        """Where `ram()` starts in the console's addresses, for a core that says (else the platform's is used)."""
+        if self.lib.retro_get_memory_size(MEMORY_SYSTEM_RAM) or not self.maps:
+            return None
+        return max(self.maps, key=lambda m: m[1])[0]
+
+    def read(self, address: int, size: int) -> bytes:
+        """Bytes at one of the console's addresses, from a core that describes its memory; fewer where it ends."""
+        for start, length, ptr in self.maps:
+            if start <= address < start + length:
+                return C.string_at(ptr + (address - start), max(0, min(size, start + length - address)))
+        return b""
 
     def video_ram(self) -> bytes | None:
         """The console's video memory, from a core that gives it out (cartridge consoles' cores do)."""
@@ -162,6 +246,9 @@ class Core:
         if self.frame is None:
             return None
         raw, w, h, pitch = self.frame
+        if raw is None:                             # in the framebuffer: RGBA, the bottom row first unless told
+            a = np.frombuffer(self.gl.read(w, h), dtype=np.uint8).reshape(-1, min(w, self.gl.size[0]), 4)[:, :, :3]
+            return (a[::-1] if self.hw.bottom_left_origin else a).copy()
         if self.pixel_format == 1:                  # XRGB8888
             a = np.frombuffer(raw, dtype=np.uint8).reshape(h, pitch // 4, 4)[:, :w]
             return a[:, :, [2, 1, 0]].copy()
