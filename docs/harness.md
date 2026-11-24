@@ -78,3 +78,6 @@ Dolphin (`dolphin_libretro.so`, a GameCube or Wii game):
 - It needs `/dev/shm` larger than Docker's default (the script gives 2 GB), and libcurl, libEGL and libusb
   (in the harness image).
 - Memory is given by address (the 24 MB from `0x80000000`), in the console's byte order.
+- Once, a session stopped answering with one processor busy and nothing coming back, from its first call; the
+  same calls ran in seconds when made again. The cause isn't known. A session that goes quiet is to be killed
+  and started again: states and snaps are in scratch and survive it.

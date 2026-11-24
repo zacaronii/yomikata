@@ -1,5 +1,5 @@
 -- reader: title ペーパーマリオRPG (Paper Mario: The Thousand-Year Door)
--- reader: reads speech bubbles, letters and system messages a page at a time, with their furigana, and a choice's answers with its cursor
+-- reader: reads speech bubbles, narration, letters and system messages a page at a time, with their furigana, and a choice's answers with its cursor
 -- reader: version Japan, disc version 0
 -- reader: build G8MJ01-00
 -- reader: no hooks
@@ -22,12 +22,15 @@
 -- word is isn't said: it is taken to be the kanji just before, as far back as the small characters reach.
 --
 -- Where a character is drawn: its record says where in the window, and the windows seen so far (bubbles,
--- letters, system messages; a choice's box) each put their text at a fixed step from the slot's corner, measured
--- off frames of the game. The game lays its picture out 608 wide and 480 high, whatever it is shown at.
+-- narration, letters, system messages; a choice's box) each put their text at a fixed step from the slot's
+-- corner, measured off frames of the game. The game lays its picture out 608 wide and 480 high, whatever it is shown at.
 --
--- Not covered: narration (the opening book) and anything not drawn by a window (menus and their help line,
--- names in battle); pictures inside a message (button icons) are left out of its text. A choice has been
--- seen with two answers only. Signs and other kinds of window are read the same way but weren't seen.
+-- The opening book's narration is a window like the others, at a place of its own, and is read and placed the
+-- same way.
+--
+-- Not covered: anything not drawn by a window (menus and their help line, names in battle); pictures inside
+-- a message (button icons) are left out of its text. A choice has been seen with two answers only. Signs and
+-- other kinds of window are read the same way but weren't seen.
 
 local WINDOWS = 0x80418808 -- word: the window slots
 local FONT = 0x80418758    -- word: the font file in memory
