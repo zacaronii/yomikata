@@ -120,6 +120,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--frames", type=int, default=2, help="ticks over each snapshot")
     p.add_argument("--sequence", action="store_true", help="the snapshots are consecutive moments of one run: one reader, one tick each")
     p.add_argument("--log", action="store_true", help="print the script's log lines too")
+    p = sub.add_parser("bundle", help="a script as it is run and published: one file, with the lib/ modules it asks for inside it")
+    p.add_argument("script", type=Path, help="games/<platform>/<id>.lua")
+    p.add_argument("-o", "--out", type=Path, help="write it here (default: print it)")
     p = sub.add_parser("propose", help="draft a layout for text kept as tiles, from snapshots with video memory and a frame; read it back")
     p.add_argument("snapshots", nargs="+", type=Path, help="RAM snapshots with <name>.vram.gz and a frame beside them (an inbox's, or `replay` snaps)")
     p.add_argument("--table", action="append", default=[], help="a table file to read the draft back with (repeatable), relative to --root")
@@ -407,13 +410,25 @@ def main(argv: list[str] | None = None) -> int:
             (args.out / "report.html").write_text(page(result, entry["id"]), encoding="utf-8")
             print(f"{args.out / 'report.html'} (game text and frames: don't commit it)")
         return 0
+    if args.cmd == "bundle":
+        from .bundle import BundleError, bundle
+        try:
+            text = bundle(args.script)
+        except (BundleError, OSError) as e:
+            print(e, file=sys.stderr)
+            return 1
+        if args.out:
+            args.out.write_text(text, encoding="utf-8")
+        else:
+            sys.stdout.write(text)
+        return 0
     if args.cmd == "run":
         from . import reader as rd
         from .run import run
         try:
             readings = run(args.script, args.snapshots, platform=args.platform,
                            base=int(args.base, 16) if args.base else None, frames=args.frames, sequence=args.sequence)
-        except (rd.ReaderUnavailable, ValueError, OSError) as e:
+        except (rd.ReaderUnavailable, ValueError, OSError) as e:        # a BundleError is a ValueError
             print(e, file=sys.stderr)
             return 1
         status = 0
