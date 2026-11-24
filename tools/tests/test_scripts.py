@@ -1,6 +1,8 @@
 """The catalog's scripts and lib/ modules, run by the reader runtime on made-up memory. No game's text is here:
 the messages below are written for the tests, in the form the scripts' notes describe."""
 
+import hashlib
+import json
 import os
 import struct
 from pathlib import Path
@@ -342,3 +344,108 @@ def test_tbl_module():
         assert r.eval('T.chars["\\x01\\x00"], T.chars["\\x01\\x01"], T.ends["\\xFF\\xFF"], T.newlines["\\xFF\\xFE"]') == \
             "学\t校\ttrue\ttrue"
         assert r.eval('trim("　　あ　い　"), trim("　"), trim("")') == "あ　い\t\t"
+
+
+# ---- every script of the catalog, and what is published of it ----
+
+from yomikata import catalog                    # noqa: E402
+from yomikata.bundle import header              # noqa: E402
+
+SCRIPTS = catalog.scripts(ROOT)
+
+
+def test_the_catalog_has_scripts_and_they_are_in_order():
+    assert SCRIPTS and catalog.validate_scripts(ROOT) == []
+    assert catalog.stale(ROOT) == []            # index.json and scripts/ are what `yomikata index` writes
+
+
+@pytest.mark.parametrize("path", SCRIPTS, ids=lambda p: p.stem)
+def test_each_script_bundles_and_loads(path):
+    """On memory with nothing in it a script must stop with its own "another build" error: so it parses, its
+    modules and data files are found, it gets as far as its build check, and that check works."""
+    index = json.loads((ROOT / "index.json").read_text(encoding="utf-8"))["scripts"][path.stem]
+    published = (ROOT / index["path"]).read_text(encoding="utf-8")
+    assert published == bundle(path, ROOT)
+    assert hashlib.sha256(published.encode("utf-8")).hexdigest() == index["sha256"]
+    assert header(published) == rd.header(published) == header(path.read_text(encoding="utf-8"))
+    assert index["builds"] and index["platform"] == path.parent.name
+    assert 1 <= index["runtime"] <= rd.script_level()
+    assert catalog.SCRIPT_ID.fullmatch(path.stem)                # keyed as the entries are: by release id
+    data = {}
+    for name, entry in index["data"].items():
+        raw = (ROOT / entry["path"]).read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == entry["sha256"]
+        data[name] = raw
+    with rd.Reader(sparse({}), platform=path.parent.name, game_id=path.stem, data=data) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(published, path.name)
+        r.frame(1)
+        assert not [e for e in r.take("text")]
+
+
+def write_script(root, name="games/gc/GXXJ01.lua", body="reader.log('x')", lines=None):
+    lines = lines if lines is not None else ["title あ (A)", "reads the window", "version 1.00", "build GXXJ01-00", "no hooks"]
+    path = root / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(f"-- reader: {line}\n" for line in lines) + "\n" + body + "\n", encoding="utf-8")
+    return path
+
+
+def test_a_script_out_of_form_is_told(tmp_path):
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib/pages.lua").write_text("return {}", encoding="utf-8")
+    write_script(tmp_path)
+    assert catalog.validate_scripts(tmp_path) == []
+    write_script(tmp_path, body='local p = require("lib.pages")\nlocal t = reader.data("tbl")')
+    assert [p.message for p in catalog.validate_scripts(tmp_path)] == ['reader.data("tbl") needs games/gc/GXXJ01.tbl']
+    (tmp_path / "games/gc/GXXJ01.tbl").write_text("0001=a\n", encoding="utf-8")
+    assert catalog.validate_scripts(tmp_path) == []
+    for body, lines, said in (
+            ("reader.hook(0x80003100, function() end)", None, "reader.hook"),
+            ("mem.w32(0x80000000, 1)", None, "never writes"),
+            ('require("lib.nothing")', None, "lib.nothing"),
+            ("reader.log('x')", ["title あ (A)", "reads x", "version 1", "no hooks"], "reader: build"),
+            ("reader.log('x')", ["title あ (A)", "reads x", "version 1", "build X-00", "no hooks", "runtime two"], "whole number"),
+            ("reader.log('x')", ["title あ (A)", "reads x", "version 1", "build X-00"], "reader: no hooks")):
+        write_script(tmp_path, body=body, lines=lines)
+        assert any(said in p.message for p in catalog.validate_scripts(tmp_path)), said
+    write_script(tmp_path)
+    write_script(tmp_path, name="games/gc/my game.lua")
+    assert any("named after" in p.message for p in catalog.validate_scripts(tmp_path))
+
+
+def test_the_index_lists_scripts_and_publishes_them_with_their_modules(tmp_path):
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib/pages.lua").write_text("return { n = 1 }", encoding="utf-8")
+    script = write_script(tmp_path, body='local p = require("lib.pages")\nlocal t = reader.data("tbl")',
+                          lines=["title あ (A)", "reads the window", "version 1.00", "build GXXJ01-00",
+                                 "build GXXJ01-01", "no hooks", "needs vram"])
+    (tmp_path / "games/gc/GXXJ01.tbl").write_text("0001=a\n", encoding="utf-8")
+    assert catalog.stale(tmp_path) == ["index.json", "scripts/gc/GXXJ01.lua"]
+    assert catalog.write_index(tmp_path) is True and catalog.stale(tmp_path) == []
+    listed = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))["scripts"]["GXXJ01"]
+    published = (tmp_path / "scripts/gc/GXXJ01.lua").read_text(encoding="utf-8")
+    assert listed["path"] == "scripts/gc/GXXJ01.lua" and listed["platform"] == "gc" and listed["runtime"] == 1
+    assert listed["sha256"] == hashlib.sha256(published.encode("utf-8")).hexdigest()
+    assert listed["builds"] == ["GXXJ01-00", "GXXJ01-01"] and listed["needs"] == ["vram"]
+    assert listed["title"] == "あ (A)" and listed["reads"] == "the window"
+    assert listed["data"]["tbl"]["path"] == "games/gc/GXXJ01.tbl"
+    assert published.startswith("-- reader: title あ (A)\n") and '__module["lib.pages"]' in published
+    # A module changes: the published script is out of date, though its own source isn't.
+    (tmp_path / "lib/pages.lua").write_text("return { n = 2 }", encoding="utf-8")
+    assert catalog.stale(tmp_path) == ["index.json", "scripts/gc/GXXJ01.lua"]
+    assert catalog.write_index(tmp_path) is True and catalog.write_index(tmp_path) is False
+    # A script that is gone takes its published file and its place in the index with it.
+    script.unlink()
+    assert catalog.stale(tmp_path) == ["index.json", "scripts/gc/GXXJ01.lua"]
+    catalog.write_index(tmp_path)
+    assert not (tmp_path / "scripts/gc/GXXJ01.lua").exists()
+    assert "scripts" not in json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+
+
+def test_header_lines_are_read_as_the_runtime_reads_them():
+    source = ("-- reader: title 架空の物語 (A Made-up Story)\n--reader:   version 1.00\n-- reader: build 0F1E\n"
+              "-- reader: no   hooks\n-- reader: no layout the window's place isn't found\n-- reader: needs vram oam\n"
+              "\n-- a comment\n-- reader:\nlocal x = 1\n-- reader: api 3\n")
+    assert header(source) == rd.header(source)
+    assert ("no hooks", "") in header(source) and ("needs", "vram oam") in header(source)

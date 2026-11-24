@@ -43,6 +43,10 @@ const char* yk_version(void) {
     return YK_VERSION;
 }
 
+int yk_script_level(void) {
+    return YK_SCRIPT_LEVEL;
+}
+
 yk_reader* yk_open(const yk_host* host, const yk_options* options) {
     if (!host || !host->read || !host->event || !options || options->abi != YK_ABI) {
         return nullptr;
