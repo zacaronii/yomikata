@@ -1,8 +1,8 @@
 # Scripts (draft)
 
 **Status: a draft.** The reader runtime in `runtime/` runs this, and `yomikata run` runs a script over snapshots
-with it; no game has a script yet. Until scripts replace them, the JSON entries and `docs/format.md` stay as
-they are.
+with it; the first script is `games/gc/G8MJ01.lua`. Until scripts replace them, the JSON entries and
+`docs/format.md` stay as they are.
 
 A **script** is one Lua 5.4 file for one release of a game. A reader app runs it beside the game: the script reads
 the game's memory once a frame and says what text is on screen, who says it, which answers a choice offers and,
@@ -82,9 +82,9 @@ end)
 - Data a script needs goes beside it as `<id>.<name>`: a character table as `<id>.tbl` (Thingy, `docs/format.md`) or
   `<id>.charset` (Furoshiki's: a decimal glyph number, a tab and the character on each line, `#` for comments).
   `reader.data("tbl")` hands the file over as a string; the script reads it. Codes and characters only, as ever.
-- A script may `require` a module from `lib/` (splitting pages, walking tiles, reading a `.tbl`). What is published
-  is one file per game with its modules put in by the build, so a host never loads anything but the script and
-  its data.
+- A script may `require` a module from `lib/` (walking tags, tiles, reading a `.tbl`). What is run and published
+  is one file per game with its modules put in (`yomikata bundle`, which `yomikata run` does by itself), header
+  lines still first, so a host never loads anything but the script and its data.
 - **No game data,** as everywhere in this repository: addresses, codes, tables and logic are fine; script text,
   glyph pictures and dumps are not. A name plate drawn as a picture may have its names listed by number.
 
@@ -97,7 +97,7 @@ Comment lines at the very top, before any code. A host reads them without runnin
 | `-- reader: title <name>` | required | The title as on the title screen, then the English or romanised name in brackets |
 | `-- reader: reads <what>` | required | In one line, what the script reads; what it doesn't goes in the comment below the header |
 | `-- reader: version <release>` | required | The release or disc version it was written for |
-| `-- reader: build <id>` | required, **added** | A build it was checked on: the SHA-1 of the boot executable, or a cartridge's `header_crc32` (`docs/format.md`). One line per build. The index is made from these |
+| `-- reader: build <id>` | required, **added** | A build it was checked on: the SHA-1 of the boot executable, a cartridge's `header_crc32` (`docs/format.md`), or for a GameCube disc its id and version (below). One line per build. The index is made from these |
 | `-- reader: no hooks` | required | Every script here is memory-only |
 | `-- reader: no layout <why>` | when so | The script can't say where its text is drawn, and why |
 | `-- reader: needs <name> …` | when so, **added** | Regions the script can't work without (`vram`). A host that lacks one doesn't load the script, and says so |
@@ -115,6 +115,11 @@ Addresses belong to one build of one game. A script is tied to its build twice:
 2. **A check in memory when the script loads**, which every script must have, because a host that only sees
    memory can't hash anything: compare a few words of the game's code, or the id and version the console keeps
    (a GameCube game's are at `0x80000000` and `0x80000007`), and call `error(…, 0)` when they differ.
+
+**GameCube:** a build is the disc's id and its version as two hex digits, `G8MJ01-00`. The console keeps both
+at the start of memory (the id's six characters at `0x80000000`, the version's byte at `0x80000007`), so a host
+that only sees memory knows the build, the script's own check reads the same two, and the inbox stores them
+with each snapshot.
 
 `reader.build_id` is the host's own hash of the build, or nil. Furoshiki's is "a hash of the program as it
 ships"; *open: which hash, and whether it equals this catalog's `exe_sha1` on any console.* Until that is known a
