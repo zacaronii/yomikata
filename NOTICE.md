@@ -43,7 +43,39 @@ Used by: `games/psp/ULJM05603.json` (My Merry May with be), `games/psp/NPJH50515
 `games/psp/NPJH50631.json` (スーパーダンガンロンパ2), `games/psp/ULJM06232.json` (グリザイアの果実),
 `games/psp/ULJM05338.json` (CLANNAD).
 
-## Furoshiki (GPL-3.0-or-later)
+## Furoshiki (GPL-3.0-or-later; its reader engine GPL-2.0-or-later)
 
 https://github.com/sommepo/furoshiki-scripts — the script API that `docs/script-api.md` follows: the `reader`,
 `mem` and `text` functions, the header lines and the `.charset` table format are Furoshiki's.
+
+https://github.com/sommepo/furoshiki — the reader runtime (`runtime/`) starts from its reader engine,
+`shared/reader/core`: `lua_api.cpp`, `lua_api.h`, `text_codec.cpp`, `text_codec.h` and `sjis_table.inc`, and
+parts of `engine.cpp` and `engine.h`. Those files are "Copyright Flycast Reader fork contributors (from the
+PPSSPP and Eden Reader forks)", under GPL-2.0-or-later, used here under version 3 or later. Each file in
+`runtime/src` that comes from them keeps its notice and says what was changed.
+
+## Lua (MIT)
+
+https://www.lua.org — Lua 5.4.8, unchanged, in `runtime/third_party/lua` and inside the reader library.
+
+```
+Copyright (C) 1994-2025 Lua.org, PUC-Rio.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```

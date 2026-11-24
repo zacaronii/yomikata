@@ -1,0 +1,5 @@
+# Only the functions of include/yomikata_reader.h show from the shared library.
+{
+  global: yk_*;
+  local: *;
+};

@@ -21,6 +21,7 @@ text instead of falling back to OCR.
 | [docs/inbox.md](docs/inbox.md) | The inbox readers upload memory samples and hook reports to (`yomikata serve`) |
 | [docs/hook-finder.md](docs/hook-finder.md) | How a reader app finds and checks a hook during play, and the report format |
 | [docs/script-api.md](docs/script-api.md) | **Draft:** per-game Lua scripts that read memory, the format layouts are to give way to |
+| [runtime/](runtime/) | The reader runtime: the library that runs a script, for apps to embed (C interface, Lua inside) |
 | [docs/replay.md](docs/replay.md) | Running a game headless, from a reader's savestate or from power-on, and finding a layout in what it records (`yomikata replay`, `find`, `contrast`) |
 
 ## Using the catalog (clients)
