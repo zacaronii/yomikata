@@ -11,3 +11,5 @@ __pycache__/
 *.img
 scratch/
 .venv/
+# The reader runtime's build folders.
+runtime/build*/

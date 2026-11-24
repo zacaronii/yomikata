@@ -1,7 +1,8 @@
 # Scripts (draft)
 
-**Status: a draft for review.** Nothing runs this yet. The runtime is the next step and waits for this page to be
-agreed; until scripts replace them, the JSON entries and `docs/format.md` stay as they are.
+**Status: a draft.** The reader runtime in `runtime/` runs this, and `yomikata run` runs a script over snapshots
+with it; no game has a script yet. Until scripts replace them, the JSON entries and `docs/format.md` stay as
+they are.
 
 A **script** is one Lua 5.4 file for one release of a game. A reader app runs it beside the game: the script reads
 the game's memory once a frame and says what text is on screen, who says it, which answers a choice offers and,
@@ -179,9 +180,11 @@ reader.layout("message", {
 
 - `glyphs` has one entry for each code point of the text, in order: its cell, or `false` where nothing is drawn (a
   line break). Give the cell the game steps its pen by, not the glyph's tight outline.
-- `space`: give it. Without it Furoshiki takes a size per console (400×240 and 320×240 on a 3DS, 1280×720 on the
-  PlayStations and the Dreamcast); *open: its sizes for the other consoles*, so a script that leaves it out isn't
-  sure of the same result everywhere.
+- `space`: give it. Without it the size is the platform's: 1280×720 on `ps1`, `ps2`, `psp` and `dc` and
+  400×240 (320×240 below) on `3ds`, as Furoshiki has them; the console's own pixels on the others (`gc` and `wii`
+  640×480, `nds` 256×192 on both screens, `gba` 240×160, `sfc` 256×224, `gb` and `gbc` 160×144). On a platform
+  not listed here a layout without `space` is an error. *Open: Furoshiki's size for the PSP is taken to be that
+  of "the PlayStations", and its DS size isn't known.*
 - `screen = "bottom"` on a console with two screens; `"top"` is the default.
 - Report a layout again when it changes, not every frame. Close it with `reader.layout(window, nil)` when the
   window closes or shows something else.
@@ -200,6 +203,7 @@ nil and a string is shorter, or empty.
 | `mem.u8(a)`, `mem.u16(a)`, `mem.u32(a)`, `mem.u64(a)`, `mem.s32(a)`, `mem.f32(a)`, `mem.f64(a)` | Little-endian. nil unless every byte is there |
 | `mem.u16be(a)`, `mem.u32be(a)`, `mem.u64be(a)`, `mem.s16be(a)`, `mem.s32be(a)`, `mem.f32be(a)`, `mem.f64be(a)` | **Added.** The same, big-endian |
 | `mem.s8(a)`, `mem.s16(a)` | **Added.** Signed, little-endian |
+| `mem.w8`, `mem.w16`, `mem.w32`, `mem.w64` | Always an error (read-only) |
 | `mem.read(a, n)` | Up to `n` bytes as a string (at most 1 MB) |
 | `mem.cstr(a [, limit])` | The bytes before the first zero byte (limit 4096 unless given) |
 | `mem.wstr(a [, limit])` | The bytes before the first zero 16-bit unit |
@@ -271,12 +275,20 @@ first guess, to be measured on a handheld running a GameCube game before it is f
 ## What a host provides
 
 - Reads of the game's memory by address, as in "Address spaces", and the named regions it has.
-- A tick between frames, with the frame count; a call when a savestate was loaded.
+- A tick between frames, with the frame count.
+- **A call after a savestate was loaded,** before the next tick. A host that has savestates must make it: the
+  script's `on_state_loaded` functions run, and every layout is closed. Without it a script goes on believing
+  the line of the moment before the load is on screen.
 - The game's id, and its build hash where it can work one out.
 - The script's source, and its data files by name.
 - A place for what comes out: emitted texts, layouts, the cursor, log lines.
 
 It doesn't provide writes, controller presses or anything of the device.
+
+A host names the platform as this catalog does (`docs/format.md`). Where its own name differs it maps it:
+Genkan and RomM say `ngc` for the GameCube, the catalog says `gc`.
+
+The interface is `runtime/include/yomikata_reader.h`; `runtime/README.md` says how to build and embed it.
 
 ## Running on Furoshiki
 
@@ -288,16 +300,20 @@ A script that uses only what Furoshiki has runs there as it is. The additions:
 - `mem.region` is nil there, which a script must expect anyway; one that says `needs vram` doesn't run.
 - Furoshiki has no GameCube, Wii or cartridge consoles today, so this matters first for PS1, PS2, PSP and DS.
 
-## Checking a script (outline)
+## Checking a script
 
-Settled with the runtime, noted here so the format is read with it in mind:
-
-- The same runtime the apps use runs a script over inbox snapshots (`docs/inbox.md`): memory, video memory, and the
-  lines the reader saw. `yomikata check` counts as it does for layouts now; the counts hold no text.
+- `yomikata run games/<platform>/<id>.lua <snapshots>` runs a script with the same runtime the apps use, over
+  inbox snapshots (`docs/inbox.md`): memory, and video memory as the region `vram` where a snapshot has it. Each
+  snapshot gets a reader of its own and a couple of ticks, and what the script emitted is printed as JSON
+  lines. That is game text: for a terminal or a scratch folder.
 - A snapshot is one moment. What a script does over time (a page turning, a line typing) is checked on a
-  recording from `yomikata replay`.
-- CI can't have game data, so it checks form: the script parses; the header lines are there; no `reader.hook` and no
-  writes; a build check exists; against empty memory it stops with its "another build" error, inside the limits.
+  recording from `yomikata replay`: `--sequence` takes the snapshots as consecutive moments of one run.
+- **The same memory gives the same events.** A script has no clock, and `math.random` and the order `pairs` walks
+  a table of strings in are the same in every run, so two runs over one recording must emit the same events, byte for byte; a script that doesn't is wrong
+  (it keeps something across a savestate, or reads memory it shouldn't). The runtime's own tests hold it to this.
+- Still to come: counts against the lines a reader saw (`yomikata check` for scripts), and CI's checks of form:
+  the script parses; the header lines are there; no `reader.hook` and no writes; a build check exists; against
+  empty memory it stops with its "another build" error, inside the limits.
 
 ## Notes: Furoshiki's engine and tables
 
@@ -322,6 +338,6 @@ From reading `shared/reader/core` in Furoshiki (GPL-2.0-or-later) and one `.char
 1. `build_id`: which hash Furoshiki uses per console.
 2. 3DS ids: title id or product code.
 3. Whether Furoshiki's checker accepts header lines it doesn't know.
-4. Default `space` on consoles Furoshiki doesn't list.
+4. Default `space`: Furoshiki's sizes for the PSP and the DS.
 5. The limits' floor, once measured.
 6. Where the built scripts are published, and what `index.json` says about them.

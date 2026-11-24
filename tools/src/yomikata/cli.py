@@ -112,6 +112,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--base", default=None, help="address of the snapshots' first byte (default: their .json, else the platform's RAM)")
     p.add_argument("--version", help="exe_sha1 or header_crc32 to pick the layout for")
     p.add_argument("--root", type=Path, default=Path("."), help="catalog root, for table charsets")
+    p = sub.add_parser("run", help="run a script over snapshots with the reader runtime; prints what it emits (JSON lines of game text: not for the catalog)")
+    p.add_argument("script", type=Path, help="games/<platform>/<id>.lua (its data files beside it)")
+    p.add_argument("snapshots", nargs="+", type=Path, help="RAM snapshots (their .json and .vram.gz beside them, if any)")
+    p.add_argument("--platform", help="whose memory the snapshots are (default: their .json, else the script's folder)")
+    p.add_argument("--base", default=None, help="address of the snapshots' first byte (default: their .json, else the platform's RAM)")
+    p.add_argument("--frames", type=int, default=2, help="ticks over each snapshot")
+    p.add_argument("--sequence", action="store_true", help="the snapshots are consecutive moments of one run: one reader, one tick each")
+    p.add_argument("--log", action="store_true", help="print the script's log lines too")
     p = sub.add_parser("propose", help="draft a layout for text kept as tiles, from snapshots with video memory and a frame; read it back")
     p.add_argument("snapshots", nargs="+", type=Path, help="RAM snapshots with <name>.vram.gz and a frame beside them (an inbox's, or `replay` snaps)")
     p.add_argument("--table", action="append", default=[], help="a table file to read the draft back with (repeatable), relative to --root")
@@ -399,6 +407,24 @@ def main(argv: list[str] | None = None) -> int:
             (args.out / "report.html").write_text(page(result, entry["id"]), encoding="utf-8")
             print(f"{args.out / 'report.html'} (game text and frames: don't commit it)")
         return 0
+    if args.cmd == "run":
+        from . import reader as rd
+        from .run import run
+        try:
+            readings = run(args.script, args.snapshots, platform=args.platform,
+                           base=int(args.base, 16) if args.base else None, frames=args.frames, sequence=args.sequence)
+        except (rd.ReaderUnavailable, ValueError, OSError) as e:
+            print(e, file=sys.stderr)
+            return 1
+        status = 0
+        for reading in readings:
+            if reading.error is not None:
+                print(f"{reading.name}: {reading.error}", file=sys.stderr)
+                status = 1
+            for kind, event in reading.events:
+                if kind != "log" or args.log:
+                    print(json.dumps({"snapshot": reading.name, "kind": kind, **event}, ensure_ascii=False))
+        return status
     if args.cmd == "propose":
         import gzip
         from collections import defaultdict
