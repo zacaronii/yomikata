@@ -1,0 +1,17 @@
+# The emulator harness (docs/harness.md): the tools image with what libretro cores need to run without a screen.
+# Built on the tools image, from the repository's root:
+#   docker build -t yomikata-tools -f tools/Dockerfile .
+#   docker build -t yomikata-harness -f tools/Dockerfile.harness --build-arg BASE=yomikata-tools .
+# Run it with tools/scripts/harness.sh, which gives it no network and only the folders it may see.
+ARG BASE=ghcr.io/zacaronii/yomikata-tools:latest
+FROM ${BASE}
+USER 0
+# Mesa's software OpenGL through EGL, for cores that draw with the graphics card (the CPU does the drawing);
+# and the libraries the Dolphin core is linked against.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libegl1 libegl-mesa0 libgl1-mesa-dri libopengl0 libcurl4t64 libusb-1.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+ENV EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe HOME=/scratch/home
+USER 99:100
+WORKDIR /scratch
+ENTRYPOINT ["yomikata", "harness"]

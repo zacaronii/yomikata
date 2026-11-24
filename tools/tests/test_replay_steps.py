@@ -122,6 +122,9 @@ def test_a_cartridge_core_gets_the_file(tmp_path):
         def retro_get_system_av_info(self, av):
             av._obj.fps = 60.0
 
+        def retro_set_controller_port_device(self, port, device):
+            self.pad = (port, device)
+
     import ctypes as C
     game = tmp_path / "game.sfc"
     game.write_bytes(b"made up\x00bytes")

@@ -138,9 +138,21 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
     p.add_argument("--root", type=Path, default=Path("."))
     p.add_argument("--check", action="store_true")
+    p = sub.add_parser("harness", help="the emulator harness as an MCP server on stdin and stdout (docs/harness.md); run it in its container")
+    p.add_argument("--games", type=Path, default=Path("/games"), help="the library's game folders (read)")
+    p.add_argument("--cores", type=Path, default=Path("/cores"), help="libretro cores (read)")
+    p.add_argument("--inbox", type=Path, default=Path("/inbox"), help="an inbox's snapshots folder, for readers' savestates (read)")
+    p.add_argument("--scratch", type=Path, default=Path("/scratch"), help="states, snaps and the cores' own files (written)")
     p = sub.add_parser("serve", help="run the sample inbox (needs the server extra; settings from YOMIKATA_* env)")
     p.add_argument("--port", type=int, default=8080)
     args = ap.parse_args(argv)
+
+    if args.cmd == "harness":
+        from .harness import mcp
+        from .harness.machine import Machine
+        from .harness.session import Roots, Session
+        mcp.serve(Session(Roots(args.games, args.cores, args.inbox, args.scratch), Machine))
+        return 0
 
     if args.cmd == "serve":
         from .inbox import serve
