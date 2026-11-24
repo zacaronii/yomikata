@@ -172,3 +172,15 @@ def test_gamecube_savestate_cap(tmp_path):
     # Elsewhere the cap is what it was.
     r = post(meta(), os.urandom(64), 64 * 1024 * 1024 + 1)
     assert r.status_code == 400 and "state is larger than 64 MB" in r.json()["detail"]
+
+
+def test_a_screen_the_reader_could_not_read(tmp_path):
+    c = TestClient(create_app("secret", tmp_path / "data"))
+    r = send(c, os.urandom(64), meta(ocr=[], ocr_unavailable=True))
+    assert r.status_code == 200 and r.json()["added"]
+    stored = json.loads((tmp_path / f"data/snapshots/ps1/SLPS-01001/{r.json()['sha1']}.json").read_text())
+    assert stored["ocr"] == [] and stored["ocr_unavailable"] is True and "no_text" not in stored
+    assert c.get("/api/snapshots", headers=AUTH).json()["games"][0]["ocr_unavailable"] == 1
+    assert send(c, os.urandom(64), meta(ocr=["あ"], ocr_unavailable=True)).status_code == 400
+    assert send(c, os.urandom(64), meta(ocr=[], ocr_unavailable=True, no_text=True)).status_code == 400
+    assert send(c, os.urandom(64), meta(ocr=[], ocr_unavailable=False)).status_code == 400
