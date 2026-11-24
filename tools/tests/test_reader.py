@@ -466,6 +466,40 @@ def test_run_reports_another_build(tmp_path, capsys):
     assert "another build" in capsys.readouterr().err
 
 
+INTERFACE = """-- reader: no hooks
+reader.on_frame(function()
+    if reader.changed("menu", mem.u8(0x80000300)) then
+        reader.emit{ text = "もちもの", channel = "interface", window = "menu", id = "menu:items" }
+        reader.layout("menu", { space = { 640, 480 }, glyphs = { {40, 40, 20, 20}, {60, 40, 20, 20}, {80, 40, 20, 20}, {100, 40, 20, 20} } })
+        reader.emit{ text = "こんにちは" }
+        reader.emit{ text = "しらないもの", channel = "banner" }
+    end
+end)
+"""
+
+
+def test_interface_text_is_emitted_and_kept_from_the_story(tmp_path, capsys):
+    with reader() as r:
+        r.load(INTERFACE)
+        r.take()
+        r.frame(1)
+        events = r.take()
+        texts = [e for k, e in events if k == "text"]
+        assert [(e["channel"], e["id"] if e["channel"] == "interface" else "") for e in texts] == \
+            [("interface", "menu:items"), ("dialogue", ""), ("banner", "")]
+        (layout,) = [e for k, e in events if k == "layout"]
+        assert layout["window"] == "menu" and layout["seq"] == texts[0]["seq"] and len(layout["glyphs"]) == 4
+    script = tmp_path / "GXXJ01.lua"
+    script.write_text(INTERFACE, encoding="utf-8")
+    paths = snapshots(tmp_path)[:1]
+    (reading,) = run(script, paths)
+    assert [e["channel"] for e in reading.texts()] == ["interface", "dialogue", "banner"]
+    assert [e["text"] for e in reading.story()] == ["こんにちは"]         # the reader's: no menus, nothing unknown
+    assert main(["run", "--story", str(script), str(paths[0])]) == 0
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [e["channel"] for e in lines if e["kind"] == "text"] == ["dialogue"]
+
+
 def test_run_command(tmp_path, capsys):
     script = tmp_path / "GXXJ01.lua"
     script.write_text(STORY, encoding="utf-8")

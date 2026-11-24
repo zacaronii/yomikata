@@ -120,6 +120,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--frames", type=int, default=2, help="ticks over each snapshot")
     p.add_argument("--sequence", action="store_true", help="the snapshots are consecutive moments of one run: one reader, one tick each")
     p.add_argument("--log", action="store_true", help="print the script's log lines too")
+    p.add_argument("--story", action="store_true", help="only what is read: dialogue and choices, not interface text")
     p = sub.add_parser("bundle", help="a script as it is run and published: one file, with the lib/ modules it asks for inside it")
     p.add_argument("script", type=Path, help="games/<platform>/<id>.lua")
     p.add_argument("-o", "--out", type=Path, help="write it here (default: print it)")
@@ -436,7 +437,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "run":
         from . import reader as rd
-        from .run import run
+        from .run import STORY_CHANNELS, run
         try:
             readings = run(args.script, args.snapshots, platform=args.platform,
                            base=int(args.base, 16) if args.base else None, frames=args.frames, sequence=args.sequence)
@@ -449,6 +450,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{reading.name}: {reading.error}", file=sys.stderr)
                 status = 1
             for kind, event in reading.events:
+                if args.story and kind == "text" and event["channel"] not in STORY_CHANNELS:
+                    continue
                 if kind != "log" or args.log:
                     print(json.dumps({"snapshot": reading.name, "kind": kind, **event}, ensure_ascii=False))
         return status
