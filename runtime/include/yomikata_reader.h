@@ -31,6 +31,11 @@ extern "C" {
 /* Changes when this header changes in a way an older host can't follow. */
 #define YK_ABI 1
 
+/* What this runtime offers a script (docs/script-api.md): it goes up when scripts get something an older
+ * runtime hasn't got. A script says the level it needs ("-- reader: runtime <n>", 1 without the line), the
+ * index repeats it, and a host leaves alone a script that needs more than yk_script_level() gives. */
+#define YK_SCRIPT_LEVEL 1
+
 typedef struct yk_reader yk_reader;
 
 /* What comes out. Each is one line of JSON, UTF-8, valid only during the call.
@@ -83,6 +88,7 @@ typedef struct yk_options {
 } yk_options;
 
 YK_API const char* yk_version(void);
+YK_API int yk_script_level(void);
 
 /* A reader for one game. `host` and `options` are copied. NULL when `host` lacks read or event, the abi
  * differs, or memory ran out. */

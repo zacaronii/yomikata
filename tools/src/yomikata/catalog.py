@@ -132,6 +132,8 @@ def validate_scripts(root: Path) -> list[Problem]:
         for key in SCRIPT_NEEDS:
             if key not in keys:
                 problems.append(Problem(rel, f"no `-- reader: {key}` line"))
+        if script_level(header(source)) == 0:
+            problems.append(Problem(rel, "`-- reader: runtime` takes a whole number from 1"))
         for pattern, why in FORBIDDEN.items():
             if pattern.search(source):
                 problems.append(Problem(rel, why))
@@ -143,6 +145,12 @@ def validate_scripts(root: Path) -> list[Problem]:
             if not data.is_file():
                 problems.append(Problem(rel, f"reader.data(\"{name}\") needs {data.relative_to(root)}"))
     return problems
+
+
+def script_level(lines: list[tuple[str, str]]) -> int:
+    """The reader runtime level a script needs: its `-- reader: runtime <n>` line, 1 without one."""
+    said = next((rest for key, rest in lines if key == "runtime"), "1")
+    return int(said) if said.isdigit() and int(said) >= 1 else 0
 
 
 def build_scripts(root: Path) -> dict[str, str]:
@@ -172,7 +180,8 @@ def build_index(root: Path) -> dict:
         first = lambda key: next((rest for k, rest in lines if k == key), "")        # noqa: E731
         listed[path.stem] = {
             "path": published, "sha256": hashlib.sha256(bundle(path, root).encode("utf-8")).hexdigest(),
-            "platform": path.parent.name, "title": first("title"), "reads": first("reads"),
+            "platform": path.parent.name, "runtime": script_level(lines),
+            "title": first("title"), "reads": first("reads"),
             "builds": [rest for k, rest in lines if k == "build"],
             "needs": sorted({word for k, rest in lines if k == "needs" for word in rest.replace(",", " ").split()}),
             "data": {name: {"path": str(data.relative_to(root)), "sha256": hashlib.sha256(data.read_bytes()).hexdigest()}

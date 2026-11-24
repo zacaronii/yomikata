@@ -78,6 +78,7 @@ def library():
         except OSError as e:
             raise ReaderUnavailable(str(e)) from e
         lib.yk_version.restype = ctypes.c_char_p
+        lib.yk_script_level.restype = ctypes.c_int
         lib.yk_open.restype = ctypes.c_void_p
         lib.yk_open.argtypes = [ctypes.POINTER(_Host), ctypes.POINTER(_Options)]
         lib.yk_close.argtypes = [ctypes.c_void_p]
@@ -98,6 +99,11 @@ def library():
 
 def version() -> str:
     return library().yk_version().decode()
+
+
+def script_level() -> int:
+    """What this runtime offers a script: a script that needs a higher level doesn't load (docs/script-api.md)."""
+    return library().yk_script_level()
 
 
 def header(source: str | bytes) -> list[tuple[str, str]]:

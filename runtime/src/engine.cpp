@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <cstdlib>
 #include <span>
 #include <stdexcept>
 #include "engine.h"
@@ -267,8 +268,15 @@ bool Engine::Load(const std::string& chunk_name, const std::string& source) {
     Unload();
     last_error.clear();
 
-    // A script that can't do without a region isn't started on a host that hasn't got it.
+    // A script that can't do without a region isn't started on a host that hasn't got it; nor one written
+    // for a later runtime than this.
     for (const auto& [key, rest] : ParseHeader(source)) {
+        if (key == "runtime" && std::atoi(rest.c_str()) > YK_SCRIPT_LEVEL) {
+            last_error = "the script needs a later reader runtime (level " + rest + ", this one is " +
+                         std::to_string(YK_SCRIPT_LEVEL) + ")";
+            Log(LogLevel::Error, "script " + chunk_name + " not loaded: " + last_error);
+            return false;
+        }
         if (key != "needs") {
             continue;
         }

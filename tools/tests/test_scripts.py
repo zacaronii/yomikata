@@ -369,6 +369,8 @@ def test_each_script_bundles_and_loads(path):
     assert hashlib.sha256(published.encode("utf-8")).hexdigest() == index["sha256"]
     assert header(published) == rd.header(published) == header(path.read_text(encoding="utf-8"))
     assert index["builds"] and index["platform"] == path.parent.name
+    assert 1 <= index["runtime"] <= rd.script_level()
+    assert catalog.SCRIPT_ID.fullmatch(path.stem)                # keyed as the entries are: by release id
     data = {}
     for name, entry in index["data"].items():
         raw = (ROOT / entry["path"]).read_bytes()
@@ -403,6 +405,7 @@ def test_a_script_out_of_form_is_told(tmp_path):
             ("mem.w32(0x80000000, 1)", None, "never writes"),
             ('require("lib.nothing")', None, "lib.nothing"),
             ("reader.log('x')", ["title あ (A)", "reads x", "version 1", "no hooks"], "reader: build"),
+            ("reader.log('x')", ["title あ (A)", "reads x", "version 1", "build X-00", "no hooks", "runtime two"], "whole number"),
             ("reader.log('x')", ["title あ (A)", "reads x", "version 1", "build X-00"], "reader: no hooks")):
         write_script(tmp_path, body=body, lines=lines)
         assert any(said in p.message for p in catalog.validate_scripts(tmp_path)), said
@@ -422,7 +425,7 @@ def test_the_index_lists_scripts_and_publishes_them_with_their_modules(tmp_path)
     assert catalog.write_index(tmp_path) is True and catalog.stale(tmp_path) == []
     listed = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))["scripts"]["GXXJ01"]
     published = (tmp_path / "scripts/gc/GXXJ01.lua").read_text(encoding="utf-8")
-    assert listed["path"] == "scripts/gc/GXXJ01.lua" and listed["platform"] == "gc"
+    assert listed["path"] == "scripts/gc/GXXJ01.lua" and listed["platform"] == "gc" and listed["runtime"] == 1
     assert listed["sha256"] == hashlib.sha256(published.encode("utf-8")).hexdigest()
     assert listed["builds"] == ["GXXJ01-00", "GXXJ01-01"] and listed["needs"] == ["vram"]
     assert listed["title"] == "あ (A)" and listed["reads"] == "the window"

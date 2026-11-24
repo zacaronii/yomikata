@@ -286,6 +286,15 @@ def test_another_build():
         assert r.take("text") == []
 
 
+def test_a_script_for_a_later_runtime_is_refused():
+    assert rd.script_level() == 1
+    with reader() as r:
+        r.load("-- reader: runtime 1\nreader.log('ran')")
+        with pytest.raises(rd.ScriptError, match="later reader runtime"):
+            r.load("-- reader: no hooks\n-- reader: runtime 2\nreader.log('ran')")
+        assert sum(1 for e in r.take("log") if e.get("message") == "ran") == 1
+
+
 def test_syntax_error():
     with reader() as r:
         with pytest.raises(rd.ScriptError, match="broken.lua:1"):

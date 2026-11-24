@@ -612,6 +612,7 @@
    "path": "scripts/gc/G8MJ01.lua",
    "sha256": "adb3f09a2729a6ab523cdb8dcaa5d58258bd7fd68c84d21c3b498fe6b9dbadf7",
    "platform": "gc",
+   "runtime": 1,
    "title": "ペーパーマリオRPG (Paper Mario: The Thousand-Year Door)",
    "reads": "speech bubbles, narration, letters and system messages a page at a time, with their furigana, and a choice's answers with its cursor",
    "builds": [
@@ -624,6 +625,7 @@
    "path": "scripts/ps1/SLPS-02100.lua",
    "sha256": "3dfb667906bcf13fa67f507526f62e4d81fc12e79370c26a769952c9d02929ca",
    "platform": "ps1",
+   "runtime": 1,
    "title": "ペルソナ2 罪 (Persona 2: Tsumi)",
    "reads": "the message window, a page at a time; a choice's answers as part of its message",
    "builds": [
