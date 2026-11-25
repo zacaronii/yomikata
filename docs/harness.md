@@ -109,6 +109,10 @@ In the order to try them:
    `refs` over those snaps for what points into the line: a word that does in some moments only is the one
    that follows it. `pointed` then reads the record or stack that word is in as strings. This is what found
    Double Cast's lines, after seven snaps of standing lines had shown nothing.
+   A word found this way may be on a stack: it holds the pointer in this scene and something else in the next.
+   Before a script trusts its address, play to another scene (a close-up, another room) and ask `refs` again.
+   Policenauts' message pointer moved 0x78 bytes between two objects of one room; what stayed put was the
+   game's own copy of the message, which `find_relative` had given as a second place.
 9. When `find_relative` finds nothing it tries the other ways a game may keep a line and gives those that fit
    (`other_ways`): codes of two bytes, the other byte order, kana as far apart as in an order, counting up or
    down. A line with three or four different kana is enough.

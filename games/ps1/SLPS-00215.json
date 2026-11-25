@@ -23,11 +23,11 @@
   "sources": [
     "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
     "The kanji read off the game's font in main memory: a second reader (manga-ocr) and the font's JIS order together, then by eye and in sentences of the disc's own text",
-    "Played from power-on into the first room; the script's readings compared with the lines read off 16 pictures"
+    "Played from power-on through the first room's objects; the script's readings compared with the lines read off 16 pictures, and its lines elsewhere in the room with pictures taken as it went"
   ],
   "tables": [
     "tables/ps1/SLPS-00215.tbl"
   ],
   "unit": 2,
-  "notes": "Read by the script games/ps1/SLPS-00215.lua; there is no layout. The two discs share one boot executable. Two bytes a character, high byte first; only the low 13 bits say which character. Kana and ASCII by a rule, signs and kanji by the table, which was read off the game's font in main memory (JIS order). A message's pages are said one at a time. Who speaks, the picture's commands, the title's messages and the films' lines aren't read."
+  "notes": "Read by the script games/ps1/SLPS-00215.lua; there is no layout. The two discs share one boot executable. Two bytes a character, high byte first; only the low 13 bits say which character. Kana and ASCII by a rule, signs and kanji by the table, which was read off the game's font in main memory (JIS order). The window's messages are said a page at a time, and the lines of spoken passages as each shows. Who speaks, the picture's commands, the title's messages and the opening film's lines aren't read."
 }
