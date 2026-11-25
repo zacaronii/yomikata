@@ -83,7 +83,10 @@ end)
   `<id>.charset` (Furoshiki's: a decimal glyph number, a tab and the character on each line, `#` for comments).
   `reader.data("tbl")` hands the file over as a string; the script reads it. Codes and characters only, as ever.
   A game that brings its kanji as pictures has a dictionary of them as `<id>.glyphs`: a line for each picture,
-  `text.hash` of its bytes in capitals, `=`, and the character it is.
+  `text.hash` of its bytes in capitals, `=`, and the character it is. `lib/glyphs.lua` reads it, and logs a
+  picture it hasn't got (once, as `glyph <hash> <width>x<height>x<bits> <hex>`) and the row of text it stood in
+  (`glyph-line <hash> …`): what `yomikata unread` draws for reading (docs/harness.md, "A game's own font"). A
+  host may show such a line to a player who wants to report it, or drop it.
 - A script may `require` a module from `lib/` (walking tags, tiles, reading a `.tbl`). What is run and published
   is one file per game with its modules put in (`yomikata bundle`, which `yomikata run` does by itself), header
   lines still first, so a host never loads anything but the script and its data.

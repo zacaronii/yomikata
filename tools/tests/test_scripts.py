@@ -1688,3 +1688,113 @@ def test_metal_gear_solid_a_line_is_said_while_it_is_shown():
     with rd.Reader(mgs_memory(lists=lists, word=0), platform="ps1", game_id="SLPM-86111", data=data) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPM-86111.lua"))
+
+
+def fnv(data: bytes) -> str:
+    h = 0xCBF29CE484222325
+    for b in data:
+        h = (h ^ b) * 0x100000001B3 & 0xFFFFFFFFFFFFFFFF
+    return f"{h:016X}"
+
+
+def rgg2_glyph(n: int) -> list[list[int]]:
+    """A made-up glyph, 24 by 24 at two bits a pixel: no two alike."""
+    return [[(x * (n + 3) + y * 7 + n) % 4 if (x + y + n) % 3 else 0 for x in range(24)] for y in range(24)]
+
+
+def rgg2_packed(glyph, left: int = 0, width: int = 24) -> bytes:
+    """A glyph as the script hashes it: rows of whole bytes, the leftmost pixel in a byte's high bits."""
+    return bytes(sum(row[left + x + i] << (6 - 2 * i) for i in range(4)) for row in glyph for x in range(0, width, 4))
+
+
+def rgg2_block(at: int, glyphs: int, halves: int, names: list[list[int]], rows: list[tuple[int, list[int]]]):
+    """A block of Ryuu ga Gotoku 2's text at `at`, as its script's notes have it: what PLACE or SCENE points
+    at, the font (two glyphs to a cell), the text's four words, the names, and the rows with their codes.
+    Gives the memory and where each row is."""
+    font, text = at + 0x100, at + 0x8000
+    cells = b""
+    for cell in range((glyphs + 1) // 2):
+        low, high = rgg2_glyph(2 * cell), rgg2_glyph(2 * cell + 1)
+        cells += bytes((low[y][x] | high[y][x] << 2) | (low[y][x + 1] | high[y][x + 1] << 2) << 4
+                       for y in range(24) for x in range(0, 24, 2))
+    messages, named = text + 0x10, text + 0x20
+    pages = named + 16 * len(names)
+    table, codes, places = b"", b"", []
+    at_codes = pages + 0x40 + 12 * len(rows)
+    for kind, row in rows:
+        places.append(pages + 0x40 + len(table))
+        table += struct.pack("<BBHII", len(row), kind, 0x1212, at_codes + len(codes), 0)
+        codes += struct.pack(f"<{len(row)}H", *row)
+    memory = {at: struct.pack("<4I", 0xE, 0, 1, 0) + struct.pack("<IHH", font, (glyphs + 1) // 2, halves) + bytes(8)
+              + struct.pack("<I", text), font: cells,
+              text: struct.pack("<4I", messages, named, named, 1) + struct.pack("<II", 0x01010000, pages)
+              + bytes(8) + b"".join(struct.pack("<8H", *(name + [0xFFFE] * 8)[:8]) for name in names),
+              pages: bytes(0x40) + table + codes}
+    return memory, places, [named + 16 * i for i in range(len(names))]
+
+
+def rgg2_memory(blocks: dict, drawn: list[tuple[int, int]], scene: int = 0, place: int = 0, word: int = 0x0C051D06):
+    """What the script looks at: the build's words, the two blocks, and the rows drawn now as a list of
+    records, each a row and its colour."""
+    records = {}
+    for i, (row, colour) in enumerate(drawn):
+        record = 0x00C40000 + 0x4C0 * i
+        records[record] = (struct.pack("<I", record + 0x4C0 if i + 1 < len(drawn) else 0) + bytes(8)
+                           + struct.pack("<I", row) + bytes(0x418) + struct.pack("<I", colour))
+    return sparse({0x0012A000: struct.pack("<I", word), 0x0038E000: struct.pack("<I", 0x0C0E4358),
+                   0x0063C800: struct.pack("<II", place, scene),
+                   0x00B92444: struct.pack("<I", 0x00C40000 if drawn else 0), **blocks, **records})
+
+
+def test_ryuu_ga_gotoku_2_subtitles_a_window_with_its_speaker_a_question_and_a_caption():
+    # Two blocks, each numbering its own glyphs: the place's (a name, a message of two lines, a question, two
+    # answers, the place's name) and a scene's (two rows of a page). The dictionary knows a glyph by its
+    # picture, whatever its number; glyph 7 isn't in it.
+    read = {0: "あ", 1: "い", 2: "う", 3: "え", 4: "お", 5: "か", 6: "？", 8: "ハ", 9: "墓"}
+    glyphs = "# made up\n" + "".join(f"{fnv(rgg2_packed(rgg2_glyph(n)))}={c}\n" for n, c in read.items())
+    glyphs += f"{fnv(rgg2_packed(rgg2_glyph(0), 12, 12))}=A\n"            # a half-width character: half a glyph
+    place, rows, names = rgg2_block(0x00D00000, 10, 2, [[2 * 5, 2 * 1]], [
+        (3, [2 * 1, 2 * 2, 0xFFFF, 0xFFFD, 2 * 3, 1]),                     # a message: two lines, and an "A" at its end
+        (4, [0xFFFD, 2 * 4, 2 * 6]),                                       # a question
+        (2, [0xFFFE, 2 * 1, 2 * 1]), (2, [2 * 3, 2 * 3]),                  # its answers
+        (1, [2 * 9, 2 * 7])])                                              # the place's name
+    name_row = {0x00D60F00: struct.pack("<BBHII", 2, 0, 0, names[0], 0)}
+    scene, lines, _ = rgg2_block(0x01700000, 6, 0, [], [(2, [2 * 4, 0xFFFE, 2 * 5]), (3, [2 * 3, 0xFFFD, 2 * 2])])
+    blocks = {**place, **scene, **name_row}
+    white, grey, on, off = 0xFFFFFFFF, 0xFF969696, 0xFFE6E6E6, 0x80B4B4B4
+    moments = [
+        [], [(lines[1], white), (lines[0], grey)], [(lines[1], white), (lines[0], grey)], [(lines[1], white), (lines[0], grey)], [],
+        [(rows[0], white)], [(rows[0], white)],                             # a window's first row: the name isn't there yet
+        [(rows[0], white), (0x00D60F00, 0x40FFFFFF)],                       # coming up
+        [(rows[0], white), (0x00D60F00, white)], [(rows[0], white), (0x00D60F00, white)],
+        [(rows[1], white), (0x00D60F00, 0x80FFFFFF)],                       # the question, the name going
+        [(rows[1], white)], [(rows[1], white)],
+        [(rows[1], white), (rows[4], white), (rows[4], white)], [(rows[1], white), (rows[4], white), (rows[4], white)],
+        [(rows[3], off), (rows[2], on), (rows[1], white)], [(rows[3], on), (rows[2], off), (rows[1], white)], []]
+    data = {"glyphs": glyphs.encode()}
+    with rd.Reader(rgg2_memory(blocks, []), platform="ps2", game_id="SLPM-66602", data=data) as r:
+        r.load(bundle(ROOT / "games/ps2/SLPM-66602.lua"), "SLPM-66602.lua")
+        said, cursor, logged = [], [], []
+        for frame, drawn in enumerate(moments, 1):
+            r.read = rgg2_memory(blocks, drawn, scene=0x01700000, place=0x00D00000)
+            r.frame(frame if frame < 13 else frame + 100)                   # the question stands a while without a name
+            for kind, e in r.take():
+                if kind == "text":
+                    said.append((frame, e["channel"], e.get("speaker") or None, e["text"]))
+                elif kind == "cursor":
+                    cursor.append((frame, e.get("index"), bool(e.get("closed"))))
+                elif kind == "log":
+                    logged.append(e["message"])
+        assert said == [(3, "dialogue", None, "お か\nえ　う"),             # top to bottom, as the rows stand in the block
+                        (10, "dialogue", "かい", "いう\n　えA"),
+                        (13, "dialogue", None, "　お？"),
+                        (14, "interface", None, "墓�"),
+                        (16, "choice", None, "いい\nええ")]
+        assert cursor == [(16, 0, False), (17, 1, False), (18, None, True)]
+        # The glyph without a reading is logged once, with the row it stood in.
+        unread = fnv(rgg2_packed(rgg2_glyph(7)))
+        assert [line for line in logged if line.startswith("glyph")] == [f"glyph {unread} 24x24x2 {rgg2_packed(rgg2_glyph(7)).hex()}",
+                          f"glyph-line {fnv(rgg2_packed(rgg2_glyph(9)))} {unread}"]
+    with rd.Reader(rgg2_memory(blocks, [], word=0), platform="ps2", game_id="SLPM-66602", data=data) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps2/SLPM-66602.lua"))

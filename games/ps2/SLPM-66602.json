@@ -1,0 +1,23 @@
+{
+  "id": "SLPM-66602",
+  "platform": "ps2",
+  "title": "龍が如く2",
+  "title_romaji": "Ryuu ga Gotoku 2",
+  "versions": [
+    {
+      "id": "SLPM-66602",
+      "exe": "SLPM_666.02",
+      "exe_sha1": "6b7d2eade66b4e2bc960e333f4f3db3d79842654",
+      "note": "Disc 1. A PS2 emulator names this build SLPM-66602-c6b95c48"
+    }
+  ],
+  "encoding": "table",
+  "status": "partial",
+  "sources": [
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+    "The characters read off the game's own pictures of them, in the rows of text they stand in (yomikata unread); a second reader (manga-ocr) beside",
+    "Played from power-on: the prologue's five scenes, the graveyard in play (a window with its speaker, a question and its answers), the recollection of the first game, and the scene that follows, to the first fight",
+    "What the script said in play agreed with the lines read off 118 of 119 pictures, over 8 scenes; the other shows a question with its answers, of which the script says the answers there (the question the page before). It read nothing on 4 screens that show no text"
+  ],
+  "notes": "Read by the script games/ps2/SLPM-66602.lua; there is no layout. Only disc 1 was played, for its first half hour. A scene's subtitles and what people say in play come in blocks, each with a font of its own: a code is a glyph's number there, so only the picture says which character it is. The script knows a glyph by a hash of its picture (SLPM-66602.glyphs): the 602 of what was played, hangul among them; others come out as U+FFFD. Who speaks in a scene, a fight's instructions and menus aren't read."
+}

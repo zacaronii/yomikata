@@ -171,6 +171,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--mine", type=Path, help="your readings: a table (HEX=character lines); codes as in the glyphs file")
     p.add_argument("--text", type=Path, help="the game's text, a line a message (scratch): each differing reading is shown in a sentence")
     p.add_argument("--out", type=Path, required=True, help="where to write the second reader's readings (code, a tab, the reading)")
+    p = sub.add_parser("unread", help="the pictures a script logged for want of a reading (lib/glyphs.lua; the harness keeps them in scratch): a sheet of those the dictionary hasn't got, the second reader's readings, and readings written into the dictionary")
+    p.add_argument("logs", type=Path, nargs="+", help="files with the logged lines: scratch's glyphs/<script>.log, or a host's log")
+    p.add_argument("--dictionary", type=Path, required=True, help="the script's dictionary: games/<platform>/<id>.glyphs")
+    p.add_argument("--sheet", type=Path, help="write the unread pictures as a PNG, to scratch; and beside it, as <name>-rows.png, the rows of text the script logged them in")
+    p.add_argument("--columns", type=int, default=16, help="pictures a row of the sheet (default 16)")
+    p.add_argument("--second", type=Path, help="a scratch file of the second reader's readings (hash, a tab, what it takes the picture for alone, then for each logged row it read to the right length, the character there): those it lacks are read now, where manga-ocr is installed")
+    p.add_argument("--row", nargs="+", default=[], metavar="NUMBER=TEXT", help="a row read whole, by its number on the rows' sheet: each of its pictures takes the character that stands there (spaces don't count)")
+    p.add_argument("--add", nargs="+", default=[], metavar="HASH=CHARACTER", help="readings into the dictionary, each by the start of its hash (four digits as on the sheet); HASH= takes one out")
     p = sub.add_parser("sorted", help="check a font's readings by the order its glyphs stand in (JIS, Shift-JIS, Unicode): which readings break it, and what the order allows for each glyph not yet sure")
     p.add_argument("readings", type=Path, help="a line for each glyph in the font's order: its reading, or ? (anything after the first character is a note)")
     p.add_argument("--order", default="jis", help="jis (default), sjis or unicode")
@@ -308,6 +316,62 @@ def main(argv: list[str] | None = None) -> int:
         counts = {k: sum(1 for r in rows if r["status"] == k) for k in ("agree", "differ", "unread")}
         print(f"{len(rows)} glyphs: {counts['agree']} read the same two ways, {counts['differ']} that differ (read those in a "
               f"sentence), {counts['unread']} you haven't read", file=sys.stderr)
+        return 0
+    if args.cmd == "unread":
+        from . import glyphs as gl
+        from . import unread
+        logs = "\n".join(p.read_text(encoding="utf-8", errors="replace") for p in args.logs)
+        pictures = unread.logged(logs)
+        text = args.dictionary.read_text(encoding="utf-8") if args.dictionary.is_file() else ""
+        added = []
+        if args.add or args.row:
+            try:
+                whole = unread.row_readings(unread.rows(logs), {int(a.partition("=")[0]): a.partition("=")[2] for a in args.row})
+                for mark, character in whole.items():
+                    if gl.read_dictionary(text).get(mark, character) != character:
+                        raise ValueError(f"{mark[:4]} is {gl.read_dictionary(text)[mark]} in the dictionary, and a row reads it as {character}")
+                before = gl.read_dictionary(text)
+                text = unread.add(text, {**whole, **dict(a.partition("=")[::2] for a in args.add)}, list(pictures))
+                added = [mark for mark, character in gl.read_dictionary(text).items() if before.get(mark) != character]
+            except ValueError as e:
+                print(e, file=sys.stderr)
+                return 1
+            args.dictionary.write_text(text, encoding="utf-8")
+        known = gl.read_dictionary(text)
+        if added and args.second and args.second.is_file():
+            # What was just read, beside the second reader: where the two differ, read the row again.
+            theirs = dict(line.split("\t", 1) for line in args.second.read_text(encoding="utf-8").splitlines() if "\t" in line)
+            both = [mark for mark in added if mark in theirs and mark in known]
+            differ = [mark for mark in both if known[mark] not in theirs[mark].split(" ")]
+            for mark in differ:
+                print(f"{mark} {known[mark]}: the second reader says {theirs[mark]}")
+            print(f"{len(both)} readings added that the second reader has read: {len(both) - len(differ)} the same, "
+                  f"{len(differ)} that differ", file=sys.stderr)
+        todo = {mark: picture for mark, picture in pictures.items() if mark not in known}
+        lines = unread.rows_to_read(unread.rows(logs), todo)
+        readings = {}
+        if args.second:
+            if args.second.is_file():
+                readings = dict(line.split("\t", 1) for line in args.second.read_text(encoding="utf-8").splitlines() if "\t" in line)
+            lacking = {mark: picture for mark, picture in todo.items() if mark not in readings}
+            if lacking:
+                try:
+                    alone = unread.second(lacking)
+                    in_rows = unread.second_rows([row for row in lines.values() if any(m in lacking for m in row)], pictures)
+                    readings.update({mark: alone[mark] + "".join(" " + c for c in in_rows.get(mark, [])) for mark in lacking})
+                except RuntimeError as e:
+                    print(e, file=sys.stderr)
+                args.second.write_text("".join(f"{k}\t{v}\n" for k, v in sorted(readings.items())), encoding="utf-8")
+        for mark, picture in todo.items():
+            print(f"{mark} {picture.width}x{picture.height} {readings.get(mark, '')}".rstrip())
+        for character, marks in gl.twice(known).items():
+            print(f"{character} is given to {len(marks)} pictures in the dictionary: {' '.join(marks)}", file=sys.stderr)
+        if args.sheet and todo:
+            unread.sheet(todo, args.columns).save(args.sheet)
+            if lines:
+                unread.row_sheet(lines, pictures, todo).save(args.sheet.with_name(args.sheet.stem + "-rows" + args.sheet.suffix))
+        print(f"{len(pictures)} pictures logged, {len(pictures) - len(todo)} in the dictionary, {len(todo)} to read"
+              + (f": {args.sheet}" if args.sheet and todo else ""), file=sys.stderr)
         return 0
     if args.cmd == "sorted":
         from . import glyphs

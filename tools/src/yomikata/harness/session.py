@@ -143,8 +143,22 @@ class Session:
             if kind == "text":
                 self.said.append({k: event.get(k) for k in ("channel", "speaker", "text")})
                 del self.said[:-MAX_EVENTS]
+            if kind == "log" and str(event.get("message", "")).startswith(("glyph ", "glyph-line ")):
+                self._keep_glyph(event["message"])
+                continue
             if len(out) < MAX_EVENTS and not (kind == "log" and event.get("level") == "info"):
                 out.append({"kind": kind, "frame": self.machine.frames, **event})
+
+    def _keep_glyph(self, line: str) -> None:
+        """A picture the script had no reading for (lib/glyphs.lua logs it), kept in scratch for `yomikata
+        unread`: glyphs/<the script's name>.log, a line a picture."""
+        try:
+            folder = self.roots.scratch / "glyphs"
+            folder.mkdir(parents=True, exist_ok=True)
+            with (folder / (Path(self.script_name or "script").stem + ".log")).open("a", encoding="utf-8") as log:
+                log.write(line + "\n")
+        except OSError:
+            pass
 
     def begin_call(self) -> None:
         """A call starts now: what runs the game stops by itself `call_seconds` from here."""

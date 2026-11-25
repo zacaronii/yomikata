@@ -202,6 +202,13 @@
    "encoding": "unknown",
    "status": "auto"
   },
+  "SLPM-66602": {
+   "path": "games/ps2/SLPM-66602.json",
+   "sha256": "7564d83956e15356b29e30edc00f3476b909f5c6e62194b033bf6fb592e8cbce",
+   "platform": "ps2",
+   "encoding": "table",
+   "status": "partial"
+  },
   "SLPM-66978": {
    "path": "games/ps2/SLPM-66978.json",
    "sha256": "2d12a75dcfb3d0abafaf1d7c5389be5db0d0161cd0d8ff44125a78c7b25ab7e8",
@@ -776,6 +783,24 @@
     "tbl": {
      "path": "games/sfc/SHVC-MB.tbl",
      "sha256": "f9644d025790fa363fd959bda7797f71c1cb93873754917fbef9cf005e623103"
+    }
+   }
+  },
+  "SLPM-66602": {
+   "path": "scripts/ps2/SLPM-66602.lua",
+   "sha256": "fd6743c91fef488048485ab3cc6188f4e7709460e2418a04d50dac6b44f30278",
+   "platform": "ps2",
+   "runtime": 1,
+   "title": "龍が如く2 (Ryuu ga Gotoku 2)",
+   "reads": "the subtitles of scenes and what people say in play, with the speaker's name and a question's answers, each page as it is shown",
+   "builds": [
+    "SLPM-66602-c6b95c48"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/ps2/SLPM-66602.glyphs",
+     "sha256": "8bc9b274a7ade7c6fcfeb42be5a7885de648ecb9e0efc2bef5d67062ffea614e"
     }
    }
   },

@@ -1443,3 +1443,17 @@ def test_map_picture_puts_the_games_numbers_over_the_screen(session):
     struct.pack_into(">hh", session.machine.memory, 0x60, 24, 32)
     out = session.map_picture(tile=8, screen_x_address=f"0x{BASE + 0x60:08X}", screen_y_address=f"0x{BASE + 0x62:08X}")[1]
     assert out["columns"][0] == at["x"] - 2 and out["rows"][0] == at["y"] - 2      # the mark 16 across, 16 down
+
+
+@needs_reader
+def test_pictures_a_script_logs_for_want_of_a_reading_are_kept_in_scratch(session, tmp_path):
+    """lib/glyphs.lua logs a picture its dictionary hasn't got, and the row it stood in: the harness keeps
+    those lines for `yomikata unread`, and they aren't among a call's events."""
+    script = SCRIPT.replace("reader.on_frame(function()", "reader.on_frame(function(frame)\n"
+                            "    if frame == 3 then reader.log('glyph 00AA000000000001 4x2x2 1be4') "
+                            "reader.log('glyph-line 00AA000000000001 _ 00AA000000000001') reader.log('other') end")
+    assert session.script_try(script, "GXXJ01.lua")["loaded"]
+    out = session.run(6)
+    assert not [e for e in out["events"] if e["kind"] == "log"]
+    assert (tmp_path / "scratch/glyphs/GXXJ01.log").read_text(encoding="utf-8").splitlines() == [
+        "glyph 00AA000000000001 4x2x2 1be4", "glyph-line 00AA000000000001 _ 00AA000000000001"]
