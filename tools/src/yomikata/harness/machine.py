@@ -50,6 +50,25 @@ class Machine:
                 return C.string_at(ptr + at, max(0, min(size, length - at)))
         return b""
 
+    def write(self, address: int, data: bytes) -> int:
+        """Puts bytes at one of the console's addresses, in main memory; gives how many fitted."""
+        import ctypes as C
+        from ..replay.libretro import MEMORY_SYSTEM_RAM
+        for start, length, ptr in self.core.maps:
+            if start <= address < start + length:
+                size = max(0, min(len(data), start + length - address))
+                C.memmove(ptr + (address - start), data, size)
+                return size
+        ptr = self.core.lib.retro_get_memory_data(MEMORY_SYSTEM_RAM)
+        length = self.core.lib.retro_get_memory_size(MEMORY_SYSTEM_RAM)
+        for start in (RAM_BASES.get(self.platform, 0), *self.mirrors()):
+            at = address - start
+            if ptr and 0 <= at < length:
+                size = max(0, min(len(data), length - at))
+                C.memmove(ptr + at, data, size)
+                return size
+        return 0
+
     def regions(self) -> dict[str, bytes]:
         video = self.core.video_ram()
         return {"vram": video} if video else {}
