@@ -27,8 +27,8 @@
 --           from 1 in the order the list first uses them, and GLYPHS points at them (RADIO_GLYPHS at a
 --           call's). So one code is another kanji in every list, and nothing in memory says which. A picture
 --           is known here by a hash of its 36 bytes, and the file of glyphs beside this script says which
---           kanji each hash is: they were read off the pictures. A picture that file hasn't got comes out as
---           U+FFFD; it has those of the lines played through so far.
+--           kanji each hash is: they were read off the pictures, in lines found on the discs. A picture that
+--           file hasn't got comes out as U+FFFD: it has the most used, some four uses in five.
 --
 -- Not covered: who speaks (a radio call shows faces and a frequency, a scene nothing); the menus, the item
 -- window and the radio's own screen; the memory card's messages; names and cards drawn over a scene as
@@ -119,6 +119,81 @@ end
 
 return tbl
 end
+__module["lib.glyphs"] = function()
+-- A dictionary of glyph pictures (docs/script-api.md, "Files"): for a game that brings its characters as
+-- pictures and numbers them anew in every scene, so that a code says nothing. A picture is known by
+-- text.hash of its bytes, and the file `<id>.glyphs` beside the script says which character each hash is.
+--
+-- A picture the file hasn't got is logged once, as
+--     glyph <HASH> <width>x<height>x<bits> <the picture's bytes in hex>
+-- which is all `yomikata unread` needs to draw it for reading (docs/harness.md, "A game's own font"). For
+-- that the bytes hashed are the picture's rows from the top, each a whole number of bytes, a pixel `bits`
+-- bits, the leftmost in a byte's high bits. A game that keeps its pictures otherwise has them repacked by
+-- its script first.
+--
+-- A glyph is read surest in its sentence. So a script may also say which pictures made up a row of text
+-- that had one without a reading, and that is logged once too, as
+--     glyph-line <HASH> <HASH> _ =<characters> <HASH> …
+-- a hash for each picture in order, "_" for a space, and "=" before characters the script knows by code:
+-- `yomikata unread` then draws the row whole.
+
+local glyphs = {}
+
+--- Reads a dictionary's text (the file a script asks reader.data for): a picture's hash -> its character.
+function glyphs.parse(source)
+    local known = {}
+    for line in (source or ""):gmatch("[^\r\n]+") do
+        local hash, character = line:match("^(%x+)=(.+)$")
+        if hash then
+            known[hash:upper()] = character
+        end
+    end
+    return known
+end
+
+--- A dictionary to ask: `dictionary:read(picture, width, height, bits)` gives the picture's character, or nil
+--- (and logs the picture, the first time it is asked for), and its hash.
+function glyphs.open(source)
+    local dictionary = { known = glyphs.parse(source), logged = {} }
+
+    function dictionary:read(picture, width, height, bits)
+        local hash = text.hash(picture):upper()
+        local character = self.known[hash]
+        if not character and not self.logged[hash] then
+            self.logged[hash] = true
+            reader.log(string.format("glyph %s %dx%dx%d %s", hash, width, height, bits,
+                (picture:gsub(".", function(c)
+                    return string.format("%02x", c:byte())
+                end))))
+        end
+        return character, hash
+    end
+
+    --- A row of text the script has read, as the hashes `read` gave for its pictures in order; false for a
+    --- space, and for what the script knows by code, not by picture, the characters themselves (without
+    --- spaces). Logged once, if the dictionary lacks one of the pictures.
+    function dictionary:line(hashes)
+        local marks, lacking = {}, false
+        for i, hash in ipairs(hashes) do
+            if hash and not hash:find("^%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then
+                marks[i] = "=" .. hash
+            else
+                marks[i] = hash or "_"
+                lacking = lacking or (hash and not self.known[hash])
+            end
+        end
+        local row = table.concat(marks, " ")
+        if lacking and not self.logged[row] then
+            self.logged[row] = true
+            reader.log("glyph-line " .. row)
+        end
+    end
+
+    return dictionary
+end
+
+return glyphs
+end
 local LINE = 0x8009EC4C -- word: the text of the line shown now, or 0
 local GLYPHS = 0x8009F0F0 -- word: the pictures of the list's own kanji
 local RADIO = 0x800AC3EC -- word: the text of the radio's line shown now, or 0
@@ -143,10 +218,8 @@ for code, character in pairs(tbl.parse(source).chars) do
     characters[string.unpack(">I2", code) & 0x1FFF] = character
 end
 
-local pictures = {} -- a picture's hash -> its kanji
-for hash, character in (reader.data("glyphs") or ""):gmatch("(%x+)=([^\r\n]+)") do
-    pictures[hash:lower()] = character
-end
+-- A picture's hash -> its kanji. One the file hasn't got is logged, for `yomikata unread` (lib/glyphs.lua).
+local dictionary = require("lib.glyphs").open(reader.data("glyphs"))
 
 local HASH, OPEN, CLOSE, BAR, COMMA, LETTER_N, DASH = 0x23, 0x7B, 0x7D, 0x7C, 0x1002, 0x4E, 0x1006
 local OWN, CALLS = 0x1C00, 0x1600 -- codes above them are a list's own kanji, and a radio call's
@@ -157,7 +230,7 @@ local function character(code)
         local own = code > OWN
         local glyphs = mem.u32(own and GLYPHS or RADIO_GLYPHS)
         local picture = glyphs and mem.read(glyphs + GLYPH * (code - (own and OWN or CALLS) - 1), GLYPH)
-        return picture and #picture == GLYPH and pictures[text.hash(picture)] or "\u{FFFD}"
+        return picture and #picture == GLYPH and dictionary:read(picture, 12, 12, 2) or "\u{FFFD}"
     elseif code >= 0x1000 then
         return characters[code] or "\u{FFFD}"
     elseif code >= 0x200 then

@@ -218,14 +218,14 @@
   },
   "SLPM-86111": {
    "path": "games/ps1/SLPM-86111.json",
-   "sha256": "430e86addc015504b7fc82219232ccd5d327fc60a966d95ef496b19dbdab54ca",
+   "sha256": "378262aac755a0d8b20480c55116df02cd58996f2ed04da2ea779e19a4d3e3f8",
    "platform": "ps1",
    "encoding": "table",
    "status": "partial"
   },
   "SLPM-86112": {
    "path": "games/ps1/SLPM-86111.json",
-   "sha256": "430e86addc015504b7fc82219232ccd5d327fc60a966d95ef496b19dbdab54ca",
+   "sha256": "378262aac755a0d8b20480c55116df02cd58996f2ed04da2ea779e19a4d3e3f8",
    "platform": "ps1",
    "encoding": "table",
    "status": "partial",
@@ -788,7 +788,7 @@
   },
   "SLPM-66602": {
    "path": "scripts/ps2/SLPM-66602.lua",
-   "sha256": "fd6743c91fef488048485ab3cc6188f4e7709460e2418a04d50dac6b44f30278",
+   "sha256": "d05cbbb2769341f8393372a572a5961d18475627d27bfd29ae314f349a4cc6d8",
    "platform": "ps2",
    "runtime": 1,
    "title": "龍が如く2 (Ryuu ga Gotoku 2)",
@@ -806,7 +806,7 @@
   },
   "SLPM-86111": {
    "path": "scripts/ps1/SLPM-86111.lua",
-   "sha256": "9453eea71f0c826c845623f98edd8605726650b93649dddeb6afec18a810291c",
+   "sha256": "39718132ea95c1e4dcd5866edd0ea44079649b5bfbf9062f7f43c444b7aae3fb",
    "platform": "ps1",
    "runtime": 1,
    "title": "メタルギアソリッド (Metal Gear Solid)",
@@ -818,7 +818,7 @@
    "data": {
     "glyphs": {
      "path": "games/ps1/SLPM-86111.glyphs",
-     "sha256": "459e0b42f30d86568d4eda01ad1093bc75ca767250242d296f6d3beb8e12f413"
+     "sha256": "89938ae599b834bc03a096fad7b02fa64bf94e6d1aa8d05944b611c8e55fab57"
     },
     "tbl": {
      "path": "games/ps1/SLPM-86111.tbl",

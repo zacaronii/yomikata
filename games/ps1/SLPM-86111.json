@@ -24,9 +24,10 @@
     "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
     "The kanji read off the game's own pictures of them: the fixed font in main memory, and the pictures each scene and radio call brings; a second reader (manga-ocr) beside, and every one read in the sentences it stands in",
     "Played from power-on: the opening film, the briefing's first tape, the dock's opening with its first radio call, and a call made from the dock",
-    "What the script said in play agreed with the lines read off 119 of 123 pictures, over 4 scenes; the 4 others also show names drawn as pictures, which it doesn't read. It read nothing on 8 screens that show no line"
+    "What the script said in play agreed with the lines read off 119 of 123 pictures, over 4 scenes; the 4 others also show names drawn as pictures, which it doesn't read. It read nothing on 8 screens that show no line",
+    "The lists and calls of both discs found where they lie (tools/scripts/mgs_lines.py): 1,439 distinct pictures of kanji. The 250 most used after those of the lines played were read in their lines (yomikata unread) and each held large against its reading a second time"
   ],
-  "notes": "Read by the script games/ps1/SLPM-86111.lua; there is no layout. Only disc 1 was played, as far as the dock. A scene, a film or a radio call brings a list of its lines, each shown for its time; a word points at the one on screen. Two bytes a character: kana by Unicode's order, the fixed font's signs and kanji by the table, and the kanji a list brings with it by a hash of each one's picture (SLPM-86111.glyphs). That file has the 188 pictures of the lines played so far; other kanji come out as U+FFFD. Who speaks, menus, the memory card's messages and names drawn over a scene aren't read.",
+  "notes": "Read by the script games/ps1/SLPM-86111.lua. Only disc 1 was played, as far as the dock. A scene, a film or a radio call brings a list of its lines, each shown for its time; a word points at the one on screen. Two bytes a character: kana by Unicode's order, the fixed font's signs and kanji by the table, and the kanji a list brings with it by a hash of each one's picture (SLPM-86111.glyphs). That file has 438 of the discs' 1,439 pictures, the most used (83 in 100 of all uses); the others come out as U+FFFD. Who speaks, menus, the memory card's messages and names drawn over a scene aren't read.",
   "tables": [
     "tables/ps1/SLPM-86111.tbl"
   ],

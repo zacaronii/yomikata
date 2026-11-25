@@ -176,6 +176,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dictionary", type=Path, required=True, help="the script's dictionary: games/<platform>/<id>.glyphs")
     p.add_argument("--sheet", type=Path, help="write the unread pictures as a PNG, to scratch; and beside it, as <name>-rows.png, the rows of text the script logged them in")
     p.add_argument("--columns", type=int, default=16, help="pictures a row of the sheet (default 16)")
+    p.add_argument("--font", type=Path, help="a font file for the characters a logged row has as text (a script that knows part of a row by code): they are drawn with it on the rows' sheet and for the second reader")
+    p.add_argument("--each", type=int, default=2, help="rows drawn for each unread picture (default 2)")
+    p.add_argument("--most", type=int, default=0, help="read and draw only the first so many unread pictures, as logged (default: all)")
     p.add_argument("--second", type=Path, help="a scratch file of the second reader's readings (hash, a tab, what it takes the picture for alone, then for each logged row it read to the right length, the character there): those it lacks are read now, where manga-ocr is installed")
     p.add_argument("--row", nargs="+", default=[], metavar="NUMBER=TEXT", help="a row read whole, by its number on the rows' sheet: each of its pictures takes the character that stands there (spaces don't count)")
     p.add_argument("--add", nargs="+", default=[], metavar="HASH=CHARACTER", help="readings into the dictionary, each by the start of its hash (four digits as on the sheet); HASH= takes one out")
@@ -348,7 +351,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{len(both)} readings added that the second reader has read: {len(both) - len(differ)} the same, "
                   f"{len(differ)} that differ", file=sys.stderr)
         todo = {mark: picture for mark, picture in pictures.items() if mark not in known}
-        lines = unread.rows_to_read(unread.rows(logs), todo)
+        left = len(todo)
+        if args.most > 0:
+            todo = dict(list(todo.items())[:args.most])
+        font = unread.font_of(args.font, max((p.height for p in pictures.values()), default=1))
+        lines = unread.rows_to_read(unread.rows(logs), todo, max(1, args.each))
         readings = {}
         if args.second:
             if args.second.is_file():
@@ -357,7 +364,7 @@ def main(argv: list[str] | None = None) -> int:
             if lacking:
                 try:
                     alone = unread.second(lacking)
-                    in_rows = unread.second_rows([row for row in lines.values() if any(m in lacking for m in row)], pictures)
+                    in_rows = unread.second_rows([row for row in lines.values() if any(m in lacking for m in row)], pictures, font=font)
                     readings.update({mark: alone[mark] + "".join(" " + c for c in in_rows.get(mark, [])) for mark in lacking})
                 except RuntimeError as e:
                     print(e, file=sys.stderr)
@@ -367,10 +374,10 @@ def main(argv: list[str] | None = None) -> int:
         for character, marks in gl.twice(known).items():
             print(f"{character} is given to {len(marks)} pictures in the dictionary: {' '.join(marks)}", file=sys.stderr)
         if args.sheet and todo:
-            unread.sheet(todo, args.columns).save(args.sheet)
+            unread.sheet(todo, args.columns, names=pictures).save(args.sheet)
             if lines:
-                unread.row_sheet(lines, pictures, todo).save(args.sheet.with_name(args.sheet.stem + "-rows" + args.sheet.suffix))
-        print(f"{len(pictures)} pictures logged, {len(pictures) - len(todo)} in the dictionary, {len(todo)} to read"
+                unread.row_sheet(lines, pictures, todo, font=font).save(args.sheet.with_name(args.sheet.stem + "-rows" + args.sheet.suffix))
+        print(f"{len(pictures)} pictures logged, {len(pictures) - left} in the dictionary, {left} to read"
               + (f": {args.sheet}" if args.sheet and todo else ""), file=sys.stderr)
         return 0
     if args.cmd == "sorted":

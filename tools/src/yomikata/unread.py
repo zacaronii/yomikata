@@ -43,13 +43,27 @@ def logged(text: str) -> dict[str, Picture]:
     return out
 
 
-def sheet(pictures: dict[str, Picture], columns: int = 16, scale: int = 3):
-    """The pictures side by side, strokes white, each under the start of its hash."""
+def starts(marks) -> dict[str, str]:
+    """For each hash the start of it that no other of them begins with, four digits or more: what a sheet
+    labels a picture with, and what a reading is given by."""
+    marks = sorted(set(marks))
+    out = {}
+    for i, mark in enumerate(marks):
+        near = [m for m in (marks[i - 1] if i else "", marks[i + 1] if i + 1 < len(marks) else "") if m]
+        same = max((next((k for k in range(len(mark)) if mark[k] != m[k]), len(mark)) for m in near), default=0)
+        out[mark] = mark[:max(4, same + 1)]
+    return out
+
+
+def sheet(pictures: dict[str, Picture], columns: int = 16, scale: int = 3, names=None):
+    """The pictures side by side, strokes white, each under the start of its hash: as much of it as tells it
+    from every other hash in `names` (default: these pictures')."""
     import numpy as np
     from PIL import Image, ImageDraw
+    short = starts(names or pictures)
     width = max((p.width for p in pictures.values()), default=1) * scale + 12
     height = max((p.height for p in pictures.values()), default=1) * scale + 16
-    width = max(width, 40)
+    width = max(width, 8 + 7 * max((len(v) for v in short.values()), default=4))
     image = Image.new("L", (columns * width, max(1, (len(pictures) + columns - 1) // columns) * height), 40)
     draw = ImageDraw.Draw(image)
     for i, (mark, picture) in enumerate(pictures.items()):
@@ -57,18 +71,19 @@ def sheet(pictures: dict[str, Picture], columns: int = 16, scale: int = 3):
         grey = (picture.pixels().astype(np.uint16) * 255 // ((1 << picture.bits) - 1)).astype(np.uint8)
         image.paste(Image.fromarray(grey).resize((picture.width * scale, picture.height * scale), Image.NEAREST),
                     (x + 4, y + 13))
-        draw.text((x + 4, y + 1), mark[:4], fill=255)
+        draw.text((x + 4, y + 1), short[mark], fill=255)
     return image
 
 
-ROW = re.compile(r"glyph-line((?: (?:[0-9A-Fa-f]{16}|_))+)")
+ROW = re.compile(r"glyph-line((?: (?:[0-9A-Fa-f]{16}|_|=\S+))+)")
 
 
 def rows(text: str) -> list[list[str | None]]:
-    """The rows of text logged with the pictures: each the hashes of its pictures in order, None for a space."""
+    """The rows of text logged with the pictures. Each is its marks in order: a picture's hash, None for a
+    space, or "=" and the characters that stand there as text (a script that knows part of a row by code)."""
     out = []
     for marks in ROW.findall(text):
-        row = [None if mark == "_" else mark.upper() for mark in marks.split()]
+        row = [None if mark == "_" else mark if mark[0] == "=" else mark.upper() for mark in marks.split()]
         if row not in out:
             out.append(row)
     return out
@@ -88,80 +103,140 @@ def rows_to_read(rows: list[list[str | None]], unread, most: int = 2) -> dict[in
     return out
 
 
-def _strip(row: list[str | None], pictures: dict[str, Picture], height: int):
-    """A row's pictures side by side as values from 0 to 255, and where each begins; None for one not logged."""
+def _written(text: str, height: int, font):
+    """Characters a row has as text, drawn with a font when one is given, else left as an empty stretch."""
+    import numpy as np
+    from PIL import Image, ImageDraw
+    width = sum(height // 2 if ord(c) < 0x80 else height for c in text)
+    image = Image.new("L", (max(1, width), height), 0)
+    if font is not None:
+        draw, x = ImageDraw.Draw(image), 0
+        for c in text:
+            draw.text((x, 0), c, fill=160, font=font)          # greyer than a picture: told apart at a glance
+            x += height // 2 if ord(c) < 0x80 else height
+    return np.asarray(image)
+
+
+def _strip(row: list[str | None], pictures: dict[str, Picture], height: int, font=None):
+    """A row's pictures side by side as values from 0 to 255, and where each mark begins; None for a row
+    with a picture that wasn't logged."""
     import numpy as np
     parts, starts, x = [], [], 0
     for mark in row:
-        picture = pictures.get(mark) if mark else None
-        if mark and picture is None:
-            return None, []
-        grey = (np.zeros((height, height // 2), dtype=np.uint8) if picture is None else
-                (picture.pixels().astype(np.uint16) * 255 // ((1 << picture.bits) - 1)).astype(np.uint8))
-        grey = np.pad(grey, ((0, max(0, height - grey.shape[0])), (0, 0)))[:height]
+        if mark and mark[0] == "=":
+            grey = _written(mark[1:], height, font)
+        else:
+            picture = pictures.get(mark) if mark else None
+            if mark and picture is None:
+                return None, []
+            grey = (np.zeros((height, height // 2), dtype=np.uint8) if picture is None else
+                    (picture.pixels().astype(np.uint16) * 255 // ((1 << picture.bits) - 1)).astype(np.uint8))
+            grey = np.pad(grey, ((0, max(0, height - grey.shape[0])), (0, 0)))[:height]
         parts.append(grey)
         starts.append(x)
         x += grey.shape[1]
     return (np.hstack(parts) if parts else np.zeros((height, 1), dtype=np.uint8)), starts
 
 
-def row_sheet(rows: dict[int, list[str | None]], pictures: dict[str, Picture], unread, scale: int = 2):
-    """Rows of text drawn whole, a row a line under its number, the start of its hash over each picture that
-    has no reading."""
+def font_of(path, height: int):
+    """A font file for the characters a row has as text, at the pictures' height; None without a path."""
+    if path is None:
+        return None
+    from PIL import ImageFont
+    return ImageFont.truetype(str(path), height)
+
+
+def row_sheet(rows: dict[int, list[str | None]], pictures: dict[str, Picture], unread, scale: int = 2, font=None):
+    """Rows of text drawn whole, a row a line under its number, the start of its hash (`starts`) over each
+    picture that has no reading. What a row has as text is drawn with `font` (font_of), greyer than the
+    pictures."""
     from PIL import Image, ImageDraw
     height = max((p.height for p in pictures.values()), default=1)
-    strips = [(number, row, *_strip(row, pictures, height)) for number, row in rows.items()]
+    strips = [(number, row, *_strip(row, pictures, height, font)) for number, row in rows.items()]
     strips = [found for found in strips if found[2] is not None]
-    step, left = height * scale + 16, 40
-    image = Image.new("L", (left + max((s.shape[1] for _, _, s, _ in strips), default=1) * scale + 8,
+    short = starts(pictures)
+    step, left = height * scale + 26, 40
+    image = Image.new("L", (left + max((s.shape[1] for _, _, s, _ in strips), default=1) * scale + 48,
                             max(1, len(strips)) * step), 40)
     draw = ImageDraw.Draw(image)
-    for i, (number, row, strip, starts) in enumerate(strips):
+    for i, (number, row, strip, places) in enumerate(strips):
         draw.text((2, i * step + step // 2), str(number), fill=255)
         image.paste(Image.fromarray(strip).resize((strip.shape[1] * scale, height * scale), Image.NEAREST),
-                    (left, i * step + 13))
-        for mark, x in zip(row, starts):
-            if mark in unread:
-                draw.text((left + x * scale, i * step + 1), mark[:4], fill=255)
+                    (left, i * step + 23))
+        labelled = 0
+        for mark, x in zip(row, places):
+            if mark in unread:                              # on two lines by turns, so that neighbours' don't run together
+                draw.text((left + x * scale, i * step + 1 + 10 * (labelled % 2)), short[mark], fill=255)
+                labelled += 1
     return image
+
+
+def _fit(row: list[str | None], characters: list[str]) -> dict[str, str] | None:
+    """A row's pictures each with the character that stands at its place in a reading of the whole row, spaces
+    left out; None when the reading is of another length. Where the row has text, the reading must have the
+    same characters there: a KeyError names the first that differs."""
+    places = []
+    for mark in row:
+        if mark and mark[0] == "=":
+            places += [("=", c) for c in mark[1:] if not c.isspace()]
+        elif mark:
+            places.append(("picture", mark))
+    if len(places) != len(characters):
+        return None
+    out: dict[str, str] = {}
+    for (kind, mark), character in zip(places, characters):
+        if kind == "=":
+            if mark != character:
+                raise KeyError(f"the row has {mark} where the reading has {character}")
+        elif out.setdefault(mark, character) != character:
+            raise KeyError(f"{mark[:4]} was read as {out[mark]} and as {character}")
+    return out
 
 
 def row_readings(rows: list[list[str | None]], read: dict[int, str]) -> dict[str, str]:
     """Rows read whole, each by its number: the row's characters as they stand, spaces left out, a character
-    for each picture. Gives each picture's hash and its character; a row read to another length than it has
-    pictures, or a picture read as two characters, is an error."""
+    for each picture. Gives each picture's hash and its character. An error: a row read to another length
+    than it has places, a picture read as two characters, a character that differs from the row's own text."""
     out: dict[str, str] = {}
     for number, line in read.items():
-        marks = [mark for mark in rows[number] if mark] if 0 <= number < len(rows) else None
         characters = [c for c in line if not c.isspace()]
-        if marks is None or len(marks) != len(characters):
-            raise ValueError(f"row {number} has {len(marks or [])} pictures, and was read as {len(characters)} characters")
-        for mark, character in zip(marks, characters):
+        try:
+            found = _fit(rows[number], characters) if 0 <= number < len(rows) else None
+        except KeyError as e:
+            raise ValueError(f"row {number}: {e.args[0]}") from None
+        if found is None:
+            raise ValueError(f"row {number} wasn't read to its length: {len(characters)} characters")
+        for mark, character in found.items():
             if out.setdefault(mark, character) != character:
                 raise ValueError(f"row {number}: {mark[:4]} was read as {out[mark]} and as {character}")
     return out
 
 
-def second_rows(rows: list[list[str | None]], pictures: dict[str, Picture], reader=None) -> dict[str, list[str]]:
+def second_rows(rows: list[list[str | None]], pictures: dict[str, Picture], reader=None, font=None) -> dict[str, list[str]]:
     """The second reader on whole rows: it reads a line of text better than a character alone. Where it gives
-    as many characters as the row has pictures, each picture takes its character: a picture to what it was
-    taken for, row by row."""
+    as many characters as the row has places, and the row's own text where the row has text, each picture
+    takes its character: a picture to what it was taken for, row by row."""
     from PIL import Image
     from . import glyphread
     reader = reader or glyphread.second_reader()
     height = max((p.height for p in pictures.values()), default=1)
     out: dict[str, list[str]] = {}
     for row in rows:
-        strip, _ = _strip(row, pictures, height)
+        if font is None and any(mark and mark[0] == "=" for mark in row):
+            continue                                        # text that can't be drawn: nothing whole to read
+        strip, _ = _strip(row, pictures, height, font)
         if strip is None:
             continue
-        page = Image.fromarray(255 - strip)
-        page = page.resize((page.width * 3, page.height * 3), Image.BILINEAR).convert("RGB")
+        page = Image.fromarray(255 - (strip.astype("uint16") * 255 // max(1, int(strip.max()))).astype("uint8"))
+        times = max(1, 72 // height)
+        page = page.resize((page.width * times, page.height * times), Image.BILINEAR).convert("RGB")
         read = re.sub(r"[．・.]{2,}", "…", "".join(reader(page).split()))
-        marks = [mark for mark in row if mark]
-        if len(read) == len(marks):
-            for mark, character in zip(marks, read):
-                out.setdefault(mark, []).append(character)
+        try:
+            found = _fit(row, list(read))
+        except KeyError:
+            continue
+        for mark, character in (found or {}).items():
+            out.setdefault(mark, []).append(character)
     return out
 
 

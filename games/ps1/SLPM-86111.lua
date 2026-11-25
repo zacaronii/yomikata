@@ -27,8 +27,8 @@
 --           from 1 in the order the list first uses them, and GLYPHS points at them (RADIO_GLYPHS at a
 --           call's). So one code is another kanji in every list, and nothing in memory says which. A picture
 --           is known here by a hash of its 36 bytes, and the file of glyphs beside this script says which
---           kanji each hash is: they were read off the pictures. A picture that file hasn't got comes out as
---           U+FFFD; it has those of the lines played through so far.
+--           kanji each hash is: they were read off the pictures, in lines found on the discs. A picture that
+--           file hasn't got comes out as U+FFFD: it has the most used, some four uses in five.
 --
 -- Not covered: who speaks (a radio call shows faces and a frequency, a scene nothing); the menus, the item
 -- window and the radio's own screen; the memory card's messages; names and cards drawn over a scene as
@@ -58,10 +58,8 @@ for code, character in pairs(tbl.parse(source).chars) do
     characters[string.unpack(">I2", code) & 0x1FFF] = character
 end
 
-local pictures = {} -- a picture's hash -> its kanji
-for hash, character in (reader.data("glyphs") or ""):gmatch("(%x+)=([^\r\n]+)") do
-    pictures[hash:lower()] = character
-end
+-- A picture's hash -> its kanji. One the file hasn't got is logged, for `yomikata unread` (lib/glyphs.lua).
+local dictionary = require("lib.glyphs").open(reader.data("glyphs"))
 
 local HASH, OPEN, CLOSE, BAR, COMMA, LETTER_N, DASH = 0x23, 0x7B, 0x7D, 0x7C, 0x1002, 0x4E, 0x1006
 local OWN, CALLS = 0x1C00, 0x1600 -- codes above them are a list's own kanji, and a radio call's
@@ -72,7 +70,7 @@ local function character(code)
         local own = code > OWN
         local glyphs = mem.u32(own and GLYPHS or RADIO_GLYPHS)
         local picture = glyphs and mem.read(glyphs + GLYPH * (code - (own and OWN or CALLS) - 1), GLYPH)
-        return picture and #picture == GLYPH and pictures[text.hash(picture)] or "\u{FFFD}"
+        return picture and #picture == GLYPH and dictionary:read(picture, 12, 12, 2) or "\u{FFFD}"
     elseif code >= 0x1000 then
         return characters[code] or "\u{FFFD}"
     elseif code >= 0x200 then
