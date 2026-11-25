@@ -1100,9 +1100,10 @@ class Session:
           size=("integer", "bytes of a code: 1 or 2 (default 2)", False),
           least=("string", "codes below this aren't characters, hex (default 1)", False),
           below=("string", "nor codes from this on, hex (default 1000)", False),
-          name=("string", "the sheet's name in scratch (default glyphs)", False))
+          name=("string", "the sheet's name in scratch (default glyphs)", False),
+          prefix=("string", "names the snaps the steps take, as `steps` does (default step)", False))
     def glyph_pairs(self, picture: str, rows: int, steps: list, row_bytes: int = 2, queue: str = "", code: str = "",
-                    size: int = 2, least: str = "1", below: str = "1000", name: str = "glyphs"):
+                    size: int = 2, least: str = "1", below: str = "1000", name: str = "glyphs", prefix: str = "step"):
         import numpy as np
         from .. import glyphs as sheets
         machine = self._need()
@@ -1141,7 +1142,7 @@ class Session:
                 state["new"] += 1
         self.each_frame = frame
         try:
-            played = self.steps(steps)
+            played = self.steps(steps, prefix=prefix)
         finally:
             self.each_frame = None
         if isinstance(played, tuple):
