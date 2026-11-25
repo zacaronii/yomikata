@@ -31,6 +31,7 @@ class FakeMachine:
     def __init__(self, core_path, game, platform, system_dir, options):
         self.platform, self.options, self.frames = platform, options, 0
         self.memory = bytearray(0x1000)
+        struct.pack_into(">hh", self.memory, 0x30, 100, 80)
         self._step(set(), (0.0, 0.0))
 
     def _step(self, buttons, stick):
@@ -39,6 +40,13 @@ class FakeMachine:
         m[0x20] = 1 if "a" in buttons else 0
         struct.pack_into(">bb", m, 0x24, round(stick[0] * 100), round(stick[1] * 100))
         struct.pack_into(">I", m, 0x40, BASE + 0x100)
+        x, y = struct.unpack_from(">hh", m, 0x30)                       # a cursor the arrows move, two a frame
+        if "b" in buttons:
+            m[0x34] = 0                                                 # b closes the menu that holds the cursor
+        if not m[0x34]:
+            x += 2 * (("right" in buttons) - ("left" in buttons))
+            y += 2 * (("down" in buttons) - ("up" in buttons))
+        struct.pack_into(">hh", m, 0x30, max(0, min(x, 319)), max(0, min(y, 239)))
         line = self.LINES[(self.frames // 10) % 3].encode("cp932")
         m[0x100:0x120] = line + bytes(0x20 - len(line))
 
@@ -1129,3 +1137,34 @@ def test_read_shows_memory_as_text_in_the_games_own_codes(session):
     for bad in ({"rules": ["code = JIS * 2"]}, {"rules": ["code = 0x10 - Morse"]}, {"table": "zz=あ"}, {"rules": ["code = JIS + 0x1"], "unit": 3}):
         with pytest.raises(HarnessError):
             session.read("0x80000A40", 4, **bad)
+
+
+def test_a_cursor_is_found_and_moved_to_a_place(session):
+    with pytest.raises(HarnessError, match="cursor_find"):
+        session.cursor_to(10, 10)
+    found = session.cursor_find()
+    assert (found["x_address"], found["y_address"], found["size"]) == ("0x80000030", "0x80000032", 2)
+    assert (found["x"], found["y"]) == (100, 80) and found["moved"] == {"right": 12, "down": 12, "frames": 6}
+    out = session.cursor_to(151, 40)
+    assert (out["x"], out["y"], out["reached"]) == (150, 40, True)        # two a frame: as near as 1
+    assert session.cursor_to() == {"x": 150, "y": 40, "frames": out["frames"]}
+    out = session.cursor_to(400, 40, limit=30)                           # past the edge: as near as it gets
+    assert out["reached"] is False and out["ran"] >= 30 and out["x"] == 210
+    other = session.cursor_to(0, 0, x_address="0x80000030", y_address="0x80000032", size=2)
+    assert (other["x"], other["y"]) == (0, 0)
+    session.machine.memory[0x34] = 1                                    # a menu is open: the cursor is held
+    assert session.cursor_to(20, 20, limit=60)["reached"] is False
+    out = session.cursor_to(20, 20, if_stuck="b")
+    assert out["reached"] is True and out["pressed"] == 1
+
+
+@needs_reader
+def test_steps_press_until_the_script_has_been_quiet(session):
+    session.script_try(SCRIPT)                                           # it says a line every ten frames
+    out = session.steps([{"buttons": ["a"], "hold": 1, "wait": 2, "times": 30, "until_quiet": 2}, {"wait": 1}])
+    rows = out["steps"]
+    stopped = [i for i, r in enumerate(rows) if r.get("stopped") == "quiet"]
+    assert stopped == [len(rows) - 2] and len(rows) < 8 and rows[-1]["step"] == 30
+    assert not rows[stopped[0]].get("events") and not rows[stopped[0] - 1].get("events")
+    with pytest.raises(HarnessError):
+        session.steps([{"wait": 1, "until_quiet": 2}], on={"dialogue": [{"wait": 1, "until_quiet": 1}]})

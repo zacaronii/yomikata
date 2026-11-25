@@ -34,7 +34,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `load` | A game in a core, from power-on or from a savestate (one saved here, or a reader's in the inbox) |
 | `run` | N frames with buttons and the left stick held. With a script loaded, what it emitted on the way |
 | `run_until` | Runs until a place in memory changes or holds a value, the script emits something, or the picture has stood still; at most a given number of frames. Says how far it ran and why it stopped |
-| `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap (also every few frames of a wait), take pictures. The pictures come back as one sheet. With a script loaded: stop repeating when it says something (`until_event`), and steps to do whenever it does (`on`: press down and confirm at each choice) |
+| `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap (also every few frames of a wait), take pictures. The pictures come back as one sheet. With a script loaded: stop repeating when it says something (`until_event`) or has said nothing for some presses (`until_quiet`), and steps to do whenever it does (`on`: press down and confirm at each choice) |
 | `screenshot` | The picture now |
 | `read` | Memory by address, a region by offset; also as text in the game's own codes, through a table and rules as `code_rule` words them |
 | `find` | Where a text or bytes stand, in live memory or in snaps. A text is looked for in Shift-JIS, EUC-JP, UTF-16 either way, UTF-8, Shift-JIS as 16-bit little-endian numbers, and the game's own table when one is given; in parts too, when the whole isn't found |
@@ -52,6 +52,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `changed` | Places that differ between two snaps, the same as the first in some others and as the second in others: a flag, a counter, a cursor. Or places that go as a pattern says over snaps in order: `abab`, or `aAaA` for one value and anything else in turn |
 | `entered` | Reads a name off a naming screen from a snap after each character: where the name is, each character's code, the rule kana codes follow, lines of a table |
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
+| `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
 | `watch` | Runs the game and lists each change of a place in memory with its frame |
 | `code_rule` | What arithmetic ties codes to characters, kind by kind, from a few characters and their codes; or that the codes only keep JIS order |
 | `vram_picture` | A rectangle of video memory as a picture: frames, textures, a glyph cache (PlayStation) |

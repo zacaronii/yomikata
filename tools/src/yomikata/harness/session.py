@@ -78,6 +78,7 @@ class Session:
         # The way here: where it starts ("power-on", or a state it can't see behind) and every move since, as
         # [frames, buttons, stick] or {"poke": address, "hex": bytes}. A waypoint keeps it.
         self.route: dict = {"base": "power-on", "moves": []}
+        self.cursor_at: tuple[int, int, int] | None = None
         self.core_hash = None
         self.snaps: dict[str, Snap] = {}
         # The session's first snap, whole on disk: the later ones are kept as what differs from it.
@@ -376,7 +377,9 @@ class Session:
           on=("object", "what to do when the script says something: a kind of event (text, dialogue, choice, "
                         "any) and the steps to do right after the step it came in, e.g. {\"choice\": [{\"buttons\": "
                         "[\"down\"]}, {\"buttons\": [\"a\"], \"wait\": 30}]}. A step with times and "
-                        "until_event (a kind) stops repeating once such an event has come", False),
+                        "until_event (a kind) stops repeating once such an event has come; with until_quiet (a "
+                        "number) it stops once that many repetitions in a row brought nothing: press through "
+                        "a conversation of unknown length", False),
           prefix=("string", "names snaps taken with snap: true, as <prefix>-000, -001, … (default: step)", False),
           columns=("integer", "pictures across the sheet (default 4)", False),
           scale=("number", "each picture's scale on the sheet (default 1: text stays readable)", False))
@@ -385,14 +388,15 @@ class Session:
         machine, prefix = self._need(), self._name(prefix)
         if not isinstance(steps, list) or not steps or not all(isinstance(s, dict) for s in steps):
             raise HarnessError("steps is a list of objects")
-        known = {"buttons", "stick", "hold", "wait", "until", "times", "snap", "shot", "every", "until_event"}
+        known = {"buttons", "stick", "hold", "wait", "until", "times", "snap", "shot", "every", "until_event",
+                 "until_quiet"}
         kinds = ("text", "any", *STORY)
         on = dict(on or {})
-        if on or any("until_event" in step for step in steps):
+        if on or any("until_event" in step or "until_quiet" in step for step in steps):
             if self.reader is None:
                 raise HarnessError("no script is loaded to say anything: call script_try first")
             if set(on) - set(kinds) or any(step.get("until_event", "text") not in kinds for step in steps) or not all(
-                    isinstance(v, list) and v and all(isinstance(x, dict) and not set(x) - (known - {"until_event", "times"})
+                    isinstance(v, list) and v and all(isinstance(x, dict) and not set(x) - (known - {"until_event", "until_quiet", "times"})
                                                       for x in v) for v in on.values()):
                 raise HarnessError("on and until_event take: text, dialogue, choice or any; on gives steps for each")
         plan, during = [], 0
@@ -419,6 +423,7 @@ class Session:
 
         events, done, shots, why, left = [], [], [], None, 0
         queue, number, skipping, extra, answers = list(plan), -1, None, 0, 0
+        quiet: dict[int, int] = {}
         while queue:
             step = queue.pop(0)
             answer = step.get("_answer")
@@ -474,6 +479,10 @@ class Session:
             if not answer:
                 if "until_event" in step and came(step["until_event"], before):
                     row["stopped"], skipping = "event", step
+                if "until_quiet" in step:                   # so many times in a row with nothing said
+                    quiet[id(step)] = 0 if came("any", before) else quiet.get(id(step), 0) + 1
+                    if quiet[id(step)] >= max(1, int(step["until_quiet"])):
+                        row["stopped"], skipping = "quiet", step
                 # What the script said in this step decides what comes next: the first kind of `on` it fits.
                 kind = next((k for k in on if came(k, before)), None)
                 if kind and extra < MAX_STEPS:
@@ -1029,6 +1038,112 @@ class Session:
             raise HarnessError(str(e)) from None
         return {"pixels": [int(pixels.shape[1]), int(pixels.shape[0])], "values": sorted(int(v) for v in set(pixels.ravel())),
                 "found": [{**f, "at": f"0x{base + f['at']:08X}"} for f in found]}
+
+    def _cursor_cells(self, x_address: str, y_address: str, size: int):
+        if x_address and y_address:
+            self.cursor_at = (int(x_address, 16), int(y_address, 16), int(size))
+        if getattr(self, "cursor_at", None) is None:
+            raise HarnessError("where the cursor is kept isn't known yet: call cursor_find, or give x_address and y_address")
+        return self.cursor_at
+
+    @tool("Finds where the game keeps a cursor it moves with the pad: moves it right, left, down and up a few "
+          "frames each and looks for a place that follows the sideways moves only, and one that follows the "
+          "others only. The cursor ends where it began, give or take. The places are remembered for cursor_to.",
+          frames=("integer", "frames each way (default 6)", False),
+          stick=("boolean", "move with the left stick instead of the pad's arrows", False))
+    def cursor_find(self, frames: int = 6, stick: bool = False) -> dict:
+        import numpy as np
+        machine = self._need()
+        frames, events = max(2, min(int(frames), 60)), []
+
+        def moved(direction):
+            held = set() if stick else {direction}
+            where = {"right": (1.0, 0.0), "left": (-1.0, 0.0), "down": (0.0, 1.0), "up": (0.0, -1.0)}[direction] if stick \
+                else (0.0, 0.0)
+            self._advance(frames, held, where, events)
+            self._advance(2, set(), (0.0, 0.0), events)
+            return machine.ram()
+        base, start = machine.ram()
+        shots = [start] + [moved(d)[1] for d in ("right", "left", "down", "up")]
+        found = {}
+        for size in (2, 4, 1):
+            kind = {1: "u1", 2: "<i2", 4: "<i4"}[size] if machine.platform not in ("gc", "wii") else {1: "u1", 2: ">i2", 4: ">i4"}[size]
+            cut = len(start) // size * size
+            s0, r, l, d, u = (np.frombuffer(x[:cut], dtype=kind).astype(np.int64) for x in shots)
+            xs = np.nonzero((r > s0) & (l < r) & (d == l) & (u == l))[0]
+            ys = np.nonzero((r == s0) & (l == s0) & (d > l) & (u < d))[0]
+            if len(xs) and len(ys):
+                found = {"size": size, "x": [int(i) * size + base for i in xs[:8]], "y": [int(i) * size + base for i in ys[:8]],
+                         "x_moved": {int(i) * size + base: int(r[i] - s0[i]) for i in xs[:8]},
+                         "y_moved": {int(i) * size + base: int(d[i] - l[i]) for i in ys[:8]}}
+                break
+        if not found:
+            raise HarnessError("no place followed the moves: is a cursor on screen, and does the pad move it?")
+        # The pair that lie closest together: a cursor's x and y are kept side by side.
+        x, y = min(((a, b) for a in found["x"] for b in found["y"]), key=lambda p: abs(p[0] - p[1]))
+        self.cursor_at = (x, y, found["size"])
+        return {"x_address": f"0x{x:08X}", "y_address": f"0x{y:08X}", "size": found["size"],
+                "x": self._cell(x, found["size"]), "y": self._cell(y, found["size"]),
+                "moved": {"right": found["x_moved"][x], "down": found["y_moved"][y], "frames": frames},
+                "candidates": {"x": [f"0x{a:08X}" for a in found["x"]], "y": [f"0x{a:08X}" for a in found["y"]]},
+                "frame": machine.frames}
+
+    @tool("Moves the cursor to a place, in the game's own numbers for it (cursor_find says where they are kept "
+          "and how far a few frames move it; the picture says what the numbers mean): holds the pad a frame "
+          "at a time until the cursor is there, or as near as it gets, letting go between pushes when it is "
+          "close. Without x and y, only says where it is.",
+          x=("integer", "where to, across", False), y=("integer", "where to, down", False),
+          x_address=("string", "where the game keeps the cursor's x, hex (default: as cursor_find found)", False),
+          y_address=("string", "and its y", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
+          near=("integer", "how near is near enough (default 1)", False),
+          limit=("integer", "at most this many frames (default 600)", False),
+          if_stuck=("string", "a button to press when the cursor won't move (a menu or a bubble is open): "
+                              "pressed once, then again if it still won't, e.g. b", False))
+    def cursor_to(self, x: int | None = None, y: int | None = None, x_address: str = "", y_address: str = "",
+                  size: int = 2, near: int = 1, limit: int = 600, if_stuck: str = "") -> dict:
+        machine = self._need()
+        at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
+
+        def now():
+            def signed(value):
+                return value - (1 << 8 * size) if value is not None and size > 1 and value >> (8 * size - 1) else value
+            return signed(self._cell(at_x, size)), signed(self._cell(at_y, size))
+        events, ran, why = [], 0, None
+        unstick, still, pressed, last = self._buttons([if_stuck]) if if_stuck else set(), 0, 0, None
+        if x is not None and y is not None:
+            near, limit = max(0, int(near)), max(1, min(int(limit), MAX_FRAMES))
+            while ran < limit and not why:
+                cx, cy = now()
+                if cx is None or cy is None:
+                    raise HarnessError("the cursor's places can't be read")
+                still = still + 1 if (cx, cy) == last else 0
+                last = (cx, cy)
+                if still >= 24 and unstick and pressed < 2:
+                    _, why = self._advance(3, unstick, (0.0, 0.0), events)
+                    if not why:
+                        _, why = self._advance(30, set(), (0.0, 0.0), events)
+                    ran, still, pressed = ran + 33, 0, pressed + 1
+                    continue
+                held = set()
+                if abs(cx - x) > near:
+                    held.add("right" if cx < x else "left")
+                if abs(cy - y) > near:
+                    held.add("down" if cy < y else "up")
+                if not held:
+                    break
+                _, why = self._advance(1, held, (0.0, 0.0), events)
+                ran += 1
+                # Near the place, a frame's push and then let go: a cursor may gather speed while held, and
+                # run on after.
+                if not why and max(abs(cx - x), abs(cy - y)) <= 16:
+                    _, why = self._advance(2, set(), (0.0, 0.0), events)
+                    ran += 2
+            self._advance(2, set(), (0.0, 0.0), events)
+        cx, cy = now()
+        return {"x": cx, "y": cy, "frames": machine.frames, **({"ran": ran} if ran else {}),
+                **({"stopped": why} if why else {}), **({"pressed": pressed} if pressed else {}),
+                **({"reached": abs(cx - x) <= max(0, int(near)) and abs(cy - y) <= max(0, int(near))} if x is not None and y is not None else {}),
+                **({"events": events} if self.reader is not None and events else {})}
 
     @tool("Runs the game and lists each change of a place in memory with its frame: how a pointer, a counter "
           "or a flag goes while something happens (a line types, a page turns).",
