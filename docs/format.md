@@ -55,10 +55,36 @@ or a CRC-32 of the header (cartridges). A client that finds no match should warn
 | `layouts` | Where the game keeps what it shows, for readers that read memory instead of hooking (see Layouts) |
 | `status` | `verified` (confirmed in play), `auto` (built by tools, passed validation), `partial` (known gaps) |
 | `coverage` | `{chars_in_table, chars_seen_in_script}` |
+| `tuning` | `{"<libretro core id>": {"step", "measured_on"?}}`: the step a player app should start this game at in that core (see Tuning) |
 | `sources` | Where it came from, with credit |
 | `notes` | Short; no script text |
 
 An entry that only says `"encoding": "shift_jis"` is still useful: readers can skip guessing.
+
+## Tuning
+
+`tuning` has nothing to do with text. Some games need a core set faster or plainer than its default to run at
+speed on a handheld, and others can afford better: a player finds the setting once, and the entry keeps it so
+that the app starts the game there next time, on any device.
+
+```json
+"tuning": {"dolphin": {"step": "balanced", "measured_on": "Some Handheld 2"}}
+```
+
+The key is the core's id as the player app names it: lower case, the libretro core's name without `_libretro`
+(`dolphin`, `ppsspp`, `melonds`, `bsnes_mercury`, `pcsx_rearmed`, `mgba`). `step` is one of the steps the
+player app defines for that core, from its fastest to its best-looking: the names are the app's own, a free
+string here, and the catalog doesn't check them against any list.
+
+A step or a core id the player doesn't know isn't an error: it is ignored, and the game starts at the
+player's default. A player's steps can be renamed between its versions, so an entry may outlive the step it
+names.
+
+`measured_on` is optional: the model of the device the step was found on, exactly as Android reports it
+(`Build.MODEL`), and nothing of its owner. A player takes a risky step (one that could make a game unplayable
+on a slower device) only on a device whose model is the same; on any other it takes the nearest safe step.
+
+An entry may have `tuning` and nothing else beyond its identity: it needs no encoding work.
 
 ## Cleanup
 
