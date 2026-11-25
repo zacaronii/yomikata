@@ -1075,3 +1075,57 @@ def test_gakkou_de_atta_kowai_hanashi_text_as_it_types_and_a_choice():
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPS-00404.lua"))
 
+
+# ---- lib/tiles.lua and games/sfc/SHVC-MB.lua ----
+
+def test_tiles_what_a_window_that_types_and_scrolls_has_gained():
+    lua = ('local tiles = require("lib.tiles")\n'
+           'local function split(s) local t = {} for l in s:gmatch("[^|]+") do t[#t + 1] = l end return t end\n'
+           'function gained(a, b) return table.concat(tiles.gained(split(a), split(b)), "|") end')
+    with rd.Reader(sparse({})) as r:
+        r.load(bundle_text(lua))
+        for before, now, want in (("", "a|b", "a|b"), ("a|b", "a|b|c", "c"), ("a|b", "a|bcd", "cd"),
+                                  ("a|b", "a|bcd|e", "cd|e"), ("a|b|c", "b|c|d", "d"), ("a|b|c", "c|d|e", "d|e"),
+                                  ("a|b|c", "b|cx|d", "x|d"), ("a|b", "x|y", "x|y"), ("a|b", "a|b", ""),
+                                  ("a|b|c", "x", "x")):
+            assert r.eval(f'gained("{before}", "{now}")') == want, (before, now)
+
+
+def mb_memory(rows=(), slot: int = 2, table: bytes = b"\x7F\x9C\xDD\x9C\x3B\x9D\x99\x9D\xF7\x9D\x55\x9E"):
+    from yomikata import tbl
+    back = {}
+    for code, ch in tbl.parse((ROOT / "games/sfc/SHVC-MB.tbl").read_text(encoding="utf-8")).chars.items():
+        back.setdefault(ch, code)
+    buffer = bytearray(back["\u3000"] * (0x3F0 // 2))                 # an empty window is blank tiles
+    for i, row in enumerate(rows):
+        cells = b"".join(back[ch] for ch in row.ljust(17, "\u3000"))
+        buffer[i * 68:i * 68 + 34] = cells
+        buffer[i * 68 + 34:i * 68 + 68] = b"\x50\x00" * 17          # the lower halves: not read
+    slots = struct.pack("<8H", 0, slot if rows else 0xFFFF, *([0xFFFF] * 6))
+    return sparse({0x7E514E: table, 0x7E8C26: slots, 0x7E61F6 + 0x3F0 * (slot if rows else 0): bytes(buffer)})
+
+
+def test_mother_2_the_message_window_as_it_types_and_scrolls():
+    data = {"tbl": (ROOT / "games/sfc/SHVC-MB.tbl").read_bytes()}
+    moments = [("◆ネスは",), ("◆ネスは", "\u3000バットを"),                   # typing, then still
+               ("◆ネスは", "\u3000バットを", "\u3000てにいれた。"),
+               ("\u3000バットを", "\u3000てにいれた。", "◆ママ"),               # scrolled, in another slot
+               (), ("◆ママ",)]
+    with rd.Reader(mb_memory(), platform="sfc", game_id="SHVC-MB", data=data) as r:
+        r.load(bundle(ROOT / "games/sfc/SHVC-MB.lua"), "SHVC-MB.lua")
+        r.take()
+        said, frame = [], 0
+        for i, rows in enumerate(moments):
+            for _ in range(3 if i == 0 else 25):                        # the first is gone before it stands still
+                frame += 1
+                r.read = mb_memory(rows, slot=5 if i == 3 else 2)
+                r.frame(frame)
+            said.append([e["text"] for e in r.take("text")])
+        assert said == [[], ["◆ネスは\n\u3000バットを"], ["\u3000てにいれた。"], ["◆ママ"], [], ["◆ママ"]]
+    with rd.Reader(mb_memory(table=bytes(12)), platform="sfc", game_id="SHVC-MB", data=data) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/sfc/SHVC-MB.lua"))
+    with rd.Reader(mb_memory(), platform="sfc", game_id="SHVC-MB", data={}) as r:
+        with pytest.raises(rd.ScriptError, match="missing"):
+            r.load(bundle(ROOT / "games/sfc/SHVC-MB.lua"))
+
