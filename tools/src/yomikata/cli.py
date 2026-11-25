@@ -123,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--story", action="store_true", help="only what is read: dialogue and choices, not interface text")
     p.add_argument("--dump", action="store_true", help="everything the game has in memory at each snapshot, as the script's own dump function says it: for reading a place's whole text through the script's decoder")
     p.add_argument("--containing", default="", help="with --dump: only, for each of these characters, the two shortest texts that have it (a doubtful reading shows in its sentence)")
+    p.add_argument("--unconfirmed", type=Path, help="with --dump: a file of the characters already confirmed in a sentence; prints the texts that hold a kanji not among them, each such kanji in 【 】, shortest first: a place's text to read through")
     p = sub.add_parser("bundle", help="a script as it is run and published: one file, with the lib/ modules it asks for inside it")
     p.add_argument("script", type=Path, help="games/<platform>/<id>.lua")
     p.add_argument("-o", "--out", type=Path, help="write it here (default: print it)")
@@ -238,8 +239,13 @@ def main(argv: list[str] | None = None) -> int:
         found = [gl.picture(pixels, rec, args.height) for rec in gl.records(ram[at - base:at - base + 4 * count], count)]
         known = gl.read_dictionary(args.dictionary.read_text(encoding="utf-8")) if args.dictionary and args.dictionary.is_file() else {}
         listed, unread = gl.sort_out(found, known)
+        read = [(character, found[number]) for number, _, character in listed if character is not None]
         for number, mark, character in listed:
-            print(f"{number:03X} {mark} {character if character is not None else '?'}")
+            near = "" if character is not None or mark == "0" * 16 else "  like: " + " ".join(
+                f"{c} {score:.2f}" for c, score in gl.nearest(found[number], read))
+            print(f"{number:03X} {mark} {character if character is not None else '?'}{near}")
+        for character, marks in gl.twice(known).items():
+            print(f"{character} is given to {len(marks)} pictures in the dictionary: {' '.join(marks)}", file=sys.stderr)
         shown = list(range(count)) if args.all else unread
         if args.sheet and shown:
             gl.sheet([found[n] for n in shown], [f"{n:03X}" for n in shown]).save(args.sheet)
@@ -555,7 +561,15 @@ def main(argv: list[str] | None = None) -> int:
                 unread = sum(t.count("\ufffd") for t in texts)
                 print(f"{reading.name}: {len(texts)} texts, {sum(len(t) for t in texts)} characters, "
                       f"{unread} without a reading", file=sys.stderr)
-                if args.containing:
+                if args.unconfirmed:
+                    sure = set(args.unconfirmed.read_text(encoding="utf-8")) if args.unconfirmed.is_file() else set()
+                    doubt = lambda ch: "\u4e00" <= ch <= "\u9fff" and ch not in sure      # noqa: E731
+                    left = set()
+                    for text in sorted({t for t in texts if any(doubt(ch) for ch in t)}, key=len):
+                        left |= {ch for ch in text if doubt(ch)}
+                        print("".join(f"【{ch}】" if doubt(ch) else ch for ch in text).replace("\n", " / "))
+                    print(f"{reading.name}: {len(left)} kanji not yet confirmed in a sentence", file=sys.stderr)
+                elif args.containing:
                     for ch in dict.fromkeys(args.containing):
                         for text in sorted((t for t in texts if ch in t), key=len)[:2]:
                             print(json.dumps({"snapshot": reading.name, "character": ch, "text": text}, ensure_ascii=False))

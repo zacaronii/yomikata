@@ -106,3 +106,43 @@ def sort_out(glyphs: list, known: dict[str, str]) -> tuple[list[tuple[int, str, 
             seen.add(mark)
             unread.append(number)
     return listed, unread
+
+
+def twice(known: dict[str, str]) -> dict[str, list[str]]:
+    """The characters a dictionary gives to more than one picture, with those pictures' fingerprints. A font
+    draws a character one way: two pictures read as the same character mean one of the readings is wrong
+    (or, seldom, that a game does keep two drawings)."""
+    by: dict[str, list[str]] = {}
+    for mark, character in known.items():
+        by.setdefault(character, []).append(mark)
+    return {character: marks for character, marks in by.items() if len(marks) > 1}
+
+
+def _canvas(glyph, size: int = 16):
+    import numpy as np
+    ink = np.asarray(glyph) == 1
+    out = np.zeros((size, size), dtype=bool)
+    rows, columns = np.flatnonzero(ink.any(axis=1)), np.flatnonzero(ink.any(axis=0))
+    if len(rows):
+        ink = ink[rows[0]:rows[-1] + 1, columns[0]:columns[-1] + 1][:size, :size]
+        y, x = (size - ink.shape[0]) // 2, (size - ink.shape[1]) // 2
+        out[y:y + ink.shape[0], x:x + ink.shape[1]] = ink
+    return out
+
+
+def nearest(glyph, read: list[tuple[str, object]], count: int = 3) -> list[tuple[str, float]]:
+    """The pictures already read that look most like `glyph`: (character, likeness from 0 to 1), the likest
+    first. `read` is (character, picture) pairs. Likeness is how much of the two pictures' strokes overlap,
+    at the best of a pixel's shift either way. For setting a new glyph beside what it could be taken for."""
+    import numpy as np
+    if not read:
+        return []
+    target = _canvas(glyph)
+    shifted = [np.roll(np.roll(target, dy, 0), dx, 1) for dy in (-1, 0, 1) for dx in (-1, 0, 1)]
+    scored = []
+    for character, picture in read:
+        other = _canvas(picture)
+        best = max(float((s & other).sum()) / max(1.0, float((s | other).sum())) for s in shifted)
+        scored.append((character, best))
+    return sorted(scored, key=lambda pair: -pair[1])[:count]
+

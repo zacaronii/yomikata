@@ -249,6 +249,41 @@ class Session:
         except (DiscError, OSError, ValueError) as e:
             raise HarnessError(f"it couldn't be identified: {e}") from None
 
+    @tool("Whether a stretch of memory lies on the game's disc as it is: where in the disc's data its bytes are "
+          "found. Text or a font that is on the disc as it is in memory can be read for every place from the "
+          "disc, without playing to each. A CHD is unpacked to scratch for the search and removed after: a "
+          "minute or so for a CD.",
+          address=("string", "where the stretch starts, hex", True),
+          size=("integer", "how many bytes of it to look for (default 32, at most 256)", False))
+    def on_disc(self, address: str, size: int = 32) -> dict:
+        from ..disc import DiscError, open_data_track
+        machine = self._need()
+        needle = machine.read(int(address, 16), max(8, min(int(size), 256)))
+        if len(needle) < 8 or len(set(needle)) < 4:
+            raise HarnessError("that stretch is too short or too plain to look for")
+        path = self.roots.inside("games", self.game)
+        work = self.roots.scratch / "work"
+        work.mkdir(parents=True, exist_ok=True)
+        found, sectors, step = [], 0, 1024
+        try:
+            with open_data_track(path, work) as image:
+                image.f.seek(0, 2)
+                sectors = image.f.tell() // (2352 if image.raw else 2048)
+                keep = b""
+                for first in range(0, sectors, step):
+                    data = keep + b"".join(image.sector(lba) for lba in range(first, min(first + step, sectors)))
+                    at = data.find(needle)
+                    while at >= 0 and len(found) < 8:
+                        found.append(first * 2048 - len(keep) + at)
+                        at = data.find(needle, at + 1)
+                    keep = data[-(len(needle) - 1):]
+                    if len(found) >= 8 or self._late():
+                        break
+        except (DiscError, OSError, ValueError) as e:
+            raise HarnessError(f"the disc couldn't be read: {e}") from None
+        return {"bytes": len(needle), "found": [f"0x{at:X}" for at in found], "sectors": sectors,
+                "note": "offsets into the disc's data, 2048 bytes a sector"}
+
     @tool("The loaded core's options as it declares them: what each is, the values it takes (the first is the "
           "core's own choice), and what was given at load. Options are given to `load`.")
     def core_options(self) -> dict:

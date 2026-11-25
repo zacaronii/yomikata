@@ -21,7 +21,7 @@ FORBIDDEN = {re.compile(r"\breader\.hook\b"): "reader.hook: a script here only r
              re.compile(r"\bmem\.w(8|16|32|64)\b"): "mem.w…: a script never writes the game's memory"}
 
 # Entries, and scripts with their data files (docs/script-api.md); tables.
-ALLOWED = {"games": {".json", ".lua", ".tbl", ".charset"}, "tables": {".tbl", ".glyphs"}}
+ALLOWED = {"games": {".json", ".lua", ".tbl", ".charset"}, "tables": {".tbl", ".glyphs", ".read"}}
 
 
 @dataclass
