@@ -1031,6 +1031,32 @@ def test_changed_by_a_pattern_over_snaps(session):
             session.changed(**bad)
 
 
+def test_grouped_finds_what_is_the_same_on_a_map_and_differs_between_maps(session):
+    m = session.machine.memory
+    for name, where, room in (("a1", 1, 5), ("a2", 1, 6), ("b1", 2, 5), ("c1", 3, 7), ("c2", 3, 7), ("d1", 2, 9)):
+        m[0x300], m[0x301] = where, room                    # which map; something that changes within one
+        session.run(1)
+        session.state_save(name)
+        session.snap(name)
+    session.run(4)
+    at = session.status()["frames"]
+    groups = {"ship": ["a1", "a2"], "deck": ["b1"], "hold": ["c1", "c2"]}
+    out = session.grouped(groups, within=["0x80000100", "0x80000400"])
+    assert out == {"count": 1, "groups": 3, "places": [
+        {"address": "0x80000300", "values": {"ship": "01", "deck": "02", "hold": "03"}}]}
+    assert session.status()["frames"] == at                 # the game is back where it was
+    assert session.grouped(groups, snaps=True, within=["0x80000100", "0x80000400"]) == out
+    # Two groups that are one map after all: found when some may share a value, and said.
+    groups["cabin"] = ["d1"]
+    assert session.grouped(groups, within=["0x80000300", "0x80000302"])["count"] == 0
+    out = session.grouped(groups, least=3, within=["0x80000300", "0x80000302"])
+    assert out["places"] == [{"address": "0x80000300", "values": {"ship": "01", "deck": "02", "hold": "03", "cabin": "02"},
+                              "alike": [["cabin", "deck"]]}]
+    for bad in ({"ship": ["a1"]}, {"ship": ["a1"], "deck": []}, {"ship": ["a1"], "deck": ["never"]}):
+        with pytest.raises(HarnessError):
+            session.grouped(bad)
+
+
 def test_a_name_read_off_a_naming_screen(session):
     m = session.machine.memory
     session.snap("n0")

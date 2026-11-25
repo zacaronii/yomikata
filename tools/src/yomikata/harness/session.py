@@ -955,6 +955,81 @@ class Session:
                 "places": [{"address": f"0x{base + int(i) * unit:08X}", "a": first[i].tobytes().hex(),
                             "b": second[i].tobytes().hex()} for i in places[:MAX_HITS]]}
 
+    @tool("Places that hold the same in every moment of a group and differ from group to group: which map "
+          "it is, which chapter, who is in the party. Give saved states by group, a name for each group (the "
+          "states you kept on one map under one name); each is loaded for a look and the game is then put "
+          "back where it was. Or give snaps. Two groups may turn out to be one (two rooms of one map): `least` "
+          "lets some share a value, and the answer says which do.",
+          groups=("object", "a name for each group to its states' names (or snaps'), two groups or more", True),
+          snaps=("boolean", "the names are snaps, not states", False),
+          least=("integer", "how many different values the groups must show (default: one for each group)", False),
+          unit=("integer", "bytes compared together: 1, 2 or 4 (default 1)", False),
+          within=("array", "only places from one address to another, hex", False))
+    def grouped(self, groups: dict, snaps: bool = False, least: int = 0, unit: int = 1, within: list | None = None) -> dict:
+        import numpy as np
+        machine = self._need()
+        if unit not in (1, 2, 4):
+            raise HarnessError("unit is 1, 2 or 4")
+        if not isinstance(groups, dict) or len(groups) < 2 or not all(isinstance(v, list) and v for v in groups.values()):
+            raise HarnessError("groups is a name for each group to a list of states or snaps, two groups or more")
+        if within is not None and (len(within) != 2 or int(str(within[0]), 16) > int(str(within[1]), 16)):
+            raise HarnessError("within is two addresses, the lower first")
+        memories, base = {}, None
+        if snaps:
+            for name in {n for v in groups.values() for n in v}:
+                _, base, memories[name] = self._memories([name])[0]
+        else:
+            paths = {n: self._state_file(n) for v in groups.values() for n in v}
+            for name, path in paths.items():
+                if not path.is_file():
+                    raise HarnessError(f"no such state: {name}")
+            here = machine.save_state()
+            try:
+                for name, path in paths.items():
+                    try:
+                        machine.load_state(path.read_bytes())
+                    except RuntimeError as e:
+                        raise HarnessError(f"{name}: {e}") from None
+                    machine.run(1, set(), (0.0, 0.0))       # a core may show a state's memory only once it has run
+                    base, memories[name] = machine.ram()
+            finally:
+                machine.load_state(here)
+                if self.reader is not None:
+                    self.reader.state_loaded()
+                    self._collect(self.reader.take(), [])
+        if len({len(m) for m in memories.values()}) != 1:
+            raise HarnessError("these aren't all of the same memory")
+
+        def cells(name):
+            data = np.frombuffer(memories[name], dtype=np.uint8)
+            return data[:len(data) // unit * unit].reshape(-1, unit)
+        names = list(groups)
+        firsts = [cells(groups[g][0]) for g in names]
+        keep = np.ones(len(firsts[0]), dtype=bool)
+        for g, first in zip(names, firsts):                 # the same within each group
+            for other in groups[g][1:]:
+                keep &= (cells(other) == first).all(axis=1)
+        kinds = np.zeros(len(keep), dtype=np.int64)         # how many different values the groups show
+        for i, first in enumerate(firsts):
+            new = np.ones(len(keep), dtype=bool)
+            for earlier in firsts[:i]:
+                new &= (first != earlier).any(axis=1)
+            kinds += new
+        least = len(names) if not least else max(2, min(int(least), len(names)))
+        keep &= kinds >= least
+        places = np.nonzero(keep)[0]
+        if within is not None:
+            low, high = (int(str(v), 16) for v in within)
+            places = places[(places * unit + base >= low) & (places * unit + base < high)]
+        places = sorted((int(i) for i in places), key=lambda i: (-int(kinds[i]), i))
+        rows = []
+        for i in places[:MAX_HITS]:
+            values = {g: first[i].tobytes().hex() for g, first in zip(names, firsts)}
+            alike = [sorted(g for g in names if values[g] == v) for v in sorted(set(values.values()))]
+            rows.append({"address": f"0x{base + i * unit:08X}", "values": values,
+                         **({"alike": [a for a in alike if len(a) > 1]} if int(kinds[i]) < len(names) else {})})
+        return {"count": len(places), "groups": len(names), "places": rows}
+
     @tool("Reads a name off a naming screen. Snap the empty name, enter a character, snap, enter another, "
           "snap, and so on: this finds the places that took a value one after the other, which are the name, "
           "and gives each character's code. With kana in the order of the fifty sounds it says the rule the "
