@@ -1,8 +1,8 @@
 # Scripts (draft)
 
 **Status: a draft.** The reader runtime in `runtime/` runs this, and `yomikata run` runs a script over snapshots
-with it; the first script is `games/gc/G8MJ01.lua`. Until scripts replace them, the JSON entries and
-`docs/format.md` stay as they are.
+with it; the first script is `games/gc/G8MJ01.lua`. Scripts have taken the place of the entries' `layouts`
+(docs/format.md, "Layouts"); the entries' other fields stay as they are.
 
 A **script** is one Lua 5.4 file for one release of a game. A reader app runs it beside the game: the script reads
 the game's memory once a frame and says what text is on screen, who says it, which answers a choice offers and,

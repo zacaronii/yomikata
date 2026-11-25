@@ -25,17 +25,6 @@
     }
   ],
   "encoding": "shift_jis",
-  "layouts": [{
-    "versions": ["0e461086b49d4bed0a8648d7ab4b841abfae9336"],
-    "poll": 20,
-    "when": {"address": "0x800D3686", "type": "u16", "equals": 3},
-    "message": {"address": "0x801F7878", "charset": "shift_jis", "max_bytes": 512, "terminator": "00",
-                "codes": {"03": 2, "07": 2}},
-    "speaker": {"base": "0x800D367C", "offsets": ["0x0"], "charset": "shift_jis", "max_bytes": 32,
-                "terminator": "00"},
-    "waiting": {"base": "0x800D3678", "offsets": ["0x0"], "equals": 0},
-    "notes": "The line is whole in its buffer from the moment its window opens and stays after it closes. The window's record at 0x800D3664: state at +0x22 (0 closed, 1 opening, 2 closing, 3 open), the address being typed at +0x14, a pointer to the speaker's name at +0x18. `waiting`: the typing address stands on the terminator, so the line is typed out. Codes seen: 03 and a colour, 07 and a style (07 01 bold, 07 00 normal); there may be others. No `shown`: the typing position is an address, not a count. From a headless replay of the opening; talk on a map, shops, battles, menus and choices not reached."
-  }],
   "status": "auto",
   "sources": [
     "yomikata scan 0.1.0 of the disc files: shift_jis 13,490, utf16le 48 characters of prose-like text",
