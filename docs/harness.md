@@ -34,7 +34,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `load` | A game in a core, from power-on or from a savestate (one saved here, or a reader's in the inbox) |
 | `run` | N frames with buttons and the left stick held. With a script loaded, what it emitted on the way |
 | `run_until` | Runs until a place in memory changes or holds a value, the script emits something, or the picture has stood still; at most a given number of frames. Says how far it ran and why it stopped |
-| `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap, take pictures. The pictures come back as one sheet |
+| `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap (also every few frames of a wait), take pictures. The pictures come back as one sheet |
 | `screenshot` | The picture now |
 | `read` | Memory by address, a region by offset |
 | `find` | Where a text or bytes stand, in live memory or in snaps. A text is looked for in Shift-JIS, EUC-JP, UTF-16 either way, UTF-8, Shift-JIS as 16-bit little-endian numbers, and the game's own table when one is given; in parts too, when the whole isn't found |
@@ -50,7 +50,8 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `repeat` | Does the same frames or steps again and says whether the game ended up the same: whether the core repeats itself |
 | `differs` | How this moment's memory differs from a snap's, also one another harness wrote |
 | `changed` | Places that differ between two snaps, the same as the first in some others and as the second in others: a flag, a counter, a cursor |
-| `refs` | Words that point at an address or just past it, in the console's byte order |
+| `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
+| `pointed` | The words from an address on, and the text each pointer among them leads to: a stack or a record read as strings |
 | `state_save`, `state_load` | States by name, in scratch. A state keeps the way to it beside it |
 | `waypoint_save`, `waypoint_go`, `waypoints` | A moment kept with every move that leads to it from power-on, and gone back to: by its state, or by playing the moves again when the core is another build |
 | `script_try` | Loads a script on the running game: its load error (another build, a missing region), or its header |
@@ -98,6 +99,11 @@ In the order to try them:
    found Final Fantasy IX's text, after every search by the line itself had failed.
 7. The codes it gives are the start of the game's table. With them as a table, `find` (`table`) looks for
    other lines, and each new line adds characters.
+8. A game may hold nothing that says which line is on screen once the line stands: it points at the line only
+   while it types. Press, then snap through the typing (`steps` with `wait`, `every` and `snap`), and ask
+   `refs` over those snaps for what points into the line: a word that does in some moments only is the one
+   that follows it. `pointed` then reads the record or stack that word is in as strings. This is what found
+   Double Cast's lines, after seven snaps of standing lines had shown nothing.
 
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.

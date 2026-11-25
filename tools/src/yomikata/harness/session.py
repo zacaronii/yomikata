@@ -370,7 +370,9 @@ class Session:
           "back as one sheet, numbered by step. Stops where the call's time is up and says at which step.",
           steps=("array", "steps, each an object: buttons (array), stick ([x, y]), hold (frames held, default 4), "
                           "wait (frames after, default 0), until (object: run_until's address/size/equals/event/"
-                          "still, with limit), times (repeat it, default 1), snap (true, or a name), shot (true)", True),
+                          "still, with limit), times (repeat it, default 1), snap (true, or a name), shot (true), "
+                          "every (with wait and snap: a snap each so many frames of the wait, to catch what "
+                          "is there only while something happens)", True),
           prefix=("string", "names snaps taken with snap: true, as <prefix>-000, -001, … (default: step)", False),
           columns=("integer", "pictures across the sheet (default 4)", False),
           scale=("number", "each picture's scale on the sheet (default 1: text stays readable)", False))
@@ -378,11 +380,18 @@ class Session:
         machine, prefix = self._need(), self._name(prefix)
         if not isinstance(steps, list) or not steps or not all(isinstance(s, dict) for s in steps):
             raise HarnessError("steps is a list of objects")
-        known = {"buttons", "stick", "hold", "wait", "until", "times", "snap", "shot"}
-        plan = []
+        known = {"buttons", "stick", "hold", "wait", "until", "times", "snap", "shot", "every"}
+        plan, during = [], 0
         for step in steps:
             if set(step) - known:
                 raise HarnessError(f"a step has: {', '.join(sorted(known))}")
+            if "every" in step:
+                if int(step["every"]) < 1 or not step.get("snap") or int(step.get("wait", 0)) < 1 or "until" in step:
+                    raise HarnessError("every goes with wait and snap, and is a number of frames")
+                during += max(1, int(step.get("times", 1))) * (int(step["wait"]) // int(step["every"]))
+        if during > MAX_STEPS:
+            raise HarnessError(f"at most {MAX_STEPS} snaps during waits in a call")
+        for step in steps:
             self._buttons(step.get("buttons"))
             if "until" in step and not (isinstance(step["until"], dict) and "limit" in step["until"]):
                 raise HarnessError("until is an object with a limit, as run_until takes")
@@ -404,6 +413,19 @@ class Session:
                     raise HarnessError("until takes: limit, address, size, equals, event, still") from None
                 _, why = self._advance(limit, set(), (0.0, 0.0), events, watch)
                 row["stopped"], why = why or "limit", why if why == "time" else None
+            elif not why and "every" in step:
+                # A snap each few frames of the wait: for what memory holds only while a line types or a
+                # window opens, which a snap after the wait never sees.
+                name = step["snap"] if isinstance(step["snap"], str) else f"{prefix}-{number:03d}"
+                left_frames, every, taken = min(int(step["wait"]), MAX_FRAMES), int(step["every"]), []
+                while left_frames >= every and not why:
+                    _, why = self._advance(every, set(), (0.0, 0.0), events)
+                    left_frames -= every
+                    if not why:
+                        taken.append(self.snap(f"{name}-{len(taken):02d}")["snap"])
+                if left_frames and not why:
+                    _, why = self._advance(left_frames, set(), (0.0, 0.0), events)
+                row["snaps"] = taken
             elif not why and int(step.get("wait", 0)) > 0:
                 _, why = self._advance(min(int(step["wait"]), MAX_FRAMES), set(), (0.0, 0.0), events)
             row["frames"] = machine.frames
@@ -413,7 +435,7 @@ class Session:
                 done.append({**row, "stopped": "time"})
                 left = len(plan) - number           # this step and those after it
                 break
-            if step.get("snap"):
+            if step.get("snap") and "every" not in step:
                 name = step["snap"] if isinstance(step["snap"], str) else f"{prefix}-{number:03d}"
                 row["snap"] = self.snap(name)["snap"]
             if step.get("shot") and len(shots) < MAX_SHOTS and machine.picture() is not None:
@@ -763,22 +785,68 @@ class Session:
                 "places": [{"address": f"0x{base + int(i) * unit:08X}", "a": first[i].tobytes().hex(),
                             "b": second[i].tobytes().hex()} for i in places[:MAX_HITS]]}
 
-    @tool("Words in memory that point at an address, or into the stretch after it.",
+    @tool("Words in memory that point at an address, or into the stretch after it. With snaps, the same for "
+          "each of them, a row for each word: which moments it points there in, and where. A word that "
+          "points into a line in some moments only is what follows the line as it types or is shown.",
           address=("string", "the address pointed at, hex", True),
           span=("integer", "also pointers up to this many bytes past it (default 0)", False),
-          big_endian=("boolean", "the console's byte order (default: true for gc and wii, else false)", False))
-    def refs(self, address: str, span: int = 0, big_endian: bool | None = None) -> dict:
+          big_endian=("boolean", "the console's byte order (default: true for gc and wii, else false)", False),
+          snaps=("array", "look in these snaps instead of live memory", False))
+    def refs(self, address: str, span: int = 0, big_endian: bool | None = None, snaps: list | None = None) -> dict:
         import numpy as np
+        if big_endian is None:
+            big_endian = self._need().platform in ("gc", "wii")
+        target = int(address, 16)
+
+        def pointing(base, ram):
+            words = np.frombuffer(ram[:len(ram) // 4 * 4], dtype=">u4" if big_endian else "<u4")
+            places = np.nonzero((words >= target) & (words <= target + max(0, int(span))))[0]
+            return {base + 4 * int(i): int(words[i]) for i in places}
+
+        if not snaps:
+            found = pointing(*self._need().ram())
+            return {"count": len(found), "refs": [{"at": f"0x{at:08X}", "points_at": f"0x{to:08X}"}
+                                                  for at, to in list(found.items())[:MAX_HITS]]}
+        each = {name: pointing(base, ram) for name, base, ram in self._memories(snaps)}
+        rows = {}
+        for name, found in each.items():
+            for at, to in found.items():
+                rows.setdefault(at, {})[name] = f"0x{to:08X}"
+        # First those that point there in some moments only, or at another place from one to the next (a
+        # cursor going along the line); last those that never move.
+        order = sorted(rows, key=lambda at: (len(rows[at]) == len(each) and len(set(rows[at].values())) == 1,
+                                             len(rows[at]), at))
+        return {"count": len(rows), "snaps": len(each),
+                "refs": [{"at": f"0x{at:08X}", "in": len(rows[at]), "points_at": rows[at]} for at in order[:MAX_HITS]]}
+
+    @tool("The words from an address on, and where each that points into memory leads: the text that stands "
+          "there, when it reads as text. For a stack or a record whose pointers are to strings.",
+          address=("string", "where the words start, hex", True),
+          count=("integer", "how many words (default 32, at most 256)", False),
+          big_endian=("boolean", "the console's byte order (default: true for gc and wii, else false)", False))
+    def pointed(self, address: str, count: int = 32, big_endian: bool | None = None) -> dict:
         machine = self._need()
         base, ram = machine.ram()
         if big_endian is None:
             big_endian = machine.platform in ("gc", "wii")
-        target = int(address, 16)
-        words = np.frombuffer(ram[:len(ram) // 4 * 4], dtype=">u4" if big_endian else "<u4")
-        places = np.nonzero((words >= target) & (words <= target + max(0, int(span))))[0]
-        return {"count": int(len(places)),
-                "refs": [{"at": f"0x{base + 4 * int(i):08X}", "points_at": f"0x{int(words[i]):08X}"}
-                         for i in places[:MAX_HITS]]}
+        start, count = int(address, 16), max(1, min(int(count), 256))
+        data = self._read(start, 4 * count)
+        rows = []
+        for i in range(len(data) // 4):
+            word = int.from_bytes(data[4 * i:4 * i + 4], "big" if big_endian else "little")
+            # Through the memory's other addresses too, but there only when text stands at the end: a small
+            # number is an address as well, on a console whose memory also answers from 0.
+            to = next((word - m for m in (base, *machine.mirrors()) if 0 <= word - m < len(ram)), None)
+            if to is None:
+                continue
+            row = {"at": f"0x{start + 4 * i:08X}", "points_at": f"0x{word:08X}"}
+            text = search.string_at(ram, to)
+            if text:
+                row["encoding"], row["text"] = text
+            elif not 0 <= word - base < len(ram):
+                continue
+            rows.append(row)
+        return {"words": len(data) // 4, "pointers": rows}
 
     @tool("Writes bytes into the game's memory, to REACH a moment the game is slow to get to: a chapter, a flag, "
           "a position, a timer. Then let the game produce its text itself. Never write the text or the buffer a "
