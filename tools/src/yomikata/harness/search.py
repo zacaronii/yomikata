@@ -167,6 +167,117 @@ def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool 
     return total, hits
 
 
+def relative_apart(data: bytes, lines: list[str], unit: int = 1, big_endian: bool = False, window: int = 0x10000,
+                   limit: int = 10) -> tuple[int, list[tuple[list[int], dict[str, int]]]]:
+    """Where one memory could hold several lines in codes of the game's own, each at a place of its own within
+    `window` bytes of the first: a scene's lines as they lie in its script. A set of places fits when the same
+    character has the same code wherever it stands, in a line and from line to line, and different characters
+    different codes. The lines needn't repeat a character, but two of them must share three or more (four with
+    one-byte codes is surer). Give stretches the game keeps as one code each: where it may keep kanji or a name
+    another way, the kana around them. Gives how many sets fit, and the first: each line's place, and the codes."""
+    import numpy as np
+    if unit not in (1, 2) or len(lines) < 2:
+        raise SearchError("give two or more lines; unit is 1 or 2")
+    rows = [[ch for ch in line if not ch.isspace() or ch == "\u3000"] for line in lines]
+    if any(len(row) < 2 for row in rows):
+        raise SearchError("each line needs two characters or more")
+    # The pair of lines that share most characters is looked for first, by those characters' codes.
+    share = lambda a, b: [ch for ch in dict.fromkeys(rows[a]) if ch in rows[b]]          # noqa: E731
+    first, second = max(((a, b) for a in range(len(rows)) for b in range(a + 1, len(rows))),
+                        key=lambda pair: len(share(*pair)))
+    shared = share(first, second)[:8 // unit]
+    if len(shared) < 3:
+        raise SearchError("too little to go by: two of the lines must share three characters or more")
+    kind = (">" if big_endian else "<") + ("u1" if unit == 1 else "u2")
+    total, sets, seen = 0, [], set()
+    for shift in range(unit):
+        cells = np.frombuffer(data[shift:len(data) - (len(data) - shift) % unit], dtype=kind).astype(np.int64)
+
+        def fitting(row, known=None, low=0, high=None):
+            """Places (in cells) where a row could stand: its repeats agree, and the codes known so far."""
+            high = len(cells) if high is None else min(high, len(cells))
+            count = high - low - len(row) + 1
+            if count <= 0:
+                return np.zeros(0, dtype=np.int64)
+            at = lambda i: cells[low + i:low + i + count]                               # noqa: E731
+            fits = np.ones(count, dtype=bool)
+            where: dict[str, int] = {}
+            for i, ch in enumerate(row):
+                if known and ch in known:
+                    fits &= at(i) == known[ch]
+                elif ch in where:
+                    fits &= at(i) == at(where[ch])
+                else:
+                    for j in where.values():             # different characters, different codes
+                        fits &= at(i) != at(j)
+                    where[ch] = i
+            return np.flatnonzero(fits) + low
+
+        def key(row, places):
+            value = np.zeros(len(places), dtype=np.int64)
+            good = np.ones(len(places), dtype=bool)
+            taken = []
+            for ch in shared:
+                code = cells[places + row.index(ch)]
+                for other in taken:
+                    good &= code != other                # different characters, different codes
+                taken.append(code)
+                value = (value << (8 * unit)) | code
+            return places[good], value[good]
+
+        a_places, a_keys = key(rows[first], fitting(rows[first]))
+        b_places, b_keys = key(rows[second], fitting(rows[second]))
+        order = np.argsort(b_keys, kind="stable")
+        b_places, b_keys = b_places[order], b_keys[order]
+        lo, hi = np.searchsorted(b_keys, a_keys, "left"), np.searchsorted(b_keys, a_keys, "right")
+        if int((hi - lo).sum()) > 2_000_000:
+            raise SearchError("too many places fit two of the lines: give longer lines, or ones that share more")
+        span = max(1, window // unit)
+        # Every pair of places whose shared characters have the same codes, then those near each other.
+        some = np.flatnonzero(hi > lo)
+        counts = (hi - lo)[some]
+        ps = np.repeat(a_places[some], counts)
+        within = np.arange(int(counts.sum())) - np.repeat(np.cumsum(counts) - counts, counts)
+        qs = b_places[np.repeat(lo[some], counts) + within]
+        near_each_other = np.abs(qs - ps) <= span
+        for p, q in zip(ps[near_each_other][:50000].tolist(), qs[near_each_other][:50000].tolist()):
+            if True:
+                codes: dict[str, int] = {}
+                places = {first: p, second: q}
+                ok = True
+                for row, start in ((rows[first], p), (rows[second], q)):
+                    for i, ch in enumerate(row):
+                        if codes.setdefault(ch, int(cells[start + i])) != int(cells[start + i]):
+                            ok = False
+                if not ok or len(set(codes.values())) != len(codes):
+                    continue
+                for other in range(len(rows)):               # the other lines, near these, with the codes so far
+                    if other in places:
+                        continue
+                    near = fitting(rows[other], codes, max(0, p - span), p + span)
+                    found = None
+                    for r in near:
+                        more = dict(codes)
+                        for i, ch in enumerate(rows[other]):
+                            more.setdefault(ch, int(cells[int(r) + i]))
+                        if len(set(more.values())) == len(more):
+                            found, codes = int(r), more
+                            break
+                    if found is None:
+                        ok = False
+                        break
+                    places[other] = found
+                if not ok:
+                    continue
+                at = tuple(shift + places[k] * unit for k in range(len(rows)))
+                if at not in seen:
+                    seen.add(at)
+                    total += 1
+                    if len(sets) < limit:
+                        sets.append((list(at), codes))
+    return total, sets
+
+
 def build_words(base: int, moments: list[bytes], platform: str, others: list[bytes] = (), want: int = 3):
     """What in memory could tell this build of the game from another: the same in every moment given (power-on,
     the title, play) and, with `others` (another game or build), different in each of those.

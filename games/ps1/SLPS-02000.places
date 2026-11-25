@@ -1,0 +1,15 @@
+# FINAL FANTASY IX (Japan): the kanji of each place's own font. A place is known by a hash of its font's glyph
+# list and its messages' records (the script's place_key); a line is a code's number in that font, in hex (0xFC 03 is 03), and its kanji.
+# Only what was read off the screen in that place.
+@7e1f2bd00075a566
+00=姫
+01=我
+03=来
+05=誘
+06=拐
+2A=太
+3A=醜
+3B=隙
+4A=遅
+79=美
+A9=央

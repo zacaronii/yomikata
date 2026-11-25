@@ -366,6 +366,37 @@
    "status": "auto",
    "alias_of": "SLPS-01880"
   },
+  "SLPS-02000": {
+   "path": "games/ps1/SLPS-02000.json",
+   "sha256": "e2163cbfc82c23828e76fb1833c2ab112cffc16c0479e054b79bf0b27e3a6308",
+   "platform": "ps1",
+   "encoding": "table",
+   "status": "partial"
+  },
+  "SLPS-02001": {
+   "path": "games/ps1/SLPS-02000.json",
+   "sha256": "e2163cbfc82c23828e76fb1833c2ab112cffc16c0479e054b79bf0b27e3a6308",
+   "platform": "ps1",
+   "encoding": "table",
+   "status": "partial",
+   "alias_of": "SLPS-02000"
+  },
+  "SLPS-02002": {
+   "path": "games/ps1/SLPS-02000.json",
+   "sha256": "e2163cbfc82c23828e76fb1833c2ab112cffc16c0479e054b79bf0b27e3a6308",
+   "platform": "ps1",
+   "encoding": "table",
+   "status": "partial",
+   "alias_of": "SLPS-02000"
+  },
+  "SLPS-02003": {
+   "path": "games/ps1/SLPS-02000.json",
+   "sha256": "e2163cbfc82c23828e76fb1833c2ab112cffc16c0479e054b79bf0b27e3a6308",
+   "platform": "ps1",
+   "encoding": "table",
+   "status": "partial",
+   "alias_of": "SLPS-02000"
+  },
   "SLPS-02100": {
    "path": "games/ps1/SLPS-02100.json",
    "sha256": "5f4691f24ceee43aa108cf9e2f248335e00d3a79d3f50e099f0e1e0461263447",
@@ -893,6 +924,28 @@
    ],
    "needs": [],
    "data": {}
+  },
+  "SLPS-02000": {
+   "path": "scripts/ps1/SLPS-02000.lua",
+   "sha256": "a6ef488d4013964cc21f5c765a1f6d2e2beca30df2e713a0a4ee79b6ca9bd937",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "ファイナルファンタジーIX (Final Fantasy IX)",
+   "reads": "a window's message when it opens, with its speaker, and a choice's answers",
+   "builds": [
+    "8ba95c45e7c38ae944b74d9a75cb565c36d6a906"
+   ],
+   "needs": [],
+   "data": {
+    "places": {
+     "path": "games/ps1/SLPS-02000.places",
+     "sha256": "39dd5b7f77ff4487c4c384701cc766e39f786ea74fa11b36513e29f9b41a9243"
+    },
+    "tbl": {
+     "path": "games/ps1/SLPS-02000.tbl",
+     "sha256": "874256cdacb2016741f86a51fc665c33c01205c029fdf68fa3b5490f41d01831"
+    }
+   }
   },
   "SLPS-02100": {
    "path": "scripts/ps1/SLPS-02100.lua",

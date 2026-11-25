@@ -400,6 +400,8 @@ def test_compare_a_script_with_the_lines_on_screen_and_with_a_layout(session):
                              "marked as showing no text": 1, "of those, reading nothing": 0,
                              "taken after a memory write": 0}
     assert [r["read"] for r in out["rows"]] == ["こんにちは", "さようなら", "またあした"] and "layout" not in out
+    named = SCRIPT.replace('window = "w" }', 'window = "w", speaker = "ミカ" }')
+    assert session.compare(named, snaps=["c-000"], show=True)["rows"][0]["read"] == "ミカ\nこんにちは"   # with who says it
     entry = {"id": "GXXJ01", "platform": "gc", "encoding": "shift_jis",
              "layouts": [{"message": {"address": "0x80000100", "charset": "shift_jis", "max_bytes": 32,
                                       "terminator": "00"}}]}
@@ -872,4 +874,25 @@ def test_a_sessions_later_snaps_are_small_and_read_the_same(session, tmp_path):
     # And the command that makes them whole for a tool that doesn't know the form.
     assert cli.main(["expand", str(folder / "s-3.ram.gz"), str(folder / "t-0.ram.gz")]) == 0
     assert not gzip.decompress((folder / "s-3.ram.gz").read_bytes()).startswith(b"YKDELTA1")
+
+
+def test_find_relative_lines_apart_in_one_memory(session):
+    # A scene's lines as they lie in its script: none repeats a character, each is somewhere else, and other
+    # bytes lie between them. What they share ties them together.
+    lines = ["「いんや、まだずらよ", "「すまん", "ところで、ボスはもう"]
+    own = {ch: 0x21 + 5 * i for i, ch in enumerate(dict.fromkeys("".join(lines)))}
+    cells = lambda text: bytes(own[ch] for ch in text)                                   # noqa: E731
+    put(session, 0x300, cells(lines[1]) + b"\xF7\x01" + cells(lines[2]))
+    put(session, 0x380, cells(lines[0]))
+    put(session, 0x500, bytes(range(1, 200)))                                            # other data
+    out = session.find_relative(apart=lines)
+    assert out["count"] == 1 and out["sets"][0]["lines"] == ["0x80000380", "0x80000300", "0x80000306"]
+    assert out["sets"][0]["codes"] == {ch: f"{code:02X}" for ch, code in own.items()}
+    session.snap("apart")
+    put(session, 0x380, bytes(16))
+    assert session.find_relative(apart=lines)["count"] == 0 and session.find_relative(apart=lines, snap="apart")["count"] == 1
+    assert session.find_relative(apart=lines, snap="apart", window=64)["count"] == 0     # the first lies farther off
+    for bad in (["「すまん"], ["あいう", "えおか"], ["「すまん", "「"]):
+        with pytest.raises(HarnessError):
+            session.find_relative(apart=bad)
 

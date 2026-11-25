@@ -86,7 +86,16 @@ In the order to try them:
 4. Surer than one line: `lines`, two or more snaps each with what its screen shows at the same place. One
    place must fit them all, and the characters the lines share must have the same code, so lines without a
    repeat will do.
-5. The codes it gives are the start of the game's table. With them as a table, `find` (`table`) looks for
+5. A script read where it lies keeps each line somewhere else, so two moments share no place: `apart`, several
+   lines of one scene looked for together in one memory, each wherever it is. Two of them must share three
+   characters or more. Give kana stretches: a game may keep kanji in two bytes, and a name the player chose
+   as a code that stands for it, and either breaks a line that is taken as one code a character.
+6. A game that lets the player enter a name tells its codes outright. On the naming screen, snap, enter one
+   character, snap, enter another, snap: the places that took a value one after the other are the name, and
+   the values are those characters' codes. A few kana give the rule the rest follow (a row, an offset between
+   hiragana and katakana), and with a handful of codes a plain `find` by bytes finds the dialogue. This is what
+   found Final Fantasy IX's text, after every search by the line itself had failed.
+7. The codes it gives are the start of the game's table. With them as a table, `find` (`table`) looks for
    other lines, and each new line adds characters.
 
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
