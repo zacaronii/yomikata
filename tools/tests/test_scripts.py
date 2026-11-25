@@ -1008,3 +1008,70 @@ def test_twilight_syndrome_kyuumei_hen_a_line_and_a_choice_with_spaces_before_it
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPS-00405.lua"))
 
+
+# ---- games/ps1/SLPS-00404.lua ----
+
+def gakkou_cells(text: str) -> bytes:
+    """Text as the game's cells: Shift-JIS codes as 16-bit numbers; "\\n" a line break, "|" a page's end, "^" a
+    column the game wraps."""
+    out = b""
+    for ch in text:
+        out += {"\n": b"\x0A\x0D", "|": b"\x01\xFF", "^": b"\x03\xFF"}.get(ch) or ch.encode("cp932")[::-1]
+    return out
+
+
+def gakkou_memory(typed: str = "", count: int | None = None, waiting: int = 0, question: str = "", answers=(),
+                  listed: int = 0, ready: int = 0, cursor: int = 0, word: int = 0x0C004FBB):
+    cells = gakkou_cells(typed)
+    memory = {0x80013DD4: struct.pack("<I", word), 0x800249E4: struct.pack("<I", 0x0C010910),
+              0x8003933C: struct.pack("<I", 0x0C00E4E9),
+              0x80061858: cells + bytes(64), 0x80060D18: struct.pack("<I", len(cells) // 2 if count is None else count),
+              0x80060CFC: struct.pack("<I", 1 if typed else 0), 0x80060D00: struct.pack("<I", waiting),
+              0x80061058: gakkou_cells(question) + bytes(64),
+              0x80060E94: struct.pack("<I", listed), 0x80060DDC: struct.pack("<I", ready),
+              0x80060DE8: struct.pack("<I", cursor)}
+    records = b""
+    for i in range(10):
+        at = 0x80120000 + 0x40 * i
+        records += struct.pack("<I", at) + bytes(16)
+        memory[at] = (answers[i] if i < len(answers) else "old").encode("cp932") + b"\0"
+    memory[0x8015B5E0] = records
+    return sparse(memory)
+
+
+def test_gakkou_de_atta_kowai_hanashi_text_as_it_types_and_a_choice():
+    first, both = "部室の^ドアを", "部室の^ドアを\n開けた。"
+    steps = [dict(typed=both, count=3), dict(typed=both, count=7, waiting=2),      # typing; a wait at the row's end
+             dict(typed=both, waiting=3),                                           # the page's end: what it gained
+             dict(typed=both + "|", waiting=3),                                     # past its end code: still up
+             dict(typed=both + "|行く？", waiting=2), dict(),                       # a new page; the window empties
+             dict(typed="行く", question="行く？", answers=("行く",), listed=1),    # a choice's answers being listed
+             dict(question="行く？", answers=("行く", "行かない"), listed=2, ready=1),
+             dict(question="行く？", answers=("行く", "行かない"), listed=2, ready=1, cursor=1),
+             dict(typed="そう。", waiting=3)]
+    with rd.Reader(gakkou_memory(), platform="ps1", game_id="SLPS-00404") as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-00404.lua"), "SLPS-00404.lua")
+        r.take()
+        events = []
+        for frame, step in enumerate(steps, 1):
+            r.read = gakkou_memory(**step)
+            r.frame(frame)
+            events += [(frame, kind, e) for kind, e in r.take() if kind in ("text", "cursor")]
+        assert [(f, e["channel"], e["text"]) for f, k, e in events if k == "text"] == [
+            (2, "dialogue", "部室のドアを"), (3, "dialogue", "開けた。"), (5, "dialogue", "行く？"),
+            (8, "choice", "行く\n行かない"), (10, "dialogue", "そう。")]
+        assert [(f, e.get("index", "closed")) for f, k, e in events if k == "cursor"] == [(8, 0), (9, 1), (10, "closed")]
+        # A question that wasn't typed first is said with its choice; text still typing, once it stands still.
+        r.state_loaded()
+        r.read = gakkou_memory(question="どっち？", answers=("右", "左"), listed=2, ready=1)
+        r.frame(11)
+        assert [(e["channel"], e["text"]) for e in r.take("text")] == [("dialogue", "どっち？"), ("choice", "右\n左")]
+        r.state_loaded()
+        for frame in range(12, 52):
+            r.read = gakkou_memory(typed=first, count=2)
+            r.frame(frame)
+        assert [e["text"] for e in r.take("text")] == ["部室"]
+    with rd.Reader(gakkou_memory(word=1), platform="ps1", game_id="SLPS-00404") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-00404.lua"))
+
