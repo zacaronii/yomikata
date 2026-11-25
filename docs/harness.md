@@ -56,7 +56,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
-| `watch` | Runs the game and lists each change of a place in memory with its frame |
+| `watch` | Runs the game and lists each change of a place in memory with its frame; of several places, or a stretch of values on end (a queue's front), a row whenever any changes |
 | `code_rule` | What arithmetic ties codes to characters, kind by kind, from a few characters and their codes; or that the codes only keep JIS order |
 | `vram_picture` | A rectangle of video memory as a picture: frames, textures, a glyph cache (PlayStation); all of it as tiles, 64 across (Super Famicom) |
 | `vram_tilemap` | A tilemap out of Super Famicom video memory as tile numbers, a row a line |
