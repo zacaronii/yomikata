@@ -965,3 +965,46 @@ def test_twilight_syndrome_the_page_as_it_grows_and_a_choice():
     with rd.Reader(tw_memory(), platform="ps1", game_id="SLPS-00102", data={}) as r:
         with pytest.raises(rd.ScriptError, match="missing"):
             r.load(bundle(ROOT / "games/ps1/SLPS-00102.lua"))
+
+
+# ---- games/ps1/SLPS-00405.lua: the same window, with its own codes ----
+
+def kyu_memory(text: str = "", state: int = 0, cursor: int = 0, past: int = 0, word: int = 0x0C0042F5):
+    from yomikata import tbl
+    back = {}
+    for name in ("tbl", "ch5"):
+        for code, ch in tbl.parse((ROOT / f"games/ps1/SLPS-00405.{name}").read_text(encoding="utf-8")).chars.items():
+            back.setdefault(ch, code)
+    back["\n"] = bytes.fromhex("00A8")
+    head = b"\x82\x00" + b"\x00\x89"
+    body = b"".join(back[ch] for ch in text) + b"\xFF\xFF"
+    return sparse({0x80010634: struct.pack("<I", word), 0x8001065C: struct.pack("<I", 0x0C0050A7),
+                   0x80010664: struct.pack("<I", 0x0C004DCD), 0x80041C78: struct.pack("<I", 0xAFB200B8),
+                   0x800AAABE: struct.pack("<H", (len(head) + len(body)) // 2 + past),
+                   0x800AAAC2: struct.pack("<H", 1 if text else 0), 0x800AAAB8: struct.pack("<H", state),
+                   0x800973D4: struct.pack("<H", cursor), 0x801FE800: head + body + b"\x82\x00" * 8})
+
+
+def kyu_data():
+    return {p.suffix[1:]: p.read_bytes() for p in (ROOT / "games/ps1").glob("SLPS-00405.*")
+            if p.suffix not in (".lua", ".json")}
+
+
+def test_twilight_syndrome_kyuumei_hen_a_line_and_a_choice_with_spaces_before_its_colons():
+    steps = [("\n：あい", 0xFFFE, 0, 0),                              # the line break before a colon stays
+             ("あ：どこ？\n\u3000：うえ\n\u3000\u3000：いえ", 0xFFFF, 1, 5), ("", 0, 0, 0)]
+    with rd.Reader(kyu_memory(), platform="ps1", game_id="SLPS-00405", data=kyu_data()) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-00405.lua"), "SLPS-00405.lua")
+        r.take()
+        events = []
+        for frame, (shown, state, cursor, past) in enumerate(steps, 1):
+            r.read = kyu_memory(shown, state, cursor, past)
+            r.frame(frame)
+            events += [(frame, kind, e) for kind, e in r.take() if kind in ("text", "cursor")]
+        assert [(f, e["channel"], e["text"]) for f, k, e in events if k == "text"] == [
+            (1, "dialogue", "\n：あい"), (2, "dialogue", "あ：どこ？"), (2, "choice", "うえ\nいえ")]
+        assert [(f, e.get("index", "closed")) for f, k, e in events if k == "cursor"] == [(2, 1), (3, "closed")]
+    with rd.Reader(kyu_memory(word=0x0C004333), platform="ps1", game_id="SLPS-00405", data=kyu_data()) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-00405.lua"))
+

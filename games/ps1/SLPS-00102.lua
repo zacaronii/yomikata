@@ -24,6 +24,7 @@ twilight.read{
     word = 0x8004AA1C,
     rest = 4,
     spaces = false,
+    tight = true,
     chapters = {
         [0xAFBF0020] = { table = function() return reader.data("ch0") end,
                          offset = 0x800A4CEA, shown = 0x800A4CEE, state = 0x800A4CE4, cursor = 0x80094D28 },
