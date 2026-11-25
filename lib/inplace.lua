@@ -47,10 +47,18 @@ end
 
 --- The page the reading position is on. `both` is `size` bytes of script up to the position, then as many
 --- bytes after it as `mark` has. `game` has unit, ends, breaks (sets of codes) and sizes (codes with
---- arguments -> their bytes). Gives a list of pieces; an empty list when the position isn't in a text, or a
---- text is about to start a new page.
+--- arguments -> their bytes), and may have rest. Gives a list of pieces; an empty list when the position
+--- isn't in a text, or a text is about to start a new page.
 function inplace.page(both, size, game, mark, rows)
     local unit = game.unit
+    -- A game may stop up to `game.rest` codes past a text's end code while the text stays up: the position
+    -- is then read as just past that code.
+    for k = 0, game.rest or -1 do
+        if size >= (k + 1) * unit and game.ends[cut(both, size - (k + 1) * unit, size - k * unit)] then
+            both, size = both:sub(1, size - k * unit + #mark), size - k * unit
+            break
+        end
+    end
     local data, ahead = both:sub(1, size), both:sub(size + 1)
     local function code(i)
         return cut(data, i, i + unit)

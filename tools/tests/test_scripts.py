@@ -804,7 +804,8 @@ def test_boku_no_natsuyasumi_the_page_the_pointer_is_on():
 
 def test_inplace_page_reads_as_the_layout_reader_does():
     """Made-up scripts of marks, texts, end codes, page breaks and codes with arguments, read at every position
-    by lib/inplace.lua and by layout.py's `_script`: the two must give the same pieces."""
+    by lib/inplace.lua and by layout.py's `_script`: the two must give the same pieces. Also with `rest`, where
+    a position a few codes past an end code is read as just past it."""
     import random
     from yomikata import layout
     rng = random.Random(7)
@@ -813,8 +814,9 @@ def test_inplace_page_reads_as_the_layout_reader_does():
            'local game = { unit = 2, ends = { ["\\xFF\\xFF"] = true }, breaks = { ["\\xFF\\xFC"] = true },\n'
            '               newlines = {}, silent = {}, sizes = { ["\\xFF\\xF9"] = 4 } }\n'
            'local function unhex(h) return (h:gsub("%x%x", function(p) return string.char(tonumber(p, 16)) end)) end\n'
-           'function page(both, size, mark, rows)\n'
+           'function page(both, size, mark, rows, rest)\n'
            '    local out = {}\n'
+           '    game.rest = rest\n'
            '    for i, piece in ipairs(inplace.page(unhex(both), size, game, unhex(mark), rows)) do\n'
            '        out[i] = (piece:gsub(".", function(c) return string.format("%02x", c:byte()) end))\n'
            '    end\n'
@@ -823,7 +825,8 @@ def test_inplace_page_reads_as_the_layout_reader_does():
     checked = 0
     with rd.Reader(sparse({})) as r:
         r.load(bundle_text(lua))
-        for mark, rows in ((bytes.fromhex("8000"), False), (bytes.fromhex("000001"), True)):
+        for mark, rows, rest in ((bytes.fromhex("8000"), False, 0), (bytes.fromhex("000001"), True, 0),
+                                 (bytes.fromhex("8000"), False, 3)):
             for _ in range(40):
                 script = bytearray()
                 for _ in range(rng.randint(2, 6)):
@@ -836,11 +839,11 @@ def test_inplace_page_reads_as_the_layout_reader_does():
                         script += mark + b"\x07\x08" + end                                                # carries on
                 for size in range(0, len(script) + 1, 1 if len(mark) == 3 else 2):
                     both = bytes(script[:size + len(mark)])
-                    want = layout._script(both, size, 2, mark, {end}, {page}, {arg: 4}, rows) if size else []
-                    got = r.eval(f'page("{both.hex()}", {size}, "{mark.hex()}", {"true" if rows else "false"})') if size else "0:"
-                    assert got == f"{len(want)}:" + "|".join(w.hex() for w in want), (both.hex(), size, mark.hex())
+                    want = layout._script(both, size, 2, mark, {end}, {page}, {arg: 4}, rows, rest) if size else []
+                    got = r.eval(f'page("{both.hex()}", {size}, "{mark.hex()}", {"true" if rows else "false"}, {rest or "nil"})') if size else "0:"
+                    assert got == f"{len(want)}:" + "|".join(w.hex() for w in want), (both.hex(), size, mark.hex(), rest)
                     checked += 1
-    assert checked > 1000
+    assert checked > 1500
 
 
 # ---- games/ps1/SLPS-01001.lua ----
@@ -892,3 +895,73 @@ def test_moonlight_syndrome_what_the_page_gains_and_a_choice():
     with rd.Reader(moon_memory(0, 0, word=1)[0], platform="ps1", game_id="SLPS-01001", data=moon_data()) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPS-01001.lua"))
+
+
+# ---- games/ps1/SLPS-00102.lua, with lib/twilight.lua ----
+
+TW = {"offset": 0x800A4CEA, "shown": 0x800A4CEE, "state": 0x800A4CE4, "cursor": 0x80094D28}
+
+
+def tw_memory(text: str = "", read: int | None = None, state: int = 0, cursor: int = 0, past: int = 0,
+              chapter: int = 0xAFBF0020, word: int = 0x0C004333):
+    """A script buffer with `text` after an instruction and the mark, read up to `read` of its characters (all
+    of it and its end code when None) and `past` codes more."""
+    from yomikata import tbl
+    back = {}
+    for name in ("tbl", "ch0"):
+        for code, ch in tbl.parse((ROOT / f"games/ps1/SLPS-00102.{name}").read_text(encoding="utf-8")).chars.items():
+            back.setdefault(ch, code)
+    back["\n"] = bytes.fromhex("0281")
+    codes = [back[ch] for ch in text]
+    head = b"\x82\x00" + b"\x00\x89"
+    body = b"".join(codes) + b"\xFF\xFF"
+    at = len(head) + (len(body) if read is None else 2 * read) + 2 * past
+    return sparse({0x80011A9C: struct.pack("<I", word), 0x80011A0C: struct.pack("<I", 0x34020004),
+                   0x80011934: struct.pack("<I", 0x34020005), 0x8004AA1C: struct.pack("<I", chapter),
+                   TW["offset"]: struct.pack("<H", at // 2), TW["shown"]: struct.pack("<H", 1 if text else 0),
+                   TW["state"]: struct.pack("<H", state), TW["cursor"]: struct.pack("<H", cursor),
+                   0x801FE800: head + body + b"\x82\x00" * 8})
+
+
+def tw_data():
+    return {p.suffix[1:]: p.read_bytes() for p in (ROOT / "games/ps1").glob("SLPS-00102.*")
+            if p.suffix not in (".lua", ".json")}
+
+
+def test_twilight_syndrome_the_page_as_it_grows_and_a_choice():
+    line, more = "あい：うえ", "あい：うえ\nいう"
+    question = "あ：どこ？\n：うえ\n\n：いえ"
+    steps = [(line, 3, 0, 0, 0), (line, None, 0xFFFE, 0, 0),            # typing; then the window waits
+             (more, 6, 0, 0, 0), (more, None, 0xFFFE, 0, 0),            # the page gains a row
+             (question, None, 0xFFFF, 0, 4), (question, None, 0xFFFF, 1, 4),    # a choice, the game four codes on
+             ("", None, 0, 0, 0)]
+    with rd.Reader(tw_memory(), platform="ps1", game_id="SLPS-00102", data=tw_data()) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-00102.lua"), "SLPS-00102.lua")
+        r.take()
+        events = []
+        for frame, (shown, read, state, cursor, past) in enumerate(steps, 1):
+            r.read = tw_memory(shown, read, state, cursor, past)
+            r.frame(frame)
+            events += [(frame, kind, e) for kind, e in r.take() if kind in ("text", "cursor")]
+        texts = [(f, e["channel"], e["text"]) for f, k, e in events if k == "text"]
+        assert texts == [(2, "dialogue", "あい：うえ"), (4, "dialogue", "いう"),
+                         (5, "dialogue", "あ：どこ？"), (5, "choice", "うえ\nいえ")]
+        assert [(f, e.get("index", "closed")) for f, k, e in events if k == "cursor"] == [(5, 0), (6, 1), (7, "closed")]
+        # A line still typing is said once it has stood still for half a second.
+        r.state_loaded()
+        for frame in range(8, 48):
+            r.read = tw_memory(line, 3, 0)
+            r.frame(frame)
+        assert [e["text"] for e in r.take("text")] == ["あい："]
+    # A chapter the script doesn't know: nothing is read. And another build.
+    with rd.Reader(tw_memory(line, None, 0xFFFE, chapter=1), platform="ps1", game_id="SLPS-00102", data=tw_data()) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-00102.lua"))
+        r.take()
+        r.frame(1)
+        assert r.take("text") == []
+    with rd.Reader(tw_memory(word=1), platform="ps1", game_id="SLPS-00102", data=tw_data()) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-00102.lua"))
+    with rd.Reader(tw_memory(), platform="ps1", game_id="SLPS-00102", data={}) as r:
+        with pytest.raises(rd.ScriptError, match="missing"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-00102.lua"))

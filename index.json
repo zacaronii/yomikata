@@ -636,7 +636,7 @@
   },
   "SCPS-10088": {
    "path": "scripts/ps1/SCPS-10088.lua",
-   "sha256": "9d99c0f2841267e7b849419907cc884dd36e75b269966ef7f5a5e402c9b417ca",
+   "sha256": "02928833c2ada78dca0b1380b1095932dabd1f64bfa29bdbcfe8afe24d165260",
    "platform": "ps1",
    "runtime": 1,
    "title": "ぼくのなつやすみ (Boku no Natsuyasumi)",
@@ -654,7 +654,7 @@
   },
   "SLPM-86168": {
    "path": "scripts/ps1/SLPM-86168.lua",
-   "sha256": "af126a0b0f57b0c02b37763743fb5f75f961f961f956552d5c77b2996a53ef8e",
+   "sha256": "7d602812c68c02f7c270fbb74aeccdeb97748cf8a32490f06a6a2a4f22d0a331",
    "platform": "ps1",
    "runtime": 1,
    "title": "幻想水滸伝II (Gensou Suikoden II)",
@@ -672,7 +672,7 @@
   },
   "SLPS-00097": {
    "path": "scripts/ps1/SLPS-00097.lua",
-   "sha256": "106b51e793300fb18ee75f07ffcc130021f48bf0e708d2de2c1a5a0b34f97e7f",
+   "sha256": "554f1d9bc3ac9d9831dad5462f440720d02ed2a56a96bb602e505fe8f6d8c229",
    "platform": "ps1",
    "runtime": 1,
    "title": "幻想水滸伝 (Gensou Suikoden)",
@@ -688,9 +688,55 @@
     }
    }
   },
+  "SLPS-00102": {
+   "path": "scripts/ps1/SLPS-00102.lua",
+   "sha256": "15638b82c422b696ef5398356645015c6eec1f0c1e61ba9c6e745c1cdfcc860a",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "トワイライトシンドローム 探索編 (Twilight Syndrome: Tansaku-hen)",
+   "reads": "the message window as it fills, a part at a time, and a choice's answers with its cursor",
+   "builds": [
+    "23eb26992df8396bac6e65ac0a61897cbac1c715"
+   ],
+   "needs": [],
+   "data": {
+    "ch0": {
+     "path": "games/ps1/SLPS-00102.ch0",
+     "sha256": "2795afa264ba49bf7ef99565747330106fb0c06c6ace1fdab7108b3ac1825f4d"
+    },
+    "ch1": {
+     "path": "games/ps1/SLPS-00102.ch1",
+     "sha256": "88cd96b28320589571287612695a425f1c227e4e7ad73fb831a5786cd09d998f"
+    },
+    "ch2": {
+     "path": "games/ps1/SLPS-00102.ch2",
+     "sha256": "9598e656fcec3a8e5e6fc81e35a0a362d748700c86c1262721a5e5ab671c69b1"
+    },
+    "ch3": {
+     "path": "games/ps1/SLPS-00102.ch3",
+     "sha256": "6e2b0e43e056b1f2d0692c0531b9247b97f098e6ab545bb03e942965f1cbfef4"
+    },
+    "ch4": {
+     "path": "games/ps1/SLPS-00102.ch4",
+     "sha256": "c5b215e0dadbc61c3ece677fb3ae1ea2d983ac54c6ed34e1b0790e6cd8b50ec1"
+    },
+    "chx": {
+     "path": "games/ps1/SLPS-00102.chx",
+     "sha256": "3b8ddb5da498cd3c4f5ec131323187c8f8ef4756e1fd522a6a07127ae0e94242"
+    },
+    "codes": {
+     "path": "games/ps1/SLPS-00102.codes",
+     "sha256": "cf346c45e5fd363f39ef2a98381398d8703b6ebe607f0b01a5aed7384290e9a0"
+    },
+    "tbl": {
+     "path": "games/ps1/SLPS-00102.tbl",
+     "sha256": "3eaa510816cd172b1689dcc094789ec65774af3ba8893554b5fd4a593a459491"
+    }
+   }
+  },
   "SLPS-01001": {
    "path": "scripts/ps1/SLPS-01001.lua",
-   "sha256": "83f84bc5c88426757d448d1f2fe179aed51b5be664406bd65dc87b706470c4a2",
+   "sha256": "160352e4617a9b507751523307f1fcbb6e85fc0f678e2a4256a62a26f13ba62d",
    "platform": "ps1",
    "runtime": 1,
    "title": "ムーンライトシンドローム (Moonlight Syndrome)",
@@ -769,7 +815,7 @@
   },
   "SLPS-02100": {
    "path": "scripts/ps1/SLPS-02100.lua",
-   "sha256": "6256d02ba434d193a49a5c62bbfc7d086b4e0533c3660be470feee1583a6057b",
+   "sha256": "ca7d13ba4fdbd2081536d917a6524d962bb209b057c04937b777c972926598a4",
    "platform": "ps1",
    "runtime": 1,
    "title": "ペルソナ2 罪 (Persona 2: Tsumi)",
@@ -778,7 +824,12 @@
     "f477d5135dc515489f5caeb86ff0d4a9a6f97ce4"
    ],
    "needs": [],
-   "data": {}
+   "data": {
+    "tbl": {
+     "path": "games/ps1/SLPS-02100.tbl",
+     "sha256": "24340765c7af5b001df00e734b42dcf505fc7fb7e3fd4d71248af7678e41cc2f"
+    }
+   }
   },
   "SLPS-02296": {
    "path": "scripts/ps1/SLPS-02296.lua",
@@ -795,7 +846,7 @@
   },
   "SLPS-02785": {
    "path": "scripts/ps1/SLPS-02785.lua",
-   "sha256": "3a06238861ed0306bda04331ce138d87e554dac7a6e71cbcf21064540b498edd",
+   "sha256": "64bd6676cd628ca5ea451c0511a644f1b1541f8b1f180da60c711d11c3b88a2b",
    "platform": "ps1",
    "runtime": 1,
    "title": "ペルソナ2 罰 (Persona 2: Batsu)",
@@ -804,7 +855,12 @@
     "2052488cf17bd9cbb61bfc4039143aee6c7a0c4d"
    ],
    "needs": [],
-   "data": {}
+   "data": {
+    "tbl": {
+     "path": "games/ps1/SLPS-02785.tbl",
+     "sha256": "8dac7be0bb5d8ddb2b7aa20e83650615ae558db8f3a033084e815614891fd1da"
+    }
+   }
   },
   "SLPS-03050": {
    "path": "scripts/ps1/SLPS-03050.lua",

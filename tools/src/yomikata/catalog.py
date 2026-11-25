@@ -69,13 +69,14 @@ def validate(root: Path) -> list[Problem]:
         if p.suffix == ".tbl" or not p.is_file():
             continue
         part = p.suffix[1:]
-        named = [root / "tables" / p.parent.name / f"{p.stem}-{part}.tbl", *sorted((root / "tables").glob(f"*-{part}.tbl"))]
+        named = [t for t in sorted((root / "tables" / p.parent.name).glob(f"{p.stem}-*.tbl"))
+                 if t.stem.lower() == f"{p.stem}-{part}".lower()] + sorted((root / "tables").glob(f"*-{part}.tbl"))
         other = next((t for t in named if t.is_file()), None)
         if other is not None and other.read_bytes() != p.read_bytes():
             problems.append(Problem(str(p.relative_to(root)), f"differs from {other.relative_to(root)}"))
 
     for p in sorted([*(root / "tables").rglob("*.tbl"), *(root / "games").glob("*/*.tbl"),
-                     *(a for a in asked if a.suffix not in (".tbl", ".charset") and a.is_file())]):
+                     *(a for a in asked if a.suffix not in (".tbl", ".charset", ".codes") and a.is_file())]):
         try:
             tbl.parse(p.read_text(encoding="utf-8"), str(p.relative_to(root)))
         except (tbl.TableError, UnicodeDecodeError) as e:
@@ -131,8 +132,13 @@ def scripts(root: Path):
 
 
 def script_data(root: Path, path: Path) -> dict[str, Path]:
-    """The data files a script asks for by reader.data("name"): name -> games/<platform>/<id>.<name>."""
-    names = sorted({m.group(2) for m in DATA_CALL.finditer(path.read_text(encoding="utf-8"))})
+    """The data files a script, or a module it brings in, asks for by reader.data("name"): name ->
+    games/<platform>/<id>.<name>."""
+    try:                                            # a module of lib/ may be what asks
+        source = bundle(path, root)
+    except BundleError:
+        source = path.read_text(encoding="utf-8")
+    names = sorted({m.group(2) for m in DATA_CALL.finditer(source)})
     return {name: path.with_suffix("." + name) for name in names}
 
 
