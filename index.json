@@ -509,10 +509,10 @@
   },
   "SLPS-25135": {
    "path": "games/ps2/SLPS-25135.json",
-   "sha256": "3ef93b97e1ba61baba8129bd48ceac8a4f2fa9f0e68f552b30e75d4cca9c0956",
+   "sha256": "df2b6242243e36b91bdb0f7b1ff82417ac9d173dff1cb5c75891db31f5e5cb7e",
    "platform": "ps2",
-   "encoding": "compressed",
-   "status": "auto"
+   "encoding": "shift_jis",
+   "status": "partial"
   },
   "SLPS-25149": {
    "path": "games/ps2/SLPS-25149.json",
@@ -1161,6 +1161,19 @@
    "reads": "the message window's three rows, the speaker's name, and a choice's answers with its cursor",
    "builds": [
     "8ff227df40eccefd0a9e772f4930d693b89fc117"
+   ],
+   "needs": [],
+   "data": {}
+  },
+  "SLPS-25135": {
+   "path": "scripts/ps2/SLPS-25135.lua",
+   "sha256": "b1f7c7a299a2a2c3fd5c5fd2c02e4ef8fd25135239b586b2047a8f51f6189142",
+   "platform": "ps2",
+   "runtime": 1,
+   "title": "かまいたちの夜2 監獄島のわらべ唄 (Kamaitachi no Yoru 2: Kangoku-jima no Warabe-uta)",
+   "reads": "the story's text as it is typed, a sentence at a time, with its furigana",
+   "builds": [
+    "SLPS-25135-30690da2"
    ],
    "needs": [],
    "data": {}
