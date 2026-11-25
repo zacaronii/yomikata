@@ -1079,6 +1079,8 @@ class Session:
             self._advance(frames, held, where, events)
             self._advance(2, set(), (0.0, 0.0), events)
             return machine.ram()
+        moved("left")                           # away from the right and bottom edges first: a cursor
+        moved("up")                             # against an edge doesn't follow a push towards it
         base, start = machine.ram()
         shots = [start] + [moved(d)[1] for d in ("right", "left", "down", "up")]
         found = {}
@@ -1167,7 +1169,9 @@ class Session:
     @tool("Goes round a picture's spots with the cursor and says what the loaded script read at each: moves "
           "the cursor there (cursor_to), presses the button, then presses on until the script has said "
           "nothing for a press, and does the steps of `after` if any (to leave a close-up, say). For a "
-          "point-and-click scene: every spot of a room in one call. Stops where the call's time is up.",
+          "point-and-click scene: every spot of a room in one call. Where the cursor can't be brought to a "
+          "spot, its numbers are looked for again once (they move from scene to scene). Stops where the "
+          "call's time is up.",
           points=("array", "the spots, each [x, y] in the cursor's numbers", True),
           button=("string", "the button that looks or confirms (default a)", False),
           wait=("integer", "frames after each press (default 130: text may come a hundred frames after its press)", False),
@@ -1185,13 +1189,22 @@ class Session:
         self._cursor_cells("", "", 2)
         press = {"buttons": [button], "hold": 3, "wait": max(1, int(wait))}
         plan = [press] * max(0, int(first)) + [{**press, "times": max(1, int(most)), "until_quiet": 1}] + list(after or [])
-        rows, why = [], None
+        rows, why, found_again = [], None, False
         for x, y in points:
             if self._late():
                 why = "time"
                 break
             moved = self.cursor_to(int(x), int(y), if_stuck=if_stuck)
             row = {"at": [int(x), int(y)], "reached": moved.get("reached", False)}
+            if not moved.get("reached") and not found_again:
+                # A cursor's numbers move from scene to scene: look for them once more, and try again.
+                found_again = True
+                try:
+                    self.cursor_find()
+                    moved = self.cursor_to(int(x), int(y), if_stuck=if_stuck)
+                    row.update(reached=moved.get("reached", False), found_again=True)
+                except HarnessError:
+                    row["found_again"] = False
             if not moved.get("reached"):
                 row["cursor"] = [moved["x"], moved["y"]]
             out = self.steps(plan)

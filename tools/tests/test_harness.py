@@ -1144,7 +1144,7 @@ def test_a_cursor_is_found_and_moved_to_a_place(session):
         session.cursor_to(10, 10)
     found = session.cursor_find()
     assert (found["x_address"], found["y_address"], found["size"]) == ("0x80000030", "0x80000032", 2)
-    assert (found["x"], found["y"]) == (100, 80) and found["moved"] == {"right": 12, "down": 12, "frames": 6}
+    assert (found["x"], found["y"]) == (88, 68) and found["moved"] == {"right": 12, "down": 12, "frames": 6}
     out = session.cursor_to(151, 40)
     assert (out["x"], out["y"], out["reached"]) == (150, 40, True)        # two a frame: as near as 1
     assert session.cursor_to() == {"x": 150, "y": 40, "frames": out["frames"]}
@@ -1203,5 +1203,8 @@ def test_visit_goes_round_spots_and_says_what_each_gave(session):
     assert {t["text"] for s in out["spots"] for t in s["said"]} <= {"こんにちは", "さようなら", "またあした"}
     assert out["spots"][0]["said"] and "stopped" not in out
     assert session.cursor_to()["x"] == 60
+    session.cursor_at = (0x80000010, 0x80000014, 2)                      # the numbers are elsewhere now
+    again = session.visit([[90, 50]], wait=4, most=3)["spots"][0]
+    assert again["reached"] is True and again["found_again"] is True and session.cursor_at[0] == 0x80000030
     with pytest.raises(HarnessError):
         session.visit([[1, 2, 3]])
