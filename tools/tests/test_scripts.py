@@ -1682,8 +1682,8 @@ def test_metal_gear_solid_a_line_is_said_while_it_is_shown():
             r.read = mgs_memory(lists=lists, **moment)
             r.frame(frame)
             said.append([(e["text"], e.get("ruby") or []) for e in r.take("text")])
-        assert said == [[], [("サカナ FOXの�島\n核にある", [[5, 3, "フォックス"]])], [], [], [("それで――", [])], [],
-                        [("サカナ FOXの�島\n核にある", [[5, 3, "フォックス"]])],
+        assert said == [[], [("サカナ FOXの�島\n核にある", [[4, 3, "フォックス"]])], [], [], [("それで――", [])], [],
+                        [("サカナ FOXの�島\n核にある", [[4, 3, "フォックス"]])],
                         [], [], [("大、聞こえたか?\nリンゴ。", [])], [], [], []]
     with rd.Reader(mgs_memory(lists=lists, word=0), platform="ps1", game_id="SLPM-86111", data=data) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
