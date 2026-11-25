@@ -688,6 +688,72 @@
     }
    }
   },
+  "SLPS-01001": {
+   "path": "scripts/ps1/SLPS-01001.lua",
+   "sha256": "83f84bc5c88426757d448d1f2fe179aed51b5be664406bd65dc87b706470c4a2",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "ムーンライトシンドローム (Moonlight Syndrome)",
+   "reads": "the message window as it fills, a part at a time, and a choice's answers with its cursor",
+   "builds": [
+    "a8b3924464bf4b2977f03ac14ea8a7e0c09739d7"
+   ],
+   "needs": [],
+   "data": {
+    "denpow": {
+     "path": "games/ps1/SLPS-01001.denpow",
+     "sha256": "0b4bd3aa4f11edf915456024e276a77ae0e3db50f2e9dff8b22d5f21bd8f2d9d"
+    },
+    "dowaku": {
+     "path": "games/ps1/SLPS-01001.dowaku",
+     "sha256": "98d5a1c4db6c2973fdcd6d8b8d705bf0defdecedb63171d3a25500024e1076e7"
+    },
+    "epilogue": {
+     "path": "games/ps1/SLPS-01001.epilogue",
+     "sha256": "34b649c545e044119bd4ba3902f7a1c67f353bf9d0a529efac3a6ff8a41f45c5"
+    },
+    "fuyou": {
+     "path": "games/ps1/SLPS-01001.fuyou",
+     "sha256": "f6f0fe19b7ad1781a1ce6720165ee358845b3afa3f74d90b2c8262a7eddc2c04"
+    },
+    "hamon": {
+     "path": "games/ps1/SLPS-01001.hamon",
+     "sha256": "aac7863dc6e1d94db9a006b0f831330c83dbfef1a17c59c03456440e5d059439"
+    },
+    "henlin": {
+     "path": "games/ps1/SLPS-01001.henlin",
+     "sha256": "b6929f36f6eb2c8dc37206e31f59fb8cd33ffae969068ee7d93c3960748db362"
+    },
+    "henshits": {
+     "path": "games/ps1/SLPS-01001.henshits",
+     "sha256": "959dc13a6e884f58a77cd507a9509d6e34c86bff322732f0a1b12c2680e23315"
+    },
+    "kaibyo": {
+     "path": "games/ps1/SLPS-01001.kaibyo",
+     "sha256": "80e68eed38fc3ac6dc1dd3915bfe61bccc8e49665d97d7eb6f9a28bdcbc9ac51"
+    },
+    "kana": {
+     "path": "games/ps1/SLPS-01001.kana",
+     "sha256": "47f9f1f12c1f783aa1286adeeab41b622805a5900c173fb548df08b447a34a71"
+    },
+    "mowdei": {
+     "path": "games/ps1/SLPS-01001.mowdei",
+     "sha256": "b53d1af9d86b03b95bbd003531677ce3fdc44be5cb0d082272737eba45964328"
+    },
+    "prologue": {
+     "path": "games/ps1/SLPS-01001.prologue",
+     "sha256": "2454d9ca33fda811b01ef55400f7ba2d99b01ff3f3ef3d61a5f61f1bbfb16321"
+    },
+    "shitsow": {
+     "path": "games/ps1/SLPS-01001.shitsow",
+     "sha256": "91d26c5c3bff91abb5f19c2b7c4825bb049542adc4112c8ea69c86f2410d32d9"
+    },
+    "sowguw": {
+     "path": "games/ps1/SLPS-01001.sowguw",
+     "sha256": "43cb4b75dc29350b9eada2fea3af3e8d99f6ef029b62ed60d9622b03078c2eac"
+    }
+   }
+  },
   "SLPS-01100": {
    "path": "scripts/ps1/SLPS-01100.lua",
    "sha256": "932957f885fefc577b80ed4c1fe75d4d03361b87c35fde0b75c8bcec389f25e8",
