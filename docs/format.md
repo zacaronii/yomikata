@@ -68,16 +68,23 @@ speed on a handheld, and others can afford better: a player finds the setting on
 that the app starts the game there next time, on any device.
 
 ```json
-"tuning": {"pcsx2": {"step": "balanced", "measured_on": "Some Handheld 2"}}
+"tuning": {"dolphin": {"step": "balanced", "measured_on": "Some Handheld 2"}}
 ```
 
-The key is the libretro core's id as its file names it, without `_libretro` (`pcsx2`, `dolphin`,
-`bsnes_mercury_balanced`). `step` is one of the steps the player app defines for that core, from its fastest to
-its best-looking: the names are the app's own, a free string here, and the catalog doesn't check them against
-any list. An app that doesn't know a step ignores it and starts at its default. `measured_on` is optional: the
-model of the device the step was found on (a product's name, nothing of its owner), so that an app on a much
-slower or faster device can take the step as a hint and not as a rule. An entry may have `tuning` and
-nothing else beyond its identity: it needs no encoding work.
+The key is the core's id as the player app names it: lower case, the libretro core's name without `_libretro`
+(`dolphin`, `ppsspp`, `melonds`, `bsnes_mercury`, `pcsx_rearmed`, `mgba`). `step` is one of the steps the
+player app defines for that core, from its fastest to its best-looking: the names are the app's own, a free
+string here, and the catalog doesn't check them against any list.
+
+A step or a core id the player doesn't know isn't an error: it is ignored, and the game starts at the
+player's default. A player's steps can be renamed between its versions, so an entry may outlive the step it
+names.
+
+`measured_on` is optional: the model of the device the step was found on, exactly as Android reports it
+(`Build.MODEL`), and nothing of its owner. A player takes a risky step (one that could make a game unplayable
+on a slower device) only on a device whose model is the same; on any other it takes the nearest safe step.
+
+An entry may have `tuning` and nothing else beyond its identity: it needs no encoding work.
 
 ## Cleanup
 
