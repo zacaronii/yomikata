@@ -89,6 +89,23 @@ def session(tmp_path):
     s.close()
 
 
+def test_a_system_folder_of_its_own(tmp_path):
+    for name in ("games", "cores", "inbox", "scratch", "bios"):
+        (tmp_path / name).mkdir()
+    (tmp_path / "games/g.iso").write_bytes(b"x")
+    (tmp_path / "cores/c.so").write_bytes(b"x")
+    seen = []
+
+    def make(core_path, game, platform, system_dir, options):
+        seen.append(system_dir)
+        return FakeMachine(core_path, game, platform, system_dir, options)
+    roots = Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch")
+    Session(roots, make).load("g.iso", "c.so", "ps1")
+    roots.system = tmp_path / "bios"
+    Session(roots, make).load("g.iso", "c.so", "ps1")
+    assert seen == [tmp_path / "scratch/system", tmp_path / "bios"]
+
+
 def test_load_and_status(session):
     status = session.status()
     assert status["game"] == "ngc/Made Up (Japan).iso" and status["platform"] == "gc" and status["frames"] == 0
@@ -245,6 +262,11 @@ def test_mcp(session):
                 {"name": "games", "arguments": {"platform": ".."}}, {"name": "no-such-tool"}):
         assert ask("tools/call", bad)["result"]["isError"] is True
     assert ask("resources/list")["error"]["code"] == -32601
+    # A tool that breaks in a way nobody foresaw ends that call, not the session.
+    session.status = lambda: {}["missing"]
+    broken = ask("tools/call", {"name": "status"})["result"]
+    assert broken["isError"] is True and "KeyError" in broken["content"][0]["text"]
+    assert ask("ping")["result"] == {}
 
 
 def test_mcp_over_lines(session):
