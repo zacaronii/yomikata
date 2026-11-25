@@ -17,41 +17,6 @@
   "controls": {
     "0280": "page"
   },
-  "layouts": [
-    {
-      "versions": [
-        "959ddf98806648a689eeafaaabbff2a4ec0bfbbb"
-      ],
-      "poll": 20,
-      "message": {
-        "base": "0x800359EC",
-        "offsets": [
-          "0x0"
-        ],
-        "charset": "table",
-        "max_bytes": 512,
-        "terminator": "0080",
-        "pages": {
-          "break": "0280",
-          "cursor": {
-            "address": "0x800359EC",
-            "type": "u32"
-          }
-        },
-        "when": {
-          "address": "0x800359EC",
-          "type": "u32"
-        },
-        "cleanup": [
-          {
-            "regex": "(?m)^　",
-            "replace": ""
-          }
-        ]
-      },
-      "notes": "The word at 0x800359EC points at the page shown in the text panel (at the right of the screen), inside the scene's script, and is 0 while no text is up. A page runs to 0x8000 or 0x8002, so the pointer serves as the text's address and as its page cursor: the first page from there is the one shown. The speaker's name is part of the text. Rows after the first start with a full-width space, which the cleanup drops. Found by replaying the opening headless (docs/replay.md) and read on a device through the arrival at the house (31 pages). Talk while walking around, choices and menus are not checked."
-    }
-  ],
   "status": "partial",
   "coverage": {
     "chars_in_table": 1482,

@@ -15,22 +15,6 @@
   ],
   "unit": 2,
   "status": "partial",
-  "layouts": [{
-    "poll": "frame",
-    "when": {"address": "0x8002590C", "type": "u32"},
-    "message": {"base": "0x8002590C", "offsets": ["0x64", "0x0"], "charset": "table", "max_bytes": 46,
-                "rows": {"count": 4, "stride": 46},
-                "cleanup": [{"regex": "(?m)　+$", "replace": ""}, {"regex": "\\n+$", "replace": ""}]},
-    "speaker": {"base": "0x8002590C", "offsets": ["0x80", "0x0"], "charset": "table", "max_bytes": 44,
-                "terminator": "0000", "cleanup": [{"regex": "　+$", "replace": ""}]},
-    "waiting": {"base": "0x8002590C", "offsets": ["0x21"], "mask": 3},
-    "choosing": {"base": "0x8002590C", "offsets": ["0x0C"]},
-    "choices": {"base": "0x8002590C", "offsets": ["0x64", "0x0"], "charset": "table", "max_bytes": 46,
-                "rows": {"count": 4, "stride": 46}, "when": {"base": "0x8002590C", "offsets": ["0x0C"]},
-                "cleanup": [{"regex": "(?m)　+$", "replace": ""}, {"regex": "\\n+$", "replace": ""}]},
-    "choice_cursor": {"base": "0x8002590C", "offsets": ["0x9F"]},
-    "notes": "0x8002590C points to the dialogue window, or is 0 without one; the window's address moves. In it: 0x64 points to the text, 4 rows of 23 16-bit cells filled as typed; 0x80 points to the speaker's name; byte 0x21 is 0 while typing, 8 in a timed pause, 1 waiting for a press inside a speech, 2 at its last page. A question's answers are typed into the same rows, so they are the message too; byte 0x0C (nonzero) marks them, byte 0x9F is the cursor's row. As a window opens, waiting and choosing can be true for a frame or two with nothing typed. Notices in their own window are not read."
-  }],
   "sources": [
     "Headless replay from power-on: the opening scene's dialogue, its first choice with the cursor on each answer, the party notice, walking, and talking to a soldier outside; about 100 frames compared with the layout's reading",
     "Played on a handheld in a libretro PCSX ReARMed build from power-on to the mountain path: 584 readings with no unmapped code, the speakers, a four-row page, the first question's answers and cursor, and the values of byte 0x21",

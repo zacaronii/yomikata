@@ -34,29 +34,6 @@
       ]
     }
   ],
-  "layouts": [
-    {
-      "versions": [
-        "e259164dd103d5d0306b8cd7e9dc2be0cb282804"
-      ],
-      "poll": 20,
-      "message": {
-        "address": "0x08C9A264",
-        "charset": "utf16le",
-        "max_bytes": 540,
-        "terminator": "0000",
-        "rows": {
-          "count": 5,
-          "stride": 108
-        }
-      },
-      "waiting": {
-        "address": "0x08C9D41E",
-        "equals": 2
-      },
-      "notes": "The message window's rows as the game lays them out (5 rows of 54 characters, without the script's tags), whole from the moment the line starts; all zero when no message is up. `waiting` is a state byte: 3 for the few frames a line takes to draw, 2 once it waits for a press, 0 at a system prompt; the backlog and auto-advance are unchecked. A line is whole on screen within about 3 frames, so there is no typing progress to map. Not mapped: the speaker (its name isn't in memory as text). The prompt about trial save data is the PSP's own dialog, not this buffer."
-    }
-  ],
   "status": "auto",
   "sources": [
     "Genkan memory search during play (PR #5): the line on screen was UTF-16LE at three addresses in user RAM (the loaded script and two buffers); nothing in Shift-JIS or UTF-8",

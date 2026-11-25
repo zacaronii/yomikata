@@ -78,6 +78,12 @@ catalog's own entries, so clients can compare their output with it.
 
 ## Layouts
 
+**No entry in the catalog has layouts any more.** Each game that had them is read by a script
+(docs/script-api.md), and the fifteen entries' `layouts` were taken out once the reader app stopped using them;
+their other fields stay. An entry's notes may still speak of "the layout": it read the same memory its script
+reads now. The format is kept here because the tools still read it (`yomikata layout`, `check`, `propose`,
+and `compare`, which sets a script beside a layout), for working out a new game before its script is written.
+
 A hook needs the emulator to stop the game at an instruction; most stock emulators can't do that. But much of
 what a reader wants is kept in memory anyway: the message the window shows (often whole, before it types out),
 how much of it is on screen, a flag while the game waits for a press, a choice's answers. A layout says where.
