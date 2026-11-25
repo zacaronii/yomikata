@@ -358,6 +358,9 @@ A script that uses only what Furoshiki has runs there as it is. The additions:
 - **The same memory gives the same events.** A script has no clock, and `math.random` and the order `pairs` walks
   a table of strings in are the same in every run, so two runs over one recording must emit the same events, byte for byte; a script that doesn't is wrong
   (it keeps something across a savestate, or reads memory it shouldn't). The runtime's own tests hold it to this.
+- A script that takes a layout's place is set beside it: `yomikata compare games/<platform>/<id>.lua
+  games/<platform>/<id>.json <snapshots>` reads each snapshot through both and counts how many give the same
+  message, speaker and answers. The counts hold no text, and go in the pull request.
 - Still to come: counts against the lines a reader saw (`yomikata check` for scripts), and CI's checks of form:
   the script parses; the header lines are there; no `reader.hook` and no writes; a build check exists; against
   empty memory it stops with its "another build" error, inside the limits.

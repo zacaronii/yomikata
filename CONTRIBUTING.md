@@ -32,7 +32,8 @@ A script (`games/<platform>/<id>.lua`, docs/script-api.md) reads a game where a 
 from snapshots or with the harness (docs/harness.md), check it with `yomikata run` against snapshots, then run
 `yomikata validate` and `yomikata index`: the index and the published copy under `scripts/` are written for
 you and belong in the same pull request. In the pull request, give the counts: how many snapshots, how many
-texts, how many agree with what was on screen.
+texts, how many agree with what was on screen; and where the game has an entry with a layout, what `yomikata
+compare` counts between the two.
 
 ## Rules
 
