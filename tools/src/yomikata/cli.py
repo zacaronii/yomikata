@@ -152,6 +152,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--cores", type=Path, default=Path("/cores"), help="libretro cores (read)")
     p.add_argument("--inbox", type=Path, default=Path("/inbox"), help="an inbox's snapshots folder, for readers' savestates (read)")
     p.add_argument("--scratch", type=Path, default=Path("/scratch"), help="states, snaps and the cores' own files (written)")
+    p.add_argument("--system", type=Path, help="where a core looks for a BIOS (read; default: system/ under scratch)")
     p = sub.add_parser("serve", help="run the sample inbox (needs the server extra; settings from YOMIKATA_* env)")
     p.add_argument("--port", type=int, default=8080)
     args = ap.parse_args(argv)
@@ -160,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
         from .harness import mcp
         from .harness.machine import Machine
         from .harness.session import Roots, Session
-        mcp.serve(Session(Roots(args.games, args.cores, args.inbox, args.scratch), Machine))
+        mcp.serve(Session(Roots(args.games, args.cores, args.inbox, args.scratch, args.system), Machine))
         return 0
 
     if args.cmd == "serve":
