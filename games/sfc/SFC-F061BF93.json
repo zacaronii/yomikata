@@ -13,9 +13,9 @@
   "sources": [
     "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots",
     "The characters read off the pictures the game drew for them in play, each code paired with the glyph drawn the frame it left the game's queue",
-    "Played from power-on through the opening, round the ship, the arrival in port and the father's cabin: what the script said in play agreed with the lines read off 40 pictures, over 7 scenes",
-    "and it read nothing on 7 screens that show no text",
-    "The table's characters were read in those pictures' sentences; of the 124 whose glyphs were kept, a second reader (an OCR model) agreed on 87, the 37 others each read in a sentence"
+    "Played from power-on through the opening, round the ship, the arrival in port, the father's cabin, the gangway and the pier: what the script said in play agreed with the lines read off 48 pictures, over 9 scenes",
+    "and it read nothing on 9 screens that show no text; a question's answers (a yes and no box) aren't read",
+    "The table's characters were read in those pictures' sentences; of the 136 whose glyphs were kept, a second reader (an OCR model) agreed on 96, the 40 others each read in a sentence"
   ],
   "tables": [
     "tables/sfc/SFC-F061BF93.tbl"

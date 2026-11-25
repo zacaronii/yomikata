@@ -25,8 +25,8 @@
 --
 -- Not covered: menus, battle messages, names and shops (other codes, drawn as tiles); a voiced kana in the
 -- hero's name; a character the table hasn't got comes out as U+FFFD, and the
--- table has only those met in play so far. Checked from the opening to the arrival in port: 40 screens over
--- 7 scenes.
+-- table has only those met in play so far. Checked from the opening to the pier of the first port: 48 screens
+-- over 9 scenes. A question's answers (yes, no) are in a box of their own and aren't read.
 
 local tbl = require("lib.tbl")
 
