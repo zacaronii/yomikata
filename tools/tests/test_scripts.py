@@ -1169,4 +1169,10 @@ def test_new_script_writes_a_skeleton_that_is_in_form_and_runs(tmp_path, capsys)
     assert "def shvc_zz_memory" in capsys.readouterr().out
     assert json.loads((tmp_path / "games/sfc/SHVC-ZZ.json").read_text())["versions"] == [{"header_crc32": "b343f13a"}]
     assert cli.main(["new-script", "sfc", "SHVC-ZZ", "--title", "あ (A)", "--build", "b343f13a", "--root", str(tmp_path)]) == 1
+    # A PlayStation 2 game: its serial and CRC, as an emulator says them. The entry gets no hash of a program.
+    written, _ = new_script(tmp_path, "ps2", "SLPM-12345", "あ (A)", "SLPM-12345-1a2b3c4d")
+    assert dict(header(written[0].read_text()))["build"] == "SLPM-12345-1a2b3c4d"
+    assert "versions" not in json.loads(written[1].read_text()) and catalog.validate(tmp_path) == []
+    with pytest.raises(ValueError):
+        new_script(tmp_path, "ps2", "SLPM-12346", "あ (A)", "SLPM-12346-1A2B3C4D")       # the CRC in lowercase
 
