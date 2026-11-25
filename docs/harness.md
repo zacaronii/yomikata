@@ -168,6 +168,14 @@ The count starts again when a game is loaded. A state saved after a write carrie
 (`<name>.writes.json`) says how many, and loading that state, in this session or a later one, sets the count, so
 what is snapped from there is marked too. Loading a state from before the writes clears it.
 
+### A script that reads a line only as it appears
+
+Some games keep nothing that says which line is on screen once it is drawn; a script for one reads the line
+in the frames it is being typed. Run over a still snap it reads nothing, so `compare` can't check it that
+way. A snap taken while a script is loaded keeps what the script said since the snap before (`said`), and
+`compare` with `live` counts that against the snap's lines instead: step to each line with `until` on the
+script's event, wait until the line stands, snap, and read the picture.
+
 ### A call's time
 
 A call that runs the game stops by itself after `--call-seconds` (120 unless said) and says so: `"stopped":

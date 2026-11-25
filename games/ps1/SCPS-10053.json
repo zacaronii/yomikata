@@ -192,10 +192,11 @@
       }
     }
   ],
-  "status": "auto",
+  "status": "partial",
   "sources": [
     "yomikata scan 0.2.0 of the disc files: shift_jis 30,538 characters of prose-like text, 18,724 of them hiragana stored as single bytes",
-    "Furoshiki's reader profile for this game (GPL-3.0; github.com/sommepo/furoshiki, station/reader/profiles/SCPS-10053.lua at 209f31d): the script keeps its hiragana as single bytes; the lines under the film are off until the game's own setting turns them on"
+    "Furoshiki's reader profile for this game (GPL-3.0; github.com/sommepo/furoshiki, station/reader/profiles/SCPS-10053.lua at 209f31d): the script keeps its hiragana as single bytes; the lines under the film are off until the game's own setting turns them on",
+    "The harness alone, from the game's file (docs/first-script.md): the script games/ps1/SCPS-10053.lua, its 20 lines of the opening and the first scene each compared with the picture taken just after"
   ],
-  "notes": "Hiragana is stored as single bytes (the half-width katakana codes, voiced marks as bytes of their own); katakana and kanji are ordinary two-byte Shift-JIS. `cleanup` turns it back. The game starts with its lines hidden (各種設定, 表示, 台詞設定: 音声のみ); 文字+音声 or 文字のみ puts them on screen."
+  "notes": "Hiragana is stored as single bytes (the half-width katakana codes, voiced marks as bytes of their own); katakana and kanji are two-byte Shift-JIS. `cleanup` turns it back. Read by the script SCPS-10053.lua: a scene is a list of strings and the script reads a line while the game types it. The narration and the protagonist's lines are read; the other characters' lines, only spoken in what was played, and choices are not. The lines setting (各種設定, 表示, 台詞設定) made no difference to those in play."
 }

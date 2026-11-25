@@ -85,6 +85,7 @@ class Session:
         self.reader: rd.Reader | None = None
         self.script_name = None
         self.layouts: dict[str, dict] = {}
+        self.said: list[dict] = []              # what the loaded script has said since the last snap
         self.call_seconds = CALL_SECONDS
         self.allow_poke = False                 # memory writes: only when the harness was started with them on
         self.pokes = 0                          # writes made since the game was loaded
@@ -134,6 +135,9 @@ class Session:
                     self.layouts.pop(event["window"], None)
                 else:
                     self.layouts[event["window"]] = event
+            if kind == "text":
+                self.said.append({k: event.get(k) for k in ("channel", "speaker", "text")})
+                del self.said[:-MAX_EVENTS]
             if len(out) < MAX_EVENTS and not (kind == "log" and event.get("level") == "info"):
                 out.append({"kind": kind, "frame": self.machine.frames, **event})
 
@@ -614,6 +618,9 @@ class Session:
             meta["ocr_unavailable"] = True
         if self.pokes:                          # what this moment shows was reached with memory written
             meta["memory_writes"] = self.pokes
+        if self.reader is not None:             # what the script said on the way here, for `compare` with `live`
+            meta["said"] = self.said
+        self.said = []
         (folder / f"{name}.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
         if machine.picture() is not None:
             (folder / f"{name}.png").write_bytes(self._png(self._picture()))
@@ -1027,10 +1034,13 @@ class Session:
           entry=("object", "a catalog entry (its JSON) whose layout to compare with", False),
           tables=("object", "that entry's tables: each path the entry names to the table's text", False),
           version=("string", "which of the entry's versions the snaps are (its exe_sha1 or header_crc32)", False),
-          show=("boolean", "also give what was read at each snap", False))
-    def compare(self, source: str, name: str = "script.lua", data: dict | None = None, snaps: list | None = None,
+          show=("boolean", "also give what was read at each snap", False),
+          live=("boolean", "count what the script said in play on the way to each snap (kept with the snap when "
+                           "it was taken with a script loaded) instead of running it over the still snap: for a "
+                           "script that reads a line only as it appears", False))
+    def compare(self, source: str = "", name: str = "script.lua", data: dict | None = None, snaps: list | None = None,
                 frames: int = 40, entry: dict | None = None, tables: dict | None = None, version: str = "",
-                show: bool = False) -> dict:
+                show: bool = False, live: bool = False) -> dict:
         from .. import compare as cmp
         from ..check import agreement, sidecars
         from ..run import Reading, _load, _regions
@@ -1048,16 +1058,22 @@ class Session:
             platform = PLATFORM_ALIASES.get(meta.get("platform"), meta.get("platform"))
             read = rd.memory(int(meta["base_address"], 16), _load(path), MIRRORS.get(platform, ()))
             reading = Reading(n)
+            if live:
+                if "said" not in meta:
+                    raise HarnessError(f"{n} was taken with no script loaded: nothing was said on the way to it")
+                reading.events = [("text", {"channel": e.get("channel") or "dialogue", "speaker": e.get("speaker") or "",
+                                            "text": e.get("text") or ""}) for e in meta["said"]]
             try:
-                with rd.Reader(read, platform=platform, game_id=Path(name).stem, regions=_regions(path),
-                               data=blobs) as reader:
+                with (_NoReader() if live else rd.Reader(read, platform=platform, game_id=Path(name).stem,
+                                                         regions=_regions(path), data=blobs)) as reader:
                     try:
                         reader.load(source, name)
                         for tick in range(max(1, min(int(frames), 600))):
                             reader.frame(tick + 1)
                     except rd.ScriptError as e:
                         reading.error = str(e)
-                    reading.events = reader.take()
+                    if not live:
+                        reading.events = reader.take()
             except rd.ReaderUnavailable as e:
                 raise HarnessError(str(e)) from None
             readings.append(reading)
@@ -1132,6 +1148,22 @@ class Session:
     def close(self) -> None:
         self._close_reader()
         self.machine = None
+
+
+class _NoReader:
+    """Stands in for a reader where nothing is run: `compare` with what was said in play."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+    def load(self, *_):
+        pass
+
+    def frame(self, *_):
+        pass
 
 
 class _Regions:

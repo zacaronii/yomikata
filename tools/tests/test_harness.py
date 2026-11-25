@@ -933,3 +933,20 @@ def test_a_playstation_core_gets_its_video_memory_from_its_savestate(tmp_path):
     machine.platform = "gc"                                          # another console: nothing made up
     assert machine.regions() == {}
 
+
+@needs_reader
+def test_compare_with_what_the_script_said_in_play(session):
+    """A script that says a line only as it appears reads nothing from a still snap: what it said on the way to
+    each snap is kept with the snap, and compare counts that."""
+    session.snap("before")                                            # no script yet
+    assert session.script_try(SCRIPT)["loaded"]
+    session.steps([{"wait": 3, "snap": True}, {"wait": 3, "snap": True}, {"wait": 10, "snap": True}], prefix="p")
+    session.snap_lines("p-000", ocr=["こんにちは"])
+    session.snap_lines("p-001", no_text=True)                        # nothing new was said on the way to it
+    session.snap_lines("p-002", ocr=["さようなら"])
+    out = session.compare(snaps=["p-000", "p-001", "p-002"], live=True, show=True)
+    assert [r["read"] for r in out["rows"]] == ["こんにちは", "", "さようなら"]
+    assert out["script"]["of those, agreeing 80% or more"] == 2 and out["script"]["of those, reading nothing"] == 1
+    with pytest.raises(HarnessError, match="no script loaded"):
+        session.compare(snaps=["before"], live=True)
+

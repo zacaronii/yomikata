@@ -31,17 +31,17 @@
   },
   "SCPS-10053": {
    "path": "games/ps1/SCPS-10053.json",
-   "sha256": "c55d984cbdb1327f53bf9a885150744b15f9762138f75c2364b411a978a3185a",
+   "sha256": "67aeec3c102d4e73afeafdc53982122833b0b56c60d470acbf1b4b3305ef09ee",
    "platform": "ps1",
    "encoding": "shift_jis",
-   "status": "auto"
+   "status": "partial"
   },
   "SCPS-10054": {
    "path": "games/ps1/SCPS-10053.json",
-   "sha256": "c55d984cbdb1327f53bf9a885150744b15f9762138f75c2364b411a978a3185a",
+   "sha256": "67aeec3c102d4e73afeafdc53982122833b0b56c60d470acbf1b4b3305ef09ee",
    "platform": "ps1",
    "encoding": "shift_jis",
-   "status": "auto",
+   "status": "partial",
    "alias_of": "SCPS-10053"
   },
   "SCPS-10056": {
@@ -661,6 +661,19 @@
    "reads": "the message window's rows",
    "builds": [
     "e259164dd103d5d0306b8cd7e9dc2be0cb282804"
+   ],
+   "needs": [],
+   "data": {}
+  },
+  "SCPS-10053": {
+   "path": "scripts/ps1/SCPS-10053.lua",
+   "sha256": "57b5c14d20898570f2de54b0f74b1f8f31af1d6cb4d66b7cbd8f459181c0a0d4",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "やるドラシリーズVol.1 ダブルキャスト (Yarudora Series Vol. 1: Double Cast)",
+   "reads": "each line under the film as the game starts to type it",
+   "builds": [
+    "9a0ac19e2456f8caa981a151b3c6010ff0886f69"
    ],
    "needs": [],
    "data": {}
