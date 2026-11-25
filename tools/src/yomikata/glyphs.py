@@ -146,3 +146,92 @@ def nearest(glyph, read: list[tuple[str, object]], count: int = 3) -> list[tuple
         scored.append((character, best))
     return sorted(scored, key=lambda pair: -pair[1])[:count]
 
+
+
+# ---- a font in a known order ----
+
+ORDERS = ("jis", "sjis", "unicode")
+
+
+def _number(order: str):
+    if order == "unicode":
+        return ord
+
+    def number(ch: str):
+        try:
+            raw = ch.encode("euc_jp" if order == "jis" else "cp932")
+        except UnicodeEncodeError:
+            return None
+        return int.from_bytes(raw, "big") if len(raw) == 2 else None
+    return number
+
+
+def _all(order: str) -> list[tuple[int, str]]:
+    """Every two-byte character of the order's set, by its number."""
+    out = []
+    if order == "unicode":
+        return [(n, chr(n)) for n in range(0x3000, 0xA000)]
+    codec, leads = ("euc_jp", range(0xA1, 0xFF)) if order == "jis" else ("cp932", [*range(0x81, 0xA0), *range(0xE0, 0xF0)])
+    for lead in leads:
+        for second in (range(0xA1, 0xFF) if order == "jis" else range(0x40, 0xFD)):
+            try:
+                ch = bytes([lead, second]).decode(codec)
+            except UnicodeDecodeError:
+                continue
+            if len(ch) == 1:
+                out.append((lead << 8 | second, ch))
+    return out
+
+
+def in_order(readings: list[str | None], order: str = "jis") -> list[dict]:
+    """A font whose glyphs stand in a known order (JIS, Shift-JIS, Unicode), checked by that order: a reading
+    for each glyph (None where there is none) against the rule that the numbers must rise.
+
+    The longest run of readings that does rise is kept (`ok`). For every other glyph the row gives what the
+    order allows there: the characters between its kept neighbours (`candidates`), and when there are exactly
+    as many of those as glyphs to fill, which one it must be (`must_be`). A reading left out of the run is
+    `breaks`: it, or a neighbour, is wrong."""
+    if order not in ORDERS:
+        raise ValueError(f"order is one of: {', '.join(ORDERS)}")
+    number = _number(order)
+    numbers = [number(r) if r and len(r) == 1 else None for r in readings]
+    # The longest rising run (patience sorting, with the way back).
+    import bisect
+    tails, tail_at, back = [], [], [None] * len(numbers)
+    for i, n in enumerate(numbers):
+        if n is None:
+            continue
+        k = bisect.bisect_left(tails, n)
+        if k == len(tails):
+            tails.append(n)
+            tail_at.append(i)
+        else:
+            tails[k], tail_at[k] = n, i
+        back[i] = tail_at[k - 1] if k else None
+    kept, i = set(), tail_at[-1] if tail_at else None
+    while i is not None:
+        kept.add(i)
+        i = back[i]
+    everything = _all(order)
+    keys = [n for n, _ in everything]
+    rows, i = [], 0
+    while i < len(readings):
+        if i in kept:
+            rows.append({"glyph": i, "reading": readings[i], "status": "ok"})
+            i += 1
+            continue
+        j = i
+        while j < len(readings) and j not in kept:
+            j += 1
+        low = numbers[i - 1] if i else -1
+        high = numbers[j] if j < len(readings) else 1 << 32
+        between = [ch for _, ch in everything[bisect.bisect_right(keys, low):bisect.bisect_left(keys, high)]]
+        for k in range(i, j):
+            row = {"glyph": k, "reading": readings[k], "status": "breaks" if numbers[k] is not None else "unread",
+                   "candidates": "".join(between) if len(between) <= 40 else "".join(between[:20]) + "…" + "".join(between[-19:]),
+                   "allowed": len(between)}
+            if len(between) == j - i:
+                row["must_be"] = between[k - i]
+            rows.append(row)
+        i = j
+    return rows

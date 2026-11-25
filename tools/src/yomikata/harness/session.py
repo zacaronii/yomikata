@@ -622,14 +622,36 @@ class Session:
             memories.append((ram, str(line)))
         if big_endian is None:
             big_endian = getattr(self.machine, "platform", "") in ("gc", "wii")
+        shape = lambda hits, unit: [{"address": f"0x{base + at:08X}",                          # noqa: E731
+                                     "codes": {ch: f"{code:0{2 * unit}X}" for ch, code in codes.items()}}
+                                    for at, codes in hits]
         try:
             total, hits = search.relative(memories, int(unit), bool(big_endian), order, int(stride), int(gap))
+            out = {"count": total, "places": shape(hits, int(unit))}
         except search.SearchError as e:
-            raise HarnessError(str(e)) from None
-        width = 2 * int(unit)
-        shape = lambda hits: [{"address": f"0x{base + at:08X}",                                # noqa: E731
-                               "codes": {ch: f"{code:0{width}X}" for ch, code in codes.items()}} for at, codes in hits]
-        out = {"count": total, "places": shape(hits)}
+            if not str(e).startswith("too little"):
+                raise HarnessError(str(e)) from None
+            total, out = 0, {"count": 0, "places": [], "note": str(e)}
+        if not total:
+            # The same line the other ways a game may keep it: codes of two bytes, the other byte order, kana
+            # as far apart as in an order (up or down). Only the ways that fit a few places are given.
+            ways = []
+            for size in (1, 2):
+                for big in ((False, True) if size > 1 else (False,)):
+                    for by in ("", "unicode", "gojuon"):
+                        if (size, big, by) == (int(unit), bool(big_endian), order) and "note" not in out:
+                            continue
+                        try:
+                            count, some = search.relative(memories, size, big, by, int(stride), int(gap), 3)
+                        except search.SearchError:
+                            continue
+                        if 0 < count <= 50:
+                            ways.append({"unit": size, "big_endian": big, "order": by, "count": count,
+                                         "places": shape(some, size)})
+            if ways:
+                out["other_ways"] = sorted(ways, key=lambda w: w["count"])
+            elif "note" in out:
+                raise HarnessError(out["note"])
         rows = [row for row in text.split("\n") if row.strip()] if text else []
         if not total and len(rows) > 1:
             # The game may have other codes among the line's (a colour, a wait): its rows two at a time, then
@@ -643,7 +665,8 @@ class Session:
                     except search.SearchError:
                         continue
                     if count:
-                        parts.append({"rows": list(range(i + 1, i + size + 1)), "count": count, "places": shape(some)})
+                        parts.append({"rows": list(range(i + 1, i + size + 1)), "count": count,
+                                      "places": shape(some, int(unit))})
                 if parts:
                     break
             out["parts"] = parts
@@ -903,6 +926,110 @@ class Session:
                     row["rule"] = rule
                 found.append(row)
         return {"count": len(found), "names": found}
+
+    @tool("What arithmetic ties the game's codes to their characters: give some characters with their codes "
+          "(from a line found in memory, or a name entered) and each kind (hiragana, katakana, letters, kanji, "
+          "signs) is tried against JIS, Shift-JIS, EUC-JP, Unicode, ASCII and the fifty sounds, counting up or "
+          "down, and against the same with a code's top bits left out. Says the rule for each kind, or that "
+          "the codes only keep JIS order (a font's own numbering, to be read off its glyphs).",
+          codes=("object", "characters to their codes, hex: {\"し\": \"7FE9\", \"レ\": \"7EB4\", \"反\": \"6B96\"}", True))
+    def code_rule(self, codes: dict) -> dict:
+        try:
+            pairs = {str(ch): int(str(code), 16) for ch, code in codes.items()}
+        except ValueError:
+            raise HarnessError("codes are hex") from None
+        if any(len(ch) != 1 for ch in pairs) or len(pairs) < 2:
+            raise HarnessError("give two characters or more, each with its code")
+        return {"kinds": search.code_rules(pairs)}
+
+    def _vram(self, x: int, y: int, w: int, h: int):
+        import numpy as np
+        data = self._need().regions().get("vram")
+        if data is None or len(data) < 1024 * 512 * 2:
+            raise HarnessError("the core gives out no video memory of 1024 by 512 words (PlayStation only)")
+        x, y = max(0, min(int(x), 1023)), max(0, min(int(y), 511))
+        w, h = max(1, min(int(w), 1024 - x)), max(1, min(int(h), 512 - y))
+        return np.frombuffer(data[:1024 * 512 * 2], dtype="<u2").reshape(512, 1024)[y:y + h, x:x + w]
+
+    @staticmethod
+    def _texels(words, bits: int):
+        import numpy as np
+        if bits not in (4, 8):
+            raise HarnessError("bits is 4, 8 or 16")
+        per = 16 // bits
+        return np.stack([(words >> (bits * i)) & ((1 << bits) - 1) for i in range(per)], axis=2).reshape(
+            words.shape[0], -1)
+
+    @tool("A rectangle of video memory as a picture (PlayStation: 1024 by 512 words): the frames, and the "
+          "textures the game draws from, a glyph cache among them. As colours, or as a texture of 4 or 8 bits "
+          "a pixel shown in greys.",
+          x=("integer", "left edge, in words (default 0)", False), y=("integer", "top (default 0)", False),
+          w=("integer", "width in words (default all)", False), h=("integer", "height (default all)", False),
+          bits=("integer", "16 for colours (default), or 4 or 8: a texture's pixels", False),
+          scale=("number", "enlarge or shrink it", False))
+    def vram_picture(self, x: int = 0, y: int = 0, w: int = 1024, h: int = 512, bits: int = 16, scale: float = 1.0):
+        import numpy as np
+        from PIL import Image
+        words = self._vram(x, y, w, h)
+        if int(bits) == 16:
+            image = Image.fromarray(np.stack([(words >> s & 31) << 3 for s in (0, 5, 10)], axis=2).astype(np.uint8))
+        else:
+            pixels = self._texels(words, int(bits))
+            top = max(1, int(pixels.max()))
+            image = Image.fromarray((pixels * (255 // top)).astype(np.uint8))
+        return ("image", self._png(image, scale))
+
+    @tool("Looks in main memory for a picture cut out of video memory: a glyph the game has drawn into a "
+          "texture, to find the font it came from. Give the rectangle of one character (a few rows of it are "
+          "enough) and how many bits a pixel the texture has. Memory is tried at 1, 2, 4 and 8 bits a pixel, "
+          "either end of a byte first, rows any number of bytes apart. Says where, and how the font is packed.",
+          x=("integer", "left edge in video memory, in words", True), y=("integer", "top", True),
+          w=("integer", "width in words", True), h=("integer", "height", True),
+          bits=("integer", "the texture's bits a pixel: 4 (default) or 8", False),
+          skip=("integer", "pixels to leave off the left (a character starts inside a word)", False),
+          width=("integer", "pixels across to take (default: the rest)", False))
+    def find_picture(self, x: int, y: int, w: int, h: int, bits: int = 4, skip: int = 0, width: int = 0) -> dict:
+        pixels = self._texels(self._vram(x, y, w, h), int(bits))[:, max(0, int(skip)):]
+        if int(width) > 0:
+            pixels = pixels[:, :int(width)]
+        base, ram = self._need().ram()
+        try:
+            found = search.picture_places(ram, pixels)
+        except search.SearchError as e:
+            raise HarnessError(str(e)) from None
+        return {"pixels": [int(pixels.shape[1]), int(pixels.shape[0])], "values": sorted(int(v) for v in set(pixels.ravel())),
+                "found": [{**f, "at": f"0x{base + f['at']:08X}"} for f in found]}
+
+    @tool("Runs the game and lists each change of a place in memory with its frame: how a pointer, a counter "
+          "or a flag goes while something happens (a line types, a page turns).",
+          address=("string", "the place, hex", True), frames=("integer", "how many frames to run", True),
+          size=("integer", "bytes: 1, 2 or 4 (default 4)", False),
+          buttons=("array", "buttons held for the first `hold` frames", False),
+          hold=("integer", "frames the buttons are held (default 4)", False))
+    def watch(self, address: str, frames: int, size: int = 4, buttons: list | None = None, hold: int = 4) -> dict:
+        machine = self._need()
+        if size not in (1, 2, 4) or not 0 < int(frames) <= MAX_FRAMES:
+            raise HarnessError(f"size is 1, 2 or 4; 1 to {MAX_FRAMES} frames")
+        at, held, events = int(address, 16), self._buttons(buttons), []
+        changes, last = [], [self._cell(at, size)]
+        first = last[0]
+
+        def note():
+            now = self._cell(at, size)
+            if now != last[0]:
+                last[0] = now
+                if len(changes) < MAX_HITS:
+                    changes.append({"frame": machine.frames, "value": None if now is None else f"0x{now:0{2 * size}X}"})
+            return None
+        why = None
+        if held:
+            ran, why = self._advance(max(1, min(int(hold), int(frames))), held, (0.0, 0.0), events, note)
+        if not why:
+            _, why = self._advance(int(frames) - (min(int(hold), int(frames)) if held else 0) or 1, set(), (0.0, 0.0),
+                                   events, note)
+        return {"frames": machine.frames, "from": None if first is None else f"0x{first:0{2 * size}X}",
+                "changes": changes, **({"stopped": why} if why else {}),
+                **({"events": events} if self.reader is not None else {})}
 
     @tool("Words in memory that point at an address, or into the stretch after it. With snaps, the same for "
           "each of them, a row for each word: which moments it points there in, and where. A word that "

@@ -52,6 +52,10 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `changed` | Places that differ between two snaps, the same as the first in some others and as the second in others: a flag, a counter, a cursor. Or places that go as a pattern says over snaps in order: `abab`, or `aAaA` for one value and anything else in turn |
 | `entered` | Reads a name off a naming screen from a snap after each character: where the name is, each character's code, the rule kana codes follow, lines of a table |
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
+| `watch` | Runs the game and lists each change of a place in memory with its frame |
+| `code_rule` | What arithmetic ties codes to characters, kind by kind, from a few characters and their codes; or that the codes only keep JIS order |
+| `vram_picture` | A rectangle of video memory as a picture: frames, textures, a glyph cache (PlayStation) |
+| `find_picture` | Looks in main memory for a glyph cut out of video memory: finds the font and how it is packed |
 | `pointed` | The words from an address on, and the text each pointer among them leads to: a stack or a record read as strings |
 | `state_save`, `state_load` | States by name, in scratch. A state keeps the way to it beside it |
 | `waypoint_save`, `waypoint_go`, `waypoints` | A moment kept with every move that leads to it from power-on, and gone back to: by its state, or by playing the moves again when the core is another build |
@@ -105,6 +109,17 @@ In the order to try them:
    `refs` over those snaps for what points into the line: a word that does in some moments only is the one
    that follows it. `pointed` then reads the record or stack that word is in as strings. This is what found
    Double Cast's lines, after seven snaps of standing lines had shown nothing.
+9. When `find_relative` finds nothing it tries the other ways a game may keep a line and gives those that fit
+   (`other_ways`): codes of two bytes, the other byte order, kana as far apart as in an order, counting up or
+   down. A line with three or four different kana is enough.
+10. With a line found, `code_rule` on some of its characters and their codes says the arithmetic for each kind.
+   Where kana follow a rule and kanji only keep JIS order, the kanji are the game's font in its own numbering.
+   The font is then found from the screen: `vram_picture` shows where the game drew the line, `find_picture`
+   on one character's rectangle finds its glyph in main memory, and the glyphs around it are the font.
+   `yomikata sorted` checks readings of such a font by its order: a reading that breaks the order is wrong, and
+   between two sure readings the order allows few characters, sometimes one. And where `on_disc` says the text
+   lies on the disc as in memory, `yomikata disc-text` with the table so far writes the whole script to
+   scratch, to read each doubtful kanji in a sentence. This is how Policenauts' 1,800 kanji were read.
 
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.

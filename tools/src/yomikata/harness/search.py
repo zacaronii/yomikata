@@ -123,6 +123,131 @@ def kana_rule(characters: str, codes: list[bytes]) -> str | None:
     return None
 
 
+def _numberings():
+    def two(codec):
+        def number(ch):
+            try:
+                raw = ch.encode(codec)
+            except UnicodeEncodeError:
+                return None
+            return int.from_bytes(raw, "big") if len(raw) == 2 else None
+        return number
+
+    def jis(ch):
+        euc = two("euc_jp")(ch)
+        return euc & 0x7F7F if euc is not None and euc >= 0xA1A1 else None
+
+    def kuten(ch):
+        code = jis(ch)
+        return ((code >> 8) - 0x21) * 94 + (code & 0xFF) - 0x21 if code is not None else None
+    return (("JIS", jis), ("Shift-JIS", two("cp932")), ("EUC-JP", two("euc_jp")),
+            ("the JIS row and cell counted on (94 a row)", kuten), ("Unicode", ord),
+            ("ASCII", lambda ch: ord(ch) if ord(ch) < 0x7F else ord(ch) - 0xFEE0 if 0xFF01 <= ord(ch) <= 0xFF5E else None),
+            ("the fifty sounds", lambda ch: GOJUON.index(ch) if ch in GOJUON else None))
+
+
+def _kind(ch: str) -> str:
+    if "ぁ" <= ch <= "ゖ":
+        return "hiragana"
+    if "ァ" <= ch <= "ヶ":
+        return "katakana"
+    if ord(ch) < 0x7F or 0xFF01 <= ord(ch) <= 0xFF5E:
+        return "letters, digits and ASCII signs"
+    if "一" <= ch <= "鿿":
+        return "kanji"
+    return "signs"
+
+
+def code_rules(pairs: dict[str, int]) -> list[dict]:
+    """What arithmetic ties codes to their characters, kind by kind (hiragana, katakana, letters, kanji, signs)
+    and for all kana together: for each standard numbering, whether code - number or code + number is one
+    value for every character of the kind. A kind with fewer than two characters says nothing. Where no
+    numbering fits a kind but its codes rise or fall with JIS, that is said: a font in JIS order."""
+    kinds: dict[str, list[str]] = {}
+    for ch in pairs:
+        kinds.setdefault(_kind(ch), []).append(ch)
+    if "hiragana" in kinds and "katakana" in kinds:
+        kinds["kana"] = kinds["hiragana"] + kinds["katakana"]
+    out = []
+    for kind, chars in kinds.items():
+        if len(chars) < 2:
+            continue
+        row = {"kind": kind, "characters": "".join(chars), "rules": []}
+        for name, number in _numberings():
+            numbers = [number(ch) for ch in chars]
+            if any(n is None for n in numbers):
+                continue
+            minus = {pairs[ch] - n for ch, n in zip(chars, numbers)}
+            plus = {pairs[ch] + n for ch, n in zip(chars, numbers)}
+            if len(minus) == 1:
+                step = minus.pop()
+                row["rules"].append(f"code = {name} {'+' if step >= 0 else '-'} 0x{abs(step):X}")
+            if len(plus) == 1:
+                row["rules"].append(f"code = 0x{plus.pop():X} - {name}")
+        if not row["rules"]:
+            jis = dict(_numberings())["JIS"]
+            known = sorted((jis(ch), pairs[ch]) for ch in chars if jis(ch) is not None)
+            codes = [code for _, code in known]
+            if len(known) >= 3 and (codes == sorted(codes) or codes == sorted(codes, reverse=True)):
+                row["note"] = ("no arithmetic fits, but the codes " + ("rise" if codes == sorted(codes) else "fall")
+                               + " with JIS: numbered as a font in JIS order has them, with characters left out")
+            # Some bits of a code may say how it is set, not which character: the same test on the low bits.
+            for bits in (15, 14, 13, 12):
+                mask = (1 << bits) - 1
+                for name, number in _numberings():
+                    numbers = [number(ch) for ch in chars]
+                    if any(n is None for n in numbers):
+                        continue
+                    if len({(pairs[ch] & mask) + n for ch, n in zip(chars, numbers)}) == 1:
+                        row["rules"].append(f"(code & 0x{mask:X}) = 0x{(pairs[chars[0]] & mask) + numbers[0]:X} - {name}")
+                    elif len({(pairs[ch] & mask) - n for ch, n in zip(chars, numbers)}) == 1:
+                        step = (pairs[chars[0]] & mask) - numbers[0]
+                        row["rules"].append(f"(code & 0x{mask:X}) = {name} {'+' if step >= 0 else '-'} 0x{abs(step):X}")
+                if row["rules"]:
+                    break
+        out.append(row)
+    return out
+
+
+def picture_places(data: bytes, pixels, limit: int = 8) -> list[dict]:
+    """Where memory holds a picture as packed rows: `pixels` is rows of small whole numbers (a glyph cut out of
+    video memory, 0 for the ground). Tried at 1, 2, 4 and 8 bits a pixel, either end of the byte first, a few
+    pixels cut off its left (a row may start inside a byte), rows any number of bytes apart up to 64. The
+    picture's values are taken as the font's own, or as ink and ground for 1 bit."""
+    import numpy as np
+    pixels = np.asarray(pixels, dtype=np.int64)
+    if pixels.ndim != 2 or pixels.shape[0] < 3 or pixels.shape[1] < 8:
+        raise SearchError("give a picture of at least 3 rows and 8 pixels across")
+    ink = (pixels != 0).sum(axis=1)
+    top = int(np.argmax(ink[:-2] + ink[1:-1] + ink[2:]))          # the three rows with most in them
+    out = []
+    for bits in (1, 2, 4, 8):
+        values = (pixels != 0).astype(np.int64) if bits == 1 else pixels
+        if values.max() >= 1 << bits:
+            continue
+        per = 8 // bits
+        for cut in range(per):
+            width = (pixels.shape[1] - cut) // per * per
+            if width < 8:
+                continue
+            rows = values[top:top + 3, cut:cut + width].reshape(3, -1, per)
+            for first in ("high", "low"):
+                shifts = np.arange(per)[::-1] * bits if first == "high" else np.arange(per) * bits
+                packed = [bytes((row << shifts).sum(axis=1).astype(np.uint8)) for row in rows]
+                if len(set(packed[0])) < 2:
+                    continue
+                at = data.find(packed[0])
+                while at >= 0 and len(out) < limit:
+                    for stride in range(len(packed[0]), 65):
+                        if data[at + stride:at + stride + len(packed[1])] == packed[1] and \
+                                data[at + 2 * stride:at + 2 * stride + len(packed[2])] == packed[2]:
+                            out.append({"at": at - top * stride, "bits": bits, "first": first, "row_bytes": stride,
+                                        "cut": cut, "rows_matched": [top, top + 1, top + 2]})
+                            break
+                    at = data.find(packed[0], at + 1)
+    return out
+
+
 def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool = False, order: str = "",
              stride: int = 1, gap: int = 1, limit: int = 20) -> tuple[int, list[tuple[int, dict[str, int]]]]:
     """Where memory could hold a line in codes of the game's own, `unit` bytes each, `stride` cells apart.
@@ -131,8 +256,8 @@ def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool 
     A place fits when the same characters have the same code, in a line and from one moment to another, and
     different characters different codes. So one line needs repeated characters, and two moments with lines
     that share characters need none. A line break in a line stands for `gap` cells that aren't looked at; a
-    wide space is a character like any other. With `order`, kana must also lie as far apart as in that order:
-    "unicode" (as in JIS and Shift-JIS) or "gojuon" (the 46 plain hiragana in a row). Gives how many places
+    wide space is a character like any other. With `order`, kana must also lie as far apart as in that order,
+    counting up or down: "unicode" (as in JIS and Shift-JIS) or "gojuon" (the 46 plain hiragana in a row). Gives how many places
     fit, and the first of them with the code each would give each character."""
     import numpy as np
     if unit not in (1, 2, 4) or stride < 1 or gap < 0:
@@ -166,9 +291,14 @@ def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool 
         if order == "gojuon":
             return GOJUON.index(ch) if ch in GOJUON else None
         return None
-    ranked = [(where[0], rank(ch)) for ch, where in cells_of.items() if rank(ch) is not None]
-    ranked = [(w, r) for w, r in ranked if order != "unicode" or (r >= 0x30A1) == (ranked[0][1] >= 0x30A1)]
-    if len(same) < 2 and len(ranked) < 4:
+    # Kana by kind: hiragana and katakana each keep the order among themselves, but how far the one kind lies
+    # from the other is the game's own business.
+    groups: dict[bool, list] = {}
+    for ch, where in cells_of.items():
+        if rank(ch) is not None:
+            groups.setdefault(order == "unicode" and rank(ch) >= 0x30A1, []).append((where[0], rank(ch)))
+    groups = {k: v for k, v in groups.items() if len(v) > 1}
+    if len(same) < 2 and sum(len(v) - 1 for v in groups.values()) < 3:
         raise SearchError("too little to go by: a line with repeated characters, two moments whose lines share "
                           "characters, or kana and an order")
     kind = {1: "u1", 2: "u2", 4: "u4"}[unit]
@@ -185,8 +315,14 @@ def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool 
         fits = np.ones(count, dtype=bool)
         for one, other in same:
             fits &= at(one) == at(other)
-        for where, r in ranked[1:]:
-            fits &= at(where) - at(ranked[0][0]) == r - ranked[0][1]
+        if groups:                               # as far apart as in the order, upwards or downwards
+            up, down = fits.copy(), fits.copy()
+            for ranked in groups.values():
+                for where, r in ranked[1:]:
+                    apart = at(where) - at(ranked[0][0])
+                    up &= apart == r - ranked[0][1]
+                    down &= apart == ranked[0][1] - r
+            fits = up | down
         firsts = [where[0] for where in cells_of.values()]
         fits &= at(firsts[0]) != at(firsts[-1]) if len(firsts) > 1 else fits      # a stretch of one value fits any repeats
         for start in np.nonzero(fits)[0][:5000]:
