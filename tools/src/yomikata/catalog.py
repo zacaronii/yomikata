@@ -51,12 +51,14 @@ def validate(root: Path) -> list[Problem]:
             if p.is_file() and p.suffix not in exts and p.name != ".gitkeep":
                 problems.append(Problem(str(p.relative_to(root)), f"only {', '.join(sorted(exts))} files belong here"))
 
-    # A script's own table (games/<platform>/<id>.tbl, docs/script-api.md) and the entry's (tables/<platform>/<id>.tbl)
-    # are the same table for as long as both are kept: they may not drift apart.
+    # A script's own table (games/<platform>/<id>.tbl, docs/script-api.md) is its entry's tables one after
+    # another, for as long as the entry is kept: they may not drift apart.
     for p in sorted((root / "games").glob("*/*.tbl")):
-        other = root / "tables" / p.parent.name / p.name
-        if other.is_file() and other.read_bytes() != p.read_bytes():
-            problems.append(Problem(str(p.relative_to(root)), f"differs from {other.relative_to(root)}"))
+        entry = p.with_suffix(".json")
+        listed = json.loads(entry.read_text(encoding="utf-8")).get("tables", []) if entry.is_file() else []
+        if listed and all((root / t).is_file() for t in listed):
+            if p.read_bytes() != b"".join((root / t).read_bytes() for t in listed):
+                problems.append(Problem(str(p.relative_to(root)), f"isn't the entry's tables one after another ({', '.join(listed)})"))
 
     for p in sorted([*(root / "tables").rglob("*.tbl"), *(root / "games").glob("*/*.tbl")]):
         try:
