@@ -614,3 +614,32 @@ def test_memories_off_rows_cut_by_their_lengths_and_the_name_plate():
     with rd.Reader(mo_memory(word=1), platform="ps1", game_id="SLPS-02296") as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPS-02296.lua"))
+
+
+# ---- games/ps1/SLPS-03050.lua ----
+
+def toe_memory(line: bytes = b"", name="", state=3, word=0x0C02131F):
+    return sparse({0x8002BA74: struct.pack("<I", word), 0x8003D020: struct.pack("<I", 0x0C00CE26),
+                   0x8004A060: struct.pack("<I", 0x0C0126DF), 0x801F7878: line + bytes(512 - len(line)),
+                   0x800D3686: struct.pack("<H", state), 0x800D367C: struct.pack("<I", 0x801E0000),
+                   0x801E0000: name.encode("cp932") + bytes(8)})
+
+
+def test_tales_of_eternia_a_line_with_codes_whose_second_byte_is_zero():
+    sj = lambda s: s.encode("cp932")        # noqa: E731
+    # Bold on (07 01), a word, bold off (07 00: the zero is the code's, not the line's end), a colour (03 02).
+    line = sj("やっぱり") + b"\x07\x01" + sj("おまえ") + b"\x07\x00" + sj("か") + b"\x03\x02" + sj("！") + b"\x00" + sj("のこり")
+    with rd.Reader(toe_memory(), platform="ps1", game_id="SLPS-03050") as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-03050.lua"), "SLPS-03050.lua")
+        r.take()
+        steps = [toe_memory(line, "つくりもの", state=1), toe_memory(line, "つくりもの"), toe_memory(line, "つくりもの"),
+                 toe_memory(line, "つくりもの", state=2), toe_memory(sj("べつのぎょう") + b"\x00", "ほかのひと")]
+        seen = []
+        for frame, read in enumerate(steps, 1):
+            r.read = read
+            r.frame(frame)
+            seen += [(frame, e["speaker"], e["text"]) for e in r.take("text")]
+        assert seen == [(2, "つくりもの", "やっぱりおまえか！"), (5, "ほかのひと", "べつのぎょう")]
+    with rd.Reader(toe_memory(word=1), platform="ps1", game_id="SLPS-03050") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-03050.lua"))
