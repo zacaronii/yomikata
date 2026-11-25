@@ -1241,3 +1241,55 @@ def test_follows_finds_a_place_that_takes_codes_one_after_the_other(session):
     assert session.follows(names, pattern="abab")["count"] == 0
     with pytest.raises(HarnessError):
         session.follows(names, pattern="ab")
+
+
+def test_super_famicom_video_memory_as_tiles_and_a_tilemap(session):
+    from PIL import Image
+    vram = bytearray(0x10000)
+    vram[16 * 65:16 * 65 + 2] = bytes([0xFF, 0x00])                      # tile 65: its top row, plane 0 only
+    vram[16 * 65 + 2:16 * 65 + 4] = bytes([0x0F, 0xFF])                  # its second row: planes 0 and 1
+    struct.pack_into("<3H", vram, 0x5000 + 64 * 2 + 2 * 3, 0x2041, 0x2042, 0x0C10)
+    session.machine.platform = "sfc"
+    session.machine.regions = lambda: {"vram": bytes(vram)}
+    kind, png = session.vram_picture(x=1, y=1, w=1, h=1)
+    tile = np.asarray(Image.open(io.BytesIO(png)))
+    assert kind == "image" and tile.shape == (8, 8)
+    assert list(tile[0]) == [85] * 8 and list(tile[1]) == [170] * 4 + [255] * 4 and not tile[2:].any()
+    assert Image.open(io.BytesIO(session.vram_picture()[1])).size == (512, 512)
+    assert Image.open(io.BytesIO(session.vram_picture(bits=4)[1])).size == (512, 256)
+    out = session.vram_tilemap("0x5000", x=3, y=2, w=3, h=1)
+    assert out["tiles"] == ["041 042 010"]
+    session.machine.platform = "gc"
+    with pytest.raises(HarnessError):
+        session.vram_tilemap("0x5000")
+
+
+def test_glyph_pairs_keeps_the_picture_the_game_draws_for_each_code(session, tmp_path):
+    from PIL import Image
+    machine = session.machine
+    codes = [0x02E6, 0x033D, 0x02E6, 0x02FD, 0x1001, 0x032A]
+
+    def step(buttons, stick, plain=machine._step):
+        plain(buttons, stick)
+        n = min(machine.frames // 2, len(codes))                         # a character every other frame
+        rest = codes[n:] + [0] * 24
+        machine.memory[0x800:0x800 + 2 * len(rest)] = b"".join(struct.pack(">H", c) for c in rest)   # the queue
+        if n:
+            machine.memory[0x7F0:0x7F2] = struct.pack(">H", codes[n - 1])                            # the code drawn
+            machine.memory[0x780:0x784] = struct.pack(">HH", codes[n - 1], 0x8001)                   # its picture
+    machine._step = step
+    kind, out, png = session.glyph_pairs("0x80000780", 2, [{"wait": 14}], queue="0x80000800", name="font")
+    assert kind == "both" and Image.open(io.BytesIO(png)).width > 100
+    assert (out["drawn"], out["new"], out["codes"]) == (5, 4, 4)         # the wait mark isn't a character
+    assert out["in_order"] == ["02E6 02FD 032A 033D"] and out["sheet"] == "work/font.png"
+    kept = json.loads((tmp_path / "scratch/work/font.json").read_text())
+    assert kept == {"02E6": "02e68001", "033D": "033d8001", "02FD": "02fd8001", "032A": "032a8001"}
+    assert (tmp_path / "scratch/work/font.png").is_file() and session.each_frame is None
+    # By the code's own place, and added to what was kept.
+    machine.frames = 0
+    codes[:] = [0x0311, 0x02E6]
+    out = session.glyph_pairs("0x80000780", 2, [{"wait": 6}], code="0x800007F0", name="font")[1]
+    assert out["new"] == 1 and out["codes"] == 5
+    for bad in ({"queue": "0x80000800", "code": "0x800007F0"}, {}, {"queue": "0x80000800", "size": 3}):
+        with pytest.raises(HarnessError):
+            session.glyph_pairs("0x80000780", 2, [{"wait": 1}], **bad)
