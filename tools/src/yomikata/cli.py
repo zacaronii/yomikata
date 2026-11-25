@@ -164,6 +164,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dictionary", type=Path, help="fingerprint=character lines already read")
     p.add_argument("--sheet", type=Path, help="write the glyphs the dictionary hasn't got as a PNG, to scratch")
     p.add_argument("--all", action="store_true", help="put every glyph on the sheet, read or not")
+    p = sub.add_parser("glyph-read", help="a second reader (manga-ocr, from a scratch environment) over a font's glyphs: its readings beside yours, where they differ, and those in a sentence of the game's text")
+    p.add_argument("glyphs", type=Path, help="the glyphs as the harness's glyph_pairs writes them: a .json of code to rows")
+    p.add_argument("--rows", type=int, required=True, help="rows of a glyph")
+    p.add_argument("--row-bytes", type=int, default=2, help="bytes a row (default 2)")
+    p.add_argument("--mine", type=Path, help="your readings: a table (HEX=character lines); codes as in the glyphs file")
+    p.add_argument("--text", type=Path, help="the game's text, a line a message (scratch): each differing reading is shown in a sentence")
+    p.add_argument("--out", type=Path, required=True, help="where to write the second reader's readings (code, a tab, the reading)")
     p = sub.add_parser("sorted", help="check a font's readings by the order its glyphs stand in (JIS, Shift-JIS, Unicode): which readings break it, and what the order allows for each glyph not yet sure")
     p.add_argument("readings", type=Path, help="a line for each glyph in the font's order: its reading, or ? (anything after the first character is a note)")
     p.add_argument("--order", default="jis", help="jis (default), sjis or unicode")
@@ -262,6 +269,32 @@ def main(argv: list[str] | None = None) -> int:
               f"{len(unread)} to read" + (f": {args.sheet}" if args.sheet and shown else ""), file=sys.stderr)
         return 0
 
+    if args.cmd == "glyph-read":
+        from . import glyphread
+        from . import tbl as tables
+        glyphs = glyphread.pictures(args.glyphs, args.rows, args.row_bytes)
+        try:
+            second = glyphread.read(glyphs)
+        except RuntimeError as e:
+            print(e, file=sys.stderr)
+            return 2
+        args.out.write_text("".join(f"{code}\t{second[code]}\n" for code in sorted(second)), encoding="utf-8")
+        if not args.mine:
+            print(f"{len(second)} glyphs read, written to {args.out}", file=sys.stderr)
+            return 0
+        mine = {code.hex().upper(): ch for code, ch in tables.parse(args.mine.read_text(encoding="utf-8")).chars.items()}
+        rows = glyphread.compare({c: mine[c] for c in second if c in mine}, second)
+        differ = [r for r in rows if r["status"] == "differ"]
+        texts = args.text.read_text(encoding="utf-8").splitlines() if args.text else []
+        found = glyphread.sentences(texts, "".join(r["first"] for r in differ)) if texts else {}
+        for r in rows:
+            if r["status"] != "agree":
+                where = " | ".join(found.get(r["first"] or "", [])) if r["status"] == "differ" else ""
+                print(f"{r['code']} {r['first'] or '?'} {r['status']}: the second reader says {r['second']}" + (f"  {where}" if where else ""))
+        counts = {k: sum(1 for r in rows if r["status"] == k) for k in ("agree", "differ", "unread")}
+        print(f"{len(rows)} glyphs: {counts['agree']} read the same two ways, {counts['differ']} that differ (read those in a "
+              f"sentence), {counts['unread']} you haven't read", file=sys.stderr)
+        return 0
     if args.cmd == "sorted":
         from . import glyphs
         lines = [line.strip() for line in args.readings.read_text(encoding="utf-8").splitlines()]

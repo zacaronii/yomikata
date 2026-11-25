@@ -233,6 +233,21 @@ glyph enlarged eight times with a white margin. It agreed with two readings in t
 its own mistakes at thirteen pixels, but the list of disagreements, each read in a sentence, held the wrong
 readings: a reading it agrees with has been read two ways, and one it doesn't goes to the read-through.
 
+The order of reading a font, then:
+
+1. your own reading of each glyph, off a sheet (`yomikata glyphs`, or the harness's `glyph_pairs` for a font
+   that only shows as the game draws);
+2. `yomikata glyph-read` for the second reader's readings beside yours (run it from a scratch environment that
+   has manga-ocr; it isn't part of the tools): what agrees has been read two ways;
+3. where the font stands in a known order, `yomikata sorted` on the readings: what breaks the order is wrong,
+   and the order names the few characters a doubtful glyph can be;
+4. every reading the two readers differ on, and every one the order doubts, read in a sentence of the game's
+   text: `glyph-read --text` prints one for each, from a dump (`yomikata disc-text`, or `run --dump`), or
+   read it in play. A reading none of this settles is left out of the table.
+
+On Dragon Quest V's first 75 glyphs the second reader agreed on 51; the 24 others were all its own mistakes,
+each already read in a sentence.
+
 On Final Fantasy IX: the fixed font's 461 kanji were read from five sheets; the second place's own font had 218
 glyphs, of which the dictionary from the first place already had 88, and its 130 new ones were one sheet.
 The four discs have 64 places and 1,007 distinct pictures between them. Of the 236 that the first disc hadn't
