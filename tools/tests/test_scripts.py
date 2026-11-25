@@ -1396,6 +1396,13 @@ def test_final_fantasy_ix_dump_reads_the_places_whole_block(tmp_path, capsys):
     assert cli.main(args + ["--containing", "誰ぬ"]) == 0
     lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert [(e["character"], e["text"]) for e in lines] == [("誰", "まだ誰も\ufffdてないのか？")]
+    # The read-through: texts that hold a kanji not yet confirmed in a sentence, each such kanji marked.
+    (tmp_path / "sure.read").write_text("誰\n", encoding="utf-8")
+    assert cli.main(args + ["--unconfirmed", str(tmp_path / "sure.read")]) == 0
+    assert capsys.readouterr().out == ""                             # the only kanji there is confirmed
+    assert cli.main(args + ["--unconfirmed", str(tmp_path / "none.read")]) == 0
+    out = capsys.readouterr()
+    assert out.out.splitlines() == ["まだ【誰】も\ufffdてないのか？"] and "1 kanji not yet confirmed" in out.err
     # A script without the function says so.
     assert cli.main(["run", str(ROOT / "games/ps1/SLPS-00404.lua"), str(tmp_path / "place.ram.gz"), "--platform", "ps1", "--dump"]) == 1
 

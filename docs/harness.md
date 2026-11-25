@@ -42,6 +42,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `find_relative` | A line read off the screen, looked for in codes of the game's own: where the same characters have the same code and different ones different codes. Gives the codes, the start of a table |
 | `identify` | Which release a game file is: platform, id, and what names its build |
 | `suggest_build_words` | Places that hold the same in snaps from power-on, the title and play, and the Lua lines that check them: a script's build check |
+| `on_disc` | Whether a stretch of memory lies on the game's disc as it is, and where: if a place's text or font does, every place can be read from the disc without playing to it |
 | `core_options` | The loaded core's options as it declares them, and what was given at load |
 | `snap` | Keeps a moment under a name, and writes it to scratch as an inbox-style snapshot for `yomikata run` and `check` |
 | `snap_lines` | Says what a snap's screen showed, once read off its picture: its lines, or that it has no text |
@@ -163,6 +164,20 @@ many fonts and places it turns up in. Sheets are game data and stay in scratch; 
 Reading a glyph by itself goes wrong a few times in a hundred at this size. What catches it is the game's own
 text: decode the place's messages with the readings and read the sentences. A wrong kanji shows at once in a
 sentence; a glyph that stays in doubt is left out, and comes out as U+FFFD, rather than guessed.
+
+Three things the tools do to catch a wrong reading, none of them sure by itself:
+
+- beside each unread glyph, `glyphs` names the three pictures already read that look most like it (`like:`), so
+  that a glyph is told from what it could be taken for, not read alone;
+- a character the dictionary gives to two pictures is said (`glyphs.twice`): a font draws a character one way,
+  so one of the two readings is wrong;
+- the read-through: `yomikata run --dump --unconfirmed <file>` prints a place's texts that hold a kanji not
+  yet confirmed in a sentence, each such kanji in 【 】, shortest first. The file lists the characters someone
+  has read in a sentence and found right (`tables/<platform>/<id>.read`); it grows as places are read through.
+
+Before reading a font place by place, ask `on_disc` whether the place's text and font lie on the disc as they
+do in memory. Where they do, a small script over the disc image finds every place at once
+(`tools/scripts/ff9_places.py` is one) and nothing has to be played to or written.
 
 On Final Fantasy IX: the fixed font's 461 kanji were read from five sheets; the second place's own font had 218
 glyphs, of which the dictionary from the first place already had 88, and its 130 new ones were one sheet.

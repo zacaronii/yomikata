@@ -950,3 +950,17 @@ def test_compare_with_what_the_script_said_in_play(session):
     with pytest.raises(HarnessError, match="no script loaded"):
         session.compare(snaps=["before"], live=True)
 
+
+def test_on_disc_finds_memory_that_lies_on_the_disc_as_it_is(session, tmp_path):
+    line = bytes(range(40, 104))
+    put(session, 0x300, line)
+    disc = bytearray(2048 * 40)
+    disc[2048 * 7 + 2040:2048 * 7 + 2040 + len(line)] = line          # across the edge of two sectors
+    (tmp_path / "games/ngc/Made Up (Japan).iso").write_bytes(bytes(disc))
+    out = session.on_disc("0x80000300", 48)
+    assert out["found"] == [hex(2048 * 7 + 2040).upper().replace("0X", "0x")] and out["sectors"] == 40 and out["bytes"] == 48
+    put(session, 0x380, bytes(range(200, 232)))                       # this isn't on it
+    assert session.on_disc("0x80000380")["found"] == []
+    with pytest.raises(HarnessError, match="too short or too plain"):
+        session.on_disc("0x80000800")                                 # zeros
+

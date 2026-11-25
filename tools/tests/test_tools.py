@@ -118,7 +118,7 @@ def test_validation_catches_mistakes(tmp_path):
     msgs = " | ".join(str(p) for p in catalog.validate(root))
     assert "SLPS-00001 is also used" in msgs
     assert "games/<platform>/<id>.json" in msgs                     # id doesn't match its file name
-    assert "tables" in msgs and "only .glyphs, .tbl files" in msgs
+    assert "tables" in msgs and "only .glyphs, .read, .tbl files" in msgs
     (root / "tables/kana.tbl").write_text("0001=あ\n", encoding="utf-8")
     (root / "games/ps1/SLPS-00004.json").write_text(json.dumps({**good, "id": "SLPS-00004", "tables": ["tables/kana.tbl"]}))
     assert "SLPS-00004.json: tables need a unit" in " | ".join(str(p) for p in catalog.validate(root))
@@ -219,7 +219,12 @@ def test_glyphs_are_drawn_fingerprinted_and_sorted_by_what_is_read(tmp_path, cap
             "--dictionary", str(tmp_path / "d.txt"), "--sheet", str(tmp_path / "sheet.png")]
     assert cli.main(args) == 0
     out = capsys.readouterr()
-    assert out.out.splitlines() == [f"000 {marks[0]} 十", f"001 {marks[1]} ?", f"002 {marks[1]} ?", f"003 {'0' * 16} ?"]
+    lines = out.out.splitlines()
+    assert lines[0] == f"000 {marks[0]} 十" and lines[3] == f"003 {'0' * 16} ?"
+    assert lines[1].startswith(f"001 {marks[1]} ?  like: 十 0.") and lines[2].startswith(f"002 {marks[1]} ?  like: 十")
+    # Likeness, and a character given to two pictures.
+    assert glyphs.nearest(found[1], [("十", found[0]), ("一", found[2])])[0] == ("一", 1.0)
+    assert glyphs.twice({"a": "十", "b": "一", "c": "十"}) == {"十": ["a", "c"]}
     assert "4 glyphs, 1 in the dictionary, 1 to read" in out.err         # the bar once, though it is there twice
     assert Image.open(tmp_path / "sheet.png").size == (60 + 20 * 8 * 6, 5 * 6)
     (tmp_path / "s.vram.gz").unlink()

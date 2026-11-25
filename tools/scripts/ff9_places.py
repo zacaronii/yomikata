@@ -9,7 +9,8 @@ needn't be played to: this finds each package on a disc, works out the place's k
 
   ff9_places.py scan DISC --dictionary tables/ps1/SLPS-02000.glyphs --out /scratch/work/ff9
       writes ff9-places.json (keys and fingerprints: no text, no pictures) and sheets of the glyphs the
-      dictionary hasn't got, ff9-unread-000.png … with ff9-unread.txt saying which fingerprint each cell is.
+      dictionary hasn't got, ff9-unread-000.png … with ff9-unread.txt saying which fingerprint each cell is
+      and which three characters already read its picture is most like.
       Both are for a scratch folder: the sheets are pictures of the game's font. With --snapshots, each place
       is also written as a snapshot the script can read whole (yomikata run --dump), to check the readings on.
   ff9_places.py places /scratch/work/ff9-places.json --dictionary tables/ps1/SLPS-02000.glyphs
@@ -102,7 +103,7 @@ def snapshot(out: Path, key: str, whole: bytes) -> None:
 
 def scan(disc: Path, dictionary: Path, out: Path, snapshots: bool = False) -> int:
     known = glyphs.read_dictionary(dictionary.read_text(encoding="utf-8")) if dictionary.is_file() else {}
-    places, unread = {}, {}
+    places, unread, read = {}, {}, {}
     with open_data_track(disc, out.parent) as image:
         image.f.seek(0, 2)
         sectors = image.f.tell() // (2352 if image.raw else 2048)
@@ -121,7 +122,9 @@ def scan(disc: Path, dictionary: Path, out: Path, snapshots: bool = False) -> in
                         marks = [glyphs.fingerprint(p) for p in pictures]
                         places[key] = {"at": first * SECTOR + at, "messages": messages, "glyphs": marks}
                         for mark, picture in zip(marks, pictures):
-                            if mark not in known and mark != "0" * 16:
+                            if mark in known:
+                                read.setdefault(mark, picture)
+                            elif mark != "0" * 16:
                                 unread.setdefault(mark, picture)
                 at = chunk.find(b"\x06\x01\x00\x00", at + 1)
     Path(f"{out}-places.json").write_text(json.dumps(places), encoding="utf-8")
@@ -130,7 +133,11 @@ def scan(disc: Path, dictionary: Path, out: Path, snapshots: bool = False) -> in
         marks = order[part:part + 100]
         glyphs.sheet([unread[m] for m in marks], [f"{part + i:04d}" for i in range(len(marks))]).save(
             f"{out}-unread-{part // 100:03d}.png")
-    Path(f"{out}-unread.txt").write_text("\n".join(order) + "\n", encoding="utf-8")
+    # Each unread glyph's fingerprint, and the three pictures already read that look most like it: what it
+    # might be taken for, and so what to tell it from.
+    pairs = [(known[mark], picture) for mark, picture in read.items()]
+    lines = [f"{mark} " + " ".join(f"{c} {score:.2f}" for c, score in glyphs.nearest(unread[mark], pairs)) for mark in order]
+    Path(f"{out}-unread.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     total = sum(len(p["glyphs"]) for p in places.values())
     distinct = {m for p in places.values() for m in p["glyphs"]} - {"0" * 16}
     print(f"{len(places)} places, {total} glyphs, {len(distinct)} distinct pictures, "
@@ -140,6 +147,8 @@ def scan(disc: Path, dictionary: Path, out: Path, snapshots: bool = False) -> in
 
 def places(found: Path, dictionary: Path) -> int:
     known = glyphs.read_dictionary(dictionary.read_text(encoding="utf-8"))
+    for character, marks in glyphs.twice(known).items():
+        print(f"{character} is given to {len(marks)} pictures: {' '.join(marks)}", file=sys.stderr)
     whole = 0
     for key, place in sorted(json.loads(found.read_text(encoding="utf-8")).items(), key=lambda kv: kv[1]["at"]):
         print(f"@{key}")
