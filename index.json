@@ -125,6 +125,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "SHVC-ACTJ": {
+   "path": "games/sfc/SHVC-ACTJ.json",
+   "sha256": "ab0b5807c447edd9bcc210b849c3a150d87ed3fa4f29a49133007eaea9e06c53",
+   "platform": "sfc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "SHVC-MB": {
    "path": "games/sfc/SHVC-MB.json",
    "sha256": "7cda49ea2d901787dad5e4681b803c653fa30b4f0b28e2e03c557e30766d6001",
@@ -720,7 +727,7 @@
   },
   "SFC-F061BF93": {
    "path": "scripts/sfc/SFC-F061BF93.lua",
-   "sha256": "7945e8425e90b0f3b64ea54ddeea5b3d86f050ea602b9c02cf2d40ce472f6954",
+   "sha256": "4bdcaa09607287ad73705aac00b5a62d4a1ed4433f7ae11d626440c0b16bfa8c",
    "platform": "sfc",
    "runtime": 1,
    "title": "ドラゴンクエストV 天空の花嫁 (Dragon Quest V: Tenkuu no Hanayome)",
@@ -733,6 +740,24 @@
     "tbl": {
      "path": "games/sfc/SFC-F061BF93.tbl",
      "sha256": "cc1ed5d6c9cdd146364d6fd32d0812cd149884e690a80afec408986aaf2fe454"
+    }
+   }
+  },
+  "SHVC-ACTJ": {
+   "path": "scripts/sfc/SHVC-ACTJ.lua",
+   "sha256": "dabcb14a23f1ee87cb5f03ad0b3a8d9995c277bb23435f6e1a25ba8e32c66fed",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "クロノ・トリガー (Chrono Trigger)",
+   "reads": "each page of the message window once it has been typed, with who speaks",
+   "builds": [
+    "bd8d62db"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/sfc/SHVC-ACTJ.tbl",
+     "sha256": "f24781d8b53c5232ad581cc0cb981a999d673d290703d5fc4f800f8a170197ba"
     }
    }
   },

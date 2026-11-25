@@ -1572,3 +1572,47 @@ def test_dragon_quest_v_a_message_is_said_when_its_first_character_is_drawn():
     with rd.Reader(dq5_memory(whole, check=bytes(16)), platform="sfc", game_id="SFC-F061BF93", data=data) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/sfc/SFC-F061BF93.lua"))
+
+
+CT_CHECK = bytes.fromhex("332b0c3214214825f47d019001")
+
+
+def ct_memory(window: int = 0, at: int = 0, x: int = 8, code: int = 0, word: int = 0, check: bytes = CT_CHECK):
+    """Chrono Trigger's unpacker as it draws: where it reads the message, where the next character goes, the
+    character's code, how far into a word of the dictionary it is; and what the window is doing."""
+    state = struct.pack("<B", 1 if word else 0) + struct.pack("<I", 0xF70800 + at)[:3] + bytes([x]) \
+        + struct.pack("<H", code) + b"\x07\xa8\xf6" + bytes([word])
+    return sparse({0x7E27EB: check, 0x7E0129: bytes([window]), 0x7E0230: state})
+
+
+def test_chrono_trigger_a_page_is_said_when_it_has_been_typed():
+    from yomikata import tbl
+    code = {v: struct.unpack(">H", k)[0] for k, v in
+            tbl.parse((ROOT / "tables/sfc/SHVC-ACTJ.tbl").read_text(encoding="utf-8")).chars.items()}
+    data = {"tbl": (ROOT / "tables/sfc/SHVC-ACTJ.tbl").read_bytes()}
+    with rd.Reader(ct_memory(), platform="sfc", game_id="SHVC-ACTJ", data=data) as r:
+        r.load(bundle(ROOT / "games/sfc/SHVC-ACTJ.lua"), "SHVC-ACTJ.lua")
+        frames = [ct_memory(window=3), ct_memory(window=6, at=0, x=8)]            # the window opens, at a new message
+        at, x = 0, 8
+        for ch in "ジナ「ねこ":                                                      # a character a frame
+            at, x = at + 1, x + 12
+            frames.append(ct_memory(window=6, at=at, x=x, code=code[ch]))
+        frames.append(ct_memory(window=6, at=at + 1, x=x, code=code["こ"]))          # a new line's mark: nothing drawn
+        frames.append(ct_memory(window=6, at=at + 2, x=0x2C, code=code["い"], word=1))   # a new line, a word of two
+        frames.append(ct_memory(window=6, at=at + 2, x=0x38, code=code["い"]))
+        frames.append(ct_memory(window=6, at=at + 4, x=0x44, code=0x7FFF))          # two bytes: one the table hasn't got
+        frames.append(ct_memory(window=7, at=at + 4, x=0x44, code=0x7FFF))          # it waits for a press
+        frames.append(ct_memory(window=9, at=at + 4, x=8, code=0x7FFF))             # the page is cleared: nothing drawn
+        frames.append(ct_memory(window=6, at=at + 5, x=20, code=code["の"]))
+        frames.append(ct_memory(window=13, at=at + 5, x=20, code=code["の"]))        # the window closes
+        frames.append(ct_memory(window=6, at=0x400, x=8, code=code["の"]))           # another message begins: nothing drawn
+        frames.append(ct_memory(window=0, at=0x400, x=8, code=code["の"]))
+        said = []
+        for n, memory in enumerate(frames, 1):
+            r.read = memory
+            r.frame(n)
+            said += [(n, e.get("speaker") or None, e["text"]) for e in r.take("text")]
+        assert said == [(12, "ジナ", "「ねこ\nいい\ufffd"), (15, None, "の")]
+    with rd.Reader(ct_memory(check=bytes(13)), platform="sfc", game_id="SHVC-ACTJ", data=data) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/sfc/SHVC-ACTJ.lua"))

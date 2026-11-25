@@ -1353,6 +1353,16 @@ def test_walk_to_goes_one_way_at_a_time_and_round_what_is_in_the_way(session):
     assert out["reached"] is False and out["x"] <= 120 and out["turned"] > 6
 
 
+def test_walk_to_takes_near_for_near_enough(session):
+    session.cursor_find()
+    struct.pack_into(">hh", session.machine.memory, 0x30, 100, 80)
+    out = session.walk_to(121, 71, limit=200, patience=8, linger=0)           # two a step: never the very place
+    assert out["reached"] is False
+    struct.pack_into(">hh", session.machine.memory, 0x30, 100, 80)
+    out = session.walk_to(121, 71, near=1, linger=0)
+    assert out["reached"] is True and abs(out["x"] - 121) <= 1 and abs(out["y"] - 71) <= 1
+
+
 def test_walk_to_stops_where_the_map_changes(session):
     session.cursor_find()
     machine, plain = session.machine, session.machine._step
@@ -1401,3 +1411,7 @@ def test_map_picture_puts_the_games_numbers_over_the_screen(session):
     assert image.getpixel((22 + 28 * 2, 12 + 20 * 2)) == (255, 0, 0)     # its mark
     out = session.map_picture(tile=8, at_x=0, at_y=0)[1]
     assert out["columns"][0] == at["x"] and out["rows"][0] == at["y"]
+    # A picture that doesn't keep the character in the middle: where the game says it draws it.
+    struct.pack_into(">hh", session.machine.memory, 0x60, 24, 32)
+    out = session.map_picture(tile=8, screen_x_address=f"0x{BASE + 0x60:08X}", screen_y_address=f"0x{BASE + 0x62:08X}")[1]
+    assert out["columns"][0] == at["x"] - 2 and out["rows"][0] == at["y"] - 2      # the mark 16 across, 16 down

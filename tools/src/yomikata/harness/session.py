@@ -1401,9 +1401,11 @@ class Session:
           map_address=("string", "or where the game keeps which map it is, hex, one byte: a change there is a "
                                  "change of map", False),
           linger=("integer", "frames to stand at the place and see whether it is a door or stairs, which may "
-                             "take a moment to act (default 45; 0: none)", False))
+                             "take a moment to act (default 45; 0: none)", False),
+          near=("integer", "how near is near enough, each way (default 0: the very place). For numbers finer "
+                           "than a step, where a walk may never land on the place itself", False))
     def walk_to(self, x: int, y: int, x_address: str = "", y_address: str = "", size: int = 2, limit: int = 1200,
-                patience: int = 40, jump: int = 8, map_address: str = "", linger: int = 45) -> dict:
+                patience: int = 40, jump: int = 8, map_address: str = "", linger: int = 45, near: int = 0) -> dict:
         machine = self._need()
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
 
@@ -1413,7 +1415,10 @@ class Session:
             return signed(self._cell(at_x, size)), signed(self._cell(at_y, size))
         events, ran, why, across, turns = [], 0, None, True, 0
         limit, patience = max(1, min(int(limit), MAX_FRAMES)), max(4, int(patience))
-        best, since, last, new_map = None, 0, None, None
+        best, since, last, new_map, near = None, 0, None, None, max(0, int(near))
+
+        def there(cx, cy):
+            return abs(cx - x) <= near and abs(cy - y) <= near
         jump, map_at = max(0, int(jump)), int(map_address, 16) if map_address else None
         which = self._cell(map_at, 1) if map_at is not None else None
         stood = 0
@@ -1427,7 +1432,7 @@ class Session:
                 new_map = {"from": list(last or (cx, cy))}
                 break
             last = (cx, cy)
-            if (cx, cy) == (x, y):
+            if there(cx, cy):
                 # There: stairs take a moment to act, so it stands a while with the pad let go.
                 if stood >= max(0, int(linger)) or not (jump or map_at is not None):
                     break
@@ -1443,8 +1448,8 @@ class Session:
                 across, since, turns = not across, 0, turns + 1
                 if turns > 6:
                     break
-            want_x = "right" if cx < x else "left" if cx > x else None
-            want_y = "down" if cy < y else "up" if cy > y else None
+            want_x = "right" if cx < x - near else "left" if cx > x + near else None
+            want_y = "down" if cy < y - near else "up" if cy > y + near else None
             held = (want_x or want_y) if across else (want_y or want_x)
             _, why = self._advance(1, {held}, (0.0, 0.0), events)
             ran += 1
@@ -1466,7 +1471,7 @@ class Session:
                     **new_map, **({"map": self._cell(map_at, 1)} if map_at is not None else {}),
                     **({"stopped": why} if why else {}), **({"turned": turns} if turns else {}),
                     **({"events": events} if self.reader is not None and events else {})}
-        return {"x": cx, "y": cy, "frames": machine.frames, "ran": ran, "reached": (cx, cy) == (x, y),
+        return {"x": cx, "y": cy, "frames": machine.frames, "ran": ran, "reached": there(cx, cy),
                 **({"stopped": why} if why else {}), **({"turned": turns} if turns else {}),
                 **({"events": events} if self.reader is not None and events else {})}
 
@@ -1480,9 +1485,15 @@ class Session:
           per=("integer", "how much the numbers go up from a tile to the next (default 1)", False),
           at_x=("integer", "the left edge of the character's tile on screen, in pixels (default: the middle)", False),
           at_y=("integer", "and its top", False),
+          screen_x_address=("string", "or where the game keeps where on screen it draws the character, across, "
+                                      "hex, 2 bytes: for a map whose picture doesn't keep the character in the "
+                                      "middle. at_x and at_y are then added to it (the mark's place from the "
+                                      "sprite's: default 8 left and 16 up, a sprite kept by its feet)", False),
+          screen_y_address=("string", "and down", False),
           scale=("number", "enlarge the picture (default 2)", False))
     def map_picture(self, x_address: str = "", y_address: str = "", size: int = 2, tile: int = 16, per: int = 1,
-                    at_x: int | None = None, at_y: int | None = None, scale: float = 2.0):
+                    at_x: int | None = None, at_y: int | None = None, scale: float = 2.0,
+                    screen_x_address: str = "", screen_y_address: str = ""):
         from PIL import Image, ImageDraw
         at = self._cursor_cells(x_address, y_address, size)
         cx, cy = self._cell(at[0], at[2]), self._cell(at[1], at[2])
@@ -1490,8 +1501,14 @@ class Session:
             raise HarnessError("the place can't be read")
         tile, per, scale = max(4, int(tile)), max(1, int(per)), max(1.0, min(4.0, float(scale)))
         shot = self._picture().convert("RGB")
-        px = (shot.width - tile) // 2 if at_x is None else int(at_x)
-        py = (shot.height - tile) // 2 if at_y is None else int(at_y)
+        if screen_x_address and screen_y_address:
+            sx, sy = self._cell(int(screen_x_address, 16), 2), self._cell(int(screen_y_address, 16), 2)
+            if sx is None or sy is None:
+                raise HarnessError("where the character is drawn can't be read")
+            px, py = sx + (-8 if at_x is None else int(at_x)), sy + (-16 if at_y is None else int(at_y))
+        else:
+            px = (shot.width - tile) // 2 if at_x is None else int(at_x)
+            py = (shot.height - tile) // 2 if at_y is None else int(at_y)
         shot = shot.resize((round(shot.width * scale), round(shot.height * scale)), Image.NEAREST)
         left, top = 22, 12                                              # room for the numbers
         sheet = Image.new("RGB", (shot.width + left, shot.height + top), (0, 0, 0))

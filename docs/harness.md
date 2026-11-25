@@ -54,8 +54,8 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `entered` | Reads a name off a naming screen from a snap after each character: where the name is, each character's code, the rule kana codes follow, lines of a table |
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
-| `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way; stops where the map changes, since the numbers start anew there |
-| `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to` |
+| `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way; stops where the map changes, since the numbers start anew there. `near` for numbers finer than a step |
+| `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to`. Takes where the game draws the character, for a picture that doesn't keep it in the middle |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
 | `watch` | Runs the game and lists each change of a place in memory with its frame; of several places, or a stretch of values on end (a queue's front), a row whenever any changes |
@@ -131,6 +131,14 @@ In the order to try them:
    0x7E00BD. People may stand between tiles: when
    talking brings nothing, step half a tile nearer. And a game may look at the pad only every few frames:
    on Dragon Quest V's deck a press held 3 frames was lost, and one held 8 was not.
+   A game may keep two sets of numbers for everything that walks: where each is on the map, and where each
+   is drawn on screen. Chrono Trigger does (the map's at 0x7E1800 across and 0x7E1880 down, a word for each
+   of 32 things, 16 to a pixel; the screen's at 0x7E0A00 and 0x7E0A80), and `cursor_find` gave the screen's,
+   which stand still while the picture scrolls. Read both before and after a push to see which thing the pad
+   moves and which numbers are which; the others in the list are the people to talk to, so nobody has to be
+   found by eye. Give `walk_to` the map's numbers with `near` (a step there is 16, and a walk never lands on
+   the very place), and `map_picture` the screen's as well (`screen_x_address`, `screen_y_address`), since the
+   picture doesn't keep the character in the middle at a map's edge.
 9. When `find_relative` finds nothing it tries the other ways a game may keep a line and gives those that fit
    (`other_ways`): codes of two bytes, the other byte order, kana as far apart as in an order, counting up or
    down. A line with three or four different kana is enough.

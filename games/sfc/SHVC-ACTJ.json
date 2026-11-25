@@ -1,0 +1,24 @@
+{
+  "id": "SHVC-ACTJ",
+  "platform": "sfc",
+  "title": "クロノ・トリガー",
+  "title_romaji": "Chrono Trigger",
+  "versions": [
+    {
+      "header_crc32": "bd8d62db"
+    }
+  ],
+  "encoding": "table",
+  "status": "partial",
+  "sources": [
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots",
+    "The characters read in play: the code the game was drawing, and the character that came up in the sentence on screen",
+    "Played from power-on through the hero's house, a house on the way, the fair and the bell square: what the script said in play agreed with the lines read off 33 pictures, over 5 scenes",
+    "and it read nothing on 9 screens that show no text. No second reader has read the font: the table rests on the sentences alone"
+  ],
+  "tables": [
+    "tables/sfc/SHVC-ACTJ.tbl"
+  ],
+  "unit": 2,
+  "notes": "Read by the script games/sfc/SHVC-ACTJ.lua; there is no layout. The game keeps no line of text: it unpacks its messages a character at a time as it draws, and the script gathers the characters drawn while a page is typed and says the page when the window stops typing. A question's answers come out as a page of their own, not as a choice. The table holds only the characters met in play so far, about the first quarter of an hour; the rest come out as U+FFFD. Menus, shops, battle messages and the names of places aren't read."
+}
