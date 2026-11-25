@@ -1086,8 +1086,11 @@ class Session:
             kind = {1: "u1", 2: "<i2", 4: "<i4"}[size] if machine.platform not in ("gc", "wii") else {1: "u1", 2: ">i2", 4: ">i4"}[size]
             cut = len(start) // size * size
             s0, r, l, d, u = (np.frombuffer(x[:cut], dtype=kind).astype(np.int64) for x in shots)
-            xs = np.nonzero((r > s0) & (l < r) & (d == l) & (u == l))[0]
-            ys = np.nonzero((r == s0) & (l == s0) & (d > l) & (u < d))[0]
+            # A cursor: numbers a screen could have, moved by no more than a screen's worth in those frames.
+            small = lambda *a: np.logical_and.reduce([(v >= -64) & (v < 4096) for v in a])            # noqa: E731
+            far = 24 * frames
+            xs = np.nonzero((r > s0) & (l < r) & (d == l) & (u == l) & (r - s0 <= far) & (r - l <= far) & small(s0, r, l))[0]
+            ys = np.nonzero((r == s0) & (l == s0) & (d > l) & (u < d) & (d - l <= far) & (d - u <= far) & small(s0, d, u))[0]
             if len(xs) and len(ys):
                 found = {"size": size, "x": [int(i) * size + base for i in xs[:8]], "y": [int(i) * size + base for i in ys[:8]],
                          "x_moved": {int(i) * size + base: int(r[i] - s0[i]) for i in xs[:8]},
@@ -1160,6 +1163,47 @@ class Session:
                 **({"stopped": why} if why else {}), **({"pressed": pressed} if pressed else {}),
                 **({"reached": abs(cx - x) <= max(0, int(near)) and abs(cy - y) <= max(0, int(near))} if x is not None and y is not None else {}),
                 **({"events": events} if self.reader is not None and events else {})}
+
+    @tool("Goes round a picture's spots with the cursor and says what the loaded script read at each: moves "
+          "the cursor there (cursor_to), presses the button, then presses on until the script has said "
+          "nothing for a press, and does the steps of `after` if any (to leave a close-up, say). For a "
+          "point-and-click scene: every spot of a room in one call. Stops where the call's time is up.",
+          points=("array", "the spots, each [x, y] in the cursor's numbers", True),
+          button=("string", "the button that looks or confirms (default a)", False),
+          wait=("integer", "frames after each press (default 130: text may come a hundred frames after its press)", False),
+          first=("integer", "presses made before a quiet one counts (default 1: the first may only open a menu)", False),
+          most=("integer", "at most this many presses at a spot (default 16)", False),
+          after=("array", "steps to do after each spot, as `steps` takes them", False),
+          if_stuck=("string", "a button to press when the cursor won't move (default b; \"\" for none)", False))
+    def visit(self, points: list, button: str = "a", wait: int = 130, first: int = 1, most: int = 16,
+              after: list | None = None, if_stuck: str = "b") -> dict:
+        machine = self._need()
+        if self.reader is None:
+            raise HarnessError("no script is loaded to say what each spot gives: call script_try first")
+        if not points or not all(isinstance(p, (list, tuple)) and len(p) == 2 for p in points):
+            raise HarnessError("points is a list of [x, y]")
+        self._cursor_cells("", "", 2)
+        press = {"buttons": [button], "hold": 3, "wait": max(1, int(wait))}
+        plan = [press] * max(0, int(first)) + [{**press, "times": max(1, int(most)), "until_quiet": 1}] + list(after or [])
+        rows, why = [], None
+        for x, y in points:
+            if self._late():
+                why = "time"
+                break
+            moved = self.cursor_to(int(x), int(y), if_stuck=if_stuck)
+            row = {"at": [int(x), int(y)], "reached": moved.get("reached", False)}
+            if not moved.get("reached"):
+                row["cursor"] = [moved["x"], moved["y"]]
+            out = self.steps(plan)
+            said = [e for e in moved.get("events", []) + out.get("events", []) if e.get("kind") == "text"]
+            row["presses"] = sum(1 for step in out["steps"] if "on" not in step)
+            row["said"] = [{"frame": e["frame"], "channel": e.get("channel"), "text": e.get("text"),
+                            **({"speaker": e["speaker"]} if e.get("speaker") else {})} for e in said]
+            rows.append(row)
+            if out.get("stopped") == "time" or moved.get("stopped") == "time":
+                why = "time"
+                break
+        return {"frames": machine.frames, "spots": rows, **({"stopped": why, "left": len(points) - len(rows)} if why else {})}
 
     @tool("Runs the game and lists each change of a place in memory with its frame: how a pointer, a counter "
           "or a flag goes while something happens (a line types, a page turns).",
