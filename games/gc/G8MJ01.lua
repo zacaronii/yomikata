@@ -212,6 +212,7 @@ end
 -- ---- Each frame ----
 
 local messages = {} -- per slot: the message whose records were read, and its pages
+local said = {}     -- per slot: the page last said, as { data, page, text }
 
 --- Says where a page's characters are, for the window the page was emitted in.
 local function show(window, entry, select, page)
@@ -229,7 +230,7 @@ end
 
 reader.on_state_loaded(function()
     reader.forget()
-    messages = {}
+    messages, said = {}, {}
 end)
 
 reader.on_frame(function()
@@ -252,6 +253,7 @@ reader.on_frame(function()
         local count = data and mem.s32be(data + DATA_COUNT)
         if not count or count < 1 or count > MAX_RECORDS then
             messages[slot] = nil
+            said[slot] = nil
             reader.forget(slot)
             reader.layout("window " .. slot, nil)
         else
@@ -273,7 +275,12 @@ reader.on_frame(function()
                 local at = math.max(0, math.min(mem.s32be(data + DATA_AT) or 0, count))
                 local number = select and 0 or page_number(message.records, at)
                 local page = message.pages[number + 1]
-                if page and page.text ~= "" and reader.changed(slot, key .. ":" .. number) then
+                -- A message may gain pages while its first is up (a notice that grows into a question): its
+                -- records are then another list, but the page on screen is the one already said.
+                local before = said[slot]
+                local again = page and before and before[1] == data and before[2] == number and before[3] == page.text
+                if page and page.text ~= "" and reader.changed(slot, key .. ":" .. number) and not again then
+                    said[slot] = { data, number, page.text }
                     local window = "window " .. slot
                     reader.emit{
                         text = page.text,

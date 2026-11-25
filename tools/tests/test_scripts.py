@@ -219,6 +219,29 @@ def test_paper_mario_window_closed_and_opened_again():
         assert of(events, "layout")[1] == {"window": "window 0", "seq": 1, "closed": True}
 
 
+def test_paper_mario_a_message_that_gains_a_page_while_its_first_is_up():
+    """A notice that grows into a question (the file select's "loading" turning into "no file"): the records
+    become another list with the same first page, which isn't said a second time."""
+    notice = pm_records("よくきたな", LINE, "やあ、", LINE, END)
+    grown = pm_records("よくきたな", LINE, "やあ、", LINE, KEY, PAGE, "にでよう", LINE, KEY, END)
+    r = pm_reader(pm_memory(notice))
+    r.frame(1)
+    assert [e["text"] for e in of(r.take(), "text")] == ["よくきたな\nやあ、"]
+    r.read = pm_memory(grown)
+    r.frame(2)
+    assert of(r.take(), "text") == []
+    r.read = pm_memory(grown, at=13)                             # past the first page's end
+    r.frame(3)
+    assert [(e["text"], e["meta"]) for e in of(r.take(), "text")] == [("にでよう", {"page": 2, "pages": 2})]
+    # Another message whose first page reads the same, after the window closed, is said: it is another.
+    r.read = pm_memory(None)
+    r.frame(4)
+    r.read = pm_memory(notice)
+    r.frame(5)
+    assert [e["text"] for e in of(r.take(), "text")] == ["よくきたな\nやあ、"]
+    r.close()
+
+
 def test_paper_mario_choice():
     answers = pm_records("はい", LINE, "いいえ", END)
     box = dict(window_type=5, slot=1, place=(-75.0, 40.0))
