@@ -182,7 +182,12 @@ local function say(more, now)
     for _, code in ipairs(codes) do
         plain = plain or code == PLAIN
     end
-    local line = decode(codes):gsub("[\n　]+$", "")
+    -- What ends a message is cut code by code: a pattern would cut by bytes, and into a character.
+    while #codes > 0 and (codes[#codes] == 0 or (codes[#codes] >= 0x1000 and codes[#codes] ~= HERO
+                                                  and codes[#codes] ~= HERO_TOO)) do
+        codes[#codes] = nil
+    end
+    local line = decode(codes)
     local speaker
     -- A queue just unpacked comes into sight with the first character of a named speaker's message already
     -- drawn and gone. The same speaker's next message, further down the queue, has the name whole.
