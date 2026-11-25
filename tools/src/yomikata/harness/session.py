@@ -1160,6 +1160,10 @@ class Session:
                "sheet": f"work/{self._name(name)}.png", "across": columns,
                "in_order": [" ".join(codes[i:i + columns]) for i in range(0, len(codes), columns)],
                **({"stopped": played["stopped"]} if played.get("stopped") else {})}
+        said = [e for e in played.get("events", []) if e.get("kind") == "text"]
+        if said:                                # what the loaded script read meanwhile
+            out["said"] = [{"frame": e["frame"], "text": e.get("text"),
+                            **({"speaker": e["speaker"]} if e.get("speaker") else {})} for e in said]
         if image is None:
             return out
         image.save(path.with_suffix(".png"))
