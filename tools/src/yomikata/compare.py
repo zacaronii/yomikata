@@ -51,8 +51,11 @@ class Result:
 
 def _from_layout(read: dict) -> dict:
     speaker = read.get("speaker")
+    # A layout that says when a choice is up keeps reading the answers' memory after it: they are on screen
+    # only while it says so.
+    answers = [] if read.get("choosing") is False else list(read.get("choices") or [])
     return {"message": read.get("message") or "", "speaker": speaker if isinstance(speaker, str) else "",
-            "choices": list(read.get("choices") or [])}
+            "choices": answers}
 
 
 def _from_script(texts: list[dict]) -> dict:

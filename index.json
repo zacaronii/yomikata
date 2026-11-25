@@ -659,6 +659,19 @@
    ],
    "needs": [],
    "data": {}
+  },
+  "SLPS-03292": {
+   "path": "scripts/ps1/SLPS-03292.lua",
+   "sha256": "95e5f0b15889a4190d9e3824cf11c5847beea5e4c44407ab677a6dfc12c614a0",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "メモリーズオフ セカンド (Memories Off 2nd)",
+   "reads": "the message window's three rows, the speaker's name, and a choice's answers with its cursor",
+   "builds": [
+    "8ff227df40eccefd0a9e772f4930d693b89fc117"
+   ],
+   "needs": [],
+   "data": {}
   }
  }
 }
