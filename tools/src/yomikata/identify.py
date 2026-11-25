@@ -20,6 +20,8 @@ class Release:
     exe: str | None = None
     exe_sha1: str | None = None
     header_crc32: str | None = None
+    crc: str | None = None            # PS2: what an emulator says of the game beside its serial
+    build: str | None = None          # PS2: `<serial>-<crc>`, a script's build line (docs/script-api.md)
 
     def as_dict(self) -> dict:
         return {k: v for k, v in asdict(self).items() if v is not None}
@@ -32,6 +34,15 @@ def serial_from_boot(boot: str) -> tuple[str, str]:
     if not m:
         raise DiscError(f"boot file {exe!r} doesn't look like a serial")
     return f"{m.group(1)}-{m.group(2)}{m.group(3)}", exe
+
+
+def ps2_crc(program: bytes) -> str:
+    """The CRC a PS2 emulator gives a game (PCSX2's, which PINE hands out as the game's UUID): the boot
+    program's 32-bit words, low byte first, all XORed together; bytes past the last whole word are left out."""
+    crc = 0
+    for (word,) in struct.iter_unpack("<I", program[:len(program) // 4 * 4]):
+        crc ^= word
+    return f"{crc:08x}"
 
 
 def identify_disc(path: Path, scratch: Path | None = None) -> Release:
@@ -48,7 +59,11 @@ def identify_disc(path: Path, scratch: Path | None = None) -> Release:
             entry = iso.find(boot_path) or iso.find(exe)
             if entry is None:
                 raise DiscError(f"boot file {exe} not found on the disc")
-            return Release("ps2" if m.group(1) else "ps1", serial, exe, hashlib.sha1(iso.read(entry)).hexdigest())
+            program = iso.read(entry)
+            if not m.group(1):
+                return Release("ps1", serial, exe, hashlib.sha1(program).hexdigest())
+            crc = ps2_crc(program)
+            return Release("ps2", serial, exe, hashlib.sha1(program).hexdigest(), crc=crc, build=f"{serial}-{crc}")
         umd = iso.find("UMD_DATA.BIN")
         if umd:
             disc_id = iso.read(umd).split(b"|")[0].decode("ascii").replace("-", "")

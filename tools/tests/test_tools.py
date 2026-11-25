@@ -67,6 +67,31 @@ def test_boot_file_in_a_subfolder(tmp_path):
     assert (r.id, r.exe) == ("SLPM-86111", "SLPM_861.11") and r.exe_sha1
 
 
+def test_a_ps2_disc_gives_its_build_as_an_emulator_names_it(tmp_path):
+    """BOOT2 in SYSTEM.CNF: the serial, and the CRC of the boot program's words XORed together."""
+    from yomikata.identify import ps2_crc
+    cnf = b"BOOT2 = cdrom0:\\SLPM_655.55;1\r\nVER = 1.00\r\n"
+    exe = b"\x7fELF" + bytes.fromhex("01000000 02000000 00000080") + b"\xaa\xbb"       # two bytes past the last word
+    root = dir_record(b"\0", 18, 2048, True) + dir_record(b"\1", 18, 2048, True) + \
+        dir_record(b"SLPM_655.55;1", 20, len(exe), False) + dir_record(b"SYSTEM.CNF;1", 19, len(cnf), False)
+    pvd = bytearray(2048)
+    pvd[0:6] = b"\x01CD001"
+    pvd[156:190] = dir_record(b"\0", 18, 2048, True)[:34]
+    img = tmp_path / "ps2.iso"
+    img.write_bytes(b"".join([bytes(2048)] * 16 + [bytes(pvd), bytes(2048), root.ljust(2048, b"\0"),
+                                                   cnf.ljust(2048, b"\0"), exe.ljust(2048, b"\0")]))
+    r = identify(img)
+    want = f"{0x464C457F ^ 1 ^ 2 ^ 0x80000000:08x}"
+    assert (r.platform, r.id, r.crc, r.build) == ("ps2", "SLPM-65555", want, f"SLPM-65555-{want}")
+    assert ps2_crc(b"") == "00000000" and "crc" not in identify_ps1(tmp_path).as_dict()
+
+
+def identify_ps1(tmp_path):
+    img = tmp_path / "ps1.iso"
+    make_ps1(img, False)
+    return identify(img)
+
+
 def test_serials():
     assert serial_from_boot("cdrom:\\SLPS_022.96;1") == ("SLPS-02296", "SLPS_022.96")
     assert serial_from_boot("cdrom0:\\SLPM_655.55;1") == ("SLPM-65555", "SLPM_655.55")
