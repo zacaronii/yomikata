@@ -1587,3 +1587,45 @@ def test_read_takes_mixed_and_marks(session):
     assert out["mixed"] == "<02>ね[AT]こ<03><04>ab<00>"
     with pytest.raises(HarnessError, match="mixed"):
         session.read("0x80000200", 10, mixed="shift_jis", marks={"AT": "nowhere"})
+
+
+def test_place_find_and_explore_by_numbers_with_a_point(session):
+    """A place kept as three floats, the camera turned so that a push moves two of them: place_find gives the
+    three, and explore counts them in cells of `grid` and finds the way round a wall."""
+    machine, plain = session.machine, session.machine._step
+    struct.pack_into(">3f", machine.memory, 0x300, 10.0, 2.5, -40.0)
+
+    def walked(buttons, stick):
+        plain(buttons, stick)
+        x, height, z = struct.unpack_from(">3f", machine.memory, 0x300)
+        dx = 1.5 * (("right" in buttons) - ("left" in buttons)) - 0.5 * (("down" in buttons) - ("up" in buttons))
+        dz = 0.5 * (("right" in buttons) - ("left" in buttons)) + 1.5 * (("down" in buttons) - ("up" in buttons))
+        if not (x + dx > 30.0 and z + dz < 0.0):                           # a wall at x = 30, open from z = 0 on
+            x, z = x + dx, z + dz
+        struct.pack_into(">3f", machine.memory, 0x300, x, height, z)
+        struct.pack_into(">f", machine.memory, 0x320, machine.frames * 0.25)   # a clock: moves whatever is pushed
+    machine._step = walked
+    found = session.place_find(frames=6)
+    assert found["groups"][0]["places"][0]["address"] == f"0x{BASE + 0x300:08X}" and len(found["groups"]) == 1
+    places = found["groups"][0]["places"]
+    assert (places[0]["right"], places[1]["right"], places[2]["right"]) == (9.0, 0.0, 3.0) and places[2]["down"] == 9.0
+    struct.pack_into(">3f", machine.memory, 0x300, 10.0, 2.5, -40.0)
+    cells = {"x_address": f"0x{BASE + 0x300:08X}", "y_address": f"0x{BASE + 0x308:08X}", "grid": 1.0, "step": 4, "most": 300}
+    out = session.explore(**cells, within=[0, -60, 60, 20])
+    assert (out["x"], out["y"]) == (10, -40) and out["places"] > 50
+    assert not any(row[31 - out["columns"][0]:].strip(".") for row, y in zip(out["map"], range(out["rows"][0], 0)))   # nothing past the wall above z = 0
+    out = session.explore(**cells, within=[0, -60, 60, 20], to=[40, 6], near=4)
+    assert out["reached"] is True and out["x"] > 30 and out["y"] >= 0     # round the wall's end
+    with pytest.raises(HarnessError, match="grid"):
+        session.explore(**{**cells, "grid": -1})
+    # A passage aslant and narrower than a push: only the slanting pushes get along it.
+    def aslant(buttons, stick):
+        plain(buttons, stick)
+        x, height, z = struct.unpack_from(">3f", machine.memory, 0x300)
+        dx, dz = 2.0 * (("right" in buttons) - ("left" in buttons)), 2.0 * (("down" in buttons) - ("up" in buttons))
+        if abs((x + dx) - (z + dz)) < 1.0:                                  # the line x = z, and no wider
+            struct.pack_into(">3f", machine.memory, 0x300, x + dx, height, z + dz)
+    machine._step = aslant
+    struct.pack_into(">3f", machine.memory, 0x300, 0.0, 2.5, 0.0)
+    assert session.explore(**{**cells, "step": 1}, within=[-10, -10, 10, 10])["places"] == 1
+    assert session.explore(**{**cells, "step": 1}, within=[-10, -10, 10, 10], diagonals=True)["places"] == 11

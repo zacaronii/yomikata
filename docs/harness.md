@@ -55,6 +55,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in, or only those that point there in all and move (`moving`) |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
 | `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way; stops where the map changes, since the numbers start anew there. `near` for numbers finer than a step |
+| `place_find` | Where a game of three dimensions keeps the character's place: floats that stand while the pad is let go, move with a push and come back with the push the other way, grouped three on end |
 | `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read |
 | `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to`. Takes where the game draws the character, for a picture that doesn't keep it in the middle |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
@@ -153,6 +154,16 @@ In the order to try them:
    the numbers against `map_picture` before walking by them. A button may do one thing with a window up
    and another without: there B takes a message on and, with none up, opens a window that stops the
    walk. Press through a talk with `until_quiet` 1, so that the first press that brings no text is the last.
+   A game of three dimensions keeps the place as numbers with a point, and `cursor_find`, which looks for
+   whole ones, comes back with the pad's own state or nothing. `place_find` looks for floats instead and
+   groups them three on end; `explore` then takes two of a group's addresses with `grid` (how many of the
+   game's units make a cell) and, for a passage aslant of the pad's ways, `diagonals`. On Shadow Hearts the
+   place is two floats side by side (0x00AB5F30 and the next; the game's floor is flat), found in one call.
+   What that game taught besides: its hero turns before he walks, so a push of six frames goes nowhere and
+   `explore` saw a strip of twenty places; with `step` 24 it saw the carriage. Try one long push by hand
+   and look at the picture before believing a small map. And an explored map is of no use where walking
+   brings fights at random: there one long push at a time, with presses between to get through a fight,
+   went through four carriages in two sessions.
    A game may keep two sets of numbers for everything that walks: where each is on the map, and where each
    is drawn on screen. Chrono Trigger does (the map's at 0x7E1800 across and 0x7E1880 down, a word for each
    of 32 things, 16 to a pixel; the screen's at 0x7E0A00 and 0x7E0A80), and `cursor_find` gave the screen's,
