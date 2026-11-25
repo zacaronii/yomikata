@@ -24,7 +24,7 @@ from ..run import MIRRORS, PLATFORM_ALIASES
 from . import search
 
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
-BUTTONS = ("a", "b", "x", "y", "l", "r", "start", "select", "up", "down", "left", "right")
+BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "select", "up", "down", "left", "right")
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
 MAX_POKE = 256                  # bytes in one write

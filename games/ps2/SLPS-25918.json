@@ -12,6 +12,30 @@
   "encoding": "shift_jis",
   "status": "auto",
   "sources": [
-    "yomikata scan 0.2.0 of the disc files: shift_jis 914,233 characters of prose-like text"
+    "yomikata scan 0.2.0 of the disc files: shift_jis 914,233 characters of prose-like text",
+    "The harness: the prologue played to its first pages, and the strings of dialogue in memory there (some 22,000) gone through for what isn't text"
+  ],
+  "notes": "Lines are plain Shift-JIS with the engine's own marks among them, in ASCII: cleanup takes them out. ／ breaks a line. R<word>R<n> and n characters after it are a reading over the word. Nn and Nm stand for the player's given and family names: cleanup puts the names the game offers (純一, 橘), which is wrong after a rename. V<n> names a voice clip, W<n> and Wv<n> wait; E, F, m, b, a, P, S, L with letters and digits turn the portrait's eyes, face, mouth and pose; B, As, Ts, Ti, Mc, Ev were seen and not looked into.",
+  "cleanup": [
+    {
+      "regex": "R([^!-~]+)R(?:1[^!-~]|2[^!-~]{2}|3[^!-~]{3}|4[^!-~]{4}|5[^!-~]{5}|6[^!-~]{6}|7[^!-~]{7}|8[^!-~]{8}|9[^!-~]{9})",
+      "replace": "$1"
+    },
+    {
+      "regex": "Nn",
+      "replace": "純一"
+    },
+    {
+      "regex": "Nm",
+      "replace": "橘"
+    },
+    {
+      "regex": "[A-Za-z]+[0-9]*",
+      "replace": ""
+    },
+    {
+      "regex": "／",
+      "replace": "\n"
+    }
   ]
 }

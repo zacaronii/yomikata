@@ -40,3 +40,16 @@ def test_replacement_syntax_and_portability_guard():
     assert apply("a1b2", [{"regex": "([a-z])(\\d)", "replace": "$2$1$$"}]) == "1a$2b$"
     with pytest.raises(ValueError):
         apply("x", [{"regex": "(?<=a)x", "replace": ""}])                  # lookbehind isn't portable
+
+
+def test_amagami_loses_the_engines_marks_and_keeps_its_line_breaks():
+    # Made-up lines in the form of the game's: a voice, waits, the portrait's turns, a reading, the player's names.
+    e = entry("ps2/SLPS-25918.json")
+    assert clean_line("「V8000そうだね……W45EF3もう春だよね」", e) == "「そうだね……もう春だよね」"
+    assert clean_line("晴れた日の空は、W15／とても青い気がした……。", e) == "晴れた日の空は、\nとても青い気がした……。"
+    assert clean_line("「V8041もうね、W30EoF9朝から／Fm3ねむいからEcFe4m7」", e) == "「もうね、朝から\nねむいから」"
+    assert clean_line("「V8003『腹がR空R1すいてはR戦R3いくさはできぬ』EF3Ecってね」", e) == "「『腹が空いては戦はできぬ』ってね」"
+    assert clean_line("（R山田R3やまだR花子R3はなこ……）", e) == "（山田花子……）"
+    assert clean_line("「V8015Nm君の話、W15Wv120Nnはどう思う？B60P1SdLe」", e) == "「橘君の話、純一はどう思う？」"
+    assert clean_line("W30Ec", e) is None                                  # nothing but marks: no line
+    assert clean_line("１０時に、Ｂ組で", e) == "１０時に、Ｂ組で"                # full-width letters and digits are text

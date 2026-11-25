@@ -83,6 +83,9 @@ each, `sheet` to read the snaps' screens, `snap_lines` for each, and `compare`.
 
 docs/first-script.md walks through all of it, from a game file to a pull request.
 
+Buttons are `a`, `b`, `x`, `y`, `l`, `r`, `l2`, `r2`, `l3`, `r3`, `start`, `select` and the four directions, as a
+libretro pad names them (on a PlayStation `a` is circle, `b` cross, `x` triangle, `y` square).
+
 A step is an object: `buttons`, `stick`, `hold` (frames they are held, 4 unless said), then `wait` (frames) or
 `until` (what `run_until` takes, with its `limit`), `times` to repeat it, `snap` (true, or a name) and `shot`
 (true: its picture goes on the sheet). For example, a press and a wait for the next line, twenty times, a snap

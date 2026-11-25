@@ -1457,3 +1457,13 @@ def test_pictures_a_script_logs_for_want_of_a_reading_are_kept_in_scratch(sessio
     assert not [e for e in out["events"] if e["kind"] == "log"]
     assert (tmp_path / "scratch/glyphs/GXXJ01.log").read_text(encoding="utf-8").splitlines() == [
         "glyph 00AA000000000001 4x2x2 1be4", "glyph-line 00AA000000000001 _ 00AA000000000001"]
+
+
+def test_the_second_shoulder_buttons_and_the_sticks_pressed_in_are_buttons_too(session):
+    """A PlayStation 2 game's menus may want L2 and R2 (a naming screen's fields): they are taken as any
+    button, with the ids a core knows them by, and a name that is no button is still refused."""
+    from yomikata.replay.libretro import JOYPAD
+    assert [JOYPAD[b] for b in ("l2", "r2", "l3", "r3")] == [12, 13, 14, 15]
+    assert session.run(2, buttons=["a", "r2", "l3"])["frames"] > 0
+    with pytest.raises(HarnessError, match="buttons are"):
+        session.run(1, buttons=["r4"])
