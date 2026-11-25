@@ -273,6 +273,13 @@ The four discs have 64 places and 1,007 distinct pictures between them. Of the 2
 shown, a first reading by eye was wrong for 31: rarer kanji, read alone. Sentences and the other reader put
 them right, and found ten wrong among the 1,200 read before.
 
+### The record of calls
+
+Every call of a tool goes into `record/calls.jsonl` in scratch, one line each: when, an id for this run of the
+harness, the game loaded, the tool, its arguments in short (a long text as its start and its length, a list as
+how many it holds), whether it failed, and how long it took. `yomikata calls <scratch>` sums the record by
+game. It is how a script's cost is known: the number of calls from the first to the comparison that met the bar.
+
 ### Writing memory
 
 Off unless the harness is started with `--allow-poke`; then there is one more tool, `poke`: bytes at an address

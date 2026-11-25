@@ -14,6 +14,7 @@ import json
 import struct
 import re
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -74,6 +75,7 @@ class Session:
         self.make_machine = make_machine
         self.machine = None
         self.game = None
+        self.session_id = uuid.uuid4().hex[:12]    # names this run of the harness in the record of calls
         self.loaded = None                      # what load was last given: repeat loads it again from power-on
         self.once = False                       # a core was loaded that can't be loaded again in this process
         # The way here: where it starts ("power-on", or a state it can't see behind) and every move since, as
@@ -147,6 +149,29 @@ class Session:
     def begin_call(self) -> None:
         """A call starts now: what runs the game stops by itself `call_seconds` from here."""
         self.deadline = time.monotonic() + self.call_seconds
+
+    def record_call(self, tool: str, arguments: dict, ok: bool, seconds: float) -> None:
+        """A line for this call in scratch's record (record/calls.jsonl): when, which session and game, the tool
+        and its arguments in short. `yomikata calls` sums them by game. A record that can't be written is no
+        reason for a call to fail."""
+        def short(value):
+            if isinstance(value, str):
+                return value if len(value) <= 48 else f"{value[:32]}… ({len(value)} characters)"
+            if isinstance(value, list):
+                return f"{len(value)} items"
+            if isinstance(value, dict):
+                return f"{len(value)} keys"
+            return value
+        entry = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "session": self.session_id,
+                 "game": self.game, "tool": tool, "arguments": {str(k): short(v) for k, v in (arguments or {}).items()},
+                 "ok": bool(ok), "seconds": round(seconds, 2)}
+        try:
+            folder = self.roots.scratch / "record"
+            folder.mkdir(parents=True, exist_ok=True)
+            with (folder / "calls.jsonl").open("a", encoding="utf-8") as record:
+                record.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
 
     def _late(self) -> bool:
         return self.deadline is not None and time.monotonic() >= self.deadline
@@ -2134,12 +2159,11 @@ class Session:
             # The bar for calling a script checked (docs/first-script.md): thirty screens from play, over three
             # scenes or more, none after a memory write; nine in ten of those with text read as shown, and
             # nothing read where there is none.
-            judged = len(lined) + len(empty)
             agreeing = sum(1 for r in lined if r["agreement"] >= 0.8)
             quiet = sum(1 for r in empty if not r["read"])
             short = []
-            if judged < 30:
-                short.append(f"{judged} screens with lines or marked as showing no text: 30 are wanted")
+            if len(lined) < 30:                             # a screen that shows no text isn't one of the thirty
+                short.append(f"{len(lined)} screens with text ({len(empty)} more show none): 30 with text are wanted")
             if len(scenes) < 3:
                 short.append(f"{len(scenes)} scene(s): 3 are wanted")
             if not live:
@@ -2152,6 +2176,7 @@ class Session:
                 short.append(f"something was read on {len(empty) - quiet} screen(s) that show no text")
             by = {r["snap"]: r for r in rows}
             out["bar"] = {"met": not short, "short_of_it": short,
+                          "screens with text": len(lined), "screens showing none": len(empty),
                           "scenes": {scene: {"screens": sum(1 for n in group if by[n]["seen"] is not None),
                                              "agreeing": sum(1 for n in group if by[n]["seen"] and by[n]["agreement"] >= 0.8)
                                              + sum(1 for n in group if by[n]["seen"] == [] and not by[n]["read"])}

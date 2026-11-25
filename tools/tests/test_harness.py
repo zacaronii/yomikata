@@ -287,6 +287,32 @@ def test_mcp(session):
     assert ask("ping")["result"] == {}
 
 
+def test_every_call_goes_into_the_record_and_is_summed_by_game(session, tmp_path, capsys):
+    from yomikata import calls, cli
+    def ask(name, arguments):
+        return mcp.handle(session, {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": arguments}})
+    ask("run", {"frames": 2})
+    ask("run", {"frames": 0})                                           # refused: a call all the same
+    ask("find", {"text": "こ" * 80})
+    ask("no-such-tool", {})                                             # not a call of a tool
+    record = tmp_path / "scratch/record/calls.jsonl"
+    lines = [json.loads(line) for line in record.read_text(encoding="utf-8").splitlines()]
+    assert [(e["tool"], e["ok"]) for e in lines] == [("run", True), ("run", False), ("find", True)]
+    assert {e["session"] for e in lines} == {session.session_id} and lines[0]["game"] == "ngc/Made Up (Japan).iso"
+    assert lines[0]["arguments"] == {"frames": 2} and lines[2]["arguments"]["text"].endswith("(80 characters)")
+    # Another run of the harness, on another game, and a line cut short.
+    with record.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"at": "2026-01-01T00:00:00Z", "session": "other", "game": "sfc/Other.sfc", "tool": "load",
+                            "arguments": {}, "ok": True, "seconds": 1.5}) + "\n" + '{"at": "2026')
+    rows = calls.summary(record)
+    assert rows[0] == {"game": "ngc/Made Up (Japan).iso", "calls": 3, "sessions": 1, "failed": 1, "first": lines[0]["at"],
+                       "last": lines[2]["at"], "seconds": rows[0]["seconds"], "tools": {"run": 2, "find": 1}}
+    assert (rows[1]["game"], rows[1]["calls"], rows[1]["seconds"]) == ("sfc/Other.sfc", 1, 1.5)
+    assert cli.main(["calls", str(tmp_path / "scratch"), "--game", "Other"]) == 0
+    assert [json.loads(line)["game"] for line in capsys.readouterr().out.splitlines()] == ["sfc/Other.sfc"]
+    assert cli.main(["calls", str(tmp_path / "nowhere")]) == 1
+
+
 def test_mcp_over_lines(session):
     lines = [json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
              json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}), "",
@@ -425,7 +451,9 @@ def test_compare_a_script_with_the_lines_on_screen_and_with_a_layout(session):
     assert out["bar"]["met"] is False
     assert out["bar"]["scenes"] == {"the first room": {"screens": 2, "agreeing": 2}, "the walk": {"screens": 1, "agreeing": 0}}
     short = " / ".join(out["bar"]["short_of_it"])
-    assert "3 screens" in short and "2 scene(s)" in short and "give live" in short and "show no text" in short
+    assert "2 screens with text (1 more show none)" in short and "2 scene(s)" in short and "give live" in short \
+        and "show no text" in short
+    assert (out["bar"]["screens with text"], out["bar"]["screens showing none"]) == (2, 1)
     for bad in (lambda: session.compare(SCRIPT, snaps=["nothing"]), lambda: session.snap_lines("nothing", no_text=True),
                 lambda: session.snap_lines("c-000"), lambda: session.compare(SCRIPT, snaps=["c-000"], entry={"id": "x"}),
                 lambda: session.compare(SCRIPT, scenes={"empty": []})):

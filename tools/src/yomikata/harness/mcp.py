@@ -28,13 +28,21 @@ def describe(session: Session) -> list[dict]:
 
 
 def call(session: Session, name: str, arguments: dict) -> dict:
-    """A tool's result as MCP content. What goes wrong comes back as an error result, for the agent to read."""
+    """A tool's result as MCP content. What goes wrong comes back as an error result, for the agent to read.
+    Every call of a tool the harness has goes into scratch's record of calls."""
     known = tools(session)
     if name not in known:
         return {"content": [{"type": "text", "text": f"no such tool: {name}"}], "isError": True}
     session.begin_call()
+    began = time.monotonic()
+    answer = _call(known[name][2], arguments)
+    session.record_call(name, arguments, not answer.get("isError"), time.monotonic() - began)
+    return answer
+
+
+def _call(tool, arguments: dict) -> dict:
     try:
-        result = known[name][2](**arguments)
+        result = tool(**arguments)
     except HarnessError as e:
         return {"content": [{"type": "text", "text": str(e)}], "isError": True}
     except Exception as e:                      # whatever goes wrong in a tool is that call's, not the session's

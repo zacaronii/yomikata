@@ -196,6 +196,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--call-seconds", type=float, default=120.0,
                    help="how long one call may run the game before it stops and says so (default 120); a call "
                         "that hasn't come back a minute after that ends the harness")
+    p = sub.add_parser("calls", help="the harness's record of calls summed by game: calls, runs of the harness, failures, by tool (JSON lines)")
+    p.add_argument("record", type=Path, help="scratch's record/calls.jsonl, or the scratch folder")
+    p.add_argument("--game", help="only games whose path has this in it")
     p = sub.add_parser("serve", help="run the sample inbox (needs the server extra; settings from YOMIKATA_* env)")
     p.add_argument("--port", type=int, default=8080)
     args = ap.parse_args(argv)
@@ -208,6 +211,17 @@ def main(argv: list[str] | None = None) -> int:
         session.call_seconds = max(1.0, args.call_seconds)
         session.allow_poke = args.allow_poke
         mcp.serve(session)
+        return 0
+
+    if args.cmd == "calls":
+        from .calls import summary
+        record = args.record / "record" / "calls.jsonl" if args.record.is_dir() else args.record
+        if not record.is_file():
+            print(f"no record of calls at {record}", file=sys.stderr)
+            return 1
+        for row in summary(record):
+            if not args.game or args.game in (row["game"] or ""):
+                print(json.dumps(row, ensure_ascii=False))
         return 0
 
     if args.cmd == "serve":
