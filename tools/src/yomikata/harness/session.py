@@ -828,13 +828,23 @@ class Session:
           snaps=("array", "snaps in order, for a pattern", False),
           pattern=("string", "a character for each snap: the same small letter is the same value, another "
                              "letter another value, a capital anything but its small letter's value, a dot "
-                             "anything", False))
+                             "anything", False),
+          within=("array", "only places from one address to another, hex: [\"0x80080000\", \"0x80090000\"]", False))
     def changed(self, a: str = "", b: str = "", same_as_a: list | None = None, same_as_b: list | None = None,
-                unit: int = 1, snaps: list | None = None, pattern: str = "") -> dict:
+                unit: int = 1, snaps: list | None = None, pattern: str = "", within: list | None = None) -> dict:
         import numpy as np
         if unit not in (1, 2, 4):
             raise HarnessError("unit is 1, 2 or 4")
         bases = {}
+        if within is not None and (len(within) != 2 or int(str(within[0]), 16) > int(str(within[1]), 16)):
+            raise HarnessError("within is two addresses, the lower first")
+
+        def inside(places, base):
+            if within is None:
+                return places
+            low, high = (int(str(v), 16) for v in within)
+            return places[(places * unit + base >= low) & (places * unit + base < high)]
+
         def cells(name):                                 # a snap of this session, or one kept in scratch
             _, bases[name], ram = self._memories([name])[0]
             data = np.frombuffer(ram, dtype=np.uint8)
@@ -867,8 +877,8 @@ class Session:
                     raise HarnessError("the snaps aren't of the same memory")
                 same = (now == values[ch.lower()]).all(axis=1)
                 keep &= same if ch.islower() else ~same
-            places = np.nonzero(keep)[0]
             base = bases[snaps[0]]
+            places = inside(np.nonzero(keep)[0], base)
             return {"count": int(len(places)),
                     "places": [{"address": f"0x{base + int(i) * unit:08X}",
                                 **{ch: values[ch][i].tobytes().hex() for ch in letters}} for i in places[:MAX_HITS]]}
@@ -882,8 +892,8 @@ class Session:
             keep &= (cells(name) == first).all(axis=1)
         for name in same_as_b or ():
             keep &= (cells(name) == second).all(axis=1)
-        places = np.nonzero(keep)[0]
         base = bases[a]
+        places = inside(np.nonzero(keep)[0], base)
         return {"count": int(len(places)),
                 "places": [{"address": f"0x{base + int(i) * unit:08X}", "a": first[i].tobytes().hex(),
                             "b": second[i].tobytes().hex()} for i in places[:MAX_HITS]]}

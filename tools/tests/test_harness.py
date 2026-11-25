@@ -1005,6 +1005,11 @@ def test_changed_by_a_pattern_over_snaps(session):
     loose = session.changed(snaps=names, pattern="aAaA", unit=4)["places"]
     assert [p["address"] for p in loose] == ["0x80000300", "0x80000310"] and loose[1]["a"] == "00000000"
     assert session.changed(snaps=names, pattern="a.aA")["count"] >= 2
+    assert session.changed(snaps=names, pattern="aAaA", unit=4, within=["0x80000308", "0x80000400"])["count"] == 1
+    assert session.changed("s0", "s1", within=["0x80000300", "0x80000301"])["places"] == [
+        {"address": "0x80000300", "a": "01", "b": "02"}]
+    with pytest.raises(HarnessError):
+        session.changed("s0", "s1", within=["0x80000400"])
     for bad in ({"snaps": names, "pattern": "aba"}, {"snaps": names, "pattern": "aaaa"}, {"snaps": names, "pattern": "aBaB"},
                 {"snaps": names, "pattern": "ab1b"}, {"a": "s0", "snaps": names, "pattern": "abab"}, {"a": "s0"}):
         with pytest.raises(HarnessError):

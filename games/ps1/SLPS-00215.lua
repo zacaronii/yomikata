@@ -1,5 +1,5 @@
 -- reader: title ポリスノーツ (Policenauts)
--- reader: reads each message of the window under the picture as the game starts to show it, with its furigana
+-- reader: reads the window under the picture a page at a time as the game starts to show it, with its furigana
 -- reader: version SLPS-00215 and SLPS-00216 (the two discs share one program)
 -- reader: build 87b1ceca7e7c410855e2a63f847a8c2e801d8db2
 -- reader: no hooks
@@ -21,17 +21,19 @@
 -- and starts a new page), "#ー" and "#-" a long dash, "#{" or "#R{" … "}#" a word with a reading over it, the two
 -- parted by "、".
 --
--- A message of several pages is said whole when its first page shows, a line for each page: what says which
--- page is up wasn't found.
+-- A message may have several pages, parted by #W. NEXT says how many bytes into the message the page after
+-- the one on screen starts, and 0 on the last: so each page is said when it comes up. NEXT is a word the
+-- game also uses for other things between messages; it is only looked at against a message's own pages.
 --
 -- Not covered: who speaks (the name in the box left of the window isn't in the message, and where it is kept
 -- wasn't found); the commands of the picture (見る and the rest) and their answers; the films' lines under
 -- the picture at the start and the title's messages about the memory card, which aren't messages of this
--- kind. Checked in the first room on disc 1: sixteen pictures, nine messages.
+-- kind. Checked in the first room on disc 1: sixteen pictures, ten pages of nine messages.
 
 local tbl = require("lib.tbl")
 
 local CURSOR = 0x80080B8C -- word: the zero byte that ends the message on screen
+local NEXT = 0x80080C6C   -- word: how far into the message the next page starts; 0 on the last page
 local RAM, RAM_END = 0x80010000, 0x80200000
 local MOST = 1024 -- bytes of one message
 
@@ -109,9 +111,6 @@ local function decode(bytes)
                 out:add("――")
                 i = at + 1
             else
-                if codes[at] == LETTER_W and at < #codes then
-                    out:add("\n") -- the game waits for a press here and starts a new page
-                end
                 i = at + 1 -- a command: a letter or a digit
             end
         else
@@ -122,8 +121,26 @@ local function decode(bytes)
     return out
 end
 
+--- A message's pages: the bytes of each, and how far into the message the next one starts.
+local function pages_of(bytes)
+    local pages, first = {}, 1
+    for i = 1, #bytes - 3, 2 do
+        if string.unpack(">I2", bytes, i) & 0x1FFF == HASH and string.unpack(">I2", bytes, i + 2) & 0x1FFF == LETTER_W then
+            pages[#pages + 1] = { bytes = bytes:sub(first, i - 1), next = i + 3 }
+            first = i + 4
+        end
+    end
+    if first <= #bytes then
+        pages[#pages + 1] = { bytes = bytes:sub(first) }
+    end
+    return pages
+end
+
+local message -- the message the cursor is at: { cursor, pages, said }
+
 reader.on_state_loaded(function()
     reader.forget()
+    message = nil
 end)
 
 reader.on_frame(function()
@@ -131,24 +148,38 @@ reader.on_frame(function()
     if not cursor or cursor < RAM + MOST or cursor >= RAM_END or mem.u8(cursor) ~= 0 then
         return
     end
-    if not reader.changed("message", cursor) then
-        return
+    if not message or message.cursor ~= cursor then
+        local before = mem.read(cursor - MOST, MOST)
+        if #before < MOST then
+            return
+        end
+        local start = MOST
+        while start > 0 and before:byte(start) ~= 0 do
+            start = start - 1
+        end
+        local bytes = before:sub(start + 1)
+        if #bytes < 2 or #bytes % 2 ~= 0 then
+            return
+        end
+        message = { cursor = cursor, pages = pages_of(bytes), said = 0 }
     end
-    local before = mem.read(cursor - MOST, MOST)
-    if #before < MOST then
-        return
+    -- Which page is up: the one before the place NEXT gives; the last when it gives none of them.
+    local next = mem.u32(NEXT)
+    local page = #message.pages
+    for i, one in ipairs(message.pages) do
+        if one.next and one.next == next then
+            page = i
+            break
+        end
     end
-    local start = MOST
-    while start > 0 and before:byte(start) ~= 0 do
-        start = start - 1
-    end
-    local bytes = before:sub(start + 1)
-    if #bytes < 2 or #bytes % 2 ~= 0 then
-        return
-    end
-    local built = decode(bytes)
-    local line = built:text()
-    if line ~= "" then
-        reader.emit{ text = line, ruby = built:ruby(), channel = "dialogue", id = text.hash(bytes) }
+    if page > message.said then -- pages only go forward
+        message.said = page
+        local built = decode(message.pages[page].bytes)
+        local line = built:text()
+        if line ~= "" then
+            reader.emit{ text = line, ruby = built:ruby(), channel = "dialogue",
+                         id = text.hash(message.pages[page].bytes),
+                         meta = { page = page, pages = #message.pages } }
+        end
     end
 end)
