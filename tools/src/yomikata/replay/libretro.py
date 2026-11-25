@@ -15,6 +15,7 @@ from pathlib import Path
 ENV_GET_OVERSCAN, ENV_GET_CAN_DUPE, ENV_SET_PIXEL_FORMAT = 2, 3, 10
 ENV_GET_SYSTEM_DIRECTORY, ENV_GET_VARIABLE, ENV_GET_VARIABLE_UPDATE = 9, 15, 17
 ENV_GET_SAVE_DIRECTORY = 31
+ENV_SET_VARIABLES = 16
 ENV_SET_HW_RENDER, ENV_SET_MEMORY_MAPS, ENV_GET_PREFERRED_HW_RENDER = 14, 36, 56
 HW_OPENGL, HW_OPENGL_CORE = 1, 3
 HW_FRAME = C.c_void_p(-1).value                 # the frame is in the framebuffer, not in memory
@@ -78,6 +79,7 @@ class Core:
         self.stick: tuple[float, float] = (0.0, 0.0)        # the left stick, each way from -1 to 1 (up is -1)
         self.asked: set[tuple[int, int, int, int]] = set()  # what the core has asked of the pad, for finding out
         self.maps: list[tuple[int, int, int]] = []          # (address, size, where the core keeps it)
+        self.variables: dict[str, str] = {}                 # the core's options as it declares them: key -> "what; a|b"
         self.gl = None                                      # the context of a core that draws with the card
         self.hw: HwRender | None = None
         self.frame: tuple[bytes, int, int, int] | None = None
@@ -111,6 +113,12 @@ class Core:
             return True
         if cmd == ENV_SET_PIXEL_FORMAT:
             self.pixel_format = C.cast(data, C.POINTER(C.c_int))[0]
+            return True
+        if cmd == ENV_SET_VARIABLES:
+            var, i = C.cast(data, C.POINTER(Variable)), 0
+            while var[i].key:
+                self.variables[var[i].key.decode(errors="replace")] = (var[i].value or b"").decode(errors="replace")
+                i += 1
             return True
         if cmd == ENV_GET_VARIABLE:
             var = C.cast(data, C.POINTER(Variable))
