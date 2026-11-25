@@ -17,108 +17,29 @@
 -- reading the stretch at. The message on screen is the one that address stands in: it rests on the message's
 -- end code while the window waits. UP is nonzero while the window is on screen.
 --
+-- The reading itself is lib/persona2.lua, which Persona 2: Batsu shares.
+--
 -- Names the game puts in by a code (a speaker's by number, the hero's) read as nothing. 33 codes the script
 -- uses aren't in the table and read as U+FFFD. Choices, shops and battles weren't checked.
 
-local tbl = require("lib.tbl")
-
-local SCENE = 0x800DE014  -- word: the loaded scene's text
-local WINDOW = 0x8007B6E0 -- word: the window's object
-local UP = 0x8007B708     -- word: nonzero while the window is on screen
-local KIND, READING = 0x04, 0x0C
-local MESSAGE_WINDOW = 0x2408
-local LONGEST = 36864     -- bytes read of a scene's text: more than the longest has
-
-local END = "\x03\x11"
-local NEWLINE, CLEAR = "\x01\x11", "\x02\x11"
--- Controls that draw nothing: a wait, a choice's wait, the hero's names, and one with no known effect.
-local SILENT = { ["\x06\x11"] = true, ["\x07\x11"] = true, ["\x09\x11"] = true,
-                 ["\x12\x11"] = true, ["\x13\x11"] = true, ["\x14\x11"] = true }
--- Controls with an argument word after them: a pause, a choice, a speaker's name by number, a colour, others.
-local WITH_ARGUMENT = {}
-for _, low in ipairs{ 0x05, 0x08, 0x0B, 0x0C, 0x0E, 0x10, 0x11, 0x15, 0x1C, 0x1D, 0x1E } do
-    WITH_ARGUMENT[string.char(low, 0x12)] = true
-end
+local persona2 = require("lib.persona2")
 
 if mem.u32(0x80020000) ~= 0x02603821 or mem.u32(0x80030000) ~= 0x8FB3002C or mem.u32(0x80018000) ~= 0xAC4A0010 then
     error("this script is for another build of the game", 0)
 end
 
-local source = reader.data("tbl")
-if not source then
-    error(reader.game_id .. ".tbl is missing: the game's character table", 0)
-end
-local characters = tbl.parse(source).chars
+local UP = 0x8007B708 -- word: nonzero while the window is on screen
 
---- The bytes of the message the game is reading: the last one with anything in it that starts at or before
---- `at`, an offset into the scene's text. An offset outside the text is on its last message.
-local function message_at(text, at)
-    local inside = at >= 0 and at <= #text
-    local found
-    local start, i = 1, 1
-    while i + 1 <= #text do
-        if text:sub(i, i + 1) == END then
-            if i > start and (start - 1 <= at or not inside) then
-                found = text:sub(start, i - 1)
-            end
-            start, i = i + 2, i + 2
-            if inside and start - 1 > at then
-                return found
-            end
-        else
-            i = i + (WITH_ARGUMENT[text:sub(i, i + 1)] and 4 or 2)
-        end
-    end
-    if #text + 1 > start and (start - 1 <= at or not inside) then
-        found = text:sub(start)
-    end
-    return found
-end
-
-local function decode(message)
-    local out, i = {}, 1
-    while i + 1 <= #message do
-        local code = message:sub(i, i + 1)
-        if WITH_ARGUMENT[code] then
-            i = i + 4
-        else
-            if code == NEWLINE then
-                out[#out + 1] = "\n"
-            elseif code == CLEAR then
-                out[#out + 1] = "\n\n"
-            elseif not SILENT[code] then
-                out[#out + 1] = characters[code] or "\u{FFFD}"
-            end
-            i = i + 2
-        end
-    end
-    local lines = {}
-    for line in (table.concat(out):gsub("\n+$", "") .. "\n"):gmatch("(.-)\n") do
-        lines[#lines + 1] = tbl.trim_wide(line)
-    end
-    return table.concat(lines, "\n")
-end
-
-reader.on_state_loaded(function()
-    reader.forget()
-end)
-
-reader.on_frame(function()
-    local window = mem.u32(WINDOW)
-    local kind = window and mem.u16(window + KIND)
-    if kind ~= MESSAGE_WINDOW or (mem.u32(UP) or 0) == 0 then
-        reader.forget("message")
-        return
-    end
-    local scene, reading = mem.u32(SCENE), mem.u32(window + READING)
-    if not scene or not reading then
-        return
-    end
-    local message = message_at(mem.read(scene, LONGEST), reading - scene)
-    if message and reader.changed("message", scene .. ":" .. message) then
-        local shown = decode(message)
-        if shown ~= "" then
-            reader.emit{ text = shown, id = text.hash(message) }
-        end
-    end
-end)
+persona2.read{
+    scene = 0x800DE014,  -- word: the loaded scene's text
+    window = 0x8007B6E0, -- word: the window's object
+    kind = 0x2408,
+    up = function()
+        return (mem.u32(UP) or 0) ~= 0
+    end,
+    -- Controls that draw nothing: a wait, a choice's wait, the hero's names, and one with no known effect.
+    silent = persona2.codes{ 0x1106, 0x1107, 0x1109, 0x1112, 0x1113, 0x1114 },
+    -- Controls with an argument word after them: a pause, a choice, a speaker's name by number, a colour, others.
+    sizes = persona2.codes{ [0x1205] = 4, [0x1208] = 4, [0x120B] = 4, [0x120C] = 4, [0x120E] = 4, [0x1210] = 4,
+                            [0x1211] = 4, [0x1215] = 4, [0x121C] = 4, [0x121D] = 4, [0x121E] = 4 },
+}
