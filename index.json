@@ -248,14 +248,14 @@
   },
   "SLPS-00215": {
    "path": "games/ps1/SLPS-00215.json",
-   "sha256": "83b80891c5fcb607b633cc252e3e14e4f41dfe25c5dcfc679cabfa61f6efcff9",
+   "sha256": "905699c0b735d3b0e2127c33f88e9fc19e72cc705dd44d0fdd7dfd1b66e0d1c3",
    "platform": "ps1",
    "encoding": "table",
    "status": "partial"
   },
   "SLPS-00216": {
    "path": "games/ps1/SLPS-00215.json",
-   "sha256": "83b80891c5fcb607b633cc252e3e14e4f41dfe25c5dcfc679cabfa61f6efcff9",
+   "sha256": "905699c0b735d3b0e2127c33f88e9fc19e72cc705dd44d0fdd7dfd1b66e0d1c3",
    "platform": "ps1",
    "encoding": "table",
    "status": "partial",
@@ -813,11 +813,11 @@
   },
   "SLPS-00215": {
    "path": "scripts/ps1/SLPS-00215.lua",
-   "sha256": "5a8ae8795b401ea7759d804123161478e8ea0677276e396fc5c8ad0b0cd4014f",
+   "sha256": "11cae7a9188b133ef89169c298fe1c7904ec984fe7c5046814e65c5ecb87b762",
    "platform": "ps1",
    "runtime": 1,
    "title": "ポリスノーツ (Policenauts)",
-   "reads": "each message of the window under the picture as the game starts to show it, with its furigana",
+   "reads": "the window under the picture a page at a time as the game starts to show it, with its furigana",
    "builds": [
     "87b1ceca7e7c410855e2a63f847a8c2e801d8db2"
    ],

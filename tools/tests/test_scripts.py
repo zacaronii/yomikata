@@ -1432,15 +1432,17 @@ def pn_codes(text: str) -> bytes:
     return out
 
 
-def pn_memory(messages: list[str], at: int | None, word: int = 0x0C00A0B5):
-    """A scene's messages one after another, a zero after each; `at` is the one on screen."""
+def pn_memory(messages: list[str], at: int | None, word: int = 0x0C00A0B5, next_page: int = 0):
+    """A scene's messages one after another, a zero after each; `at` is the one on screen, `next_page` how far
+    into it the page after the one shown starts."""
     block, ends = b"\x12\x34\x00", []
     for m in messages:
         block += pn_codes(m) + b"\0"
         ends.append(PN_BLOCK + len(block) - 1)
     cursor = ends[at] if at is not None else 0
     return sparse({0x80012840: struct.pack("<I", word), 0x800452C8: struct.pack("<I", 0x0C00885D),
-                   PN_BLOCK - 2048: bytes(2048) + block, PN_CURSOR: struct.pack("<I", cursor)})
+                   PN_BLOCK - 2048: bytes(2048) + block, PN_CURSOR: struct.pack("<I", cursor),
+                   0x80080C6C: struct.pack("<I", next_page)})
 
 
 def test_policenauts_a_message_is_said_when_the_game_starts_to_show_it():
@@ -1451,12 +1453,15 @@ def test_policenauts_a_message_is_said_when_the_game_starts_to_show_it():
         r.frame(1)
         assert r.take("text") == []                                     # nothing shown yet
         said = []
-        for frame, at in enumerate((0, 0, 1, 2, 2), 2):
-            r.read = pn_memory(messages, at)
+        second = len(pn_codes("ゆっくり#ー#W"))                         # where the second message's second page starts
+        for frame, (at, next_page) in enumerate(((0, 0), (0, 0), (1, second), (1, second), (1, 0), (1, 0x8001),
+                                                 (2, 0), (2, 0)), 2):
+            r.read = pn_memory(messages, at, next_page=next_page)
             r.frame(frame)
             said.append([(e["text"], e.get("ruby") or []) for e in r.take("text")])
         assert said == [[("あれは愛だ。", [[3, 1, "アイ"]])], [],
-                        [("ゆっくり――\nちょっとまって悪", [[14, 1, "ワル"]])],        # a page break, a dash
+                        [("ゆっくり――", [])], [],                                  # its first page, with a dash
+                        [("ちょっとまって悪", [[7, 1, "ワル"]])], [],              # the second when it comes up
                         [("Ａボタンをおす‥‥‥", [])], []]
         r.state_loaded()
         r.frame(10)

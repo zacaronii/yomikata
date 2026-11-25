@@ -29,5 +29,5 @@
     "tables/ps1/SLPS-00215.tbl"
   ],
   "unit": 2,
-  "notes": "Read by the script games/ps1/SLPS-00215.lua; there is no layout. The two discs share one boot executable. Two bytes a character, high byte first; only the low 13 bits say which character. Kana and ASCII by a rule, signs and kanji by the table, which was read off the game's font in main memory (JIS order). A message of several pages is said whole when its first page shows. Who speaks, the picture's commands, the title's messages and the films' lines aren't read."
+  "notes": "Read by the script games/ps1/SLPS-00215.lua; there is no layout. The two discs share one boot executable. Two bytes a character, high byte first; only the low 13 bits say which character. Kana and ASCII by a rule, signs and kanji by the table, which was read off the game's font in main memory (JIS order). A message's pages are said one at a time. Who speaks, the picture's commands, the title's messages and the films' lines aren't read."
 }
