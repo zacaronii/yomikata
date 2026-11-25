@@ -36,8 +36,22 @@ def call(session: Session, name: str, arguments: dict) -> dict:
     session.begin_call()
     began = time.monotonic()
     answer = _call(known[name][2], arguments)
-    session.record_call(name, arguments, not answer.get("isError"), time.monotonic() - began)
+    session.record_call(name, arguments, not answer.get("isError"), time.monotonic() - began, _outcome(name, answer))
     return answer
+
+
+def _outcome(name: str, answer: dict) -> dict | None:
+    """What of a call's result the record keeps: for a comparison by scenes, whether the bar was met and on
+    how many screens and scenes (counts only). It is what `yomikata calls --trend` reads a script's cost up to."""
+    if name != "compare" or answer.get("isError"):
+        return None
+    try:
+        bar = json.loads(answer["content"][0]["text"]).get("bar")
+    except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+        return None
+    if not isinstance(bar, dict):
+        return None
+    return {"bar": bool(bar.get("met")), "screens": bar.get("screens with text"), "scenes": len(bar.get("scenes") or {})}
 
 
 def _call(tool, arguments: dict) -> dict:

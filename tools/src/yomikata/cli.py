@@ -210,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("calls", help="the harness's record of calls summed by game: calls, runs of the harness, failures, by tool (JSON lines)")
     p.add_argument("record", type=Path, help="scratch's record/calls.jsonl, or the scratch folder")
     p.add_argument("--game", help="only games whose path has this in it")
+    p.add_argument("--trend", action="store_true", help="instead, what each game's script cost up to the comparison that met its bar (calls, runs, minutes on the clock), as a Markdown table for a pull request: the games side by side, oldest first")
     p = sub.add_parser("serve", help="run the sample inbox (needs the server extra; settings from YOMIKATA_* env)")
     p.add_argument("--port", type=int, default=8080)
     args = ap.parse_args(argv)
@@ -230,6 +231,10 @@ def main(argv: list[str] | None = None) -> int:
         if not record.is_file():
             print(f"no record of calls at {record}", file=sys.stderr)
             return 1
+        if args.trend:
+            from .calls import table, trend
+            print(table([row for row in trend(record) if not args.game or args.game in row["game"]]))
+            return 0
         for row in summary(record):
             if not args.game or args.game in (row["game"] or ""):
                 print(json.dumps(row, ensure_ascii=False))
