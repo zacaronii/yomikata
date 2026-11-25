@@ -896,3 +896,40 @@ def test_find_relative_lines_apart_in_one_memory(session):
         with pytest.raises(HarnessError):
             session.find_relative(apart=bad)
 
+
+def test_a_playstation_core_gets_its_video_memory_from_its_savestate(tmp_path):
+    """The real machine wrapper, with a made-up core: no video memory given out, but a savestate laid out as
+    PCSX ReARMed's, from which the harness takes it as the region `vram`."""
+    from yomikata.harness.machine import Machine
+    from yomikata import vram
+
+    class Core:
+        maps, hw, variables, options = [], None, {}, {}
+
+        def __init__(self):
+            self.video = bytes(range(256)) * (vram.VRAM_SIZE // 256)
+            self.saves = 0
+
+        def video_ram(self):
+            return None
+
+        def save_state(self):
+            self.saves += 1
+            head = bytes(32 + 4 + 1 + 128 * 96 * 3 + vram.RAM_SIZE + vram.BIOS_SIZE + vram.HW_SIZE)
+            control = [0] * 256
+            for n in range(6):
+                control[0xE1 + n] = (0xE1 + n) << 24
+            gpu = struct.pack("<II", 1, 0x14802000) + struct.pack("<256I", *control) + self.video
+            return b"ST" + head[2:] + bytes(64) + gpu + bytes(64)
+
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core, machine.frames = "ps1", Core(), 0
+    assert machine.regions() == {"vram": machine.core.video}
+    machine.regions()
+    assert machine.core.saves == 1                                   # once for a frame, however often asked
+    machine.frames = 1
+    machine.regions()
+    assert machine.core.saves == 2
+    machine.platform = "gc"                                          # another console: nothing made up
+    assert machine.regions() == {}
+

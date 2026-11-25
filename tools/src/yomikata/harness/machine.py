@@ -84,7 +84,21 @@ class Machine:
 
     def regions(self) -> dict[str, bytes]:
         video = self.core.video_ram()
+        if not video and self.platform == "ps1":
+            video = self._ps1_video()
         return {"vram": video} if video else {}
+
+    def _ps1_video(self) -> bytes | None:
+        """A PlayStation core gives out no video memory, but its savestate holds it (vram.py): 1024x512 16-bit
+        words. Taken from a state made now, once for each frame it is asked for."""
+        from ..vram import StateError, extract_vram
+        if getattr(self, "_video_at", None) != self.frames:
+            try:
+                self._video = extract_vram(self.core.save_state()).vram
+            except (StateError, RuntimeError):
+                self._video = None
+            self._video_at = self.frames
+        return self._video
 
     def mirrors(self) -> tuple[int, ...]:
         return MIRRORS.get(self.platform, ())

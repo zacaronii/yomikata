@@ -221,6 +221,12 @@ Notes on cores:
 
 - A savestate loads only in the core build that made it. Note the core's SHA-256 with every state kept.
 
+PCSX ReARMed (a PlayStation game):
+
+- It gives out no video memory, but its savestate holds it. The harness takes it from there: `read` with
+  `region: "vram"`, a snap's `vram` part and a script's `mem.region("vram")` have the console's 1024x512 words.
+  It costs a savestate each frame it is asked for, so a script that reads it every frame runs slowly here.
+
 Dolphin (`dolphin_libretro.so`, a GameCube or Wii game):
 
 - It has no renderer that works without a context: the core sets its video side up only when a frontend's
