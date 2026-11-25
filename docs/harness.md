@@ -46,6 +46,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `script_try` | Loads a script on the running game: its load error (another build, a missing region), or its header |
 | `compare` | Runs a script over snaps and counts: what it reads against the lines given with `snap_lines`, and, given an entry, against that entry's layout (as `yomikata compare`). Counts hold no text |
 | `lua` | One line with the script functions on live memory |
+| `poke` | Only with `--allow-poke`: writes bytes into main memory, to reach a moment. Recorded ("Writing memory", below) |
 | `overlay` | The picture with the script's layout cells drawn on it |
 
 The way to a script, with them: `load`, `steps` to a line (a sheet shows where you are), `find` it, `snap` at a
@@ -57,6 +58,29 @@ A step is an object: `buttons`, `stick`, `hold` (frames they are held, 4 unless 
 `until` (what `run_until` takes, with its `limit`), `times` to repeat it, `snap` (true, or a name) and `shot`
 (true: its picture goes on the sheet). For example, a press and a wait for the next line, twenty times, a snap
 at each: `{"buttons": ["a"], "until": {"limit": 600, "event": "text"}, "times": 20, "snap": true}`.
+
+### Writing memory
+
+Off unless the harness is started with `--allow-poke`; then there is one more tool, `poke`: bytes at an address
+of main memory, with a sentence saying why.
+
+It is for REACHING a moment the game is slow to get to: a chapter, a flag, a position, a timer. Then the game
+produces its text itself, and that text is what a script is checked on. It is never for writing the text, or a
+buffer a script reads: that proves a script reads what was written, not what the game shows. Where there is
+no other way to show something (a choice nobody could reach in play), such a write is a made-up test and is
+marked `synthetic`.
+
+So that this can be told afterwards:
+
+- every write goes into `record/memory-writes.jsonl` in scratch: when, the game, the frame, the address, the
+  bytes before and after, why, and whether it was marked synthetic;
+- a snap taken after a write says how many came before it (`memory_writes`), `compare` counts such snaps apart,
+  and a state saved after one is noted in the record;
+- a pull request lists every check that relied on a write and what was written. A count with written snaps in
+  it is quoted as such.
+
+The count starts again when a game is loaded. A state saved after a write still carries it when loaded later:
+name such states so that it shows.
 
 ### A call's time
 

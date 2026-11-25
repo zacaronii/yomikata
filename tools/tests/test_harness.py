@@ -59,6 +59,12 @@ class FakeMachine:
         at = address - BASE
         return bytes(self.memory[at:at + size]) if 0 <= at < len(self.memory) else b""
 
+    def write(self, address, data):
+        at = address - BASE
+        size = max(0, min(len(data), len(self.memory) - at)) if 0 <= at < len(self.memory) else 0
+        self.memory[at:at + size] = data[:size]
+        return size
+
     def regions(self):
         return {"vram": bytes(range(256))}
 
@@ -387,7 +393,8 @@ def test_compare_a_script_with_the_lines_on_screen_and_with_a_layout(session):
     out = session.compare(SCRIPT, show=True)
     assert out["script"] == {"snapshots": 3, "reading something": 3, "reading nothing": 0, "the script didn't load": 0,
                              "with lines read off the screen": 2, "of those, agreeing 80% or more": 2,
-                             "marked as showing no text": 1, "of those, reading nothing": 0}
+                             "marked as showing no text": 1, "of those, reading nothing": 0,
+                             "taken after a memory write": 0}
     assert [r["read"] for r in out["rows"]] == ["こんにちは", "さようなら", "またあした"] and "layout" not in out
     entry = {"id": "GXXJ01", "platform": "gc", "encoding": "shift_jis",
              "layouts": [{"message": {"address": "0x80000100", "charset": "shift_jis", "max_bytes": 32,
@@ -403,4 +410,59 @@ def test_compare_a_script_with_the_lines_on_screen_and_with_a_layout(session):
                 lambda: session.snap_lines("c-000"), lambda: session.compare(SCRIPT, snaps=["c-000"], entry={"id": "x"})):
         with pytest.raises(HarnessError):
             bad()
+
+
+# ---- memory writes ----
+
+def test_memory_writes_are_off_unless_asked_for(session):
+    assert "poke" not in tools(session) and "memory_writes" not in session.status()
+    with pytest.raises(HarnessError, match="--allow-poke"):
+        session.poke("0x80000200", "01", "set the chapter flag")
+    answer = mcp.call(session, "poke", {"address": "0x80000200", "hex": "01", "why": "set the chapter flag"})
+    assert answer["isError"] and "no such tool" in answer["content"][0]["text"]
+
+
+def test_a_memory_write_is_recorded_and_marks_what_follows(session, tmp_path):
+    session.allow_poke = True
+    assert "poke" in tools(session) and session.status()["memory_writes"] == 0
+    session.run(3)
+    session.snap("before")
+    out = session.poke("0x80000200", "0102", "set the chapter flag to the second chapter")
+    assert out == {"written": 2, "address": "0x80000200", "before": "0000", "write": 1}
+    assert session.read("0x80000200", 2)["hex"] == "0102"
+    session.run(2)
+    assert session.read("0x80000200", 2)["hex"] == "0102"           # the game goes on with it
+    session.poke("0x80000100", "8140", "a made-up line in the text buffer", synthetic=True)
+    assert session.snap("after")["memory_writes"] == 2 and session.state_save("there")["memory_writes"] == 2
+    assert session.status()["memory_writes"] == 2
+    meta = lambda name: json.loads((tmp_path / f"scratch/snaps/{name}.json").read_text())      # noqa: E731
+    assert "memory_writes" not in meta("before") and meta("after")["memory_writes"] == 2
+    record = [json.loads(line) for line in (tmp_path / "scratch/record/memory-writes.jsonl").read_text().splitlines()]
+    assert [(r.get("address"), r.get("before"), r.get("after"), r.get("synthetic")) for r in record[:2]] == [
+        ("0x80000200", "0000", "0102", False), ("0x80000100", record[1]["before"], "8140", True)]
+    assert record[0]["why"] == "set the chapter flag to the second chapter" and record[0]["frame"] == 3
+    assert record[0]["game"] == "ngc/Made Up (Japan).iso" and record[2] == {
+        "game": "ngc/Made Up (Japan).iso", "frame": 5, "state_saved": "there", "after_writes": 2}
+    for bad in (lambda: session.poke("0x80000200", "01", "why"), lambda: session.poke("0x80000200", "", "set a flag here"),
+                lambda: session.poke("0x80000200", "zz", "set a flag here"),
+                lambda: session.poke("0x80000FFF", "0102", "runs off the end of memory"),
+                lambda: session.poke("0x90000000", "01", "outside main memory"),
+                lambda: session.poke("0x80000200", "00" * 257, "too much at once")):
+        with pytest.raises(HarnessError):
+            bad()
+    assert session.status()["memory_writes"] == 2
+    # Loading the game anew starts the count again.
+    session.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc")
+    assert session.status()["memory_writes"] == 0
+
+
+@needs_reader
+def test_compare_says_which_snaps_follow_a_memory_write(session):
+    session.allow_poke = True
+    session.snap("clean")
+    session.poke("0x80000200", "01", "set the chapter flag")
+    session.snap("reached")
+    out = session.compare(SCRIPT, show=True)
+    assert out["script"]["taken after a memory write"] == 1
+    assert [(r["snap"], r["written"]) for r in out["rows"]] == [("clean", False), ("reached", True)]
 

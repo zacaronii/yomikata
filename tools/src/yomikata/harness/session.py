@@ -23,6 +23,7 @@ CODECS = {"shift_jis": "cp932", "euc_jp": "euc_jp", "utf16le": "utf-16-le", "utf
 BUTTONS = ("a", "b", "x", "y", "l", "r", "start", "select", "up", "down", "left", "right")
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
+MAX_POKE = 256                  # bytes in one write
 CHUNK = 30                      # frames run between two looks at the clock, when nothing is watched
 CALL_SECONDS = 120.0            # how long one call may run the game before it stops and says so
 STORY = ("dialogue", "choice")
@@ -76,6 +77,8 @@ class Session:
         self.script_name = None
         self.layouts: dict[str, dict] = {}
         self.call_seconds = CALL_SECONDS
+        self.allow_poke = False                 # memory writes: only when the harness was started with them on
+        self.pokes = 0                          # writes made since the game was loaded
         self.deadline: float | None = None      # set by whoever makes a call (mcp.py); None: no limit
         for folder in ("states", "snaps", "system", "saves"):
             (roots.scratch / folder).mkdir(parents=True, exist_ok=True)
@@ -202,7 +205,7 @@ class Session:
         states = sorted(p.name[:-len(".state.gz")] for p in (self.roots.scratch / "states").glob("*.state.gz"))
         return {"game": self.game, "platform": getattr(self.machine, "platform", None),
                 "frames": getattr(self.machine, "frames", None), "states": states, "snaps": sorted(self.snaps),
-                "script": self.script_name}
+                "script": self.script_name, **({"memory_writes": self.pokes} if self.allow_poke else {})}
 
     @tool("The games of one platform's folder, or the platform folders when none is named.",
           platform=("string", "a folder of the library, e.g. psx or ngc", False))
@@ -225,7 +228,7 @@ class Session:
         if not game_path.is_file() or not core_path.is_file():
             raise HarnessError("no such game or core")
         self._close_reader()
-        self.machine, self.snaps = None, {}
+        self.machine, self.snaps, self.pokes = None, {}, 0
         platform = PLATFORM_ALIASES.get(platform, platform)         # ngc is the catalog's gc
         self.machine = self.make_machine(core_path, game_path, platform,
                                          self.roots.system or self.roots.scratch / "system",
@@ -412,10 +415,13 @@ class Session:
             meta["no_text"] = True
         elif not ocr:
             meta["ocr_unavailable"] = True
+        if self.pokes:                          # what this moment shows was reached with memory written
+            meta["memory_writes"] = self.pokes
         (folder / f"{name}.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
         if machine.picture() is not None:
             (folder / f"{name}.png").write_bytes(self._png(self._picture()))
-        return {"snap": name, "frame": machine.frames, "bytes": len(ram), "regions": sorted(snap.regions)}
+        return {"snap": name, "frame": machine.frames, "bytes": len(ram), "regions": sorted(snap.regions),
+                **({"memory_writes": self.pokes} if self.pokes else {})}
 
     @tool("Says what a snap's screen showed, once you have read it off its picture: the lines, or that there is "
           "no text. `compare` holds what a script reads against these.",
@@ -518,6 +524,40 @@ class Session:
                 "refs": [{"at": f"0x{base + 4 * int(i):08X}", "points_at": f"0x{int(words[i]):08X}"}
                          for i in places[:MAX_HITS]]}
 
+    @tool("Writes bytes into the game's memory, to REACH a moment the game is slow to get to: a chapter, a flag, "
+          "a position, a timer. Then let the game produce its text itself. Never write the text or the buffer a "
+          "script reads, except as a test you label as made up. Every write is kept in scratch's record "
+          "(record/memory-writes.jsonl), snaps taken after one say so, and a pull request must list every check "
+          "that relied on one and what was written.",
+          address=("string", "the game's own address, hex", True),
+          hex=("string", f"the bytes to put there, as hex (at most {MAX_POKE})", True),
+          why=("string", "what this write is for, in a sentence: it goes into the record", True),
+          synthetic=("boolean", "true when this writes text or a buffer a script reads: a made-up test", False))
+    def poke(self, address: str, hex: str, why: str, synthetic: bool = False) -> dict:
+        machine = self._need()
+        if not self.allow_poke:
+            raise HarnessError("memory writes are off: the harness must be started with --allow-poke")
+        if not isinstance(why, str) or len(why.strip()) < 8:
+            raise HarnessError("say why, in a sentence: the record keeps it")
+        try:
+            at, data = int(address, 16), bytes.fromhex(hex)
+        except ValueError:
+            raise HarnessError("address and hex are hex") from None
+        if not 0 < len(data) <= MAX_POKE:
+            raise HarnessError(f"1 to {MAX_POKE} bytes")
+        before = self._read(at, len(data))
+        if len(before) < len(data) or machine.write(at, data) != len(data):
+            raise HarnessError("that isn't all in main memory")
+        self.pokes += 1
+        entry = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "game": self.game, "frame": machine.frames,
+                 "write": self.pokes, "address": f"0x{at:08X}", "before": before.hex(), "after": data.hex(),
+                 "why": why.strip(), "synthetic": bool(synthetic)}
+        folder = self.roots.scratch / "record"
+        folder.mkdir(parents=True, exist_ok=True)
+        with (folder / "memory-writes.jsonl").open("a", encoding="utf-8") as record:
+            record.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        return {"written": len(data), "address": entry["address"], "before": entry["before"], "write": self.pokes}
+
     # ---- states
 
     @tool("Saves the game's state under a name, in scratch.", name=("string", "a name for it", True))
@@ -525,7 +565,11 @@ class Session:
         path = self._state_file(name)
         state = self._need().save_state()
         path.write_bytes(gzip.compress(state, 1))
-        return {"state": name, "bytes": len(state)}
+        if self.pokes:                          # a state saved after a write carries it: the record says which
+            with (self.roots.scratch / "record" / "memory-writes.jsonl").open("a", encoding="utf-8") as record:
+                record.write(json.dumps({"game": self.game, "frame": self._need().frames, "state_saved": name,
+                                         "after_writes": self.pokes}, ensure_ascii=False) + "\n")
+        return {"state": name, "bytes": len(state), **({"memory_writes": self.pokes} if self.pokes else {})}
 
     @tool("Goes back to a saved state: one saved here, or a reader's from the inbox. A loaded script is told.",
           name=("string", "a state's name, or a path under the inbox's snapshots ending in .state.gz", True))
@@ -622,6 +666,7 @@ class Session:
             unknown = meta.get("ocr_unavailable") or ("ocr" not in meta and not meta.get("no_text"))
             seen = None if unknown else list(meta.get("ocr") or [])
             rows.append({"snap": n, "read": said, "seen": seen, "error": reading.error,
+                         "written": bool(meta.get("memory_writes")),
                          "agreement": None if seen is None else round(agreement(said, seen), 2)})
         lined, empty = [r for r in rows if r["seen"]], [r for r in rows if r["seen"] == []]
         out = {"script": {"snapshots": len(rows),
@@ -631,7 +676,8 @@ class Session:
                           "with lines read off the screen": len(lined),
                           "of those, agreeing 80% or more": sum(1 for r in lined if r["agreement"] >= 0.8),
                           "marked as showing no text": len(empty),
-                          "of those, reading nothing": sum(1 for r in empty if not r["read"])}}
+                          "of those, reading nothing": sum(1 for r in empty if not r["read"]),
+                          "taken after a memory write": sum(1 for r in rows if r["written"])}}
         if show:
             out["rows"] = rows[:MAX_ROWS]
         if entry is not None:
@@ -702,6 +748,6 @@ def tools(session: Session) -> dict:
     """name -> (description, properties, bound method), in the order they are written above."""
     out = {}
     for name, member in vars(Session).items():
-        if hasattr(member, "tool"):
+        if hasattr(member, "tool") and (name != "poke" or session.allow_poke):
             out[name] = (*member.tool, getattr(session, name))
     return out
