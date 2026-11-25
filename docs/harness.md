@@ -50,6 +50,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `repeat` | Does the same frames or steps again and says whether the game ended up the same: whether the core repeats itself |
 | `differs` | How this moment's memory differs from a snap's, also one another harness wrote |
 | `changed` | Places that differ between two snaps, the same as the first in some others and as the second in others: a flag, a counter, a cursor. Or places that go as a pattern says over snaps in order: `abab`, or `aAaA` for one value and anything else in turn |
+| `grouped` | Places that hold the same in every state of a group and differ from group to group: which map it is, which chapter. States are loaded for a look and the game put back |
 | `entered` | Reads a name off a naming screen from a snap after each character: where the name is, each character's code, the rule kana codes follow, lines of a table |
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
@@ -126,8 +127,8 @@ In the order to try them:
    or a person's place off it and give it to `walk_to`, which goes straight and round one thing, not through
    a maze, so give it the corners. It stops where the map changes. It knows that by a jump in the numbers;
    where two maps' numbers lie close (stairs that join floors at one place) give it `map_address`, a byte
-   that says which map it is: load a few states on different maps and look for a byte that is the same on
-   each map and differs between them. Dragon Quest V's is 0x7E00BD. People may stand between tiles: when
+   that says which map it is: `grouped` finds it from the states you kept on each map. Dragon Quest V's is
+   0x7E00BD. People may stand between tiles: when
    talking brings nothing, step half a tile nearer. And a game may look at the pad only every few frames:
    on Dragon Quest V's deck a press held 3 frames was lost, and one held 8 was not.
 9. When `find_relative` finds nothing it tries the other ways a game may keep a line and gives those that fit
