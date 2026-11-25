@@ -574,3 +574,34 @@ def build_words(base: int, moments: list[bytes], platform: str, others: list[byt
             and all(o[a:a + n] != moments[0][a:a + n] for o in others)]
     runs.sort(reverse=True)
     return [(base + a, moments[0][a:a + min(n, 16)]) for n, a in runs[:want]], len(runs)
+
+
+def mixed(data: bytes, encoding: str = "shift_jis", marks: dict[int, str] | None = None) -> str:
+    """A stretch that has text among other bytes (a script's commands and its lines), for reading: what
+    decodes as text is given as text, every other byte as <XX>, and each mark as [name] before the byte at its
+    offset. A two-byte character isn't taken across a mark, nor an ASCII control byte as text."""
+    import codecs
+    codecs.lookup(encoding)
+    marks, out, i = marks or {}, [], 0
+    kind = encoding.lower().replace("-", "").replace("_", "")       # shift_jis, Shift-JIS and shiftjis are one
+    sjis = lambda b: 0x81 <= b <= 0x9F or 0xE0 <= b <= 0xFC         # noqa: E731
+    wide = {"shiftjis": sjis, "sjis": sjis, "cp932": sjis, "eucjp": lambda b: 0xA1 <= b <= 0xFE}.get(kind)
+    while i < len(data):
+        if i in marks:
+            out.append(f"[{marks[i]}]")
+        b = data[i]
+        length = 1
+        if kind == "utf8":
+            length = 2 if 0xC2 <= b <= 0xDF else 3 if 0xE0 <= b <= 0xEF else 4 if 0xF0 <= b <= 0xF4 else 1
+        elif wide is not None and wide(b):
+            length = 2
+        if length > 1 and i + length <= len(data) and not any(i + k in marks for k in range(1, length)):
+            try:
+                out.append(data[i:i + length].decode("cp932" if kind in ("shiftjis", "sjis") else encoding))
+                i += length
+                continue
+            except UnicodeDecodeError:
+                pass
+        out.append(chr(b) if 0x20 <= b < 0x7F else f"<{b:02X}>")
+        i += 1
+    return "".join(out)

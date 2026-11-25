@@ -1549,3 +1549,41 @@ def test_a_comparisons_outcome_is_kept_with_its_call():
     assert mcp._outcome("compare", {"content": [{"type": "text", "text": json.dumps({"script": {}})}]}) is None
     assert mcp._outcome("run", {"content": [{"type": "text", "text": "{}"}]}) is None
     assert mcp._outcome("compare", {"isError": True, "content": [{"type": "text", "text": "no"}]}) is None
+
+
+def test_refs_gives_the_words_that_move_along_a_stretch_over_snaps(session):
+    """`moving`: a word that points into a script in every snap and at another place from one to the next is
+    what follows the game's reading; one that always points at the same place, or only sometimes there, isn't."""
+    memory = session.machine.memory
+    for i, at in enumerate((0x104, 0x10A, 0x10A, 0x118)):
+        struct.pack_into(">I", memory, 0x60, BASE + at)                # goes along the line
+        struct.pack_into(">I", memory, 0x68, BASE + 0x100)             # stands at its start
+        struct.pack_into(">I", memory, 0x70, BASE + 0x110 if i != 2 else 0)   # there in some moments only
+        session.snap(f"mv-{i}")
+    names = [f"mv-{i}" for i in range(4)]
+    found = session.refs("0x80000100", span=0x20, snaps=names, moving=True)
+    assert found["count"] == 1 and found["refs"][0]["at"] == "0x80000060" and found["refs"][0]["places"] == 3
+    assert found["refs"][0]["points_at"]["mv-3"] == "0x80000118"
+    assert session.refs("0x80000100", span=0x20, snaps=names)["count"] >= 3          # without it: all of them
+
+
+def test_read_shows_a_script_with_text_among_its_commands():
+    from yomikata.harness import search
+    data = b"lb01\x00\x22" + b"\x02" + "そらは".encode("cp932") + b"\x03\x04\x02" + "あおい。".encode("cp932") + b"\x03\x0b\x85"
+    assert search.mixed(data) == 'lb01<00>"<02>そらは<03><04><02>あおい。<03><0B><85>'
+    assert search.mixed(data, marks={7: "start", 9: "AT"}) == 'lb01<00>"<02>[start]そ[AT]らは<03><04><02>あおい。<03><0B><85>'
+    assert search.mixed(data, marks={8: "AT"}).startswith('lb01<00>"<02><82>[AT]<BB>らは')     # a mark inside a character
+    for name in ("utf8", "utf_8", "UTF-8"):                               # however the encoding is spelt
+        assert search.mixed("あ".encode("utf-8") + b"\x01", name) == "あ<01>"
+    assert search.mixed(data, "Shift-JIS") == search.mixed(data) == search.mixed(data, "sjis")
+    assert search.mixed("あ".encode("euc_jp") + b"\x01", "EUC-JP") == "あ<01>"
+    with pytest.raises(LookupError):
+        search.mixed(data, "no-such-encoding")
+
+
+def test_read_takes_mixed_and_marks(session):
+    session.machine.memory[0x200:0x20A] = b"\x02" + "ねこ".encode("cp932") + b"\x03\x04ab\x00"
+    out = session.read("0x80000200", 10, mixed="shift_jis", marks={"AT": "0x80000203"})
+    assert out["mixed"] == "<02>ね[AT]こ<03><04>ab<00>"
+    with pytest.raises(HarnessError, match="mixed"):
+        session.read("0x80000200", 10, mixed="shift_jis", marks={"AT": "nowhere"})

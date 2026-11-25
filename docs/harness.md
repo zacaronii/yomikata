@@ -36,7 +36,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `run_until` | Runs until a place in memory changes or holds a value, the script emits something, or the picture has stood still; at most a given number of frames. Says how far it ran and why it stopped |
 | `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap (also every few frames of a wait), take pictures. The pictures come back as one sheet. With a script loaded: stop repeating when it says something (`until_event`) or has said nothing for some presses (`until_quiet`), and steps to do whenever it does (`on`: press down and confirm at each choice) |
 | `screenshot` | The picture now |
-| `read` | Memory by address, a region by offset; also as text in the game's own codes, through a table and rules as `code_rule` words them |
+| `read` | Memory by address, a region by offset; also as text in the game's own codes, through a table and rules as `code_rule` words them; or as a script with text among its commands (`mixed`: text as text, other bytes as numbers, pointers marked) |
 | `find` | Where a text or bytes stand, in live memory or in snaps. A text is looked for in Shift-JIS, EUC-JP, UTF-16 either way, UTF-8, Shift-JIS as 16-bit little-endian numbers, and the game's own table when one is given; in parts too, when the whole isn't found |
 | `text_runs` | The stretches of memory that read as Japanese, longest first: what to hold against the screen before any line is known |
 | `find_relative` | A line read off the screen, looked for in codes of the game's own: where the same characters have the same code and different ones different codes. Gives the codes, the start of a table |
@@ -52,7 +52,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `changed` | Places that differ between two snaps, the same as the first in some others and as the second in others: a flag, a counter, a cursor. Or places that go as a pattern says over snaps in order: `abab`, or `aAaA` for one value and anything else in turn |
 | `grouped` | Places that hold the same in every state of a group and differ from group to group: which map it is, which chapter. States are loaded for a look and the game put back |
 | `entered` | Reads a name off a naming screen from a snap after each character: where the name is, each character's code, the rule kana codes follow, lines of a table |
-| `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
+| `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in, or only those that point there in all and move (`moving`) |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
 | `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way; stops where the map changes, since the numbers start anew there. `near` for numbers finer than a step |
 | `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read |
@@ -228,13 +228,15 @@ In the order to try them:
 16. A game may keep no line but its script's own: the story is a program, text among its commands, and
    nothing is copied anywhere as it is shown. `find` then gives one place for a line, in the program, and a
    search for cells that repeat as the line does finds no drawn copy. What moves is the program's place:
-   snap a few lines apart and look for words that point into the program in every snap and differ (a few
-   lines of numpy over fetched snaps did it; `refs` with `snaps` and a `span` over the stretch does the
-   same). `watch` on such a word through a press shows what it does: Kamaitachi no Yoru 2's walks through a
+   snap a few lines apart and ask `refs` for the words that point into the program in every snap and at
+   another place in some (`snaps`, a `span` over the stretch, `moving`). On six snaps of that game it gives
+   two words, the one that is at a new place in all six first; it took the place of six snaps fetched and
+   a pass over them written by hand. `watch` on such a word through a press shows what it does: Kamaitachi no Yoru 2's walks through a
    piece of text a character a frame and stands after it while the game waits. A script for such a game
    gathers the pieces the pointer passes and says them when it stands; pieces the program jumps over are
-   never passed, which no reading of the program where it lies would know. Dump the program around a line
-   with its bytes below a space shown as numbers before writing anything: the single bytes between pieces
+   never passed, which no reading of the program where it lies would know. Read the program around a line
+   before writing anything (`read` with `mixed`: text as text, every other byte as <XX>, and `marks` for
+   where the pointers stand): the single bytes between pieces
    are the game's rows, readings and names. And a name the player gave may be typed from a buffer of its
    own (the pointer leaves the program for it), so play past a naming screen before trusting a script.
 
