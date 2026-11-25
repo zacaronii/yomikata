@@ -1515,10 +1515,11 @@ DQ5_QUEUE = 0x7E0E4B
 DQ5_CHECK = bytes.fromhex("b105b10ab10fb114b11bb122b129b130")
 
 
-def dq5_memory(queue: list[int], check: bytes = DQ5_CHECK):
-    """The game's queue of codes still to be drawn, the next one first."""
+def dq5_memory(queue: list[int], check: bytes = DQ5_CHECK, drawing: int = 0):
+    """The game's queue of codes still to be drawn, the next one first, and the code being drawn."""
     words = (queue + [0] * 192)[:192]
-    return sparse({0x7EB7D1: check, DQ5_QUEUE: b"".join(struct.pack("<H", w) for w in words)})
+    return sparse({0x7EB7D1: check, DQ5_QUEUE: b"".join(struct.pack("<H", w) for w in words),
+                   0x7E02CC: struct.pack("<H", drawing)})
 
 
 def test_dragon_quest_v_a_message_is_said_when_its_first_character_is_drawn():
@@ -1541,6 +1542,13 @@ def test_dragon_quest_v_a_message_is_said_when_its_first_character_is_drawn():
         assert said == [[], [], [], [("パパス", "「そっ　そうか！")], [], [], [], [],     # said at its first character
                         [(None, "よし\nうかんだぞ！�")], [], [], [],              # a character the table hasn't got
                         [(None, "……。")], []]
+        # Talking to someone: another queue, and the start mark and the first character gone in one frame.
+        talk = [START] + codes("パパス「よし") + [WAIT]
+        r.read = dq5_memory(talk[:5])                                   # the queue still filling behind its front
+        r.frame(20)
+        r.read = dq5_memory(talk[2:] + [0x0333] * 40)                   # and what lies after its wait is other now
+        r.frame(21)
+        assert [(e.get("speaker"), e["text"]) for e in r.take("text")] == [("パパス", "「よし")]
         r.state_loaded()                                                # mid-message after a savestate: nothing is known
         r.read = dq5_memory(whole[27:])
         r.frame(30)
