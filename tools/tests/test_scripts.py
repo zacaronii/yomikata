@@ -1528,7 +1528,7 @@ def test_dragon_quest_v_a_message_is_said_when_its_first_character_is_drawn():
     def codes(text):
         return [0x1000 if ch == "\n" else 0 if ch == "　" else code.get(ch, 0x0001) for ch in text]
     START, WAIT = 0x1003, 0x1001
-    whole = [START] + codes("パパス「そっ　そうか！") + [WAIT] + codes("よし\nうかんだぞ！ぬ") + [WAIT, START] + codes("……。") + [WAIT]
+    whole = [START] + codes("パパス「そっ　そうか！") + [WAIT] + codes("よし\nうかんだぞ！§") + [WAIT, START] + codes("……。") + [WAIT]
     data = {"tbl": (ROOT / "tables/sfc/SFC-F061BF93.tbl").read_bytes()}
     with rd.Reader(dq5_memory(whole), platform="sfc", game_id="SFC-F061BF93", data=data) as r:
         r.load(bundle(ROOT / "games/sfc/SFC-F061BF93.lua"), "SFC-F061BF93.lua")
