@@ -18,10 +18,17 @@
       "exe_sha1": "7831444653135263415259495f3976fb45ead923"
     }
   ],
-  "encoding": "unknown",
-  "status": "auto",
+  "encoding": "table",
+  "status": "partial",
   "sources": [
-    "yomikata scan 0.1.0 of the disc files: utf16le 10 characters of prose-like text"
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+    "The kanji read off the game's own pictures of them: the fixed font in main memory, and the pictures each scene and radio call brings; a second reader (manga-ocr) beside, and every one read in the sentences it stands in",
+    "Played from power-on: the opening film, the briefing's first tape, the dock's opening with its first radio call, and a call made from the dock",
+    "What the script said in play agreed with the lines read off 119 of 123 pictures, over 4 scenes; the 4 others also show names drawn as pictures, which it doesn't read. It read nothing on 8 screens that show no line"
   ],
-  "notes": "Little or no script reads on disc in a standard encoding: it may be compressed or use the game's own table. A memory sample from play will settle it."
+  "notes": "Read by the script games/ps1/SLPM-86111.lua; there is no layout. Only disc 1 was played, as far as the dock. A scene, a film or a radio call brings a list of its lines, each shown for its time; a word points at the one on screen. Two bytes a character: kana by Unicode's order, the fixed font's signs and kanji by the table, and the kanji a list brings with it by a hash of each one's picture (SLPM-86111.glyphs). That file has the 188 pictures of the lines played so far; other kanji come out as U+FFFD. Who speaks, menus, the memory card's messages and names drawn over a scene aren't read.",
+  "tables": [
+    "tables/ps1/SLPM-86111.tbl"
+  ],
+  "unit": 2
 }

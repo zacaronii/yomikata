@@ -323,3 +323,22 @@ def test_glyph_read_puts_a_second_reading_beside_yours(tmp_path, capsys, monkeyp
     assert "02FD ? unread: the second reader says う" in printed.out and "02E6" not in printed.out
     assert "3 glyphs: 1 read the same two ways, 1 that differ" in printed.err
     assert glyphread.sentences(["あいう", "えあお"], "あ", width=1) == {"あ": ["[あ]い", "え[あ]お"]}
+
+
+def test_a_scripts_dictionary_of_glyph_pictures_is_checked_by_its_own_form(tmp_path):
+    """games/<platform>/<id>.glyphs: a picture's hash (16 hex digits) and the one character it is."""
+    (tmp_path / "schema").mkdir()
+    (tmp_path / "schema" / "entry.schema.json").write_text(
+        (REPO / "schema" / "entry.schema.json").read_text(encoding="utf-8"), encoding="utf-8")
+    (tmp_path / "games" / "ps1").mkdir(parents=True)
+    (tmp_path / "tables").mkdir()
+    script = tmp_path / "games" / "ps1" / "SLPS-99999.lua"
+    script.write_text("-- reader: title 題 (Title)\n-- reader: reads a line\n-- reader: version 1.0\n"
+                      f"-- reader: build {'a' * 40}\n-- reader: no hooks\n-- reader: no layout none\n"
+                      'local glyphs = reader.data("glyphs")\n', encoding="utf-8")
+    script.with_suffix(".glyphs").write_text("# a note\n006C48ABAE2FDCB3=美\n", encoding="utf-8")
+    assert catalog.validate(tmp_path) == []
+    script.with_suffix(".glyphs").write_text("006C48ABAE2FDCB3=美\n006c=美\n013C9E2AB8071749=a line\n", encoding="utf-8")
+    assert [str(p) for p in catalog.validate(tmp_path)] == [
+        "games/ps1/SLPS-99999.glyphs: line 2: expected 16 hex digits, = and one character",
+        "games/ps1/SLPS-99999.glyphs: line 3: expected 16 hex digits, = and one character"]

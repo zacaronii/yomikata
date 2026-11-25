@@ -82,6 +82,8 @@ end)
 - Data a script needs goes beside it as `<id>.<name>`: a character table as `<id>.tbl` (Thingy, `docs/format.md`) or
   `<id>.charset` (Furoshiki's: a decimal glyph number, a tab and the character on each line, `#` for comments).
   `reader.data("tbl")` hands the file over as a string; the script reads it. Codes and characters only, as ever.
+  A game that brings its kanji as pictures has a dictionary of them as `<id>.glyphs`: a line for each picture,
+  `text.hash` of its bytes in capitals, `=`, and the character it is.
 - A script may `require` a module from `lib/` (walking tags, tiles, reading a `.tbl`). What is run and published
   is one file per game with its modules put in (`yomikata bundle`, which `yomikata run` does by itself), header
   lines still first, so a host never loads anything but the script and its data.

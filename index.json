@@ -211,17 +211,17 @@
   },
   "SLPM-86111": {
    "path": "games/ps1/SLPM-86111.json",
-   "sha256": "690d217542fd56cac5b96f4284081d26a724af93ca2fc679cca97036202b12d4",
+   "sha256": "430e86addc015504b7fc82219232ccd5d327fc60a966d95ef496b19dbdab54ca",
    "platform": "ps1",
-   "encoding": "unknown",
-   "status": "auto"
+   "encoding": "table",
+   "status": "partial"
   },
   "SLPM-86112": {
    "path": "games/ps1/SLPM-86111.json",
-   "sha256": "690d217542fd56cac5b96f4284081d26a724af93ca2fc679cca97036202b12d4",
+   "sha256": "430e86addc015504b7fc82219232ccd5d327fc60a966d95ef496b19dbdab54ca",
    "platform": "ps1",
-   "encoding": "unknown",
-   "status": "auto",
+   "encoding": "table",
+   "status": "partial",
    "alias_of": "SLPM-86111"
   },
   "SLPM-86168": {
@@ -776,6 +776,28 @@
     "tbl": {
      "path": "games/sfc/SHVC-MB.tbl",
      "sha256": "f9644d025790fa363fd959bda7797f71c1cb93873754917fbef9cf005e623103"
+    }
+   }
+  },
+  "SLPM-86111": {
+   "path": "scripts/ps1/SLPM-86111.lua",
+   "sha256": "9453eea71f0c826c845623f98edd8605726650b93649dddeb6afec18a810291c",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "メタルギアソリッド (Metal Gear Solid)",
+   "reads": "the captions of scenes and films and the lines of radio calls, each as it is shown, with their furigana",
+   "builds": [
+    "7831444653135263415259495f3976fb45ead923"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/ps1/SLPM-86111.glyphs",
+     "sha256": "459e0b42f30d86568d4eda01ad1093bc75ca767250242d296f6d3beb8e12f413"
+    },
+    "tbl": {
+     "path": "games/ps1/SLPM-86111.tbl",
+     "sha256": "91b3cdd8e7ebae42c1a00d28f4d094f6a80ce9c56feb1cee9ace5ff166f61c48"
     }
    }
   },

@@ -76,11 +76,19 @@ def validate(root: Path) -> list[Problem]:
             problems.append(Problem(str(p.relative_to(root)), f"differs from {other.relative_to(root)}"))
 
     for p in sorted([*(root / "tables").rglob("*.tbl"), *(root / "games").glob("*/*.tbl"),
-                     *(a for a in asked if a.suffix not in (".tbl", ".charset", ".codes", ".places") and a.is_file())]):
+                     *(a for a in asked if a.suffix not in (".tbl", ".charset", ".codes", ".places", ".glyphs")
+                       and a.is_file())]):
         try:
             tbl.parse(p.read_text(encoding="utf-8"), str(p.relative_to(root)))
         except (tbl.TableError, UnicodeDecodeError) as e:
             problems.append(Problem(str(p.relative_to(root)), str(e)))
+
+    # A script's dictionary of glyph pictures (games/<platform>/<id>.glyphs): a picture's hash as a script works
+    # it out (text.hash: 16 hex digits) and the one character it is. A hash is longer than a table's code.
+    for p in sorted(a for a in asked if a.suffix == ".glyphs" and a.is_file()):
+        for n, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+            if line.strip() and not line.startswith("#") and not re.fullmatch(r"[0-9A-F]{16}=\S", line):
+                problems.append(Problem(str(p.relative_to(root)), f"line {n}: expected 16 hex digits, = and one character"))
 
     problems += validate_scripts(root)
 
