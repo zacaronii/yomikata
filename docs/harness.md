@@ -375,6 +375,15 @@ harness, the game loaded, the tool, its arguments in short (a long text as its s
 how many it holds), whether it failed, and how long it took. `yomikata calls <scratch>` sums the record by
 game. It is how a script's cost is known: the number of calls from the first to the comparison that met the bar.
 
+A comparison by scenes leaves its outcome with its call (whether the bar was met, on how many screens and
+scenes: counts only), and `yomikata calls <scratch> --trend` prints, for each game in the order they were
+begun, the calls, the runs of the harness and the minutes on the clock from the game's first call to the
+first comparison that met its bar, and the calls made after. It is a Markdown table: it goes into a game's
+pull request, so that what the tools gained from one game can be seen in what the next one cost. A record
+from before outcomes were kept has the last comparison by scenes instead, and says the screens aren't in it;
+a game without one yet is counted as far as it has got. The minutes are the clock's, pauses and all: they
+say how long a script took to make, and `tool seconds` how much of that the game was running.
+
 ### Writing memory
 
 Off unless the harness is started with `--allow-poke`; then there is one more tool, `poke`: bytes at an address

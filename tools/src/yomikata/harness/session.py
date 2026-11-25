@@ -164,7 +164,7 @@ class Session:
         """A call starts now: what runs the game stops by itself `call_seconds` from here."""
         self.deadline = time.monotonic() + self.call_seconds
 
-    def record_call(self, tool: str, arguments: dict, ok: bool, seconds: float) -> None:
+    def record_call(self, tool: str, arguments: dict, ok: bool, seconds: float, outcome: dict | None = None) -> None:
         """A line for this call in scratch's record (record/calls.jsonl): when, which session and game, the tool
         and its arguments in short. `yomikata calls` sums them by game. A record that can't be written is no
         reason for a call to fail."""
@@ -178,7 +178,7 @@ class Session:
             return value
         entry = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "session": self.session_id,
                  "game": self.game, "tool": tool, "arguments": {str(k): short(v) for k, v in (arguments or {}).items()},
-                 "ok": bool(ok), "seconds": round(seconds, 2)}
+                 "ok": bool(ok), "seconds": round(seconds, 2), **({"outcome": outcome} if outcome else {})}
         try:
             folder = self.roots.scratch / "record"
             folder.mkdir(parents=True, exist_ok=True)

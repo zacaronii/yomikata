@@ -1502,3 +1502,43 @@ def test_explore_finds_where_one_can_walk_by_trying_and_walks_the_way_it_found(s
     assert out["places"] == 5 and "more" in out
     with pytest.raises(HarnessError, match="within"):
         session.explore(within=[1, 2, 3])
+
+
+def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
+    """`yomikata calls --trend`: for each game, the calls, runs and minutes from its first call to the first
+    comparison by scenes that met the bar; a comparison's outcome is kept with its call (counts only)."""
+    from yomikata import calls, cli
+    def line(at, session, game, tool, arguments=None, outcome=None, seconds=1.0):
+        return json.dumps({"at": f"2026-01-01T{at}Z", "session": session, "game": game, "tool": tool,
+                           "arguments": arguments or {}, "ok": True, "seconds": seconds,
+                           **({"outcome": outcome} if outcome else {})})
+    by_scenes = {"scenes": "3 keys", "live": True}
+    record = tmp_path / "calls.jsonl"
+    record.write_text("\n".join([
+        line("10:00:00", "a", "ps1/First (Japan).chd", "load"), line("10:01:00", "a", "ps1/First (Japan).chd", "steps"),
+        line("10:30:00", "b", "ps1/First (Japan).chd", "compare", by_scenes, {"bar": False, "screens": 12, "scenes": 2}),
+        line("10:45:00", "c", "ps1/First (Japan).chd", "compare", by_scenes, {"bar": True, "screens": 31, "scenes": 3}),
+        line("10:50:00", "c", "ps1/First (Japan).chd", "screenshot"),
+        line("11:00:00", "d", "sfc/Old.sfc", "load"), line("11:10:00", "d", "sfc/Old.sfc", "compare", by_scenes),
+        line("11:20:00", "d", "sfc/Old.sfc", "run"),                       # a record from before outcomes were kept
+        line("12:00:00", "e", "ps2/Begun.chd", "load"), line("12:02:30", "e", "ps2/Begun.chd", "compare", {"snaps": "4 items"}),
+    ]) + "\n", encoding="utf-8")
+    rows = calls.trend(record)
+    assert [(r["game"], r["calls"], r["runs"], r["minutes"], r["met"], r["screens"], r["calls_after"]) for r in rows] == [
+        ("First (Japan)", 4, 3, 45.0, True, 31, 1), ("Old", 2, 1, 10.0, None, None, 1), ("Begun", 2, 1, 2.5, None, None, 0)]
+    assert rows[2]["compared"] is False
+    assert cli.main(["calls", str(record), "--trend"]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].startswith("| Game | To the bar: calls | runs | minutes")
+    assert out[2] == "| First (Japan) | 4 | 3 | 45.0 | 4.0 | 31, 3 | 1 |"
+    assert out[3] == "| Old | 2 | 1 | 10.0 | 2.0 | not in the record | 1 |"
+    assert out[4].startswith("| Begun (no comparison by scenes yet) | 2 | 1 | 2.5 |")
+
+
+def test_a_comparisons_outcome_is_kept_with_its_call():
+    assert mcp._outcome("compare", {"content": [{"type": "text", "text": json.dumps(
+        {"script": {}, "bar": {"met": True, "screens with text": 40, "scenes": {"a": {}, "b": {}, "c": {}}}})}]}) == \
+        {"bar": True, "screens": 40, "scenes": 3}
+    assert mcp._outcome("compare", {"content": [{"type": "text", "text": json.dumps({"script": {}})}]}) is None
+    assert mcp._outcome("run", {"content": [{"type": "text", "text": "{}"}]}) is None
+    assert mcp._outcome("compare", {"isError": True, "content": [{"type": "text", "text": "no"}]}) is None
