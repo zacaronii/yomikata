@@ -634,6 +634,24 @@
    "needs": [],
    "data": {}
   },
+  "SLPS-00097": {
+   "path": "scripts/ps1/SLPS-00097.lua",
+   "sha256": "106b51e793300fb18ee75f07ffcc130021f48bf0e708d2de2c1a5a0b34f97e7f",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "幻想水滸伝 (Gensou Suikoden)",
+   "reads": "the message window's four rows; a portrait speaker's name is the first row",
+   "builds": [
+    "f01bf2b47a59a4cda2efdbe2c001af518f01f2ae"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/ps1/SLPS-00097.tbl",
+     "sha256": "e0fae6cac8be44cfbbf66b8b0650e01a44f3a01a590f829ba6b4aad439d9c467"
+    }
+   }
+  },
   "SLPS-01100": {
    "path": "scripts/ps1/SLPS-01100.lua",
    "sha256": "932957f885fefc577b80ed4c1fe75d4d03361b87c35fde0b75c8bcec389f25e8",
@@ -649,7 +667,7 @@
   },
   "SLPS-02100": {
    "path": "scripts/ps1/SLPS-02100.lua",
-   "sha256": "6a953d09e95de5a2f800047db7e109842a301eddbb4679513f7ff4a3016e4a72",
+   "sha256": "6256d02ba434d193a49a5c62bbfc7d086b4e0533c3660be470feee1583a6057b",
    "platform": "ps1",
    "runtime": 1,
    "title": "ペルソナ2 罪 (Persona 2: Tsumi)",
@@ -675,7 +693,7 @@
   },
   "SLPS-02785": {
    "path": "scripts/ps1/SLPS-02785.lua",
-   "sha256": "6cd3dee36a14ab6531f4b5bf99675014a585e5b3d285b6405afb8b6e480a6401",
+   "sha256": "3a06238861ed0306bda04331ce138d87e554dac7a6e71cbcf21064540b498edd",
    "platform": "ps1",
    "runtime": 1,
    "title": "ペルソナ2 罰 (Persona 2: Batsu)",
