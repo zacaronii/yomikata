@@ -118,7 +118,7 @@ def test_validation_catches_mistakes(tmp_path):
     msgs = " | ".join(str(p) for p in catalog.validate(root))
     assert "SLPS-00001 is also used" in msgs
     assert "games/<platform>/<id>.json" in msgs                     # id doesn't match its file name
-    assert "tables" in msgs and "only .tbl files" in msgs
+    assert "tables" in msgs and "only .glyphs, .tbl files" in msgs
     (root / "tables/kana.tbl").write_text("0001=あ\n", encoding="utf-8")
     (root / "games/ps1/SLPS-00004.json").write_text(json.dumps({**good, "id": "SLPS-00004", "tables": ["tables/kana.tbl"]}))
     assert "SLPS-00004.json: tables need a unit" in " | ".join(str(p) for p in catalog.validate(root))
