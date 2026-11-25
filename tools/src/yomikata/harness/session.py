@@ -317,7 +317,7 @@ class Session:
         self._close_reader()
         self.machine, self.snaps, self.pokes, self.first_snap = None, {}, 0, None
         platform = PLATFORM_ALIASES.get(platform, platform)         # ngc is the catalog's gc
-        self.machine = self.make_machine(core_path, game_path, platform,
+        self.machine = self.make_machine(core_path, self._unpacked(game_path), platform,
                                          self.roots.system or self.roots.scratch / "system",
                                          {str(k): str(v) for k, v in (options or {}).items()})
         self.game, self.loaded = game, (game, core, platform, dict(options or {}))
@@ -327,6 +327,22 @@ class Session:
         if state:
             self.state_load(state)
         return self.status()
+
+    def _unpacked(self, game_path: Path) -> Path:
+        """A game kept as a .zip of one file, unpacked into scratch: not every core opens a zip, and one that
+        doesn't shows a black picture and says nothing."""
+        if game_path.suffix.lower() != ".zip":
+            return game_path
+        import zipfile
+        with zipfile.ZipFile(game_path) as z:
+            members = [m for m in z.infolist() if not m.is_dir()]
+            if len(members) != 1:
+                raise HarnessError("a .zip must hold one game file")
+            out = self.roots.scratch / "work" / "unzipped" / Path(members[0].filename).name
+            if not out.is_file() or out.stat().st_size != members[0].file_size:
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_bytes(z.read(members[0]))
+        return out
 
     @tool("Runs the game for a number of frames, holding buttons and the left stick the whole time.",
           frames=("integer", "how many frames (60 a second)", True),

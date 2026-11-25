@@ -1168,3 +1168,22 @@ def test_steps_press_until_the_script_has_been_quiet(session):
     assert not rows[stopped[0]].get("events") and not rows[stopped[0] - 1].get("events")
     with pytest.raises(HarnessError):
         session.steps([{"wait": 1, "until_quiet": 2}], on={"dialogue": [{"wait": 1, "until_quiet": 1}]})
+
+
+def test_a_zipped_game_is_unpacked_into_scratch_for_the_core(tmp_path):
+    import zipfile
+    for name in ("games/snes", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    with zipfile.ZipFile(tmp_path / "games/snes/Made Up (Japan).zip", "w") as z:
+        z.writestr("Made Up (Japan).sfc", b"a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    seen = {}
+
+    def make(core_path, game, platform, system_dir, options):
+        seen["game"] = game
+        return FakeMachine(core_path, game, platform, system_dir, options)
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), make)
+    s.load("snes/Made Up (Japan).zip", "fake_libretro.so", "snes")
+    assert seen["game"] == tmp_path / "scratch/work/unzipped/Made Up (Japan).sfc" and seen["game"].read_bytes() == b"a game"
+    assert s.status()["game"] == "snes/Made Up (Japan).zip"
+    s.close()
