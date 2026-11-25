@@ -763,3 +763,38 @@ def test_gensou_suikoden_2_lines_names_and_a_question():
     with rd.Reader(sui2_memory(word=1), platform="ps1", game_id="SLPM-86168", data=data) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPM-86168.lua"))
+
+
+# ---- games/ps1/SCPS-10088.lua ----
+
+def boku_memory(page: int | None, word=0x0C014DA1):
+    from yomikata import tbl
+    table = tbl.parse((ROOT / "games/ps1/SCPS-10088.tbl").read_text(encoding="utf-8"))
+    back = {}
+    for code, ch in table.chars.items():
+        back.setdefault(ch, code)
+    cells = lambda s: b"".join(back[ch] for ch in s)        # noqa: E731
+    new_line, end_page, end_text = bytes.fromhex("0180"), bytes.fromhex("0280"), bytes.fromhex("0080")
+    first = cells("ちち「こんにちは") + new_line + cells("　よろしく」")
+    script = first + end_page + bytes.fromhex("3412") + cells("ぼく「はい」") + end_text
+    at = [0x80118000, 0x80118000 + len(first) + 4][page] if page is not None else 0
+    return sparse({0x8001E6B8: struct.pack("<I", word), 0x8003AF74: struct.pack("<I", 0x0C005779),
+                   0x8004E718: struct.pack("<I", 0x0C0138C7), 0x800359EC: struct.pack("<I", at),
+                   0x80118000: script + bytes(600)})
+
+
+def test_boku_no_natsuyasumi_the_page_the_pointer_is_on():
+    data = {"tbl": (ROOT / "games/ps1/SCPS-10088.tbl").read_bytes()}
+    with rd.Reader(boku_memory(None), platform="ps1", game_id="SCPS-10088", data=data) as r:
+        r.load(bundle(ROOT / "games/ps1/SCPS-10088.lua"), "SCPS-10088.lua")
+        r.take()
+        seen = []
+        for frame, page in enumerate([None, 0, 0, 1, None, 1], 1):
+            r.read = boku_memory(page)
+            r.frame(frame)
+            seen += [(frame, e["text"]) for e in r.take("text")]
+        # A row after the first loses its wide space; the word after a page's end isn't text.
+        assert seen == [(2, "ちち「こんにちは\nよろしく」"), (4, "ぼく「はい」"), (6, "ぼく「はい」")]
+    with rd.Reader(boku_memory(0, word=1), platform="ps1", game_id="SCPS-10088", data=data) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SCPS-10088.lua"))
