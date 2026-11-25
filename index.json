@@ -641,7 +641,7 @@
  "scripts": {
   "G8MJ01": {
    "path": "scripts/gc/G8MJ01.lua",
-   "sha256": "adb3f09a2729a6ab523cdb8dcaa5d58258bd7fd68c84d21c3b498fe6b9dbadf7",
+   "sha256": "a73c619b404340eccad4bd1a87170c4f682d75fc31ff98053df61b18a525a199",
    "platform": "gc",
    "runtime": 1,
    "title": "ペーパーマリオRPG (Paper Mario: The Thousand-Year Door)",

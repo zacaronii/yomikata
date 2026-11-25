@@ -219,6 +219,29 @@ def test_paper_mario_window_closed_and_opened_again():
         assert of(events, "layout")[1] == {"window": "window 0", "seq": 1, "closed": True}
 
 
+def test_paper_mario_a_message_that_gains_a_page_while_its_first_is_up():
+    """A notice that grows into a question (the file select's "loading" turning into "no file"): the records
+    become another list with the same first page, which isn't said a second time."""
+    notice = pm_records("よくきたな", LINE, "やあ、", LINE, END)
+    grown = pm_records("よくきたな", LINE, "やあ、", LINE, KEY, PAGE, "にでよう", LINE, KEY, END)
+    r = pm_reader(pm_memory(notice))
+    r.frame(1)
+    assert [e["text"] for e in of(r.take(), "text")] == ["よくきたな\nやあ、"]
+    r.read = pm_memory(grown)
+    r.frame(2)
+    assert of(r.take(), "text") == []
+    r.read = pm_memory(grown, at=13)                             # past the first page's end
+    r.frame(3)
+    assert [(e["text"], e["meta"]) for e in of(r.take(), "text")] == [("にでよう", {"page": 2, "pages": 2})]
+    # Another message whose first page reads the same, after the window closed, is said: it is another.
+    r.read = pm_memory(None)
+    r.frame(4)
+    r.read = pm_memory(notice)
+    r.frame(5)
+    assert [e["text"] for e in of(r.take(), "text")] == ["よくきたな\nやあ、"]
+    r.close()
+
+
 def test_paper_mario_choice():
     answers = pm_records("はい", LINE, "いいえ", END)
     box = dict(window_type=5, slot=1, place=(-75.0, 40.0))
@@ -1169,6 +1192,12 @@ def test_new_script_writes_a_skeleton_that_is_in_form_and_runs(tmp_path, capsys)
     assert "def shvc_zz_memory" in capsys.readouterr().out
     assert json.loads((tmp_path / "games/sfc/SHVC-ZZ.json").read_text())["versions"] == [{"header_crc32": "b343f13a"}]
     assert cli.main(["new-script", "sfc", "SHVC-ZZ", "--title", "あ (A)", "--build", "b343f13a", "--root", str(tmp_path)]) == 1
+    # A PlayStation 2 game: its serial and CRC, as an emulator says them. The entry gets no hash of a program.
+    written, _ = new_script(tmp_path, "ps2", "SLPM-12345", "あ (A)", "SLPM-12345-1a2b3c4d")
+    assert dict(header(written[0].read_text()))["build"] == "SLPM-12345-1a2b3c4d"
+    assert "versions" not in json.loads(written[1].read_text()) and catalog.validate(tmp_path) == []
+    with pytest.raises(ValueError):
+        new_script(tmp_path, "ps2", "SLPM-12346", "あ (A)", "SLPM-12346-1A2B3C4D")       # the CRC in lowercase
 
 
 # ---- games/ps1/SLPS-02000.lua ----

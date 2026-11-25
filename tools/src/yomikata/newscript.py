@@ -82,8 +82,10 @@ def new_script(root: Path, platform: str, ident: str, title: str, build: str, ch
         raise ValueError(f"platforms are: {', '.join(sorted(RAM_BASE))}")
     if not SCRIPT_ID.fullmatch(ident):
         raise ValueError("an id is capitals, digits and dashes, as `yomikata identify` gives it")
-    if not re.fullmatch(r"[0-9A-Fa-f]{8}|[0-9A-Fa-f]{40}|[A-Z0-9]{6}-[0-9A-F]{2}", build):
-        raise ValueError("a build is an exe SHA-1 (40 hex), a header CRC-32 (8 hex), or a GameCube id-version")
+    ps2 = re.fullmatch(r"[A-Z]{4}-[0-9]{5}-[0-9a-f]{8}", build)
+    if not ps2 and not re.fullmatch(r"[0-9A-Fa-f]{8}|[0-9A-Fa-f]{40}|[A-Z0-9]{6}-[0-9A-F]{2}", build):
+        raise ValueError("a build is an exe SHA-1 (40 hex), a header CRC-32 (8 hex), a GameCube id-version, "
+                         "or a PlayStation 2 serial-CRC (SLPM-12345-1a2b3c4d)")
     folder = Path(root) / "games" / platform
     script = folder / f"{ident}.lua"
     if script.exists():
@@ -91,7 +93,7 @@ def new_script(root: Path, platform: str, ident: str, title: str, build: str, ch
     base = RAM_BASE[platform]
     text, shown, word = f"0x{base + 0x1000:08X}", f"0x{base + 0x2000:08X}", f"0x{base + 0x100:08X}"
     folder.mkdir(parents=True, exist_ok=True)
-    script.write_text(SCRIPT.format(title=title, id=ident, build=build.lower() if len(build) != 9 else build,
+    script.write_text(SCRIPT.format(title=title, id=ident, build=build if ps2 or len(build) == 9 else build.lower(),
                                     text=text, shown=shown, check=check.strip() or CHECK.format(word=word)),
                       encoding="utf-8")
     written = [script]
@@ -101,7 +103,7 @@ def new_script(root: Path, platform: str, ident: str, title: str, build: str, ch
         kind = "header_crc32" if len(build) == 8 else "exe_sha1"
         data = {"id": ident, "platform": platform, "title": native,
                 **({"title_romaji": roman.rstrip(")")} if roman else {}),
-                **({"versions": [{kind: build.lower()}]} if len(build) != 9 else {}),
+                **({"versions": [{kind: build.lower()}]} if len(build) in (8, 40) else {}),
                 "encoding": "unknown", "status": "partial",
                 "sources": ["(say how the script was written and checked)"]}
         entry.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -146,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("platform", help="the catalog's name for the console: ps1, gc, sfc, …")
     p.add_argument("id", help="the game's id, as `yomikata identify` gives it")
     p.add_argument("--title", required=True, help="the game's title as on its box, with a romanised one in brackets")
-    p.add_argument("--build", required=True, help="the build it is written on: exe SHA-1, header CRC-32, or GameCube id-version")
+    p.add_argument("--build", required=True, help="the build it is written on: exe SHA-1, header CRC-32, GameCube id-version, or PS2 serial-CRC")
     p.add_argument("--check", default="", help="the Lua lines of its build check, as the harness's suggest_build_words gives them")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("expand", help="rewrite harness snaps kept as what differs from another as whole snapshots (for a tool that doesn't know the form)")
