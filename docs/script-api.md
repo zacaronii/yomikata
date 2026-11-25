@@ -162,8 +162,9 @@ with each snapshot.
 `SLPM-12345-1a2b3c4d`. These are the two things a PS2 emulator says of the game it runs (over PINE, the serial
 is the game's id and the CRC its UUID), so a host knows the build without reading the disc: on a device the
 disc is often one compressed image, and hashing its boot program there isn't practical. The script's own
-check in memory is as on any console. *Open: the tools here don't work this CRC out of a disc image yet; until
-they do, it is read off the emulator.*
+check in memory is as on any console. `yomikata identify`, and the harness's `identify`, work both out of a
+disc image and give the line whole as `build`: the CRC is the boot program's 32-bit words, low byte first,
+XORed together.
 
 **The check needs the game's program in memory,** which it isn't in a console's first moments (a PS1 loads it
 after its BIOS has run). A host that loads a script as the game starts must expect "another build" then, and

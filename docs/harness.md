@@ -390,6 +390,20 @@ PCSX ReARMed (a PlayStation game):
   `region: "vram"`, a snap's `vram` part and a script's `mem.region("vram")` have the console's 1024x512 words.
   It costs a savestate each frame it is asked for, so a script that reads it every frame runs slowly here.
 
+LRPS2 (`pcsx2_libretro.so`, a PlayStation 2 game; `tools/scripts/get-core.sh pcsx2`):
+
+- It needs the console's BIOS: your own, as the one file of `pcsx2/bios/` under the system folder, and named
+  to the core with the option `pcsx2_bios` at `load` (the file's name). Without the option it finds the file and
+  still refuses to start.
+- Given no context it can use, it draws with its own software renderer, and fast: on one machine (8 processors
+  allowed) about 500 frames a second through a game's boot and 250 to 300 in a film and in a scene drawn by the
+  game. Nothing of the harness had to change for it.
+- Memory is the console's 32 MB, by address from 0. A savestate is 50 MB.
+- A game's build line is its serial and the CRC the emulator gives it; `identify` works both out of the disc
+  (`build`), and the core's own log names the same CRC. Identifying a DVD image unpacks it first: a minute or two.
+- It can't write memory cards unless `pcsx2/memcards/` under the system folder is the harness user's to write.
+- Whether it repeats itself from power-on or from a state hasn't been measured yet.
+
 Dolphin (`dolphin_libretro.so`, a GameCube or Wii game):
 
 - It has no renderer that works without a context: the core sets its video side up only when a frontend's

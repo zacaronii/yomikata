@@ -261,8 +261,9 @@ class Session:
                 "script": self.script_name, **({"memory_writes": self.pokes} if self.allow_poke else {})}
 
     @tool("Which release a game file is: its platform, its id, and what names its build (the SHA-1 of a disc's "
-          "boot executable, a cartridge's header checksum). The id names the script's file; the build goes "
-          "in its `-- reader: build` line.",
+          "boot executable, a cartridge's header checksum; for a PlayStation 2 disc `build`, its serial and "
+          "the CRC an emulator gives it). The id names the script's file; the build goes in its "
+          "`-- reader: build` line.",
           game=("string", "path of the game under the library (default: the loaded game)", False))
     def identify(self, game: str = "") -> dict:
         from ..disc import DiscError
