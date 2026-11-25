@@ -540,10 +540,17 @@ class Session:
           unit=("integer", "bytes a code, for text: 1 or 2 (default 2)", False),
           big_endian=("boolean", "a code's byte order, for text (default true: as the bytes lie)", False),
           mask=("string", "bits of a code that say which character, hex, e.g. 1FFF: the rest are left out "
-                          "before the table is asked", False))
+                          "before the table is asked", False),
+          snaps=("array", "read the stretch (64 bytes at most) in each of these snaps instead: how a few "
+                          "bytes go from moment to moment", False))
     def read(self, address: str, size: int, region: str = "", table: str = "", rules: list | None = None,
-             unit: int = 2, big_endian: bool = True, mask: str = "") -> dict:
+             unit: int = 2, big_endian: bool = True, mask: str = "", snaps: list | None = None) -> dict:
         at, size = int(address, 16), max(0, min(int(size), MAX_READ))
+        if snaps:                               # the same stretch in each of several moments, one under the other
+            rows = {}
+            for name, base, ram in self._memories(snaps):
+                rows[name] = ram[max(0, at - base):max(0, at - base) + min(size, 64)].hex()
+            return {"address": hex(at), "snaps": rows}
         if region:
             data = self._need().regions().get(region)
             if data is None:
@@ -1217,6 +1224,82 @@ class Session:
                 why = "time"
                 break
         return {"frames": machine.frames, "spots": rows, **({"stopped": why, "left": len(points) - len(rows)} if why else {})}
+
+    @tool("Places in memory that take some values one after the other over snaps taken in order (a snap every "
+          "frame while a line types): for a game that keeps no line of text but must hold each character's "
+          "code for a moment as it draws it. Give the codes of the characters in the order they appear, as far "
+          "as you know them (from a naming screen, say); other values may come between. A value given twice "
+          "running must be left and taken again.",
+          snaps=("array", "the snaps, in order", True),
+          values=("array", "the values in the order they must come, hex: [\"1E\", \"12\", \"15\"]", True),
+          unit=("integer", "bytes of a value: 1 (default) or 2", False),
+          within=("array", "only places from one address to another, hex", False),
+          pattern=("string", "instead of values, when the codes aren't known: the characters as they appear, a "
+                             "letter each, the same letter for the same character (そっそうか is abacd), ? for "
+                             "one you can't tell. The place must take values that go so, one after the other, "
+                             "once the value it rests at between characters is left out", False))
+    def follows(self, snaps: list, values: list | None = None, unit: int = 1, within: list | None = None,
+                pattern: str = "") -> dict:
+        import numpy as np
+        if pattern:
+            if values or unit not in (1, 2) or len(pattern) < 4 or len(set(pattern) - {"?"}) < 2:
+                raise HarnessError("a pattern goes without values, and has four characters or more")
+            kind = ("u1" if unit == 1 else (">u2" if getattr(self.machine, "platform", "") in ("gc", "wii") else "<u2"))
+            rows, base = [], 0
+            for name in snaps:
+                _, base, ram = self._memories([name])[0]
+                rows.append(np.frombuffer(ram[:len(ram) // unit * unit], dtype=kind))
+            if len({len(r) for r in rows}) != 1:
+                raise HarnessError("the snaps aren't of the same memory")
+            grid = np.stack(rows)                                        # snaps by cells
+            changes = (grid[1:] != grid[:-1]).sum(axis=0)
+            found = []
+            for i in np.nonzero((changes >= len(pattern) - 1) & (changes <= 6 * len(pattern) + 16))[0]:
+                column = grid[:, i]
+                runs = [int(column[0])] + [int(v) for k, v in enumerate(column[1:], 1) if v != column[k - 1]]
+                rest = max(set(runs), key=runs.count)
+                for line in ([v for v in runs if v != rest], runs):
+                    at = search.pattern_at(line, pattern)
+                    if at is not None:
+                        got = line[at:at + len(pattern)]
+                        found.append({"address": f"0x{base + int(i) * unit:08X}", "rests_at": f"{rest:0{2 * unit}X}",
+                                      "values": {ch: f"{v:0{2 * unit}X}" for ch, v in zip(pattern, got) if ch != "?"}})
+                        break
+            if within is not None:
+                low, high = (int(str(v), 16) for v in within)
+                found = [f for f in found if low <= int(f["address"], 16) < high]
+            return {"count": len(found), "places": found[:MAX_HITS]}
+        values = values or []
+        if unit not in (1, 2) or len(values) < 2 or len(snaps) < len(values):
+            raise HarnessError("unit is 1 or 2; give two values or more, and at least as many snaps")
+        try:
+            wanted = [int(str(v), 16) for v in values]
+        except ValueError:
+            raise HarnessError("values are hex") from None
+        kind = ("u1" if unit == 1 else (">u2" if getattr(self.machine, "platform", "") in ("gc", "wii") else "<u2"))
+        state = before = base = None
+        seen_at: list = []
+        for name in snaps:
+            _, base, ram = self._memories([name])[0]
+            cells = np.frombuffer(ram[:len(ram) // unit * unit], dtype=kind).astype(np.int64)
+            if state is None:
+                state, before = np.zeros(len(cells), dtype=np.int64), np.full(len(cells), -1, dtype=np.int64)
+                seen_at = [np.full(len(cells), -1, dtype=np.int64) for _ in wanted]
+            elif len(cells) != len(state):
+                raise HarnessError("the snaps aren't of the same memory")
+            want = np.array(wanted + [-2], dtype=np.int64)[state]
+            hit = (cells == want) & (cells != before)
+            for k in range(len(wanted)):
+                seen_at[k][hit & (state == k)] = len([n for n in snaps[:snaps.index(name)]])
+            state = state + hit
+            before = cells
+        places = np.nonzero(state >= len(wanted))[0]
+        if within is not None:
+            low, high = (int(str(v), 16) for v in within)
+            places = places[(places * unit + base >= low) & (places * unit + base < high)]
+        return {"count": int(len(places)),
+                "places": [{"address": f"0x{base + int(i) * unit:08X}",
+                            "at_snaps": [snaps[int(seen_at[k][i])] for k in range(len(wanted))]} for i in places[:MAX_HITS]]}
 
     @tool("Runs the game and lists each change of a place in memory with its frame: how a pointer, a counter "
           "or a flag goes while something happens (a line types, a page turns).",

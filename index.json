@@ -118,6 +118,13 @@
    "encoding": "unknown",
    "status": "auto"
   },
+  "SFC-F061BF93": {
+   "path": "games/sfc/SFC-F061BF93.json",
+   "sha256": "18341fce8cc4635f97ca94c86654f1d9cf67dc0e8f24e0eb597306be6d05ba71",
+   "platform": "sfc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "SHVC-MB": {
    "path": "games/sfc/SHVC-MB.json",
    "sha256": "7cda49ea2d901787dad5e4681b803c653fa30b4f0b28e2e03c557e30766d6001",
@@ -708,6 +715,24 @@
     "tbl": {
      "path": "games/ps1/SCPS-10088.tbl",
      "sha256": "9a1c5d1a4494476b3830dad58a462efc5bda762d7503fd17f07e9ae04eb6e67c"
+    }
+   }
+  },
+  "SFC-F061BF93": {
+   "path": "scripts/sfc/SFC-F061BF93.lua",
+   "sha256": "abf693b59918affc4a7a2c0f3b72f238806c46ac8c200ba02c361dbcd0db7011",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "ドラゴンクエストV 天空の花嫁 (Dragon Quest V: Tenkuu no Hanayome)",
+   "reads": "each message of the window as the game starts to draw it, a wait at a time, with who speaks",
+   "builds": [
+    "f061bf93"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/sfc/SFC-F061BF93.tbl",
+     "sha256": "6151401c8802b5463f313579caaecb71eadd28305b8250cb87e9a2493bee2b65"
     }
    }
   },

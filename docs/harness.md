@@ -54,6 +54,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
+| `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
 | `watch` | Runs the game and lists each change of a place in memory with its frame |
 | `code_rule` | What arithmetic ties codes to characters, kind by kind, from a few characters and their codes; or that the codes only keep JIS order |
 | `vram_picture` | A rectangle of video memory as a picture: frames, textures, a glyph cache (PlayStation) |
@@ -132,6 +133,15 @@ In the order to try them:
    offer more than one command (open its menu and take a picture before deciding a room is exhausted).
    Policenauts' first room was gone round this way, and its videophone's second command found; what brings
    the next scene on was not found in the calls given to it, so who speaks is still not read there.
+12. A game may keep no line of text at all: its script is packed in the cartridge and each character is drawn
+   as a picture. Every search for the line then comes back empty. But to draw a character the game must have
+   its code for a moment. Snap every frame while one line types (`steps` with `every`: 1), and ask `follows`
+   for the places whose values go as the characters' pattern (the same letter for the same character). `watch`
+   the candidates: the one that is still except while the line types is the code being drawn. Beside it look
+   for a queue: `changed` with a pattern of all-different letters over the typing frames, then `read` with
+   `snaps` to see a stretch frame by frame. Dragon Quest V unpacks whole messages ahead into such a queue, and
+   its script reads them there. The codes are the dialogue font's own (a naming screen's codes are the menu
+   font's and don't help), so the table comes from pairing each code with the glyph the game draws for it.
 
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.

@@ -1,0 +1,23 @@
+{
+  "id": "SFC-F061BF93",
+  "platform": "sfc",
+  "title": "ドラゴンクエストV 天空の花嫁",
+  "title_romaji": "Dragon Quest V: Tenkuu no Hanayome",
+  "versions": [
+    {
+      "header_crc32": "f061bf93"
+    }
+  ],
+  "encoding": "table",
+  "status": "partial",
+  "sources": [
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots",
+    "The characters read off the pictures the game drew for them in play, each code paired with the glyph drawn the frame it left the game's queue",
+    "Played from power-on through the opening; the script's readings compared with the lines read off 5 pictures, and read through for 17 messages"
+  ],
+  "tables": [
+    "tables/sfc/SFC-F061BF93.tbl"
+  ],
+  "unit": 2,
+  "notes": "Read by the script games/sfc/SFC-F061BF93.lua; there is no layout. The game keeps no line of text, but unpacks its messages ahead into a queue of 16-bit codes, which the script reads. The table holds only the 81 characters met in the opening; the rest come out as U+FFFD. The hero's name inside a message, menus, battle messages and shops aren't read."
+}
