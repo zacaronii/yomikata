@@ -587,9 +587,15 @@ class Session:
           mask=("string", "bits of a code that say which character, hex, e.g. 1FFF: the rest are left out "
                           "before the table is asked", False),
           snaps=("array", "read the stretch (64 bytes at most) in each of these snaps instead: how a few "
-                          "bytes go from moment to moment", False))
+                          "bytes go from moment to moment", False),
+          mixed=("string", "also read the bytes as a script that has text among its commands: an encoding "
+                           "(shift_jis, euc_jp, utf8) for what reads as text, each other byte as <XX>, and "
+                           "`marks` named where they point", False),
+          marks=("object", "with mixed: names for addresses inside the stretch, e.g. where a pointer stands "
+                           "(a name to an address, hex): each is put into the text as [name]", False))
     def read(self, address: str, size: int, region: str = "", table: str = "", rules: list | None = None,
-             unit: int = 2, big_endian: bool = True, mask: str = "", snaps: list | None = None) -> dict:
+             unit: int = 2, big_endian: bool = True, mask: str = "", snaps: list | None = None,
+             mixed: str = "", marks: dict | None = None) -> dict:
         at, size = int(address, 16), max(0, min(int(size), MAX_READ))
         if snaps:                               # the same stretch in each of several moments, one under the other
             rows = {}
@@ -603,6 +609,12 @@ class Session:
             return {"offset": hex(at), "hex": data[at:at + size].hex()}
         data = self._read(at, size)
         out = {"address": hex(at), "hex": data.hex()}
+        if mixed:
+            try:
+                where = {int(str(v), 16) - at: str(k) for k, v in (marks or {}).items()}
+                out["mixed"] = search.mixed(data, mixed, where)
+            except (LookupError, ValueError) as e:
+                raise HarnessError(f"mixed takes an encoding, and marks addresses in hex: {e}") from None
         if table or rules:
             from .. import tbl
             try:
@@ -1860,8 +1872,12 @@ class Session:
           address=("string", "the address pointed at, hex", True),
           span=("integer", "also pointers up to this many bytes past it (default 0)", False),
           big_endian=("boolean", "the console's byte order (default: true for gc and wii, else false)", False),
-          snaps=("array", "look in these snaps instead of live memory", False))
-    def refs(self, address: str, span: int = 0, big_endian: bool | None = None, snaps: list | None = None) -> dict:
+          snaps=("array", "look in these snaps instead of live memory", False),
+          moving=("boolean", "with snaps: only the words that point there in every one of them and at "
+                             "another place in some: what goes along a script as the game reads it, when "
+                             "nothing else says which line is on screen", False))
+    def refs(self, address: str, span: int = 0, big_endian: bool | None = None, snaps: list | None = None,
+             moving: bool = False) -> dict:
         import numpy as np
         if big_endian is None:
             big_endian = self._need().platform in ("gc", "wii")
@@ -1883,6 +1899,14 @@ class Session:
                 rows.setdefault(at, {})[name] = f"0x{to:08X}"
         # First those that point there in some moments only, or at another place from one to the next (a
         # cursor going along the line); last those that never move.
+        if moving:
+            rows = {at: found for at, found in rows.items()
+                    if len(found) == len(each) and len(set(found.values())) > 1}
+            # Most places first: what follows the game's reading is at a new place in nearly every moment.
+            order = sorted(rows, key=lambda at: (-len(set(rows[at].values())), at))
+            return {"count": len(rows), "snaps": len(each),
+                    "refs": [{"at": f"0x{at:08X}", "places": len(set(rows[at].values())), "points_at": rows[at]}
+                             for at in order[:MAX_HITS]]}
         order = sorted(rows, key=lambda at: (len(rows[at]) == len(each) and len(set(rows[at].values())) == 1,
                                              len(rows[at]), at))
         return {"count": len(rows), "snaps": len(each),
