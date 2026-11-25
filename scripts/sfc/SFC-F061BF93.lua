@@ -154,16 +154,30 @@ local function queue()
 end
 
 --- How many codes have left the front since `before`: 0 when it stands, nil when it isn't the same queue.
+--- Only the message at the front is compared: what lies after its wait may be unpacked anew at any time.
 local function moved(before, now)
+    local length = LOOK
+    for i = 1, LOOK do
+        if now[i] == WAIT then
+            length = i
+            break
+        end
+    end
     for k = 0, LOOK do
         local same = true
-        for i = 1, LOOK do
+        for i = 1, length do
             if now[i] ~= before[i + k] then
                 same = false
                 break
             end
         end
         if same then
+            return k
+        end
+    end
+    -- A queue just unpacked may still be filling behind its front: a few codes gone, by the front alone.
+    for k = 1, 3 do
+        if now[1] == before[1 + k] and now[2] == before[2 + k] and now[3] == before[3 + k] and now[1] ~= 0 then
             return k
         end
     end
@@ -177,6 +191,31 @@ reader.on_state_loaded(function()
     reader.forget()
     before, drawn, said = nil, {}, false
 end)
+
+--- Says the message being drawn: what has left the queue of it, then `more` (codes that left after those,
+--- this frame), then the queue as it is now, as far as the next wait.
+local function say(more, now)
+    said = true
+    local codes = { table.unpack(drawn) }
+    for _, rest in ipairs{ more, now } do
+        for _, code in ipairs(rest) do
+            if code == WAIT or code == START then
+                goto done
+            end
+            codes[#codes + 1] = code
+        end
+    end
+    ::done::
+    local line = decode(codes):gsub("[\n　]+$", "")
+    local speaker
+    local at = line:find("「", 1, true)
+    if at and at > 1 and utf8.len(line:sub(1, at - 1)) <= NAME_MOST and not line:sub(1, at - 1):find("\n") then
+        speaker, line = line:sub(1, at - 1), line:sub(at)
+    end
+    if line ~= "" then
+        reader.emit{ text = line, speaker = speaker, channel = "dialogue", id = text.hash(line) }
+    end
+end
 
 reader.on_frame(function()
     local now = queue()
@@ -194,24 +233,7 @@ reader.on_frame(function()
         else
             drawn[#drawn + 1] = code
             if not said and code ~= 0 and code < 0x1000 then
-                said = true
-                -- The rest of it is still in the queue, as far as the next wait.
-                local codes = { table.unpack(drawn) }
-                for j = i + 1, #before do
-                    if before[j] == WAIT or before[j] == START then
-                        break
-                    end
-                    codes[#codes + 1] = before[j]
-                end
-                local line = decode(codes):gsub("[\n　]+$", "")
-                local speaker
-                local at = line:find("「", 1, true)
-                if at and at > 1 and utf8.len(line:sub(1, at - 1)) <= NAME_MOST and not line:sub(1, at - 1):find("\n") then
-                    speaker, line = line:sub(1, at - 1), line:sub(at)
-                end
-                if line ~= "" then
-                    reader.emit{ text = line, speaker = speaker, channel = "dialogue", id = text.hash(line) }
-                end
+                say({ table.unpack(before, i + 1, gone) }, now)
             end
         end
     end
