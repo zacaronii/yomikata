@@ -281,3 +281,126 @@ def test_mcp_over_lines(session):
     assert [a.get("id") for a in answers] == [1, None, 2]
     assert answers[1]["error"]["code"] == -32700
     assert json.loads(answers[2]["result"]["content"][0]["text"])["platform"] == "gc"
+
+
+# ---- run_until, steps, sheets, the call's time, compare ----
+
+def test_run_until_a_place_changes_or_holds_a_value(session):
+    # The line's first bytes change every 10 frames; the frame counter's low byte counts.
+    out = session.run_until(100, address="0x80000100", size=2)
+    assert (out["stopped"], out["ran"], out["frames"]) == ("changed", 10, 10)
+    out = session.run_until(100, address="0x80000013", equals="25")
+    assert (out["stopped"], out["frames"], out["value"]) == ("equals", 25, "0x19")
+    out = session.run_until(7, address="0x80000013", equals="0x99")
+    assert (out["stopped"], out["ran"]) == ("limit", 7)
+    out = session.run_until(50, address="0x80000020", buttons=["a"])            # the flag goes up with the button
+    assert (out["stopped"], out["ran"]) == ("changed", 1)
+    for bad in (lambda: session.run_until(10), lambda: session.run_until(0, still=3),
+                lambda: session.run_until(10, address="0x80000010", size=3),
+                lambda: session.run_until(10, event="text"), lambda: session.run_until(10, event="nonsense")):
+        with pytest.raises(HarnessError):
+            bad()
+
+
+def test_run_until_the_picture_stands_still(session):
+    session.machine.picture = lambda: np.full((4, 4, 3), min(session.machine.frames, 12), dtype=np.uint8)
+    out = session.run_until(100, still=5)
+    assert (out["stopped"], out["frames"]) == ("still", 17)          # it stops changing at 12; five more the same
+
+
+@needs_reader
+def test_run_until_the_script_says_something(session):
+    assert session.script_try(SCRIPT)["loaded"]
+    assert session.run(1)["events"][0]["text"] == "こんにちは"      # the line that is up is said at once
+    out = session.run_until(100, event="dialogue")
+    assert out["stopped"] == "event" and out["frames"] == 10
+    assert [e["text"] for e in out["events"] if e["kind"] == "text"] == ["さようなら"]
+    assert session.run_until(5, event="choice")["stopped"] == "limit"
+
+
+def test_steps_in_one_call_with_snaps_and_a_sheet(session, tmp_path):
+    kind, out, png = session.steps([{"buttons": ["a"], "hold": 3, "wait": 2, "snap": True, "shot": True},
+                                    {"until": {"limit": 100, "address": "0x80000100", "size": 2}, "shot": True},
+                                    {"wait": 4, "times": 3, "snap": True}], prefix="walk")
+    assert kind == "both" and png[:4] == b"\x89PNG"
+    assert [s["frames"] for s in out["steps"]] == [5, 10, 14, 18, 22]
+    assert out["steps"][1]["stopped"] == "changed"
+    assert [s.get("snap") for s in out["steps"]] == ["walk-000", None, "walk-002", "walk-003", "walk-004"]
+    assert (tmp_path / "scratch/snaps/walk-003.ram.gz").is_file() and "walk-004" in session.status()["snaps"]
+    from PIL import Image
+    sheet = Image.open(io.BytesIO(png))
+    assert sheet.size == (2 * 64, 48 + 12)                              # two pictures, a strip above each for its label
+    assert session.steps([{"wait": 1}]) == {"frames": 23, "steps": [{"step": 0, "frames": 23}]}     # no pictures
+    for bad in ([], [{"wait": 1, "jump": 2}], [{"buttons": ["z"]}], [{"until": {"address": "0x80000010"}}],
+                [{"wait": 1, "times": 500}, {"wait": 1, "times": 500}], [{"until": {"limit": 5, "what": 1}}]):
+        with pytest.raises(HarnessError):
+            session.steps(bad)
+    kind, png = session.sheet(["walk-000", "walk-002", "walk-003"], columns=2, scale=0.5)
+    assert kind == "image" and Image.open(io.BytesIO(png)).size == (64, 72)
+    with pytest.raises(HarnessError):
+        session.sheet(["nothing"])
+
+
+def test_a_call_stops_when_its_time_is_up(session):
+    import time
+    session.deadline = time.monotonic() - 1                 # the call's time is already up
+    assert session.run(500) == {"frames": 0, "ran": 0, "stopped": "time"}
+    assert session.run_until(500, address="0x80000100")["stopped"] == "time"
+    out = session.steps([{"wait": 5, "snap": True}, {"wait": 5}])
+    assert out["stopped"] == "time" and out["left"] == 2 and out["steps"] == [{"step": 0, "frames": 0, "stopped": "time"}]
+    session.call_seconds = 30
+    session.begin_call()
+    assert session.run(100) == {"frames": 100}              # in time: as before
+    # Through the server each call gets its own time.
+    session.call_seconds = 0
+    answer = mcp.call(session, "run", {"frames": 50})
+    assert json.loads(answer["content"][0]["text"]) == {"frames": 100, "ran": 0, "stopped": "time"}
+
+
+def test_a_call_that_never_comes_back_is_given_up(session):
+    import time
+    left = []
+    session.run = None
+    slow = lambda **_: time.sleep(0.6) or {"late": True}            # noqa: E731
+    session.status.__func__.tool                                     # (the tools are looked up on the class)
+    original = mcp.tools
+    mcp.tools = lambda s: {**original(s), "sleep": ("sleeps", {}, slow)}
+    try:
+        lines = [json.dumps({"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "sleep"}}),
+                 json.dumps({"jsonrpc": "2.0", "id": 8, "method": "ping"})]
+        out = io.StringIO()
+        mcp.serve(session, io.StringIO("\n".join(lines) + "\n"), out, give_up=0.1, leave=left.append, tick=0.05)
+    finally:
+        mcp.tools = original
+    answers = [json.loads(line) for line in out.getvalue().splitlines()]
+    assert left == [3]
+    assert [a["id"] for a in answers] == [7, 8]                     # the late answer isn't sent a second time
+    assert answers[0]["result"]["isError"] and "didn't come back" in answers[0]["result"]["content"][0]["text"]
+
+
+@needs_reader
+def test_compare_a_script_with_the_lines_on_screen_and_with_a_layout(session):
+    session.steps([{"wait": 1, "snap": True}, {"wait": 10, "snap": True}, {"wait": 10, "snap": True}], prefix="c")
+    session.snap_lines("c-000", ocr=["こんにちは"])
+    session.snap_lines("c-001", ocr=["さようなら！"])               # a misread mark: still 80% and more
+    session.snap_lines("c-002", no_text=True)                       # wrongly: the script does read a line there
+    out = session.compare(SCRIPT, show=True)
+    assert out["script"] == {"snapshots": 3, "reading something": 3, "reading nothing": 0, "the script didn't load": 0,
+                             "with lines read off the screen": 2, "of those, agreeing 80% or more": 2,
+                             "marked as showing no text": 1, "of those, reading nothing": 0}
+    assert [r["read"] for r in out["rows"]] == ["こんにちは", "さようなら", "またあした"] and "layout" not in out
+    entry = {"id": "GXXJ01", "platform": "gc", "encoding": "shift_jis",
+             "layouts": [{"message": {"address": "0x80000100", "charset": "shift_jis", "max_bytes": 32,
+                                      "terminator": "00"}}]}
+    out = session.compare(SCRIPT, snaps=["c-000", "c-001"], entry=entry)
+    assert out["layout"] == {"snapshots": 2, "the same": 2, "nothing in either": 0, "different": 0,
+                             "the script didn't load": 0}
+    entry["layouts"][0]["message"]["address"] = "0x80000102"        # a layout that reads from the second character
+    out = session.compare(SCRIPT, snaps=["c-000"], entry=entry, show=True)
+    assert out["layout"]["different"] == 1 and out["differing"][0]["layout"]["message"] == "んにちは"
+    assert session.compare("error('no', 0)", snaps=["c-000"])["script"]["the script didn't load"] == 1
+    for bad in (lambda: session.compare(SCRIPT, snaps=["nothing"]), lambda: session.snap_lines("nothing", no_text=True),
+                lambda: session.snap_lines("c-000"), lambda: session.compare(SCRIPT, snaps=["c-000"], entry={"id": "x"})):
+        with pytest.raises(HarnessError):
+            bad()
+

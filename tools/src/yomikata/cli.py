@@ -153,6 +153,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--inbox", type=Path, default=Path("/inbox"), help="an inbox's snapshots folder, for readers' savestates (read)")
     p.add_argument("--scratch", type=Path, default=Path("/scratch"), help="states, snaps and the cores' own files (written)")
     p.add_argument("--system", type=Path, help="where a core looks for a BIOS (read; default: system/ under scratch)")
+    p.add_argument("--call-seconds", type=float, default=120.0,
+                   help="how long one call may run the game before it stops and says so (default 120); a call "
+                        "that hasn't come back a minute after that ends the harness")
     p = sub.add_parser("serve", help="run the sample inbox (needs the server extra; settings from YOMIKATA_* env)")
     p.add_argument("--port", type=int, default=8080)
     args = ap.parse_args(argv)
@@ -161,7 +164,9 @@ def main(argv: list[str] | None = None) -> int:
         from .harness import mcp
         from .harness.machine import Machine
         from .harness.session import Roots, Session
-        mcp.serve(Session(Roots(args.games, args.cores, args.inbox, args.scratch, args.system), Machine))
+        session = Session(Roots(args.games, args.cores, args.inbox, args.scratch, args.system), Machine)
+        session.call_seconds = max(1.0, args.call_seconds)
+        mcp.serve(session)
         return 0
 
     if args.cmd == "serve":
