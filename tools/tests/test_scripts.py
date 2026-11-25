@@ -1406,3 +1406,61 @@ def test_final_fantasy_ix_dump_reads_the_places_whole_block(tmp_path, capsys):
     # A script without the function says so.
     assert cli.main(["run", str(ROOT / "games/ps1/SLPS-00404.lua"), str(tmp_path / "place.ram.gz"), "--platform", "ps1", "--dump"]) == 1
 
+
+
+# ---- games/ps1/SLPS-00215.lua ----
+
+PN_CURSOR, PN_BLOCK = 0x80080B8C, 0x800EB000
+
+
+def pn_codes(text: str) -> bytes:
+    """A made-up message in the game's codes: kana and ASCII by their rules, the rest by the table."""
+    from yomikata import tbl
+    table = {v: k for k, v in tbl.parse((ROOT / "tables/ps1/SLPS-00215.tbl").read_text(encoding="utf-8")).chars.items()}
+    out = b""
+    for ch in text:
+        if ch in table:
+            out += table[ch]
+        elif ch == "}":
+            out += b"\x40\x83"
+        elif ord(ch) < 0x7F:
+            out += struct.pack(">H", 0x8100 - ord(ch))
+        else:
+            jis = ch.encode("euc_jp")
+            code = 0xA420 - ((jis[0] & 0x7F) << 8 | jis[1] & 0x7F)
+            out += struct.pack(">H", code & ~0x4000 if ch in "っゃゅょッャュョ" else code)
+    return out
+
+
+def pn_memory(messages: list[str], at: int | None, word: int = 0x0C00A0B5):
+    """A scene's messages one after another, a zero after each; `at` is the one on screen."""
+    block, ends = b"\x12\x34\x00", []
+    for m in messages:
+        block += pn_codes(m) + b"\0"
+        ends.append(PN_BLOCK + len(block) - 1)
+    cursor = ends[at] if at is not None else 0
+    return sparse({0x80012840: struct.pack("<I", word), 0x800452C8: struct.pack("<I", 0x0C00885D),
+                   PN_BLOCK - 2048: bytes(2048) + block, PN_CURSOR: struct.pack("<I", cursor)})
+
+
+def test_policenauts_a_message_is_said_when_the_game_starts_to_show_it():
+    messages = ["あれは#R{愛、アイ}#だ。", "ゆっくり#ー#Wちょっとまって#{悪、ワル}#", "#T{Aボタン}#をおす‥‥‥"]
+    data = {"tbl": (ROOT / "tables/ps1/SLPS-00215.tbl").read_bytes()}
+    with rd.Reader(pn_memory(messages, None), platform="ps1", game_id="SLPS-00215", data=data) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-00215.lua"), "SLPS-00215.lua")
+        r.frame(1)
+        assert r.take("text") == []                                     # nothing shown yet
+        said = []
+        for frame, at in enumerate((0, 0, 1, 2, 2), 2):
+            r.read = pn_memory(messages, at)
+            r.frame(frame)
+            said.append([(e["text"], e.get("ruby") or []) for e in r.take("text")])
+        assert said == [[("あれは愛だ。", [[3, 1, "アイ"]])], [],
+                        [("ゆっくり――\nちょっとまって悪", [[14, 1, "ワル"]])],        # a page break, a dash
+                        [("Ａボタンをおす‥‥‥", [])], []]
+        r.state_loaded()
+        r.frame(10)
+        assert [e["text"] for e in r.take("text")] == ["Ａボタンをおす‥‥‥"]
+    with rd.Reader(pn_memory(messages, 0, word=1), platform="ps1", game_id="SLPS-00215", data=data) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-00215.lua"))

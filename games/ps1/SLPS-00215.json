@@ -1,0 +1,33 @@
+{
+  "id": "SLPS-00215",
+  "aliases": [
+    "SLPS-00216"
+  ],
+  "platform": "ps1",
+  "title": "ポリスノーツ",
+  "title_romaji": "Policenauts",
+  "versions": [
+    {
+      "id": "SLPS-00215",
+      "exe": "SLPS_002.15",
+      "exe_sha1": "87b1ceca7e7c410855e2a63f847a8c2e801d8db2"
+    },
+    {
+      "id": "SLPS-00216",
+      "exe": "SLPS_002.16",
+      "exe_sha1": "87b1ceca7e7c410855e2a63f847a8c2e801d8db2"
+    }
+  ],
+  "encoding": "table",
+  "status": "partial",
+  "sources": [
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+    "The kanji read off the game's font in main memory: a second reader (manga-ocr) and the font's JIS order together, then by eye and in sentences of the disc's own text",
+    "Played from power-on into the first room; the script's readings compared with the lines read off 16 pictures"
+  ],
+  "tables": [
+    "tables/ps1/SLPS-00215.tbl"
+  ],
+  "unit": 2,
+  "notes": "Read by the script games/ps1/SLPS-00215.lua; there is no layout. The two discs share one boot executable. Two bytes a character, high byte first; only the low 13 bits say which character. Kana and ASCII by a rule, signs and kanji by the table, which was read off the game's font in main memory (JIS order). A message of several pages is said whole when its first page shows. Who speaks, the picture's commands, the title's messages and the films' lines aren't read."
+}
