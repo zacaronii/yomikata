@@ -55,10 +55,29 @@ or a CRC-32 of the header (cartridges). A client that finds no match should warn
 | `layouts` | Where the game keeps what it shows, for readers that read memory instead of hooking (see Layouts) |
 | `status` | `verified` (confirmed in play), `auto` (built by tools, passed validation), `partial` (known gaps) |
 | `coverage` | `{chars_in_table, chars_seen_in_script}` |
+| `tuning` | `{"<libretro core id>": {"step", "measured_on"?}}`: the step a player app should start this game at in that core (see Tuning) |
 | `sources` | Where it came from, with credit |
 | `notes` | Short; no script text |
 
 An entry that only says `"encoding": "shift_jis"` is still useful: readers can skip guessing.
+
+## Tuning
+
+`tuning` has nothing to do with text. Some games need a core set faster or plainer than its default to run at
+speed on a handheld, and others can afford better: a player finds the setting once, and the entry keeps it so
+that the app starts the game there next time, on any device.
+
+```json
+"tuning": {"pcsx2": {"step": "balanced", "measured_on": "Some Handheld 2"}}
+```
+
+The key is the libretro core's id as its file names it, without `_libretro` (`pcsx2`, `dolphin`,
+`bsnes_mercury_balanced`). `step` is one of the steps the player app defines for that core, from its fastest to
+its best-looking: the names are the app's own, a free string here, and the catalog doesn't check them against
+any list. An app that doesn't know a step ignores it and starts at its default. `measured_on` is optional: the
+model of the device the step was found on (a product's name, nothing of its owner), so that an app on a much
+slower or faster device can take the step as a hint and not as a rule. An entry may have `tuning` and
+nothing else beyond its identity: it needs no encoding work.
 
 ## Cleanup
 

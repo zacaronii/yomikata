@@ -468,3 +468,24 @@ def test_mgs_lines_finds_a_list_and_a_call_and_writes_what_unread_reads():
     logged = unread.logged("\n".join(log))
     assert set(logged) == {one, two, mgs.fnv(pictures[2])} and logged[one].width == 12
     assert [one, "=な。"] in unread.rows("\n".join(log))
+
+
+def test_an_entrys_tuning_is_a_step_for_each_core(tmp_path):
+    """`tuning`: for a libretro core's id, the step a player app starts the game at, and optionally the device
+    model it was found on. An object of objects; `step` a non-empty string; nothing else in it."""
+    root = tmp_path / "cat"
+    shutil.copytree(REPO / "schema", root / "schema")
+    (root / "games" / "ps2").mkdir(parents=True)
+    (root / "tables").mkdir()
+    good = {"id": "SLPS-00001", "platform": "ps2", "title": "テスト", "encoding": "unknown", "status": "auto"}
+    path = root / "games/ps2/SLPS-00001.json"
+
+    def problems(tuning):
+        path.write_text(json.dumps({**good, "tuning": tuning}))
+        return [str(p) for p in catalog.validate(root)]
+    assert problems({"pcsx2": {"step": "balanced", "measured_on": "A Handheld 2"}}) == []
+    assert problems({"pcsx2": {"step": "fast"}, "bsnes_mercury_balanced": {"step": "0"}}) == []      # measured_on is optional
+    for bad in ({}, {"pcsx2": "fast"}, {"pcsx2": {}}, {"pcsx2": {"step": ""}}, {"pcsx2": {"step": 2}},
+                {"pcsx2": {"step": "fast", "measured_on": 3}}, {"pcsx2": {"step": "fast", "by": "someone"}},
+                {"PCSX2 core": {"step": "fast"}}, ["pcsx2"]):
+        assert any("tuning" in p for p in problems(bad)), bad

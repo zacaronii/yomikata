@@ -110,6 +110,17 @@
       "type": "object", "additionalProperties": false,
       "properties": {"chars_in_table": {"type": "integer", "minimum": 0}, "chars_seen_in_script": {"type": "integer", "minimum": 0}}
     },
+    "tuning": {
+      "description": "For each libretro core (by its id, e.g. pcsx2), the speed/quality step a player app should start this game at. Step ids are the app's own, per core.",
+      "type": "object", "minProperties": 1,
+      "propertyNames": {"pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"},
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false, "required": ["step"],
+        "properties": {"step": {"type": "string", "minLength": 1, "maxLength": 64},
+                       "measured_on": {"type": "string", "minLength": 1, "maxLength": 80,
+                                       "description": "The device model the step was found on (a product's name, nothing of its owner)."}}
+      }
+    },
     "sources": {"type": "array", "items": {"type": "string", "maxLength": 300}},
     "notes": {"type": "string", "maxLength": 600}
   },
