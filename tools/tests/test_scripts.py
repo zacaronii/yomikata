@@ -645,6 +645,33 @@ def test_tales_of_eternia_a_line_with_codes_whose_second_byte_is_zero():
             r.load(bundle(ROOT / "games/ps1/SLPS-03050.lua"))
 
 
+# ---- games/psp/NPJH50372.lua ----
+
+def dr_memory(rows=(), word=0x0E2047EF):
+    block = bytearray(108 * 5)
+    for i, row in enumerate(rows):
+        raw = row.encode("utf-16-le")
+        block[108 * i:108 * i + len(raw)] = raw
+    return sparse({0x088411DC: struct.pack("<I", word), 0x08873528: struct.pack("<I", 0x0E21C67C),
+                   0x0889F514: struct.pack("<I", 0x0E20126D), 0x08C9A264: bytes(block)})
+
+
+def test_danganronpa_the_windows_rows():
+    full = "あ" * 54                                             # a full row has no ending zero
+    with rd.Reader(dr_memory(), platform="psp", game_id="NPJH50372") as r:
+        r.load(bundle(ROOT / "games/psp/NPJH50372.lua"), "NPJH50372.lua")
+        r.take()
+        seen = []
+        for frame, rows in enumerate([[full, "つづき"], [full, "つづき"], [], ["つぎ", "", "みっつめ"], [full, "つづき"]], 1):
+            r.read = dr_memory(rows)
+            r.frame(frame)
+            seen += [(frame, e["text"]) for e in r.take("text")]
+        assert seen == [(1, full + "\nつづき"), (4, "つぎ\n\nみっつめ"), (5, full + "\nつづき")]
+    with rd.Reader(dr_memory(word=1), platform="psp", game_id="NPJH50372") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/psp/NPJH50372.lua"))
+
+
 # ---- games/ps1/SLPS-00097.lua ----
 
 def sui_memory(rows=(), is_open=1, mark=0, window=0x80189A90, word=0x0B2D0B6F):
