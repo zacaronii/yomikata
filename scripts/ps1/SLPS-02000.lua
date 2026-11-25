@@ -301,6 +301,23 @@ local function say(block, count, number)
     return false
 end
 
+--- Every message of the place in memory, in order, as the script reads them (docs/script-api.md, "dump"): for
+--- reading through a place's text when its kanji are being read off its glyphs. Not what is on screen.
+function dump()
+    local block = mem.u32(BLOCK)
+    local count = block and block >= RAM and block < RAM_END and mem.u16(block) or 0
+    local own = places[count > 0 and place_key(block) or ""]
+    for number = 0, count - 1 do
+        local start = mem.u16(block + 4 + 8 * number + 4) or 0
+        local next_one = number + 1 < count and mem.u16(block + 4 + 8 * (number + 1)) or start + MOST
+        local size = math.max(0, math.min(next_one - start, MOST))
+        local shown = decode(mem.read(block + 4 + start, size) or "", own)
+        if shown:find("%S") then
+            reader.emit{ text = shown, channel = "interface", meta = { message = number } }
+        end
+    end
+end
+
 reader.on_frame(function()
     local choosing = false
     local block = mem.u32(BLOCK)

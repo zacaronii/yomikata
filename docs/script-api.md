@@ -132,6 +132,16 @@ runtime leaves the script alone without fetching it, and falls back as if there 
 runtime's `YK_SCRIPT_LEVEL`, and has nothing to do with the version of its C interface (`YK_ABI`), which a host
 is compiled against.
 
+## Dump: a script's reading of everything in memory
+
+A script may define one global function, `dump`, which emits not what is on screen but everything of its game's
+text that lies in memory at that moment: a place's whole block of messages, each with `reader.emit` (channel
+`interface`, and `meta` saying which it is). A host never calls it. `yomikata run --dump` does, over a
+snapshot, so that a place's text can be read through with the decoder and the tables that ship: it counts the
+characters that have no reading (U+FFFD), and with `--containing` prints the shortest texts that hold given
+characters, which is how a doubtful reading of a glyph is settled (docs/harness.md, "A game's own font"). A
+script without the function is none the worse.
+
 ## The build
 
 Addresses belong to one build of one game. A script is tied to its build twice:

@@ -118,7 +118,7 @@ def test_validation_catches_mistakes(tmp_path):
     msgs = " | ".join(str(p) for p in catalog.validate(root))
     assert "SLPS-00001 is also used" in msgs
     assert "games/<platform>/<id>.json" in msgs                     # id doesn't match its file name
-    assert "tables" in msgs and "only .tbl files" in msgs
+    assert "tables" in msgs and "only .glyphs, .tbl files" in msgs
     (root / "tables/kana.tbl").write_text("0001=あ\n", encoding="utf-8")
     (root / "games/ps1/SLPS-00004.json").write_text(json.dumps({**good, "id": "SLPS-00004", "tables": ["tables/kana.tbl"]}))
     assert "SLPS-00004.json: tables need a unit" in " | ".join(str(p) for p in catalog.validate(root))
@@ -183,3 +183,45 @@ def test_single_byte_hiragana_is_read_and_drafted(tmp_path):
     assert single["sources"][0].endswith("3,000 of them hiragana stored as single bytes")
     assert "cleanup" not in plain and "notes" not in plain and plain["sources"][0].endswith("prose-like text")
     assert catalog.validate(tmp_path) == []
+
+
+# ---- yomikata glyphs: a game's own font out of memory and video memory ----
+
+def test_glyphs_are_drawn_fingerprinted_and_sorted_by_what_is_read(tmp_path, capsys):
+    import gzip
+    import numpy as np
+    from PIL import Image
+    from yomikata import cli, glyphs
+    video = np.zeros((glyphs.VRAM_HEIGHT, glyphs.VRAM_WIDTH), dtype="<u2")
+
+    def put(u, v, plane, rows):                                   # a glyph's strokes into one plane of the page
+        for dy, row in enumerate(rows):
+            for dx, ch in enumerate(row):
+                value = {".": 0, "#": 1, "+": 2, "s": 3}[ch] << (2 * plane)
+                x = u + dx
+                video[256 + v + dy, 896 + x // 4] |= value << (4 * (x % 4))
+    cross, bar = ["..#..", ".###.", "..#s.", "..+.."], ["#####", ".sss.", ".....", "....."]
+    put(0, 10, 0, cross)
+    put(0, 10, 1, bar)                                            # two glyphs in one cell, on two planes
+    put(40, 30, 0, bar)                                           # the bar again, somewhere else
+    ram = bytearray(0x400)
+    ram[0x100:0x110] = bytes([0, 10, 5, 0xA0, 0, 10, 5 | 0x40, 0xA0, 40, 30, 5, 0x90, 80, 80, 5, 0xA0])
+    ram[0x0F8:0x0FC] = (4).to_bytes(4, "little")
+    (tmp_path / "s.ram.gz").write_bytes(gzip.compress(bytes(ram)))
+    (tmp_path / "s.vram.gz").write_bytes(gzip.compress(video.tobytes()))
+    pixels = glyphs.page(video.tobytes(), 896, 256)
+    found = [glyphs.picture(pixels, r, 4) for r in glyphs.records(bytes(ram[0x100:0x110]), 4)]
+    assert found[0].tolist() == [[0, 0, 1, 0, 0], [0, 1, 1, 1, 0], [0, 0, 1, 3, 0], [0, 0, 2, 0, 0]]
+    marks = [glyphs.fingerprint(g) for g in found]
+    assert marks[1] == marks[2] != marks[0] and marks[3] == "0" * 16      # the same picture, the same mark; an empty cell
+    (tmp_path / "d.txt").write_text(f"# read so far\n{marks[0]}=十\n", encoding="utf-8")
+    args = ["glyphs", str(tmp_path / "s.ram.gz"), "--list", "0x80000100", "--count", "@0x800000F8", "--height", "4",
+            "--dictionary", str(tmp_path / "d.txt"), "--sheet", str(tmp_path / "sheet.png")]
+    assert cli.main(args) == 0
+    out = capsys.readouterr()
+    assert out.out.splitlines() == [f"000 {marks[0]} 十", f"001 {marks[1]} ?", f"002 {marks[1]} ?", f"003 {'0' * 16} ?"]
+    assert "4 glyphs, 1 in the dictionary, 1 to read" in out.err         # the bar once, though it is there twice
+    assert Image.open(tmp_path / "sheet.png").size == (60 + 20 * 8 * 6, 5 * 6)
+    (tmp_path / "s.vram.gz").unlink()
+    assert cli.main(args) == 1
+

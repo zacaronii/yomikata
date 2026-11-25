@@ -1362,3 +1362,40 @@ def test_double_cast_a_line_is_said_while_it_is_typed():
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SCPS-10053.lua"))
 
+
+def test_final_fantasy_ix_dump_reads_the_places_whole_block(tmp_path, capsys):
+    """`yomikata run --dump`: every message of the place through the script's own decoder, with the count of
+    characters that have no reading, and the shortest texts that hold a given character."""
+    import gzip
+    from yomikata import cli
+    with rd.Reader(ff9_memory(ff9_messages()), platform="ps1", game_id="SLPS-02000", data=ff9_data()) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-02000.lua"))
+        r.take()
+        r.eval("dump()")
+        texts = r.take("text")
+        assert len(texts) == 6 and texts[1]["text"] == "まだ誰も\ufffdてないのか？" and texts[1]["meta"] == {"message": 1}
+        assert all(e["channel"] == "interface" for e in texts)                 # not what is on screen
+    # Through the command, over a snapshot file.
+    read = ff9_memory(ff9_messages())
+    ram = bytearray(0x200000)
+    for at in (0x80012614, 0x8003F4D0, FF9_BLOCK - 8, FF9_BLOCK, 0x8007AE14, 0x8007AE18, FF9_NAMES, FF9_NAMES + 0x90,
+               FF9_BLOCK - 8 + 0x4000, FF9_WINDOWS):
+        chunk = read(at, 0x400)
+        ram[at - 0x80000000:at - 0x80000000 + len(chunk)] = chunk
+    (tmp_path / "games/ps1").mkdir(parents=True)
+    for name in ("SLPS-02000.lua", "SLPS-02000.tbl"):
+        (tmp_path / "games/ps1" / name).write_bytes((ROOT / "games/ps1" / name).read_bytes())
+    (tmp_path / "games/ps1/SLPS-02000.places").write_text("", encoding="utf-8")
+    (tmp_path / "lib").mkdir()
+    (tmp_path / "lib/tbl.lua").write_bytes((ROOT / "lib/tbl.lua").read_bytes())
+    (tmp_path / "place.ram.gz").write_bytes(gzip.compress(bytes(ram)))
+    args = ["run", str(tmp_path / "games/ps1/SLPS-02000.lua"), str(tmp_path / "place.ram.gz"), "--platform", "ps1", "--dump"]
+    assert cli.main(args) == 0
+    out = capsys.readouterr()
+    assert "place: 6 texts" in out.err and "1 without a reading" in out.err
+    assert cli.main(args + ["--containing", "誰ぬ"]) == 0
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [(e["character"], e["text"]) for e in lines] == [("誰", "まだ誰も\ufffdてないのか？")]
+    # A script without the function says so.
+    assert cli.main(["run", str(ROOT / "games/ps1/SLPS-00404.lua"), str(tmp_path / "place.ram.gz"), "--platform", "ps1", "--dump"]) == 1
+
