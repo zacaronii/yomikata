@@ -1168,3 +1168,21 @@ def test_steps_press_until_the_script_has_been_quiet(session):
     assert not rows[stopped[0]].get("events") and not rows[stopped[0] - 1].get("events")
     with pytest.raises(HarnessError):
         session.steps([{"wait": 1, "until_quiet": 2}], on={"dialogue": [{"wait": 1, "until_quiet": 1}]})
+
+
+@needs_reader
+def test_visit_goes_round_spots_and_says_what_each_gave(session):
+    with pytest.raises(HarnessError, match="script"):
+        session.visit([[10, 10]])
+    session.script_try(SCRIPT)                                           # it says a line every ten frames
+    with pytest.raises(HarnessError, match="cursor_find"):
+        session.visit([[10, 10]])
+    session.cursor_find()
+    out = session.visit([[120, 80], [60, 40]], wait=4, most=6, after=[{"buttons": ["b"], "hold": 1}])
+    assert [(s["at"], s["reached"]) for s in out["spots"]] == [([120, 80], True), ([60, 40], True)]
+    assert all(2 <= s["presses"] <= 8 for s in out["spots"])
+    assert {t["text"] for s in out["spots"] for t in s["said"]} <= {"こんにちは", "さようなら", "またあした"}
+    assert out["spots"][0]["said"] and "stopped" not in out
+    assert session.cursor_to()["x"] == 60
+    with pytest.raises(HarnessError):
+        session.visit([[1, 2, 3]])

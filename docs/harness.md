@@ -53,6 +53,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `entered` | Reads a name off a naming screen from a snap after each character: where the name is, each character's code, the rule kana codes follow, lines of a table |
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
+| `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `watch` | Runs the game and lists each change of a place in memory with its frame |
 | `code_rule` | What arithmetic ties codes to characters, kind by kind, from a few characters and their codes; or that the codes only keep JIS order |
 | `vram_picture` | A rectangle of video memory as a picture: frames, textures, a glyph cache (PlayStation) |
@@ -114,6 +115,8 @@ In the order to try them:
    Before a script trusts its address, play to another scene (a close-up, another room) and ask `refs` again.
    Policenauts' message pointer moved 0x78 bytes between two objects of one room; what stayed put was the
    game's own copy of the message, which `find_relative` had given as a second place.
+   The same goes for a cursor's numbers: `cursor_find` gives where they are in this scene. In Policenauts they
+   moved when the room's light changed; when `cursor_to` no longer reaches a place, find them again.
 9. When `find_relative` finds nothing it tries the other ways a game may keep a line and gives those that fit
    (`other_ways`): codes of two bytes, the other byte order, kana as far apart as in an order, counting up or
    down. A line with three or four different kana is enough.
@@ -125,6 +128,10 @@ In the order to try them:
    between two sure readings the order allows few characters, sometimes one. And where `on_disc` says the text
    lies on the disc as in memory, `yomikata disc-text` with the table so far writes the whole script to
    scratch, to read each doubtful kanji in a sentence. This is how Policenauts' 1,800 kanji were read.
+11. A point-and-click scene: `cursor_find`, then `visit` with the spots picked off one picture. An object may
+   offer more than one command (open its menu and take a picture before deciding a room is exhausted).
+   Policenauts' first room was gone round this way, and its videophone's second command found; what brings
+   the next scene on was not found in the calls given to it, so who speaks is still not read there.
 
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.
