@@ -111,7 +111,7 @@ Comment lines at the very top, before any code. A host reads them without runnin
 | `-- reader: title <name>` | required | The title as on the title screen, then the English or romanised name in brackets |
 | `-- reader: reads <what>` | required | In one line, what the script reads; what it doesn't goes in the comment below the header |
 | `-- reader: version <release>` | required | The release or disc version it was written for |
-| `-- reader: build <id>` | required, **added** | A build it was checked on: the SHA-1 of the boot executable, a cartridge's `header_crc32` (`docs/format.md`), or for a GameCube disc its id and version (below). One line per build. The index is made from these |
+| `-- reader: build <id>` | required, **added** | A build it was checked on: the SHA-1 of the boot executable, a cartridge's `header_crc32` (`docs/format.md`), for a GameCube disc its id and version, or for a PlayStation 2 game its serial and CRC (both below). One line per build. The index is made from these |
 | `-- reader: no hooks` | required | Every script here is memory-only |
 | `-- reader: no layout <why>` | when so | The script can't say where its text is drawn, and why |
 | `-- reader: needs <name> …` | when so, **added** | Regions the script can't work without (`vram`). A host that lacks one doesn't load the script, and says so |
@@ -145,6 +145,13 @@ Addresses belong to one build of one game. A script is tied to its build twice:
 at the start of memory (the id's six characters at `0x80000000`, the version's byte at `0x80000007`), so a host
 that only sees memory knows the build, the script's own check reads the same two, and the inbox stores them
 with each snapshot.
+
+**PlayStation 2:** a build is the game's serial, a dash, and its CRC as eight lowercase hex digits:
+`SLPM-12345-1a2b3c4d`. These are the two things a PS2 emulator says of the game it runs (over PINE, the serial
+is the game's id and the CRC its UUID), so a host knows the build without reading the disc: on a device the
+disc is often one compressed image, and hashing its boot program there isn't practical. The script's own
+check in memory is as on any console. *Open: the tools here don't work this CRC out of a disc image yet; until
+they do, it is read off the emulator.*
 
 **The check needs the game's program in memory,** which it isn't in a console's first moments (a PS1 loads it
 after its BIOS has run). A host that loads a script as the game starts must expect "another build" then, and
