@@ -634,6 +634,24 @@
    "needs": [],
    "data": {}
   },
+  "SCPS-10088": {
+   "path": "scripts/ps1/SCPS-10088.lua",
+   "sha256": "9d99c0f2841267e7b849419907cc884dd36e75b269966ef7f5a5e402c9b417ca",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "ぼくのなつやすみ (Boku no Natsuyasumi)",
+   "reads": "the text panel's page; the speaker's name is part of the text",
+   "builds": [
+    "959ddf98806648a689eeafaaabbff2a4ec0bfbbb"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/ps1/SCPS-10088.tbl",
+     "sha256": "9a1c5d1a4494476b3830dad58a462efc5bda762d7503fd17f07e9ae04eb6e67c"
+    }
+   }
+  },
   "SLPM-86168": {
    "path": "scripts/ps1/SLPM-86168.lua",
    "sha256": "af126a0b0f57b0c02b37763743fb5f75f961f961f956552d5c77b2996a53ef8e",
