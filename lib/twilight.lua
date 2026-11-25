@@ -61,7 +61,8 @@ end
 
 --- Reads the window each frame. `game` has: word (the address of the word that tells the chapters apart),
 --- chapters (that word's value -> { table = a function giving the chapter's table, offset, shown, state,
---- cursor: the chapter's cells }), rest, and spaces (whether an answer's colon may have wide spaces before it).
+---- cursor: the chapter's cells }), rest, spaces (whether an answer's colon may have wide spaces before it) and
+--- tight (whether a line break before a row's colon is left out: a line starts at its colon).
 function twilight.read(game)
     local codes = reader.data("codes")
     local shared = reader.data("tbl")
@@ -116,8 +117,10 @@ function twilight.read(game)
                 for i, piece in ipairs(pieces) do
                     pieces[i] = inplace.decode(piece, rules, characters)
                 end
-                -- A row that is only a colon's own line break goes: a line starts at its colon.
-                page = table.concat(pieces, "\n"):gsub("^\n" .. COLON, COLON):gsub("\n\n" .. COLON, "\n" .. COLON)
+                page = table.concat(pieces, "\n")
+                if game.tight then
+                    page = page:gsub("^\n" .. COLON, COLON):gsub("\n\n" .. COLON, "\n" .. COLON)
+                end
             end
         end
         local state = mem.u16(chapter.state)

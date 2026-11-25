@@ -690,7 +690,7 @@
   },
   "SLPS-00102": {
    "path": "scripts/ps1/SLPS-00102.lua",
-   "sha256": "15638b82c422b696ef5398356645015c6eec1f0c1e61ba9c6e745c1cdfcc860a",
+   "sha256": "ce0327cef1e5747000192b3b1cdb7eff78e265aea453aa7f3adb0373fa49bc22",
    "platform": "ps1",
    "runtime": 1,
    "title": "トワイライトシンドローム 探索編 (Twilight Syndrome: Tansaku-hen)",
@@ -731,6 +731,56 @@
     "tbl": {
      "path": "games/ps1/SLPS-00102.tbl",
      "sha256": "3eaa510816cd172b1689dcc094789ec65774af3ba8893554b5fd4a593a459491"
+    }
+   }
+  },
+  "SLPS-00405": {
+   "path": "scripts/ps1/SLPS-00405.lua",
+   "sha256": "c774edf756e4f30940a57de2127330acecff8aef6d4994925c69813f6c4057ae",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "トワイライトシンドローム 究明編 (Twilight Syndrome: Kyuumei-hen)",
+   "reads": "the message window as it fills, a part at a time, and a choice's answers with its cursor",
+   "builds": [
+    "70ea5b39b714061de93240c882d594c50879863a"
+   ],
+   "needs": [],
+   "data": {
+    "ch5": {
+     "path": "games/ps1/SLPS-00405.ch5",
+     "sha256": "806f6a45106fb878c1246ed3997620e5637ff034d4b2411ef29ecd7b2e96c52f"
+    },
+    "ch6": {
+     "path": "games/ps1/SLPS-00405.ch6",
+     "sha256": "13c2f3713313d5a71a322d1354aa59e5e163b18ced2d1f62565f8dbd0d521b6c"
+    },
+    "ch7": {
+     "path": "games/ps1/SLPS-00405.ch7",
+     "sha256": "99fe03b603812b0da0a769a55c616dbbcc0e5f26e204ba561b97b69ac5e2cda8"
+    },
+    "ch8": {
+     "path": "games/ps1/SLPS-00405.ch8",
+     "sha256": "e1872e6287c0b2ee4ca785993ba3333b17b3cf3141938865a63147ba24b47ada"
+    },
+    "ch9": {
+     "path": "games/ps1/SLPS-00405.ch9",
+     "sha256": "3fd201169f10ae845faba1270400fce060f8e4b0df01c46d11a6fd91da4c5d9a"
+    },
+    "cha": {
+     "path": "games/ps1/SLPS-00405.cha",
+     "sha256": "1ee1b3dd0ec1423f8b11f5c9907071a74a0b4d1dccac133fac7b3d9185f20d73"
+    },
+    "chh": {
+     "path": "games/ps1/SLPS-00405.chh",
+     "sha256": "eea83e3cffd5e7457f1130980f03b581b119f2bcdb34f0ce10ce700121b3dc77"
+    },
+    "codes": {
+     "path": "games/ps1/SLPS-00405.codes",
+     "sha256": "52504e71e2283d8548a128007d0b26a1a33b287eeb3e0f8789f115e7795a96c3"
+    },
+    "tbl": {
+     "path": "games/ps1/SLPS-00405.tbl",
+     "sha256": "daf4368d3e5c1ad3882ad69852139961f52e9c5e4d469e9f3e876b10a32eef9e"
     }
    }
   },
