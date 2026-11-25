@@ -62,16 +62,30 @@ lies), `tiles` (a window kept as tiles, and what a scrolling window gained), `ma
 
 ## 6. Check it
 
-A stretch of the game, a snap at each step:
+A script is called checked when it has read **the story text of the game's first hour, compared with about
+thirty screens over three scenes or more**. Fewer is a first version, and says so (`status` partial, and the
+counts in its sources). The reason for the scenes: an address found in one scene may be on a stack, or belong
+to that scene only, and a script can read one room perfectly and nothing after it. That has happened.
+
+Play with the script loaded, and let it say when to take a picture:
 
 ```json
-{"steps": [{"buttons": ["a"], "until": {"limit": 600, "event": "text"}, "times": 40, "snap": true}], "prefix": "check"}
+{"steps": [{"buttons": ["a"], "hold": 3, "wait": 120, "times": 60}],
+ "on": {"text": [{"wait": 40, "snap": true, "shot": true}]}, "prefix": "room1"}
 ```
 
-Then `sheet` the snaps a dozen at a time, read each picture, and give each snap its lines with `snap_lines` (or
-`no_text`). `compare` counts how many of the script's readings agree with them. Take snaps where there is no
-text too (the title, a menu, a walk): a script must read nothing there. Where the game has an entry with a
-layout, give `compare` the entry as well.
+Each time the script says something, the game runs on a little and a snap and a picture are taken: the
+pictures come back as a sheet. Read each, and give each snap its lines with `snap_lines` (or `no_text`). Take
+snaps where there is no text too (the title, a menu, a walk): a script must read nothing there. Do this in
+each scene: another room, a battle, a film, after a save is loaded. Then
+
+```json
+{"scenes": {"the first room": ["room1-000-on01", "…"], "the town": ["…"], "a battle": ["…"]}, "live": true}
+```
+
+to `compare` (with the script) counts the agreement and says whether the bar is met: thirty screens from play,
+three scenes or more, nine in ten of those with text read as shown, nothing read where there is none, and no
+snap taken after a memory write. Where the game has an entry with a layout, give `compare` the entry as well.
 
 Also: `repeat` a few steps to see that the core repeats itself here; load a state and see that the script says
 the line that is up, once; and `script_try` it on the earliest snap's moment (`waypoint_go` with `replay`, or a

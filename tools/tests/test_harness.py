@@ -420,8 +420,15 @@ def test_compare_a_script_with_the_lines_on_screen_and_with_a_layout(session):
     out = session.compare(SCRIPT, snaps=["c-000"], entry=entry, show=True)
     assert out["layout"]["different"] == 1 and out["differing"][0]["layout"]["message"] == "んにちは"
     assert session.compare("error('no', 0)", snaps=["c-000"])["script"]["the script didn't load"] == 1
+    # By scene: whether the bar for a checked script is met, and what is short of it.
+    out = session.compare(SCRIPT, scenes={"the first room": ["c-000", "c-001"], "the walk": ["c-002"]})
+    assert out["bar"]["met"] is False
+    assert out["bar"]["scenes"] == {"the first room": {"screens": 2, "agreeing": 2}, "the walk": {"screens": 1, "agreeing": 0}}
+    short = " / ".join(out["bar"]["short_of_it"])
+    assert "3 screens" in short and "2 scene(s)" in short and "give live" in short and "show no text" in short
     for bad in (lambda: session.compare(SCRIPT, snaps=["nothing"]), lambda: session.snap_lines("nothing", no_text=True),
-                lambda: session.snap_lines("c-000"), lambda: session.compare(SCRIPT, snaps=["c-000"], entry={"id": "x"})):
+                lambda: session.snap_lines("c-000"), lambda: session.compare(SCRIPT, snaps=["c-000"], entry={"id": "x"}),
+                lambda: session.compare(SCRIPT, scenes={"empty": []})):
         with pytest.raises(HarnessError):
             bad()
 

@@ -1809,12 +1809,21 @@ class Session:
           tables=("object", "that entry's tables: each path the entry names to the table's text", False),
           version=("string", "which of the entry's versions the snaps are (its exe_sha1 or header_crc32)", False),
           show=("boolean", "also give what was read at each snap", False),
+          scenes=("object", "the snaps by scene, a name for each scene to its snaps: the answer then says "
+                            "whether the bar for a checked script is met (30 screens from play over 3 scenes "
+                            "or more, nine in ten with text agreeing, nothing read where there is none, no "
+                            "memory write), and what is short of it", False),
           live=("boolean", "count what the script said in play on the way to each snap (kept with the snap when "
                            "it was taken with a script loaded) instead of running it over the still snap: for a "
                            "script that reads a line only as it appears", False))
     def compare(self, source: str = "", name: str = "script.lua", data: dict | None = None, snaps: list | None = None,
                 frames: int = 40, entry: dict | None = None, tables: dict | None = None, version: str = "",
-                show: bool = False, live: bool = False) -> dict:
+                show: bool = False, live: bool = False,
+                scenes: dict | None = None) -> dict:
+        if scenes:
+            if not all(isinstance(v, list) and v for v in scenes.values()):
+                raise HarnessError("scenes is an object: a name for each scene to the snaps taken in it")
+            snaps = [n for group in scenes.values() for n in group]
         from .. import compare as cmp
         from ..check import agreement, sidecars
         from ..run import Reading, _load, _regions
@@ -1868,6 +1877,32 @@ class Session:
                           "marked as showing no text": len(empty),
                           "of those, reading nothing": sum(1 for r in empty if not r["read"]),
                           "taken after a memory write": sum(1 for r in rows if r["written"])}}
+        if scenes:
+            # The bar for calling a script checked (docs/first-script.md): thirty screens from play, over three
+            # scenes or more, none after a memory write; nine in ten of those with text read as shown, and
+            # nothing read where there is none.
+            judged = len(lined) + len(empty)
+            agreeing = sum(1 for r in lined if r["agreement"] >= 0.8)
+            quiet = sum(1 for r in empty if not r["read"])
+            short = []
+            if judged < 30:
+                short.append(f"{judged} screens with lines or marked as showing no text: 30 are wanted")
+            if len(scenes) < 3:
+                short.append(f"{len(scenes)} scene(s): 3 are wanted")
+            if not live:
+                short.append("not counted from play: give live")
+            if any(r["written"] for r in rows):
+                short.append("some snaps were taken after a memory write")
+            if lined and agreeing < 0.9 * len(lined):
+                short.append(f"{agreeing} of {len(lined)} screens with text agree: nine in ten are wanted")
+            if quiet < len(empty):
+                short.append(f"something was read on {len(empty) - quiet} screen(s) that show no text")
+            by = {r["snap"]: r for r in rows}
+            out["bar"] = {"met": not short, "short_of_it": short,
+                          "scenes": {scene: {"screens": sum(1 for n in group if by[n]["seen"] is not None),
+                                             "agreeing": sum(1 for n in group if by[n]["seen"] and by[n]["agreement"] >= 0.8)
+                                             + sum(1 for n in group if by[n]["seen"] == [] and not by[n]["read"])}
+                                     for scene, group in scenes.items()}}
         if show:
             out["rows"] = rows[:MAX_ROWS]
         if entry is not None:
