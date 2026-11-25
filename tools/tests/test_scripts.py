@@ -1616,3 +1616,75 @@ def test_chrono_trigger_a_page_is_said_when_it_has_been_typed():
     with rd.Reader(ct_memory(check=bytes(13)), platform="sfc", game_id="SHVC-ACTJ", data=data) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/sfc/SHVC-ACTJ.lua"))
+
+
+def mgs_codes(text: str, own: dict[str, int], fixed: dict[str, int]) -> bytes:
+    """A line in Metal Gear Solid's codes: ASCII marks as 0x80xx, kana by their Unicode row, the fixed font's
+    kanji by the table, and a list's own kanji by the numbers given."""
+    out = b""
+    for ch in text:
+        if ch in own:
+            out += struct.pack(">H", own[ch])
+        elif ch in fixed:
+            out += struct.pack(">H", fixed[ch])
+        elif "ぁ" <= ch <= "ん":
+            out += struct.pack(">H", 0x8100 + ord(ch) - 0x3040 | (0x4000 if ch in "っゃゅょ" else 0))
+        elif "ァ" <= ch <= "ヶ":
+            out += struct.pack(">H", 0x8200 + ord(ch) - 0x30A0 | (0x4000 if ch in "ッャュョ" else 0))
+        elif ch in "#{}|N?":
+            out += struct.pack(">H", (0xC000 if ch in "}?" else 0x8000) + ord(ch))
+        else:
+            out += ch.encode("ascii")                                    # letters and a space, as they are
+    return out + b"\0"
+
+
+def mgs_memory(line: int = 0, radio: int = 0, up: int = 0, lists: dict | None = None, word: int = 0x0C010101):
+    """What Metal Gear Solid's script looks at: the words of the build, the line shown (a scene's and the
+    radio's), whether the radio is up, and where the pictures of a list's and a call's own kanji are."""
+    return sparse({0x80012568: struct.pack("<I", word), 0x80057888: struct.pack("<I", 0x0C013C30),
+                   0x8009EC4C: struct.pack("<I", line), 0x8009F0F0: struct.pack("<I", 0x800B9080),
+                   0x800AC3EC: struct.pack("<I", radio), 0x800ABCB0: struct.pack("<I", up),
+                   0x8009F0E8: struct.pack("<I", 0x801827AD), **(lists or {})})
+
+
+def test_metal_gear_solid_a_line_is_said_while_it_is_shown():
+    from yomikata import tbl
+    fixed = {v: struct.unpack(">H", k)[0] for k, v in
+             tbl.parse((ROOT / "tables/ps1/SLPM-86111.tbl").read_text(encoding="utf-8")).chars.items()}
+    fixed["ー"] |= 0x4000                                                 # drawn narrow: the same character
+    # Made-up pictures of a list's own kanji (36 bytes each), the first of them at number 1; the dictionary
+    # says which kanji a picture is by the hash of its bytes.
+    pictures = [bytes([n]) * 35 + b"\0" for n in (0x3F, 0x2A, 0x15)]
+
+    def fnv(data):
+        h = 0xCBF29CE484222325
+        for b in data:
+            h = (h ^ b) * 0x100000001B3 & 0xFFFFFFFFFFFFFFFF
+        return f"{h:016x}"
+    glyphs = f"# made up\n{fnv(pictures[0])}=島\n{fnv(pictures[2])}=聞\n".encode()
+    own = {"島": 0x9C01, "孤": 0x9C02}                                      # the second picture isn't in the dictionary
+    first = mgs_codes("サカナ #{FOX、フォックス}#の孤島|核にある", own, fixed)
+    second = mgs_codes("それで#ー", own, fixed)
+    spoken = mgs_codes("大島、きこえたか", {"島": 0x9C02}, fixed)            # the list that comes with the voice
+    shown = mgs_codes("大、聞こえたか?#Nリンゴ。", {"聞": 0x9601}, fixed)      # the radio's own line
+    lists = {0x800B8E78: first + bytes(16) + second + bytes(16) + spoken, 0x800B9080: b"".join(pictures[:2]),
+             0x80182500: shown, 0x801827AD: pictures[2]}
+    at = [0x800B8E78, 0x800B8E78 + len(first) + 16, 0x800B8E78 + len(first) + len(second) + 32]
+    data = {"tbl": (ROOT / "tables/ps1/SLPM-86111.tbl").read_bytes(), "glyphs": glyphs}
+    with rd.Reader(mgs_memory(lists=lists), platform="ps1", game_id="SLPM-86111", data=data) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPM-86111.lua"), "SLPM-86111.lua")
+        moments = [dict(), dict(line=at[0]), dict(line=at[0]), dict(), dict(line=at[1]), dict(),
+                   dict(line=at[0]),                                     # shown again: said again
+                   dict(up=1), dict(up=1, line=at[2]),                   # the radio is up: the voice's list isn't shown
+                   dict(up=1, line=at[2], radio=0x80182500), dict(up=1, radio=0x80182500), dict(up=1), dict()]
+        said = []
+        for frame, moment in enumerate(moments, 1):
+            r.read = mgs_memory(lists=lists, **moment)
+            r.frame(frame)
+            said.append([(e["text"], e.get("ruby") or []) for e in r.take("text")])
+        assert said == [[], [("サカナ FOXの�島\n核にある", [[5, 3, "フォックス"]])], [], [], [("それで――", [])], [],
+                        [("サカナ FOXの�島\n核にある", [[5, 3, "フォックス"]])],
+                        [], [], [("大、聞こえたか?\nリンゴ。", [])], [], [], []]
+    with rd.Reader(mgs_memory(lists=lists, word=0), platform="ps1", game_id="SLPM-86111", data=data) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPM-86111.lua"))

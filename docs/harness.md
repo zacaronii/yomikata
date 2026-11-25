@@ -166,6 +166,19 @@ In the order to try them:
    `glyph_pairs` does that pairing while you play and writes the sheet. When every search is empty, look at
    `vram_picture` first: a message drawn as a picture shows there at once, below the fixed font.
 
+13. Lines that are shown for a time and never typed (captions under a film, a radio call with a voice): a
+   game may bring each scene's lines as a list, with when each starts and how long it stays, and keep one word
+   that points at the line on screen and is zero between lines. `refs` on the line's place finds the word, and
+   `watch` on it through a few lines shows it going from line to line. Before trusting it, hold what it points
+   at against the picture, commas and row breaks too: Metal Gear Solid's radio calls come with such a list
+   (it follows the voice) and show another text, with its own word, its own punctuation and its own rows. The
+   two differ by a comma here and there, which a count of agreeing characters would let through. What says
+   which of the two is shown was found with `changed` and a pattern over snaps with the radio up and without.
+   That game's lines were found by a kana stretch and an order alone (`other_ways`: two bytes, high first, as
+   far apart as in Unicode); a line with kanji found nothing, since every list numbers its own kanji anew and
+   brings their pictures with it. A script for such a game knows a kanji by a hash of its picture
+   (`text.hash` of the bytes as they lie), and its dictionary is those hashes, read as below.
+
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.
 
@@ -263,6 +276,12 @@ The order of reading a font, then:
 4. every reading the two readers differ on, and every one the order doubts, read in a sentence of the game's
    text: `glyph-read --text` prints one for each, from a dump (`yomikata disc-text`, or `run --dump`), or
    read it in play. A reading none of this settles is left out of the table.
+
+Where a game brings its kanji as pictures with each scene (Metal Gear Solid: 36 bytes a picture, after the
+scene's lines), there is no font to read once: let the script, in a copy for trying, log each picture it has no
+reading for as it plays, draw those on a sheet, and read them with the lines they came up in beside you. Its
+first 188 pictures were read so, over four scenes; the second reader agreed on 155, and the 33 others
+were its own mistakes, each read in its sentence.
 
 On Dragon Quest V's first 75 glyphs the second reader agreed on 51; the 24 others were all its own mistakes,
 each already read in a sentence. On 136, it agreed on 96.
