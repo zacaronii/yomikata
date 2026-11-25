@@ -449,3 +449,36 @@ def test_header_lines_are_read_as_the_runtime_reads_them():
               "\n-- a comment\n-- reader:\nlocal x = 1\n-- reader: api 3\n")
     assert header(source) == rd.header(source)
     assert ("no hooks", "") in header(source) and ("needs", "vram oam") in header(source)
+
+
+# ---- games/ps1/SLPS-01100.lua ----
+
+TOD_TEXT, TOD_READING, TOD_STATE = 0x801C1870, 0x801BEA34, 0x801BEA3A
+
+
+def tod_memory(reading: int | None, state: int = 3, call: int = 0x0C03DFA3):
+    pages = ["せんいん\n「みまわりも　たいくつですね」", "かんちょう\n「そういうな」", "「もうすぐだ」"]
+    stretch = b"\x0c".join(p.encode("cp932") for p in pages) + b"\0"
+    starts = [0, len(pages[0].encode("cp932")) + 1]
+    at = 0 if reading is None else TOD_TEXT + starts[reading] + 4 if reading < 2 else TOD_TEXT + len(stretch) - 4
+    return sparse({0x800B0840: struct.pack("<I", call), 0x80161B20: struct.pack("<I", 0x0C0586CF),
+                   0x80123B38: struct.pack("<I", 0x0C04A19D), TOD_TEXT: stretch + bytes(32),
+                   TOD_READING: struct.pack("<I", at), TOD_STATE: struct.pack("<H", state)}), pages
+
+
+def test_tales_of_destiny_the_page_the_game_is_on():
+    read, pages = tod_memory(0)
+    with rd.Reader(read, platform="ps1", game_id="SLPS-01100") as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-01100.lua"), "SLPS-01100.lua")
+        r.take()
+        seen = []
+        for frame, (reading, state) in enumerate([(0, 3), (0, 4), (1, 3), (1, 4), (2, 3), (None, 3), (None, 0), (0, 3)], 1):
+            r.read = tod_memory(reading, state)[0]
+            r.frame(frame)
+            seen += [(frame, e["text"]) for e in r.take("text")]
+        # Each page once as the window gets to it; with the pointer at 0 the stretch's last page stays; after
+        # the window has gone the first page is said again.
+        assert seen == [(1, pages[0]), (3, pages[1]), (5, pages[2]), (8, pages[0])]
+    with rd.Reader(tod_memory(0, call=0x0C000000)[0], platform="ps1", game_id="SLPS-01100") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-01100.lua"))

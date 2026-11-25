@@ -621,6 +621,19 @@
    "needs": [],
    "data": {}
   },
+  "SLPS-01100": {
+   "path": "scripts/ps1/SLPS-01100.lua",
+   "sha256": "932957f885fefc577b80ed4c1fe75d4d03361b87c35fde0b75c8bcec389f25e8",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "テイルズ オブ デスティニー (Tales of Destiny)",
+   "reads": "the message window, a page at a time; a page's first row is the speaker's name",
+   "builds": [
+    "eba83e945427714cc1a2c0d8728f5821d5f60bea"
+   ],
+   "needs": [],
+   "data": {}
+  },
   "SLPS-02100": {
    "path": "scripts/ps1/SLPS-02100.lua",
    "sha256": "3dfb667906bcf13fa67f507526f62e4d81fc12e79370c26a769952c9d02929ca",
