@@ -1519,8 +1519,9 @@ class Session:
           "frames, goes back, and does the same from every place it got to, until nothing new comes or `most` "
           "places are known. For a map walk_to can't cross (ledges, fences, a maze) or one too dark to read. "
           "Gives the places as rows of a map in the game's own numbers (# reached, @ where it stands, D where "
-          "the next push changed the map: a door, stairs), and the game is left where it was. Given `to`, it "
-          "then walks there by the way it found, or says that the place wasn't among those reached.",
+          "the next push changed the map: a door, stairs), and the game is left where it was. Given `to`, the "
+          "game is then put at that place as it was reached while trying (the pushes go into the record of the "
+          "way), or it says that the place wasn't among those reached.",
           x_address=("string", "where the game keeps the place across, hex (default: as cursor_find found)", False),
           y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
           step=("integer", "frames a push is held (default 8): about one of the game's numbers a push is best", False),
@@ -1590,15 +1591,21 @@ class Session:
         while places[at][1] is not None:
             pushes.append(places[at][2])
             at = places[at][1]
-        events, why = [], None
-        for push in reversed(pushes):                       # the same pushes again, this time for good
-            _, why = self._advance(step, {push}, (0.0, 0.0), events)
-            if why:
-                break
+        # The game is taken as it stood at that place while trying, and the pushes that led there go into the
+        # record of the way. Playing them again from here may end elsewhere: a core need not go on from a
+        # loaded state exactly as it would have run through it, and each place was reached from a loaded one.
+        machine.load_state(places[goal][0])
+        machine.frames = frames + step * len(pushes)
+        for push in reversed(pushes):
+            self._moved(step, {push}, (0.0, 0.0))
+        events = []
+        if self.reader is not None:
+            self.reader.state_loaded()
+            self._collect(self.reader.take(), events)
         self._advance(2, set(), (0.0, 0.0), events)
         cx, cy = now()
         return {**{k: v for k, v in out.items() if k != "map"}, "x": cx, "y": cy, "pushes": len(pushes),
-                "reached": (cx, cy) == goal, "frames": machine.frames, **({"stopped": why} if why else {}),
+                "reached": (cx, cy) == goal, "frames": machine.frames,
                 **({"events": events} if self.reader is not None and events else {})}
 
     @tool("The picture on screen with a grid over it in the game's own numbers for where the character stands, "

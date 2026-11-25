@@ -55,7 +55,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
 | `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way; stops where the map changes, since the numbers start anew there. `near` for numbers finer than a step |
-| `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, walks there by the way it found. For ledges, fences and mazes, and for a map too dark to read |
+| `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read |
 | `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to`. Takes where the game draws the character, for a picture that doesn't keep it in the middle |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
@@ -140,7 +140,10 @@ In the order to try them:
    on Dragon Quest V's deck a press held 3 frames was lost, and one held 8 was not.
    Where `walk_to` gets no nearer and the picture doesn't say why, ask `explore`: it floods the map by
    trying (a push of a few frames from each place it has reached, a state kept in memory for each), so it
-   knows ledges, fences and people in the way without being told, and `to` walks the way it found. Mother 2's
+   knows ledges, fences and people in the way without being told, and `to` takes the game to a place it
+   reached. (It takes the state kept for that place: the same pushes played again from the start ended
+   elsewhere after sixty of them on bsnes-mercury, which doesn't go on from a loaded state quite as it
+   would have run through it.) Mother 2's
    first night is too dark to read a path off the picture, and its hillside is ledges: 687 places around
    the two houses were found in half a minute (`step` 6; the game's numbers there are tiles of eight pixels,
    at 0x7E46FA across and 0x7E46FC down), and showed at once that the road-block can't be walked round. It
