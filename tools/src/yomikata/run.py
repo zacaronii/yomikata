@@ -8,11 +8,11 @@ What comes out is the game's text: for a terminal or a scratch folder, never for
 
 from __future__ import annotations
 
-import gzip
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import reader as rd
+from . import snapfile
 from .bundle import bundle
 from .check import sidecars
 from .layout import RAM_BASE
@@ -28,8 +28,7 @@ MIRRORS = {"ps1": (0x00000000, 0xA0000000)}
 
 
 def _load(path: Path) -> bytes:
-    raw = path.read_bytes()
-    return gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw
+    return snapfile.read(path)
 
 
 @dataclass

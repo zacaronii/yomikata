@@ -5,7 +5,6 @@ Clients can compare their output with `read_layout()`, or run tools/tests/layout
 
 from __future__ import annotations
 
-import gzip
 import re
 import struct
 from dataclasses import dataclass
@@ -32,8 +31,8 @@ class Ram:
 
     @classmethod
     def load(cls, path: Path, base: int) -> "Ram":
-        raw = Path(path).read_bytes()
-        return cls(base, gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw)
+        from . import snapfile
+        return cls(base, snapfile.read(Path(path)))
 
     def __call__(self, address: int, size: int) -> bytes:
         start = address - self.base

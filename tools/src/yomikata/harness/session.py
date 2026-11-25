@@ -13,10 +13,11 @@ import io
 import json
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from .. import reader as rd
+from .. import snapfile
 from ..run import MIRRORS, PLATFORM_ALIASES
 from . import search
 
@@ -53,10 +54,9 @@ class Roots:
 
 @dataclass
 class Snap:
+    """A snap of this session: where its memory starts and when it was taken. Its bytes are on disk."""
     base: int
-    ram: bytes
     frame: int
-    regions: dict[str, bytes] = field(default_factory=dict)
 
 
 def tool(description: str, **properties):
@@ -80,6 +80,8 @@ class Session:
         self.route: dict = {"base": "power-on", "moves": []}
         self.core_hash = None
         self.snaps: dict[str, Snap] = {}
+        # The session's first snap, whole on disk: the later ones are kept as what differs from it.
+        self.first_snap: tuple[str, bytes, dict[str, bytes]] | None = None
         self.reader: rd.Reader | None = None
         self.script_name = None
         self.layouts: dict[str, dict] = {}
@@ -273,7 +275,7 @@ class Session:
             raise HarnessError("the core loaded before can't be followed by another load in the same harness: "
                                "start the harness again (states and snaps in scratch are kept)")
         self._close_reader()
-        self.machine, self.snaps, self.pokes = None, {}, 0
+        self.machine, self.snaps, self.pokes, self.first_snap = None, {}, 0, None
         platform = PLATFORM_ALIASES.get(platform, platform)         # ngc is the catalog's gc
         self.machine = self.make_machine(core_path, game_path, platform,
                                          self.roots.system or self.roots.scratch / "system",
@@ -572,11 +574,20 @@ class Session:
     def snap(self, name: str, ocr: list | None = None, no_text: bool = False) -> dict:
         machine, name = self._need(), self._name(name)
         base, ram = machine.ram()
-        snap = self.snaps[name] = Snap(base, ram, machine.frames, machine.regions())
+        regions = machine.regions()
+        self.snaps[name] = Snap(base, machine.frames)
         folder = self.roots.scratch / "snaps"
-        (folder / f"{name}.ram.gz").write_bytes(gzip.compress(ram, 1))
-        for region, data in snap.regions.items():
-            (folder / f"{name}.{region}.gz").write_bytes(gzip.compress(data, 1))
+        # All but the session's first are written as what differs from it (snapfile.py): a few kilobytes, not
+        # all of memory again. Writing over the first makes this one the first.
+        first = self.first_snap if self.first_snap and self.first_snap[0] != name else None
+        if first is not None and not (folder / f"{first[0]}.ram.gz").is_file():
+            first = None
+        snapfile.write(folder / f"{name}.ram.gz", ram, (f"{first[0]}.ram.gz", first[1]) if first else None)
+        for region, data in regions.items():
+            other = (f"{first[0]}.{region}.gz", first[2][region]) if first and region in first[2] else None
+            snapfile.write(folder / f"{name}.{region}.gz", data, other)
+        if first is None:
+            self.first_snap = (name, ram, regions)
         meta = {"platform": machine.platform, "base_address": f"0x{base:X}", "frame": machine.frames,
                 "ocr": list(ocr or [])}
         if no_text:
@@ -588,7 +599,7 @@ class Session:
         (folder / f"{name}.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
         if machine.picture() is not None:
             (folder / f"{name}.png").write_bytes(self._png(self._picture()))
-        return {"snap": name, "frame": machine.frames, "bytes": len(ram), "regions": sorted(snap.regions),
+        return {"snap": name, "frame": machine.frames, "bytes": len(ram), "regions": sorted(regions),
                 **({"memory_writes": self.pokes} if self.pokes else {})}
 
     @tool("Says what a snap's screen showed, once you have read it off its picture: the lines, or that there is "
@@ -674,10 +685,9 @@ class Session:
         if unit not in (1, 2, 4):
             raise HarnessError("unit is 1, 2 or 4")
         def cells(name):
-            snap = self.snaps.get(name)
-            if snap is None:
+            if name not in self.snaps:
                 raise HarnessError(f"no snap called {name}")
-            data = np.frombuffer(snap.ram, dtype=np.uint8)
+            data = np.frombuffer(snapfile.read(self.roots.scratch / "snaps" / f"{name}.ram.gz"), dtype=np.uint8)
             return data[:len(data) // unit * unit].reshape(-1, unit)
         first, second = cells(a), cells(b)
         if first.shape != second.shape:

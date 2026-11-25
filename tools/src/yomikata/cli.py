@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import catalog
+from . import catalog, snapfile
 from .disc import DiscError
 from .identify import identify
 from .layout import RAM_BASE
@@ -149,6 +149,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--build", required=True, help="the build it is written on: exe SHA-1, header CRC-32, or GameCube id-version")
     p.add_argument("--check", default="", help="the Lua lines of its build check, as the harness's suggest_build_words gives them")
     p.add_argument("--root", type=Path, default=Path("."))
+    p = sub.add_parser("expand", help="rewrite harness snaps kept as what differs from another as whole snapshots (for a tool that doesn't know the form)")
+    p.add_argument("snapshots", nargs="+", type=Path)
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -196,6 +198,15 @@ def main(argv: list[str] | None = None) -> int:
         print(test)
         return 0
 
+    if args.cmd == "expand":
+        try:
+            done = sum(1 for p in args.snapshots if snapfile.expand(p))
+        except (snapfile.SnapError, OSError) as e:
+            print(str(e), file=sys.stderr)
+            return 1
+        print(f"{done} of {len(args.snapshots)} rewritten whole")
+        return 0
+
     if args.cmd == "identify":
         status = 0
         for img in args.images:
@@ -230,12 +241,10 @@ def main(argv: list[str] | None = None) -> int:
         print(summary(merge(args.root, args.reports, args.min_lines, args.min_rate)))
         return 0
     if args.cmd == "where":
-        import gzip
         from .where import report, standard, where
 
         def raw(p: Path) -> bytes:
-            data = p.read_bytes()
-            return gzip.decompress(data) if data[:2] == b"\x1f\x8b" else data
+            return snapfile.read(p)
         metas = [json.loads(Path(str(p).replace(".ram.gz", ".json")).read_text(encoding="utf-8")) for p in args.snapshots]
         bases = {int(m["base_address"], 16) if m.get("base_address") else RAM_BASE.get(m.get("platform"), 0) for m in metas}
         if len(bases) != 1:
@@ -265,13 +274,11 @@ def main(argv: list[str] | None = None) -> int:
                 print(tile_report(ram, raw(video), packed, base, args.bpp, int(args.mask, 16)))
         return 0
     if args.cmd == "locate":
-        import gzip
         from .locate import find_standard, locate, propose
         snaps, bases = [], []
         for p in args.snapshots:
             meta = json.loads(Path(str(p).replace(".ram.gz", ".json")).read_text(encoding="utf-8"))
-            raw = p.read_bytes()
-            snaps.append((gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw, meta["ocr"]))
+            snaps.append((snapfile.read(p), meta["ocr"]))
             bases.append(int(meta["base_address"], 16) if meta.get("base_address") else RAM_BASE.get(meta.get("platform"), 0))
         standard = find_standard(snaps)
         for enc, hits in standard.items():
@@ -312,10 +319,9 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"   @{h['offset']:#08x} {h['segment']}")
         return 0
     if args.cmd == "vram":
-        import gzip
         from PIL import Image
         from .vram import extract_vram, views
-        load = lambda p: (lambda b: gzip.decompress(b) if b[:2] == b"\x1f\x8b" else b)(p.read_bytes())
+        load = snapfile.read
         got = extract_vram(load(args.state), load(args.ram) if args.ram else None)
         args.out.with_suffix(".vram").write_bytes(got.vram)
         for name, arr in views(got.vram).items():
@@ -323,9 +329,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"video memory at offset {got.vram_offset:#x}" + (f", RAM at {got.ram_offset:#x}" if got.ram_offset is not None else ""))
         return 0
     if args.cmd == "font":
-        import gzip
         from . import font
-        load = lambda p: (lambda b: gzip.decompress(b) if b[:2] == b"\x1f\x8b" else b)(p.read_bytes())
+        load = snapfile.read
         vram, first = load(args.vram), int(args.first, 16)
         if args.grid:
             x, y, w, h, columns, rows = (int(v) for v in args.grid.split(","))
@@ -511,13 +516,12 @@ def main(argv: list[str] | None = None) -> int:
                     print(json.dumps({"snapshot": reading.name, "kind": kind, **event}, ensure_ascii=False))
         return status
     if args.cmd == "propose":
-        import gzip
         from collections import defaultdict
         import numpy as np
         from PIL import Image
         from . import propose as pr
         from .check import check, sidecars
-        load = lambda p: (lambda b: gzip.decompress(b) if b[:2] == b"\x1f\x8b" else b)(p.read_bytes())
+        load = snapfile.read
         rams, found, base, platform, looked = [], [], None, args.platform, set()
         for n, path in enumerate(args.snapshots):
             meta, frame = sidecars(path)
