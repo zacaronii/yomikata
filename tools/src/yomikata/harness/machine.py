@@ -72,6 +72,16 @@ class Machine:
                 return size
         return 0
 
+    def core_options(self) -> dict[str, dict]:
+        """The core's options as it declares them: what each is, its values (the first is the core's own
+        choice), and the value given at load, if one was."""
+        out = {}
+        for key, said in self.core.variables.items():
+            what, _, values = said.partition("; ")
+            given = self.core.options.get(key.encode())
+            out[key] = {"what": what, "values": values.split("|"), **({"given": given.decode()} if given else {})}
+        return out
+
     def regions(self) -> dict[str, bytes]:
         video = self.core.video_ram()
         return {"vram": video} if video else {}

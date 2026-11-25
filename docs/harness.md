@@ -36,7 +36,11 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `run_until` | Runs until a place in memory changes or holds a value, the script emits something, or the picture has stood still; at most a given number of frames. Says how far it ran and why it stopped |
 | `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap, take pictures. The pictures come back as one sheet |
 | `screenshot` | The picture now |
-| `read`, `find` | Memory by address, a region by offset; where a text (Shift-JIS, EUC-JP, UTF-16 either way, UTF-8) or bytes stand |
+| `read` | Memory by address, a region by offset |
+| `find` | Where a text or bytes stand, in live memory or in snaps. A text is looked for in Shift-JIS, EUC-JP, UTF-16 either way, UTF-8, Shift-JIS as 16-bit little-endian numbers, and the game's own table when one is given; in parts too, when the whole isn't found |
+| `text_runs` | The stretches of memory that read as Japanese, longest first: what to hold against the screen before any line is known |
+| `find_relative` | A line read off the screen, looked for in codes of the game's own: where the same characters have the same code and different ones different codes. Gives the codes, the start of a table |
+| `core_options` | The loaded core's options as it declares them, and what was given at load |
 | `snap` | Keeps a moment under a name, and writes it to scratch as an inbox-style snapshot for `yomikata run` and `check` |
 | `snap_lines` | Says what a snap's screen showed, once read off its picture: its lines, or that it has no text |
 | `sheet` | The pictures of several snaps as one image, each under its name |
@@ -60,6 +64,34 @@ A step is an object: `buttons`, `stick`, `hold` (frames they are held, 4 unless 
 `until` (what `run_until` takes, with its `limit`), `times` to repeat it, `snap` (true, or a name) and `shot`
 (true: its picture goes on the sheet). For example, a press and a wait for the next line, twenty times, a snap
 at each: `{"buttons": ["a"], "until": {"limit": 600, "event": "text"}, "times": 20, "snap": true}`.
+
+### Finding where the text is
+
+In the order to try them:
+
+1. `text_runs`, with a line on screen. A game that keeps its script in a standard encoding shows it here, and
+   often the buffer it is typed into as well: the address of the stretch that reads as the screen does.
+2. `find` with the line as you read it, when you want one line's places only, or only know part of it
+   (`pieces`). It finds a text kept as 16-bit cells too (`sjis_le16`).
+3. Nothing found: the codes are the game's own. `find_relative` with the line: it needs characters that repeat
+   in it, and takes the line's rows with a line break between them. Where the game has other codes among the
+   line's, the whole doesn't fit and its rows are tried by twos and alone (`parts`). A window that keeps tiles
+   often has a second cell for each character (`stride`: 2) and rows that aren't next to each other: give one
+   row.
+4. Surer than one line: `lines`, two or more snaps each with what its screen shows at the same place. One
+   place must fit them all, and the characters the lines share must have the same code, so lines without a
+   repeat will do.
+5. The codes it gives are the start of the game's table. With them as a table, `find` (`table`) looks for
+   other lines, and each new line adds characters.
+
+What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
+tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.
+
+Seen on games that already have scripts: `text_runs` gave both the script and the typed buffer of a game with
+16-bit Shift-JIS cells; `find_relative` found a line of a game with its own 16-bit codes from two of its rows,
+though not from all three, which have a colour code among them; and with two moments it found a tile window's
+copy of the screen (its rows' two halves), not the window's own buffer, which had moved to another slot between
+the two.
 
 ### Writing memory
 
@@ -129,6 +161,10 @@ the same second matched and loads seconds apart didn't, which fits memory the co
 power-on and the game hasn't written yet; that reading comes from these runs, not from the core's source. A
 route kept for these two cores should start from a state made early, not from power-on, or be checked on what
 the game shows rather than on all of memory.
+
+Neither core has an option that pins it (`core_options` lists what a core declares): bsnes-mercury declares
+seven, none about memory at power-on or randomness; Dolphin's 113 have a CPU clock rate but no setting for the
+console's clock. So there is nothing to give at `load` for this.
 
 Notes on cores:
 

@@ -68,6 +68,10 @@ class FakeMachine:
     def regions(self):
         return {"vram": bytes(range(256))}
 
+    def core_options(self):
+        given = {"given": self.options["fake_clock"]} if "fake_clock" in self.options else {}
+        return {"fake_clock": {"what": "The clock", "values": ["real", "fixed"], **given}}
+
     def mirrors(self):
         return ()
 
@@ -549,4 +553,112 @@ def test_a_core_that_loads_only_once(session):
     with pytest.raises(HarnessError, match="differs"):
         session.repeat(frames=5, power_on=True)
     assert session.repeat(frames=5)["same"]                         # from this moment it still can
+
+
+# ---- finding text ----
+
+def put(session, at, data):
+    session.machine.memory[at:at + len(data)] = data
+
+
+def test_find_in_every_encoding_and_with_the_games_own_table(session):
+    line = "きょうはあめ"
+    put(session, 0x400, line.encode("utf-16-be"))
+    put(session, 0x500, b"".join(ch.encode("cp932")[::-1] for ch in line))             # 16-bit cells
+    put(session, 0x600, bytes([0x21, 0x22, 0x23, 0x24, 0x25, 0x26]))                   # the game's own codes
+    table = "\n".join(f"{0x21 + i:02X}={ch}" for i, ch in enumerate(line))
+    found = session.find(text=line, table=table)["found"]
+    assert found == {"utf16be": ["0x80000400"], "sjis_le16": ["0x80000500"], "table": ["0x80000600"]}
+    assert session.find(text=line, encodings=["table"], table=table)["found"] == {"table": ["0x80000600"]}
+    assert session.find(text="ない", table=table)["found"] == {}                       # not in the table: not looked for
+    # A line that isn't there whole: its stretches that are.
+    found = session.find(text="きょうは　ゆき", pieces=3, table=table)["found"]
+    assert set(found) == {"pieces"}
+    assert found["pieces"]["utf16be"] == {"きょう": ["0x80000400"], "ょうは": ["0x80000402"]}
+    assert found["pieces"]["sjis_le16"] == {"きょう": ["0x80000500"], "ょうは": ["0x80000502"]}
+    assert found["pieces"]["table"] == {"きょう": ["0x80000600"], "ょうは": ["0x80000601"]}
+    for bad in (lambda: session.find(text="あ", encodings=["klingon"]), lambda: session.find(text="あ", encodings=["table"]),
+                lambda: session.find(text="あ", table="not a table")):
+        with pytest.raises(HarnessError):
+            bad()
+
+
+def test_find_and_runs_across_snaps(session):
+    session.snap("one")                                               # こんにちは
+    session.run(10)
+    session.snap("two")                                               # さようなら
+    found = session.find(text="さようなら", snaps=["one", "two"])["found"]
+    assert found == {"one": {}, "two": {"shift_jis": ["0x80000100"]}}
+    put(session, 0x700, "きょうはあめがふっています".encode("cp932"))
+    put(session, 0x801, b"".join(ch.encode("cp932")[::-1] for ch in "あしたはゆきがふるでしょう"))    # at an odd address
+    runs = session.text_runs()["runs"]
+    assert [(r["address"], r["encoding"], r["text"]) for r in runs] == [
+        ("0x80000700", "shift_jis", "きょうはあめがふっています"), ("0x80000801", "sjis_le16", "あしたはゆきがふるでしょう")]
+    assert session.text_runs(snaps=["one"])["runs"] == {"one": []}                      # five characters: too short
+    with pytest.raises(HarnessError):
+        session.find(text="あ", snaps=["nothing"])
+
+
+def test_find_relative_a_line_in_codes_of_the_games_own(session):
+    line = "ははのははははがいたい"
+    own = {ch: 0x130 + 7 * i for i, ch in enumerate(dict.fromkeys(line))}              # codes in no usual order
+    put(session, 0x900, b"".join(struct.pack(">H", own[ch]) for ch in line))
+    out = session.find_relative(line, unit=2)
+    assert out["count"] == 1 and out["places"][0]["address"] == "0x80000900"
+    assert out["places"][0]["codes"] == {ch: f"{code:04X}" for ch, code in own.items()}
+    assert session.find_relative(line, unit=1)["count"] == 0
+    # With a second cell after each character, as tile windows have.
+    put(session, 0xA00, b"".join(struct.pack(">HH", own[ch], 0x7777) for ch in line))
+    assert [p["address"] for p in session.find_relative(line, unit=2, stride=2)["places"]] == ["0x80000A00"]
+    # Kana numbered as in JIS: a short line without repeats is found by how far apart its kana are.
+    word = "かきくけこ"
+    put(session, 0xB00, bytes(0x80 + (ord(ch) - ord("ぁ")) for ch in word))
+    out = session.find_relative(word, order="unicode")
+    assert out["count"] == 1 and out["places"][0]["address"] == "0x80000B00" and out["places"][0]["codes"]["か"] == "8A"
+    put(session, 0xC00, bytes(0x10 + search_gojuon(ch) for ch in "さくらのはな"))
+    assert [p["address"] for p in session.find_relative("さくらのはな", order="gojuon")["places"]] == ["0x80000C00"]
+    for bad in (lambda: session.find_relative("あいう"), lambda: session.find_relative("あいうえお"),
+                lambda: session.find_relative(line, unit=3), lambda: session.find_relative(word, order="iroha"),
+                lambda: session.find_relative(), lambda: session.find_relative(line, lines={"now": line})):
+        with pytest.raises(HarnessError):
+            bad()
+
+
+def test_find_relative_over_two_moments_and_over_line_breaks(session):
+    # Two lines without a repeat in either, on screen at two moments at the same place: what they share ties
+    # the place down.
+    own = {ch: 0x40 + 3 * i for i, ch in enumerate(dict.fromkeys("\u3000ボロのバットをてにいれたはなす"))}
+    row = lambda text: b"".join(struct.pack(">H", own[ch]) for ch in text)             # noqa: E731
+    put(session, 0xD00, row("\u3000ボロのバットを"))
+    put(session, 0xE00, row("のをなボすロ"))                                             # a decoy for the first line alone
+    session.snap("first")
+    put(session, 0xD00, row("\u3000てにいれたのはバット"))
+    session.snap("second")
+    with pytest.raises(HarnessError, match="too little"):
+        session.find_relative("\u3000ボロのバットを", unit=2)
+    out = session.find_relative(lines={"first": "\u3000ボロのバットを", "second": "\u3000てにいれたのはバット"}, unit=2)
+    assert out["count"] == 1 and out["places"][0]["address"] == "0x80000D00"
+    assert out["places"][0]["codes"]["バ"] == f"{own['バ']:04X}" and len(out["places"][0]["codes"]) == 14
+    out = session.find_relative(lines={"first": "\u3000ボロのバットを", "now": "\u3000てにいれたのはバット"}, unit=2)
+    assert out["count"] == 1
+    # A line over two rows, with one code for the line break between them; and with three.
+    put(session, 0xF00, row("はなのは") + b"\xFF\xFE" + row("なはいれた"))
+    assert session.find_relative("はなのは\nなはいれた", unit=2)["places"][0]["address"] == "0x80000F00"
+    assert session.find_relative("はなのは\nなはいれた", unit=2, gap=3)["count"] == 0
+    assert session.find_relative("はなのは\nなはいれた", unit=2, gap=0)["count"] == 0
+    # Codes of the game's among the line's: the whole doesn't fit, its rows two at a time do.
+    put(session, 0xF40, row("はなのはな") + b"\xFF\xFD\xFF\xFE" + row("なはいれたは") + b"\xFF\xFE" + row("のはなのは"))
+    out = session.find_relative("はなのはな\nなはいれたは\nのはなのは", unit=2)
+    assert out["count"] == 0 and [(p["rows"], p["places"][0]["address"]) for p in out["parts"]] == [([2, 3], "0x80000F4E")]
+
+
+def search_gojuon(ch):
+    from yomikata.harness.search import GOJUON
+    return GOJUON.index(ch)
+
+
+def test_core_options(session):
+    assert session.core_options() == {"options": {"fake_clock": {"what": "The clock", "values": ["real", "fixed"]}}}
+    session.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc", options={"fake_clock": "fixed"})
+    assert session.core_options()["options"]["fake_clock"]["given"] == "fixed"
 

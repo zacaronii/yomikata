@@ -17,9 +17,9 @@ from pathlib import Path
 
 from .. import reader as rd
 from ..run import MIRRORS, PLATFORM_ALIASES
+from . import search
 
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
-CODECS = {"shift_jis": "cp932", "euc_jp": "euc_jp", "utf16le": "utf-16-le", "utf16be": "utf-16-be", "utf8": "utf-8"}
 BUTTONS = ("a", "b", "x", "y", "l", "r", "start", "select", "up", "down", "left", "right")
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
@@ -209,6 +209,12 @@ class Session:
                 "frames": getattr(self.machine, "frames", None), "states": states, "snaps": sorted(self.snaps),
                 "script": self.script_name, **({"memory_writes": self.pokes} if self.allow_poke else {})}
 
+    @tool("The loaded core's options as it declares them: what each is, the values it takes (the first is the "
+          "core's own choice), and what was given at load. Options are given to `load`.")
+    def core_options(self) -> dict:
+        machine = self._need()
+        return {"options": machine.core_options()}
+
     @tool("The games of one platform's folder, or the platform folders when none is named.",
           platform=("string", "a folder of the library, e.g. psx or ngc", False))
     def games(self, platform: str = "") -> dict:
@@ -374,33 +380,119 @@ class Session:
             return {"offset": hex(at), "hex": data[at:at + size].hex()}
         return {"address": hex(at), "hex": self._read(at, size).hex()}
 
-    @tool("Where a text or some bytes stand in main memory.",
+    def _memories(self, snaps: list | None) -> list[tuple[str, int, bytes]]:
+        """What a search looks through: live memory, or the snaps named (this session's, or scratch's)."""
+        from ..run import _load
+        if not snaps:
+            base, ram = self._need().ram()
+            return [("", base, ram)]
+        out = []
+        for name in snaps:
+            path = self.roots.inside("scratch", f"snaps/{self._name(name)}.ram.gz")
+            if not path.is_file():
+                raise HarnessError(f"no snap called {name}")
+            meta = json.loads(path.with_name(f"{name}.json").read_text(encoding="utf-8"))
+            out.append((name, int(meta["base_address"], 16), _load(path)))
+        return out
+
+    @tool("Where a text or some bytes stand in main memory, or in snaps. A text is looked for in every encoding "
+          "the catalog knows: Shift-JIS, EUC-JP, UTF-16 either way, UTF-8, Shift-JIS as 16-bit little-endian "
+          "numbers, and the game's own table when you give one. A line that isn't found whole can be looked for "
+          "in parts.",
           text=("string", "the text to look for", False),
           hex=("string", "or bytes, as hex", False),
-          encodings=("array", f"for a text: any of {', '.join(CODECS)} (default: all)", False))
-    def find(self, text: str = "", hex: str = "", encodings: list | None = None) -> dict:
-        base, ram = self._need().ram()
-        needles = {}
-        if hex:
-            needles["hex"] = bytes.fromhex(hex)
-        for name in (encodings or list(CODECS)) if text else ():
-            if name not in CODECS:
-                raise HarnessError(f"encodings are: {', '.join(CODECS)}")
-            try:
-                needles[name] = text.encode(CODECS[name])
-            except UnicodeEncodeError:
-                pass
-        if not needles or not all(needles.values()):
-            raise HarnessError("give a text or hex bytes to look for")
+          encodings=("array", f"for a text: any of {', '.join(search.ENCODINGS)} (default: all)", False),
+          table=("string", "a table's text (HEX=character lines), to look with the game's own codes", False),
+          pieces=("integer", "also look for the text's stretches of this many characters, and say which are found", False),
+          snaps=("array", "look in these snaps instead of live memory", False))
+    def find(self, text: str = "", hex: str = "", encodings: list | None = None, table: str = "",
+             pieces: int = 0, snaps: list | None = None) -> dict:
+        try:
+            needles = {"hex": bytes.fromhex(hex)} if hex else {}
+            if text:
+                needles.update(search.needles(text, encodings, table or None))
+            if not text and not hex or hex and not needles["hex"]:
+                raise HarnessError("give a text or hex bytes to look for")
+            parts = {part: search.needles(part, encodings, table or None)
+                     for part in (search.pieces(text, max(2, int(pieces))) if pieces and text else [])}
+        except search.SearchError as e:
+            raise HarnessError(str(e)) from None
         out = {}
-        for name, needle in needles.items():
-            hits, at = [], ram.find(needle)
-            while at >= 0 and len(hits) < MAX_HITS:
-                hits.append(f"0x{base + at:08X}")
-                at = ram.find(needle, at + 1)
-            if hits:
-                out[name] = hits
-        return {"found": out}
+        for name, base, ram in self._memories(snaps):
+            found = {}
+            for kind, needle in needles.items():
+                hits = search.places(ram, needle, MAX_HITS)
+                if hits:
+                    found[kind] = [f"0x{base + at:08X}" for at in hits]
+            for part, its in parts.items():
+                for kind, needle in its.items():
+                    hits = search.places(ram, needle, 8)
+                    if hits and kind not in found:
+                        found.setdefault("pieces", {}).setdefault(kind, {})[part] = [f"0x{base + at:08X}" for at in hits]
+            out[name] = found
+        return {"found": out[""]} if not snaps else {"found": out}
+
+    @tool("The stretches of memory that read as Japanese, longest first, with where each is and in which "
+          "encoding: what to hold against the screen when you have no line to look for yet. Only standard "
+          "encodings; a game with codes of its own shows nothing here (see find_relative).",
+          least=("integer", "the fewest Japanese characters a stretch must have (default 8)", False),
+          snaps=("array", "look in these snaps instead of live memory", False))
+    def text_runs(self, least: int = 8, snaps: list | None = None) -> dict:
+        out = {}
+        for name, base, ram in self._memories(snaps):
+            out[name] = [{"address": f"0x{base + at:08X}", "encoding": kind, "text": text[:120]}
+                         for at, kind, text in search.runs(ram, max(4, int(least)), 40)]
+        return {"runs": out[""]} if not snaps else {"runs": out}
+
+    @tool("Looks for a line you read off the screen when the game's codes are its own: the places where the same "
+          "characters have the same code and different ones different codes, each with the codes it would give "
+          "the characters (the start of a table). One line needs repeated characters, the longer the better. "
+          "Surer: `lines`, two or more snaps each with the line on its screen; one place must fit them all, and "
+          "characters the lines share must have the same code. Write wide spaces where the screen has them.",
+          text=("string", "the line on screen now; a line break stands for `gap` cells", False),
+          lines=("object", "or several moments: a snap's name (or `now` for live memory) to the line on its screen", False),
+          unit=("integer", "bytes a code: 1, 2 or 4 (default 1; try 2 as well)", False),
+          order=("string", "unicode (kana as in JIS, small and voiced ones between) or gojuon (the 46 plain kana in a row)", False),
+          stride=("integer", "codes are this many cells apart (default 1; 2 where each character has a second cell)", False),
+          gap=("integer", "cells a line break in the line stands for (default 1: one code for the break)", False),
+          big_endian=("boolean", "the byte order of 2- and 4-byte codes (default: the console's)", False))
+    def find_relative(self, text: str = "", lines: dict | None = None, unit: int = 1, order: str = "",
+                      stride: int = 1, gap: int = 1, big_endian: bool | None = None) -> dict:
+        if bool(text) == bool(lines):
+            raise HarnessError("give the line on screen now (text), or lines for several snaps")
+        wanted = lines or {"now": text}
+        memories, base = [], 0
+        for name, line in wanted.items():
+            _, base, ram = self._memories(None if name == "now" else [name])[0]
+            memories.append((ram, str(line)))
+        if big_endian is None:
+            big_endian = getattr(self.machine, "platform", "") in ("gc", "wii")
+        try:
+            total, hits = search.relative(memories, int(unit), bool(big_endian), order, int(stride), int(gap))
+        except search.SearchError as e:
+            raise HarnessError(str(e)) from None
+        width = 2 * int(unit)
+        shape = lambda hits: [{"address": f"0x{base + at:08X}",                                # noqa: E731
+                               "codes": {ch: f"{code:0{width}X}" for ch, code in codes.items()}} for at, codes in hits]
+        out = {"count": total, "places": shape(hits)}
+        rows = [row for row in text.split("\n") if row.strip()] if text else []
+        if not total and len(rows) > 1:
+            # The game may have other codes among the line's (a colour, a wait): its rows two at a time, then
+            # one at a time, as far as each gives enough to go by.
+            parts = []
+            for size in (2, 1):
+                for i in range(len(rows) - size + 1):
+                    try:
+                        count, some = search.relative([(memories[0][0], "\n".join(rows[i:i + size]))], int(unit),
+                                                      bool(big_endian), order, int(stride), int(gap), 5)
+                    except search.SearchError:
+                        continue
+                    if count:
+                        parts.append({"rows": list(range(i + 1, i + size + 1)), "count": count, "places": shape(some)})
+                if parts:
+                    break
+            out["parts"] = parts
+        return out
 
     @tool("Keeps this moment's memory under a name, to compare with others, and writes it to scratch as an "
           "inbox-style snapshot (ram, video memory, the frame) that `yomikata run` and `check` take.",
