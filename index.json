@@ -939,11 +939,11 @@
    "data": {
     "places": {
      "path": "games/ps1/SLPS-02000.places",
-     "sha256": "39dd5b7f77ff4487c4c384701cc766e39f786ea74fa11b36513e29f9b41a9243"
+     "sha256": "0b13cf44a6078f5a165e5d7f98793fe64dd20c665ef7ae590dada36595e7d4c8"
     },
     "tbl": {
      "path": "games/ps1/SLPS-02000.tbl",
-     "sha256": "874256cdacb2016741f86a51fc665c33c01205c029fdf68fa3b5490f41d01831"
+     "sha256": "b8bc99d33db077ea96c7bafd93df8a0324c786f4d7101aa19c23ea535f3be896"
     }
    }
   },
