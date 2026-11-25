@@ -89,6 +89,23 @@ def runs(data: bytes, least: int = MIN_RUN, limit: int = 100) -> list[tuple[int,
     return [(at, name, text) for at, _, name, text in kept[:limit]]
 
 
+def string_at(data: bytes, at: int, most: int = 96) -> tuple[str, str] | None:
+    """The NUL-ended text that starts at `at`, with its encoding, if those bytes read as text in a standard
+    encoding: at least two characters, none of them a control. None otherwise."""
+    end = data.find(b"\0", at, at + most)
+    raw = data[at:end if end >= 0 else at + most]
+    if len(raw) < 2:
+        return None
+    for kind in ("shift_jis", "euc_jp", "utf8"):
+        try:
+            text = raw.decode(CODECS[kind])
+        except UnicodeDecodeError:
+            continue
+        if len(text) >= 2 and all(ch.isprintable() or ch in "\n\t" for ch in text):
+            return kind, text
+    return None
+
+
 def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool = False, order: str = "",
              stride: int = 1, gap: int = 1, limit: int = 20) -> tuple[int, list[tuple[int, dict[str, int]]]]:
     """Where memory could hold a line in codes of the game's own, `unit` bytes each, `stride` cells apart.

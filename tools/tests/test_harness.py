@@ -964,3 +964,30 @@ def test_on_disc_finds_memory_that_lies_on_the_disc_as_it_is(session, tmp_path):
     with pytest.raises(HarnessError, match="too short or too plain"):
         session.on_disc("0x80000800")                                 # zeros
 
+
+
+def test_snaps_during_a_wait_and_what_points_where_in_each(session, tmp_path):
+    out = session.steps([{"buttons": ["a"], "hold": 2, "wait": 7, "every": 3, "snap": True}], prefix="type")
+    assert out["steps"] == [{"step": 0, "frames": 9, "snaps": ["type-000-00", "type-000-01"]}]
+    assert [session.snaps[n].frame for n in out["steps"][0]["snaps"]] == [5, 8]
+    for bad in ([{"wait": 4, "every": 2}], [{"wait": 4, "every": 0, "snap": True}], [{"every": 2, "snap": True}],
+                [{"wait": 4000, "every": 1, "snap": True}]):
+        with pytest.raises(HarnessError):
+            session.steps(bad)
+    # A word that points into the line in one moment only comes first.
+    session.machine.memory[0x60:0x64] = struct.pack(">I", BASE + 0x104)
+    session.snap("typing")
+    session.machine.memory[0x60:0x64] = bytes(4)
+    session.snap("after")
+    found = session.refs("0x80000100", span=0x10, snaps=["typing", "after"])
+    assert found["count"] == 2 and found["snaps"] == 2
+    assert found["refs"][0] == {"at": "0x80000060", "in": 1, "points_at": {"typing": "0x80000104"}}
+    assert found["refs"][1]["at"] == "0x80000040" and found["refs"][1]["in"] == 2
+
+
+def test_words_and_the_text_they_point_at(session):
+    out = session.pointed("0x80000038", count=4)
+    assert out == {"words": 4, "pointers": [{"at": "0x80000040", "points_at": "0x80000100", "encoding": "shift_jis",
+                                             "text": "こんにちは"}]}
+    session.machine.memory[0x44:0x48] = struct.pack(">I", BASE + 0x800)                # points at nothing readable
+    assert session.pointed("0x80000040", count=2)["pointers"][1] == {"at": "0x80000044", "points_at": "0x80000800"}
