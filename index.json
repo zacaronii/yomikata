@@ -940,7 +940,7 @@
   },
   "SLPS-02000": {
    "path": "scripts/ps1/SLPS-02000.lua",
-   "sha256": "3a3268cbc18d74f36f1a77f9c4601d99fbb58e4bb96ef325fbd205bc006e4546",
+   "sha256": "21d90d4b136a480ab78401a75b1f5488d87657a6098de6de74f36ff04ec3cc5b",
    "platform": "ps1",
    "runtime": 1,
    "title": "ファイナルファンタジーIX (Final Fantasy IX)",
@@ -952,11 +952,11 @@
    "data": {
     "places": {
      "path": "games/ps1/SLPS-02000.places",
-     "sha256": "3b3a8a1a3cece1bbb1dd1a5c1e4adb2c562cad020abd5c6e4c0cffea5e04c0a1"
+     "sha256": "64118b64f1baf75a492929c253c8286a54eb3d3bd7507c49e3eb6e2713aaa222"
     },
     "tbl": {
      "path": "games/ps1/SLPS-02000.tbl",
-     "sha256": "0a171949d6af0c179ace39fe8e622e9f28e10423074ae4a5789e49398669f2d1"
+     "sha256": "d642c29426bf0a2cb9ab115cf3afe44edae8df14c8c5ba052edfb2e09fb001e4"
     }
    }
   },

@@ -33,7 +33,8 @@
 -- places it knows, which kanji each of its codes is. A kanji neither file has comes out as U+FFFD: the files
 -- hold what was read off the screen so far.
 --
--- Checked on disc 1, from the first line to the first battle's start.
+-- The places file has the 64 places found on the four discs, read off the discs' own data.
+-- Checked by playing on disc 1, from the first line to the first battle's start.
 
 local __loaded, __module = {}, {}
 local function require(name)

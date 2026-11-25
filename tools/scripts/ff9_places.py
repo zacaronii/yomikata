@@ -128,6 +128,9 @@ def scan(disc: Path, dictionary: Path, out: Path, snapshots: bool = False) -> in
                                 unread.setdefault(mark, picture)
                 at = chunk.find(b"\x06\x01\x00\x00", at + 1)
     Path(f"{out}-places.json").write_text(json.dumps(places), encoding="utf-8")
+    if snapshots:                                   # every distinct picture, for another reader to be tried on
+        import numpy as np
+        np.savez_compressed(f"{out}-pictures.npz", **{"g" + mark: picture for mark, picture in {**read, **unread}.items()})
     order = list(unread)
     for part in range(0, len(order), 100):
         marks = order[part:part + 100]
@@ -169,7 +172,8 @@ if __name__ == "__main__":
     p.add_argument("--dictionary", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True, help="a path and name in a scratch folder to write under")
     p.add_argument("--snapshots", action="store_true",
-                   help="also write each place as a snapshot for `yomikata run --dump` (the game's text: scratch only)")
+                   help="also write each place as a snapshot for `yomikata run --dump`, and every distinct picture "
+                        "(the game's text and font: scratch only)")
     p = sub.add_parser("places")
     p.add_argument("found", type=Path)
     p.add_argument("--dictionary", type=Path, required=True)
