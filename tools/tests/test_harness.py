@@ -1112,3 +1112,20 @@ def test_watch_lists_a_place_as_it_changes(session):
     assert [(c["frame"], c["value"]) for c in out["changes"]] == [(4, "0x01"), (6, "0x00")]
     with pytest.raises(HarnessError):
         session.watch("0x80000010", 3, size=3)
+
+
+def test_read_shows_memory_as_text_in_the_games_own_codes(session):
+    def code(ch):
+        jis = ch.encode("euc_jp")
+        return 0xA420 - ((jis[0] & 0x7F) << 8 | jis[1] & 0x7F)
+    put(session, 0xA00, struct.pack(">6H", code("し"), code("て") & ~0x4000, 0x8100 - ord("R"), 0x6B96, 0x30FE, 0x1234))
+    out = session.read("0x80000A00", 12, table="6B96=反\n70FE=、\n", mask="1FFF",
+                       rules=["(code & 0x1FFF) = 0x100 - ASCII", "(code & 0x1FFF) = 0x4420 - JIS"])       # the first that fits
+    assert out["text"] == "してR反、<1234>" and out["hex"].startswith("7fe9")
+    # A copy the other way round: codes that count up with JIS.
+    put(session, 0xA40, struct.pack(">2H", 0x2437 + 0x5CE0, 0x2446 + 0x5CE0))
+    assert session.read("0x80000A40", 4, rules=["code = JIS + 0x5CE0"])["text"] == "して"
+    assert "text" not in session.read("0x80000A40", 4)
+    for bad in ({"rules": ["code = JIS * 2"]}, {"rules": ["code = 0x10 - Morse"]}, {"table": "zz=あ"}, {"rules": ["code = JIS + 0x1"], "unit": 3}):
+        with pytest.raises(HarnessError):
+            session.read("0x80000A40", 4, **bad)

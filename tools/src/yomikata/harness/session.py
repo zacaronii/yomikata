@@ -507,15 +507,35 @@ class Session:
     @tool("Bytes of the game's memory, as hex.",
           address=("string", "the game's own address, hex, e.g. 0x80123400", True),
           size=("integer", f"how many bytes (at most {MAX_READ})", True),
-          region=("string", "a named region to read by offset instead, e.g. vram", False))
-    def read(self, address: str, size: int, region: str = "") -> dict:
+          region=("string", "a named region to read by offset instead, e.g. vram", False),
+          table=("string", "also read the bytes as text in the game's codes: a table's text (HEX=character lines)", False),
+          rules=("array", "and/or by rules, worded as code_rule gives them: \"code = 0xA420 - JIS\", "
+                          "\"(code & 0x1FFF) = 0x100 - ASCII\", \"code = JIS + 0x5CE0\"; the first that gives a "
+                          "character is taken, so the narrowest first", False),
+          unit=("integer", "bytes a code, for text: 1 or 2 (default 2)", False),
+          big_endian=("boolean", "a code's byte order, for text (default true: as the bytes lie)", False),
+          mask=("string", "bits of a code that say which character, hex, e.g. 1FFF: the rest are left out "
+                          "before the table is asked", False))
+    def read(self, address: str, size: int, region: str = "", table: str = "", rules: list | None = None,
+             unit: int = 2, big_endian: bool = True, mask: str = "") -> dict:
         at, size = int(address, 16), max(0, min(int(size), MAX_READ))
         if region:
             data = self._need().regions().get(region)
             if data is None:
                 raise HarnessError(f"the core gives out no {region}")
             return {"offset": hex(at), "hex": data[at:at + size].hex()}
-        return {"address": hex(at), "hex": self._read(at, size).hex()}
+        data = self._read(at, size)
+        out = {"address": hex(at), "hex": data.hex()}
+        if table or rules:
+            from .. import tbl
+            try:
+                chars = tbl.parse(table, "table").chars if table else None
+                read = search.reader_of(chars, [str(r) for r in rules or ()], int(unit), bool(big_endian),
+                                        int(mask, 16) if mask else None)
+            except (search.SearchError, tbl.TableError, ValueError) as e:
+                raise HarnessError(str(e)) from None
+            out["text"] = read(data)
+        return out
 
     def _memories(self, snaps: list | None) -> list[tuple[str, int, bytes]]:
         """What a search looks through: live memory, or the snaps named (this session's, or scratch's)."""
