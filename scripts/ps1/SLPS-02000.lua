@@ -29,10 +29,9 @@
 -- package whose second part lists that font's glyphs, four bytes each (where the glyph is in the game's
 -- texture, and its width); the pictures themselves are in video memory. So one code is different kanji in
 -- different places, and nothing in main memory says which kanji a glyph is. A place is told here by a hash
--- of its glyph list and its messages' records, and the file of places beside this script says, for the places it
--- knows, which kanji
--- each of its codes is. A kanji neither file has comes out as U+FFFD: the files hold what was read off the
--- screen so far.
+-- of its glyph list and its messages' records, and the file of places beside this script says, for the
+-- places it knows, which kanji each of its codes is. A kanji neither file has comes out as U+FFFD: the files
+-- hold what was read off the screen so far.
 --
 -- Checked on disc 1, from the first line to the first battle's start.
 

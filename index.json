@@ -927,7 +927,7 @@
   },
   "SLPS-02000": {
    "path": "scripts/ps1/SLPS-02000.lua",
-   "sha256": "a6ef488d4013964cc21f5c765a1f6d2e2beca30df2e713a0a4ee79b6ca9bd937",
+   "sha256": "c88690a09c2e476ac8cdadc07c02363b039c351e4e501f81a6226707b6295b1f",
    "platform": "ps1",
    "runtime": 1,
    "title": "ファイナルファンタジーIX (Final Fantasy IX)",
