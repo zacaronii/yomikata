@@ -275,6 +275,28 @@ def reader_of(table: dict[bytes, str] | None = None, rules: list[str] | None = N
     return read
 
 
+def pattern_at(line: list[int], pattern: str) -> int | None:
+    """Where `line` goes as `pattern` says for len(pattern) values on end: the same letter the same value,
+    another letter another value, ? any. None when nowhere."""
+    n = len(pattern)
+    for at in range(len(line) - n + 1):
+        letters, used = {}, set()
+        for ch, value in zip(pattern, line[at:at + n]):
+            if ch == "?":
+                continue
+            if ch in letters:
+                if letters[ch] != value:
+                    break
+            elif value in used:
+                break
+            else:
+                letters[ch] = value
+                used.add(value)
+        else:
+            return at
+    return None
+
+
 def picture_places(data: bytes, pixels, limit: int = 8) -> list[dict]:
     """Where memory holds a picture as packed rows: `pixels` is rows of small whole numbers (a glyph cut out of
     video memory, 0 for the ground). Tried at 1, 2, 4 and 8 bits a pixel, either end of the byte first, a few

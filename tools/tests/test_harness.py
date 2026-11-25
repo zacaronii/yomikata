@@ -1134,6 +1134,10 @@ def test_read_shows_memory_as_text_in_the_games_own_codes(session):
     put(session, 0xA40, struct.pack(">2H", 0x2437 + 0x5CE0, 0x2446 + 0x5CE0))
     assert session.read("0x80000A40", 4, rules=["code = JIS + 0x5CE0"])["text"] == "して"
     assert "text" not in session.read("0x80000A40", 4)
+    session.snap("ra")
+    put(session, 0xA40, b"\x01\x02")
+    session.snap("rb")
+    assert session.read("0x80000A40", 2, snaps=["ra", "rb"])["snaps"] == {"ra": "8117", "rb": "0102"}
     for bad in ({"rules": ["code = JIS * 2"]}, {"rules": ["code = 0x10 - Morse"]}, {"table": "zz=あ"}, {"rules": ["code = JIS + 0x1"], "unit": 3}):
         with pytest.raises(HarnessError):
             session.read("0x80000A40", 4, **bad)
@@ -1208,3 +1212,32 @@ def test_visit_goes_round_spots_and_says_what_each_gave(session):
     assert again["reached"] is True and again["found_again"] is True and session.cursor_at[0] == 0x80000030
     with pytest.raises(HarnessError):
         session.visit([[1, 2, 3]])
+
+
+def test_follows_finds_a_place_that_takes_codes_one_after_the_other(session):
+    m = session.machine.memory
+    names = []
+    for k, (code, other) in enumerate(((0x1E, 5), (0x00, 5), (0x1E, 6), (0x12, 6), (0x12, 7), (0x15, 7))):
+        m[0x600], m[0x601] = code, other                                 # the character being drawn; a counter
+        m[0x610] = 0x1E                                                  # a place that only ever holds the first
+        session.snap(f"f{k}")
+        names.append(f"f{k}")
+    out = session.follows(names, ["1E", "1E", "12", "15"])
+    assert out == {"count": 1, "places": [{"address": "0x80000600", "at_snaps": ["f0", "f2", "f3", "f5"]}]}
+    assert session.follows(names, ["1E", "15"], within=["0x80000700", "0x80000800"])["count"] == 0
+    assert session.follows(names, ["15", "1E"])["count"] == 0            # the other way round: no
+    for bad in ({"values": ["1E"]}, {"values": ["zz", "01"]}, {"values": ["1E", "12"], "unit": 4}):
+        with pytest.raises(HarnessError):
+            session.follows(names, **bad)
+    # When the codes aren't known: the characters' pattern. The place rests at 0 between them.
+    names = []
+    for k, code in enumerate((0, 0x41, 0, 0x52, 0, 0x41, 0, 0x63, 0x77, 0, 0)):
+        m[0x700], m[0x701] = code, k                                     # the character; a counter
+        session.snap(f"g{k}")
+        names.append(f"g{k}")
+    out = session.follows(names, pattern="abac")
+    assert out["places"] == [{"address": "0x80000700", "rests_at": "00", "values": {"a": "41", "b": "52", "c": "63"}}]
+    assert session.follows(names, pattern="ab?c")["places"][0]["values"] == {"a": "41", "b": "52", "c": "63"}
+    assert session.follows(names, pattern="abab")["count"] == 0
+    with pytest.raises(HarnessError):
+        session.follows(names, pattern="ab")

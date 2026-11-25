@@ -1507,3 +1507,44 @@ def test_policenauts_a_message_is_said_a_page_at_a_time():
     with rd.Reader(pn_memory(first, word=1), platform="ps1", game_id="SLPS-00215", data=data) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPS-00215.lua"))
+
+
+# ---- games/sfc/SFC-F061BF93.lua ----
+
+DQ5_QUEUE = 0x7E0E4B
+DQ5_CHECK = bytes.fromhex("b105b10ab10fb114b11bb122b129b130")
+
+
+def dq5_memory(queue: list[int], check: bytes = DQ5_CHECK):
+    """The game's queue of codes still to be drawn, the next one first."""
+    words = (queue + [0] * 192)[:192]
+    return sparse({0x7EB7D1: check, DQ5_QUEUE: b"".join(struct.pack("<H", w) for w in words)})
+
+
+def test_dragon_quest_v_a_message_is_said_when_its_first_character_is_drawn():
+    from yomikata import tbl
+    code = {v: struct.unpack(">H", k)[0] for k, v in
+            tbl.parse((ROOT / "tables/sfc/SFC-F061BF93.tbl").read_text(encoding="utf-8")).chars.items()}
+    def codes(text):
+        return [0x1000 if ch == "\n" else 0 if ch == "　" else code.get(ch, 0x0001) for ch in text]
+    START, WAIT = 0x1003, 0x1001
+    whole = [START] + codes("パパス「そっ　そうか！") + [WAIT] + codes("よし\nうかんだぞ！ぬ") + [WAIT, START] + codes("……。") + [WAIT]
+    data = {"tbl": (ROOT / "tables/sfc/SFC-F061BF93.tbl").read_bytes()}
+    with rd.Reader(dq5_memory(whole), platform="sfc", game_id="SFC-F061BF93", data=data) as r:
+        r.load(bundle(ROOT / "games/sfc/SFC-F061BF93.lua"), "SFC-F061BF93.lua")
+        said = []
+        # The queue's front as the game draws: it stands, loses the start mark, a character, two at once, …
+        for frame, gone in enumerate((0, 0, 1, 2, 4, 12, 12, 13, 14, 16, 24, 24, 26, 27), 1):
+            r.read = dq5_memory(whole[gone:])
+            r.frame(frame)
+            said.append([(e.get("speaker") or None, e["text"]) for e in r.take("text")])
+        assert said == [[], [], [], [("パパス", "「そっ　そうか！")], [], [], [], [],     # said at its first character
+                        [(None, "よし\nうかんだぞ！�")], [], [], [],              # a character the table hasn't got
+                        [(None, "……。")], []]
+        r.state_loaded()                                                # mid-message after a savestate: nothing is known
+        r.read = dq5_memory(whole[27:])
+        r.frame(30)
+        assert r.take("text") == []
+    with rd.Reader(dq5_memory(whole, check=bytes(16)), platform="sfc", game_id="SFC-F061BF93", data=data) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/sfc/SFC-F061BF93.lua"))
