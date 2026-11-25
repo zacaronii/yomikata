@@ -811,10 +811,10 @@ class Session:
         import numpy as np
         if unit not in (1, 2, 4):
             raise HarnessError("unit is 1, 2 or 4")
-        def cells(name):
-            if name not in self.snaps:
-                raise HarnessError(f"no snap called {name}")
-            data = np.frombuffer(snapfile.read(self.roots.scratch / "snaps" / f"{name}.ram.gz"), dtype=np.uint8)
+        bases = {}
+        def cells(name):                                 # a snap of this session, or one kept in scratch
+            _, bases[name], ram = self._memories([name])[0]
+            data = np.frombuffer(ram, dtype=np.uint8)
             return data[:len(data) // unit * unit].reshape(-1, unit)
         if snaps or pattern:
             snaps = list(snaps or ())
@@ -845,7 +845,7 @@ class Session:
                 same = (now == values[ch.lower()]).all(axis=1)
                 keep &= same if ch.islower() else ~same
             places = np.nonzero(keep)[0]
-            base = self.snaps[snaps[0]].base
+            base = bases[snaps[0]]
             return {"count": int(len(places)),
                     "places": [{"address": f"0x{base + int(i) * unit:08X}",
                                 **{ch: values[ch][i].tobytes().hex() for ch in letters}} for i in places[:MAX_HITS]]}
@@ -860,7 +860,7 @@ class Session:
         for name in same_as_b or ():
             keep &= (cells(name) == second).all(axis=1)
         places = np.nonzero(keep)[0]
-        base = self.snaps[a].base
+        base = bases[a]
         return {"count": int(len(places)),
                 "places": [{"address": f"0x{base + int(i) * unit:08X}", "a": first[i].tobytes().hex(),
                             "b": second[i].tobytes().hex()} for i in places[:MAX_HITS]]}
