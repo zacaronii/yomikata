@@ -1199,3 +1199,54 @@ def test_new_script_writes_a_skeleton_that_is_in_form_and_runs(tmp_path, capsys)
     with pytest.raises(ValueError):
         new_script(tmp_path, "ps2", "SLPM-12346", "あ (A)", "SLPM-12346-1A2B3C4D")       # the CRC in lowercase
 
+
+# ---- lib/halfkana.lua and games/ps1/SCPS-10053.lua ----
+
+def test_halfkana_folds_single_byte_hiragana():
+    lua = 'local h = require("lib.halfkana")\nfunction fold(s) return h.fold(s) end'
+    with rd.Reader(sparse({})) as r:
+        r.load(bundle_text(lua))
+        for half, want in (("｢ｴ､ｱ……ｺｺﾊﾄﾞｺ？｣", "「え、あ……ここはどこ？」"), ("ガキｼﾞｬﾅｲﾝﾀﾞｼ", "ガキじゃないんだし"),
+                           ("ﾊﾟﾘﾍﾟｽﾞｳﾞ", "ぱりぺずゔ"), ("ﾞｱﾟ", "゛あ゜"), ("ジョｰダン", "ジョーダン"), ("", "")):
+            assert r.eval(f'fold("{half}")') == want
+
+
+DC_TOKEN, DC_TYPING, DC_SCENE = 0x8011EFE4, 0x801FFE00, 0x80199200
+
+
+def dc_memory(token: int | None = None, typed: int = 0, word: int = 0x0C016C42):
+    """A scene's list of strings; `token` is which of them the scene is at, `typed` how far into it."""
+    strings = ["S005/MN/00801.STR", "D1女ﾉ子", "｢ヤッホ～ｯ｣", "&", "｢ｴ､ｱ……ｺｺﾊﾄﾞｺ？｣", "#", "\u3000仕事ｦｽﾙﾀﾒ……", "S005/XA/N1.XA"]
+    pool, starts = b"", []
+    for s in strings:
+        starts.append(DC_SCENE + len(pool))
+        pool += s.encode("cp932") + b"\0"
+    at = starts[token] if token is not None else 5
+    return sparse({0x80011EE0: struct.pack("<I", word), 0x80033708: struct.pack("<I", 0x0C006201), DC_SCENE: pool,
+                   DC_TOKEN: struct.pack("<I", at), DC_TYPING: struct.pack("<I", at + typed if typed else 0x8011EFF0)})
+
+
+def test_double_cast_a_line_is_said_while_it_is_typed():
+    with rd.Reader(dc_memory(), platform="ps1", game_id="SCPS-10053") as r:
+        r.load(bundle(ROOT / "games/ps1/SCPS-10053.lua"), "SCPS-10053.lua")
+        r.take()
+        moments = [(0, 0), (2, 0), (2, 0),          # a file's name; a line that is only spoken: passed over
+                   (4, 0), (4, 1), (4, 9), (5, 0),  # a line: nothing until its typing starts; then the wait
+                   (6, 2), (6, 12), (7, 0), (None, 0),
+                   (4, 3)]                          # the same line typed again later
+        said = []
+        for frame, (token, typed) in enumerate(moments, 1):
+            r.read = dc_memory(token, typed)
+            r.frame(frame)
+            said.append([e["text"] for e in r.take("text")])
+        assert said == [[], [], [], [], ["「え、あ……ここはどこ？」"], [], [], ["仕事をするため……"], [], [], [],
+                        ["「え、あ……ここはどこ？」"]]
+        # After a savestate the line being typed is said, once.
+        r.state_loaded()
+        r.frame(20)
+        r.frame(21)
+        assert [e["text"] for e in r.take("text")] == ["「え、あ……ここはどこ？」"]
+    with rd.Reader(dc_memory(word=1), platform="ps1", game_id="SCPS-10053") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SCPS-10053.lua"))
+
