@@ -5,6 +5,8 @@ All of it works on bytes, whether live memory or a snap's."""
 
 from __future__ import annotations
 
+import re
+
 from .. import tbl
 from ..scan import MIN_RUN, SJIS, UTF8, UTF16, _decoded, _japanese, _kana
 
@@ -207,6 +209,70 @@ def code_rules(pairs: dict[str, int]) -> list[dict]:
                     break
         out.append(row)
     return out
+
+
+RULE = re.compile(r"^\s*(?:\(?code(?:\s*&\s*0x([0-9A-Fa-f]+)\))?\s*=)?\s*(?:0x([0-9A-Fa-f]+)\s*-\s*(.+?)|(.+?)\s*([+-])\s*0x([0-9A-Fa-f]+))\s*$")
+
+
+def _characters():
+    """Every character a rule may give: JIS's two-byte set and ASCII."""
+    out = [chr(n) for n in range(0x21, 0x7F)]
+    for lead in range(0xA1, 0xFF):
+        for second in range(0xA1, 0xFF):
+            try:
+                ch = bytes([lead, second]).decode("euc_jp")
+            except UnicodeDecodeError:
+                continue
+            if len(ch) == 1:
+                out.append(ch)
+    return out
+
+
+def reader_of(table: dict[bytes, str] | None = None, rules: list[str] | None = None, unit: int = 2,
+              big_endian: bool = True, mask: int | None = None):
+    """A function from bytes to text for a game's own codes: by a table (code to character), and by rules as
+    `code_rules` words them ("code = 0xA420 - JIS", "(code & 0x1FFF) = 0x100 - ASCII", "code = JIS + 0x5CE0").
+    `mask` leaves a code's other bits out before the table is asked. A code neither gives is <its hex>."""
+    if unit not in (1, 2):
+        raise SearchError("unit is 1 or 2")
+    order = "big" if big_endian else "little"
+    known = {}
+    for code, ch in (table or {}).items():
+        if len(code) == unit:
+            n = int.from_bytes(code, "big")              # a table's codes are written as the bytes lie
+            n = int.from_bytes(code, order) if unit > 1 else n
+            known[n & mask if mask else n] = ch
+    numberings, everything, ways = dict(_numberings()), None, []
+    for rule in rules or ():
+        m = RULE.match(rule)
+        name = (m.group(3) or m.group(4)) if m else None
+        if not m or name not in numberings:
+            raise SearchError(f"a rule reads like: code = 0xA420 - JIS, or code = JIS + 0x5CE0; the numberings are: "
+                              f"{', '.join(numberings)}")
+        everything = everything or _characters()
+        back = {}
+        for ch in everything:
+            n = numberings[name](ch)
+            if n is not None:
+                back.setdefault(n, ch)
+        bits = int(m.group(1), 16) if m.group(1) else None
+        if m.group(2):
+            ways.append((bits, lambda code, k=int(m.group(2), 16), back=back: back.get(k - code)))
+        else:
+            step = int(m.group(6), 16) * (1 if m.group(5) == "+" else -1)
+            ways.append((bits, lambda code, step=step, back=back: back.get(code - step)))
+
+    def read(data: bytes) -> str:
+        out = []
+        for i in range(0, len(data) - unit + 1, unit):
+            code = int.from_bytes(data[i:i + unit], order)
+            ch = known.get(code & mask if mask else code)
+            for bits, way in ways:
+                if ch is None:
+                    ch = way(code & bits if bits else code)
+            out.append(ch if ch is not None else f"<{code:0{2 * unit}X}>")
+        return "".join(out)
+    return read
 
 
 def picture_places(data: bytes, pixels, limit: int = 8) -> list[dict]:

@@ -1410,7 +1410,7 @@ def test_final_fantasy_ix_dump_reads_the_places_whole_block(tmp_path, capsys):
 
 # ---- games/ps1/SLPS-00215.lua ----
 
-PN_CURSOR, PN_BLOCK = 0x80080B8C, 0x800EB000
+PN_WORK = 0x80086164
 
 
 def pn_codes(text: str) -> bytes:
@@ -1432,40 +1432,78 @@ def pn_codes(text: str) -> bytes:
     return out
 
 
-def pn_memory(messages: list[str], at: int | None, word: int = 0x0C00A0B5, next_page: int = 0):
-    """A scene's messages one after another, a zero after each; `at` is the one on screen, `next_page` how far
-    into it the page after the one shown starts."""
-    block, ends = b"\x12\x34\x00", []
-    for m in messages:
-        block += pn_codes(m) + b"\0"
-        ends.append(PN_BLOCK + len(block) - 1)
-    cursor = ends[at] if at is not None else 0
-    return sparse({0x80012840: struct.pack("<I", word), 0x800452C8: struct.pack("<I", 0x0C00885D),
-                   PN_BLOCK - 2048: bytes(2048) + block, PN_CURSOR: struct.pack("<I", cursor),
-                   0x80080C6C: struct.pack("<I", next_page)})
+def pn_memory(text: str | None, word: int = 0x0C00A0B5, next_page: int = 0, stack: int | None = 0x80080B18):
+    """The game's copy of the message it shows (each code turned round, two zero bytes after), and on its
+    stack the two words that point at the copy's end and the word that says where the next page starts."""
+    work = b"".join(struct.pack(">H", 0x10100 - c) for (c,) in struct.iter_unpack(">H", pn_codes(text or "")))
+    finish = PN_WORK + len(work)
+    left = b"\x81\x04" * 500                                             # what a longer message left behind
+    memory = {0x80012840: struct.pack("<I", word), 0x800452C8: struct.pack("<I", 0x0C00885D),
+              PN_WORK: (work + b"\0" + left)[:1024], 0x80080800: bytes(0x800)}
+    if stack is not None:
+        frame = bytearray(0x800)
+        at = stack - 0x80080800
+        frame[at:at + 4] = frame[at + 0x24:at + 0x28] = struct.pack("<I", finish)
+        frame[at + 0xDC:at + 0xE0] = struct.pack("<I", next_page)
+        memory[0x80080800] = bytes(frame)
+    return sparse(memory)
 
 
-def test_policenauts_a_message_is_said_when_the_game_starts_to_show_it():
-    messages = ["あれは#R{愛、アイ}#だ。", "ゆっくり#ー#Wちょっとまって#{悪、ワル}#", "#T{Aボタン}#をおす‥‥‥"]
+def test_policenauts_the_lines_of_a_spoken_passage():
+    """Lines under the picture without the window: a list of them, and a word that points at the one shown."""
+    def turned(text):
+        out = b""
+        for ch in text:
+            out += ch.encode() if ch in " " else struct.pack(">H", 0x10100 - struct.unpack(">H", pn_codes(ch))[0])
+        return out + b"\0"
+    lines = [turned("いや それも"), turned("あの#{愛、アイ}#を|みた")]
+    table = bytes(16) + lines[0] + bytes(20) + lines[1]
+    starts = [0x801B6000 + 16, 0x801B6000 + 16 + len(lines[0]) + 20]
     data = {"tbl": (ROOT / "tables/ps1/SLPS-00215.tbl").read_bytes()}
-    with rd.Reader(pn_memory(messages, None), platform="ps1", game_id="SLPS-00215", data=data) as r:
+
+    def memory(line):
+        return sparse({0x80012840: struct.pack("<I", 0x0C00A0B5), 0x800452C8: struct.pack("<I", 0x0C00885D),
+                       PN_WORK: bytes(1024), 0x80080800: bytes(0x800), 0x801B6000: table + bytes(300),
+                       0x8006CD74: struct.pack("<I", line)})
+    with rd.Reader(memory(0), platform="ps1", game_id="SLPS-00215", data=data) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-00215.lua"), "SLPS-00215.lua")
+        said = []
+        for frame, line in enumerate((0, starts[0], starts[0], 0x39, 0, starts[1], 0, starts[1]), 1):
+            r.read = memory(line)
+            r.frame(frame)
+            said.append([(e["text"], e.get("ruby") or []) for e in r.take("text")])
+        assert said == [[], [("いや　それも", [])], [], [], [], [("あの愛を\nみた", [[2, 1, "アイ"]])], [],
+                        [("あの愛を\nみた", [[2, 1, "アイ"]])]]              # shown again: said again
+
+
+def test_policenauts_a_message_is_said_a_page_at_a_time():
+    first, pages, last = "あれは#R{愛、アイ}#だ。", "ゆっくり#ー#Wちょっとまって#{悪、ワル}#", "#T{Aボタン}#をおす‥‥‥"
+    second = len(pn_codes("ゆっくり#ー#W"))                             # where the second page starts
+    data = {"tbl": (ROOT / "tables/ps1/SLPS-00215.tbl").read_bytes()}
+    with rd.Reader(pn_memory(None), platform="ps1", game_id="SLPS-00215", data=data) as r:
         r.load(bundle(ROOT / "games/ps1/SLPS-00215.lua"), "SLPS-00215.lua")
         r.frame(1)
         assert r.take("text") == []                                     # nothing shown yet
         said = []
-        second = len(pn_codes("ゆっくり#ー#W"))                         # where the second message's second page starts
-        for frame, (at, next_page) in enumerate(((0, 0), (0, 0), (1, second), (1, second), (1, 0), (1, 0x8001),
-                                                 (2, 0), (2, 0)), 2):
-            r.read = pn_memory(messages, at, next_page=next_page)
+        moments = [(first, 0, 0x80080B18), (first, 0, 0x80080B18),
+                   (pages, second, 0x80080B18), (pages, second, 0x80080B18), (pages, 0, 0x80080B18),
+                   (last, 0, 0x80080B90), (last, 0, 0x80080B90),          # the stack elsewhere
+                   (pages, second, None), (pages, second, 0x80080A00)]  # the copy alone says nothing
+        for frame, (text, next_page, stack) in enumerate(moments, 2):
+            r.read = pn_memory(text, next_page=next_page, stack=stack)
             r.frame(frame)
             said.append([(e["text"], e.get("ruby") or []) for e in r.take("text")])
         assert said == [[("あれは愛だ。", [[3, 1, "アイ"]])], [],
                         [("ゆっくり――", [])], [],                                  # its first page, with a dash
-                        [("ちょっとまって悪", [[7, 1, "ワル"]])], [],              # the second when it comes up
-                        [("Ａボタンをおす‥‥‥", [])], []]
+                        [("ちょっとまって悪", [[7, 1, "ワル"]])],                  # the second when it comes up
+                        [("Ａボタンをおす‥‥‥", [])], [],
+                        [], [("ゆっくり――", [])]]
+        r.read = pn_memory(last)
+        r.frame(20)
+        r.take()
         r.state_loaded()
         r.frame(10)
         assert [e["text"] for e in r.take("text")] == ["Ａボタンをおす‥‥‥"]
-    with rd.Reader(pn_memory(messages, 0, word=1), platform="ps1", game_id="SLPS-00215", data=data) as r:
+    with rd.Reader(pn_memory(first, word=1), platform="ps1", game_id="SLPS-00215", data=data) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPS-00215.lua"))

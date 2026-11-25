@@ -36,7 +36,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `run_until` | Runs until a place in memory changes or holds a value, the script emits something, or the picture has stood still; at most a given number of frames. Says how far it ran and why it stopped |
 | `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap (also every few frames of a wait), take pictures. The pictures come back as one sheet. With a script loaded: stop repeating when it says something (`until_event`), and steps to do whenever it does (`on`: press down and confirm at each choice) |
 | `screenshot` | The picture now |
-| `read` | Memory by address, a region by offset |
+| `read` | Memory by address, a region by offset; also as text in the game's own codes, through a table and rules as `code_rule` words them |
 | `find` | Where a text or bytes stand, in live memory or in snaps. A text is looked for in Shift-JIS, EUC-JP, UTF-16 either way, UTF-8, Shift-JIS as 16-bit little-endian numbers, and the game's own table when one is given; in parts too, when the whole isn't found |
 | `text_runs` | The stretches of memory that read as Japanese, longest first: what to hold against the screen before any line is known |
 | `find_relative` | A line read off the screen, looked for in codes of the game's own: where the same characters have the same code and different ones different codes. Gives the codes, the start of a table |
@@ -109,6 +109,10 @@ In the order to try them:
    `refs` over those snaps for what points into the line: a word that does in some moments only is the one
    that follows it. `pointed` then reads the record or stack that word is in as strings. This is what found
    Double Cast's lines, after seven snaps of standing lines had shown nothing.
+   A word found this way may be on a stack: it holds the pointer in this scene and something else in the next.
+   Before a script trusts its address, play to another scene (a close-up, another room) and ask `refs` again.
+   Policenauts' message pointer moved 0x78 bytes between two objects of one room; what stayed put was the
+   game's own copy of the message, which `find_relative` had given as a second place.
 9. When `find_relative` finds nothing it tries the other ways a game may keep a line and gives those that fit
    (`other_ways`): codes of two bytes, the other byte order, kana as far apart as in an order, counting up or
    down. A line with three or four different kana is enough.
