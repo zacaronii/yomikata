@@ -652,6 +652,24 @@
     }
    }
   },
+  "SHVC-MB": {
+   "path": "scripts/sfc/SHVC-MB.lua",
+   "sha256": "fbf0207697120722f57af531f15f38b3efde3dc2fe48b1695557533224d93483",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "MOTHER2 ギーグの逆襲 (Mother 2: Gyiyg no Gyakushuu)",
+   "reads": "the message window's rows as they are typed and scroll",
+   "builds": [
+    "b343f13a"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/sfc/SHVC-MB.tbl",
+     "sha256": "f9644d025790fa363fd959bda7797f71c1cb93873754917fbef9cf005e623103"
+    }
+   }
+  },
   "SLPM-86168": {
    "path": "scripts/ps1/SLPM-86168.lua",
    "sha256": "7d602812c68c02f7c270fbb74aeccdeb97748cf8a32490f06a6a2a4f22d0a331",
