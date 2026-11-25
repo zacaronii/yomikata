@@ -56,8 +56,9 @@ claude mcp add yomikata-harness -- "$PWD/tools/scripts/harness.sh"
 ```
 
 The image is `tools/Dockerfile.harness`: the tools image with Mesa's software OpenGL and the libraries the
-Dolphin core needs. A core that needs a BIOS looks for it in `system/` under scratch: put your own console's
-there.
+Dolphin core needs. A core that needs a BIOS looks for it in `system/` under scratch, or in a folder of its own
+given as `YOMIKATA_SYSTEM` (mounted read-only): your own console's, never one from elsewhere. PCSX ReARMed plays
+most games without one; some show nothing until it has one.
 
 Notes on cores:
 

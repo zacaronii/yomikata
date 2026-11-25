@@ -33,7 +33,7 @@ def call(session: Session, name: str, arguments: dict) -> dict:
         result = known[name][2](**arguments)
     except HarnessError as e:
         return {"content": [{"type": "text", "text": str(e)}], "isError": True}
-    except (TypeError, ValueError, OSError, RuntimeError) as e:
+    except Exception as e:                      # whatever goes wrong in a tool is that call's, not the session's
         return {"content": [{"type": "text", "text": f"{type(e).__name__}: {e}"}], "isError": True}
     if isinstance(result, tuple) and result[0] == "image":
         return {"content": [{"type": "image", "data": base64.b64encode(result[1]).decode(), "mimeType": "image/png"}]}

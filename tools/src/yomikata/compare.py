@@ -54,7 +54,10 @@ def _from_layout(read: dict) -> dict:
     # A layout that says when a choice is up keeps reading the answers' memory after it: they are on screen
     # only while it says so.
     answers = [] if read.get("choosing") is False else list(read.get("choices") or [])
-    return {"message": read.get("message") or "", "speaker": speaker if isinstance(speaker, str) else "",
+    message = read.get("message") or ""
+    # A name with no message under it (the plate stays up between two lines) is nothing a script can say: a
+    # script names the speaker of a text.
+    return {"message": message, "speaker": speaker if isinstance(speaker, str) and message else "",
             "choices": answers}
 
 

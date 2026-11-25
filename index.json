@@ -647,6 +647,19 @@
    "needs": [],
    "data": {}
   },
+  "SLPS-02296": {
+   "path": "scripts/ps1/SLPS-02296.lua",
+   "sha256": "269a096d7e504a8c0cd1c9006b69e1e3cb0bf73d7ce872bb6b9c6c8ff5191913",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "メモリーズオフ (Memories Off)",
+   "reads": "the message window's three rows and the speaker's name",
+   "builds": [
+    "e1db7cdd3b84deab40fe330d4d98451f52faf589"
+   ],
+   "needs": [],
+   "data": {}
+  },
   "SLPS-02785": {
    "path": "scripts/ps1/SLPS-02785.lua",
    "sha256": "6cd3dee36a14ab6531f4b5bf99675014a585e5b3d285b6405afb8b6e480a6401",

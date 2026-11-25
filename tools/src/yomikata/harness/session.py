@@ -33,6 +33,7 @@ class Roots:
     cores: Path
     inbox: Path
     scratch: Path
+    system: Path | None = None      # where a core looks for a BIOS, when it isn't scratch's own system/
 
     def inside(self, root: str, relative: str) -> Path:
         """A path under one of the roots. One that climbs out of it, by .. or by a link, is refused."""
@@ -149,7 +150,8 @@ class Session:
         self._close_reader()
         self.machine, self.snaps = None, {}
         platform = PLATFORM_ALIASES.get(platform, platform)         # ngc is the catalog's gc
-        self.machine = self.make_machine(core_path, game_path, platform, self.roots.scratch / "system",
+        self.machine = self.make_machine(core_path, game_path, platform,
+                                         self.roots.system or self.roots.scratch / "system",
                                          {str(k): str(v) for k, v in (options or {}).items()})
         self.game = game
         if state:
