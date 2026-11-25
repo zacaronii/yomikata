@@ -151,6 +151,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("expand", help="rewrite harness snaps kept as what differs from another as whole snapshots (for a tool that doesn't know the form)")
     p.add_argument("snapshots", nargs="+", type=Path)
+    p = sub.add_parser("glyphs", help="a game's own font from a snapshot with video memory: a sheet of the glyphs still to read (scratch), and each glyph's fingerprint and character where a dictionary has it")
+    p.add_argument("snapshot", type=Path, help="a RAM snapshot with its <name>.vram.gz beside it (a harness snap)")
+    p.add_argument("--list", required=True, help="address of the glyph records (four bytes each), hex")
+    p.add_argument("--count", required=True, help="how many records: a number, or @ADDRESS of a 32-bit count")
+    p.add_argument("--base", default="0x80000000", help="address of the snapshot's first byte (default 0x80000000)")
+    p.add_argument("--page", default="896,256", help="the texture page's corner in video memory, as x,y words")
+    p.add_argument("--height", type=int, default=13, help="a glyph's rows (default 13)")
+    p.add_argument("--dictionary", type=Path, help="fingerprint=character lines already read")
+    p.add_argument("--sheet", type=Path, help="write the glyphs the dictionary hasn't got as a PNG, to scratch")
+    p.add_argument("--all", action="store_true", help="put every glyph on the sheet, read or not")
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -205,6 +215,34 @@ def main(argv: list[str] | None = None) -> int:
             print(str(e), file=sys.stderr)
             return 1
         print(f"{done} of {len(args.snapshots)} rewritten whole")
+        return 0
+
+    if args.cmd == "glyphs":
+        import struct
+        from . import glyphs as gl
+        ram = snapfile.read(args.snapshot)
+        video = args.snapshot.with_name(args.snapshot.name.split(".")[0] + ".vram.gz")
+        if not video.is_file():
+            print(f"{video.name} isn't beside the snapshot: a font's pictures are in video memory", file=sys.stderr)
+            return 1
+        base, at = int(args.base, 16), int(args.list, 16)
+        count = (struct.unpack_from("<I", ram, int(args.count[1:], 16) - base)[0] if args.count.startswith("@")
+                 else int(args.count, 0))
+        if not 0 < count <= 4096 or not 0 <= at - base <= len(ram) - 4 * count:
+            print("the glyph list isn't in the snapshot", file=sys.stderr)
+            return 1
+        x, y = (int(v) for v in args.page.split(","))
+        pixels = gl.page(snapfile.read(video), x, y)
+        found = [gl.picture(pixels, rec, args.height) for rec in gl.records(ram[at - base:at - base + 4 * count], count)]
+        known = gl.read_dictionary(args.dictionary.read_text(encoding="utf-8")) if args.dictionary and args.dictionary.is_file() else {}
+        listed, unread = gl.sort_out(found, known)
+        for number, mark, character in listed:
+            print(f"{number:03X} {mark} {character if character is not None else '?'}")
+        shown = list(range(count)) if args.all else unread
+        if args.sheet and shown:
+            gl.sheet([found[n] for n in shown], [f"{n:03X}" for n in shown]).save(args.sheet)
+        print(f"{count} glyphs, {sum(1 for _, _, c in listed if c is not None)} in the dictionary, "
+              f"{len(unread)} to read" + (f": {args.sheet}" if args.sheet and shown else ""), file=sys.stderr)
         return 0
 
     if args.cmd == "identify":

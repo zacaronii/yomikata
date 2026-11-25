@@ -144,6 +144,29 @@ nine presses on bsnes-mercury, and 1,500 frames without a press on Dolphin; each
 way through a game's random events hasn't been tried on the two cores that don't repeat exactly: if one stops
 reaching its picture, make the waypoint from a state taken early instead.
 
+### A game's own font
+
+A game whose codes are its own draws from a font of its own, and nothing in memory says which character a glyph
+is. Where memory has a list of the glyphs (where each one's picture is in a texture page) and video memory has
+the pictures, `yomikata glyphs` draws them from a snap, in code order, for reading:
+
+```sh
+yomikata glyphs snaps/place.ram.gz --list 0x800D7110 --count @0x800D710C \
+    --dictionary tables/ps1/SLPS-02000.glyphs --sheet /scratch/work/unread.png
+```
+
+It prints each glyph's number, a fingerprint of its picture and its character where the dictionary has it, and
+writes a sheet of the glyphs it hasn't: the first of each fingerprint only, so a character is read once however
+many fonts and places it turns up in. Sheets are game data and stay in scratch; the catalog keeps the readings
+(`tables/<platform>/<id>.glyphs`, fingerprint=character) and the tables made from them.
+
+Reading a glyph by itself goes wrong a few times in a hundred at this size. What catches it is the game's own
+text: decode the place's messages with the readings and read the sentences. A wrong kanji shows at once in a
+sentence; a glyph that stays in doubt is left out, and comes out as U+FFFD, rather than guessed.
+
+On Final Fantasy IX: the fixed font's 461 kanji were read from five sheets; the second place's own font had 218
+glyphs, of which the dictionary from the first place already had 88, and its 130 new ones were one sheet.
+
 ### Writing memory
 
 Off unless the harness is started with `--allow-poke`; then there is one more tool, `poke`: bytes at an address
