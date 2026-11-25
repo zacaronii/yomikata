@@ -716,3 +716,50 @@ def test_gensou_suikoden_a_line_is_said_when_it_is_whole():
     with rd.Reader(sui_memory(word=1), platform="ps1", game_id="SLPS-00097", data=data) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPS-00097.lua"))
+
+
+# ---- games/ps1/SLPM-86168.lua ----
+
+def sui2_memory(rows=(), name="", state=0, choosing=0, cursor=0, window=0x8001B540, word=0x0C023835):
+    from yomikata import tbl
+    table = tbl.parse((ROOT / "games/ps1/SLPM-86168.tbl").read_text(encoding="utf-8"))
+    back = {}
+    for code, ch in table.chars.items():
+        back.setdefault(ch, code)
+    cells = lambda s: b"".join(back[ch] for ch in s)        # noqa: E731
+    block = bytearray(back["　"] * 92)                   # four rows of twenty-three blank cells
+    for i, row in enumerate(rows):
+        block[46 * i:46 * i + 2 * len(row)] = cells(row)
+    record = bytearray(0xA0)
+    record[0x21], record[0x0C], record[0x9F] = state, choosing, cursor
+    struct.pack_into("<I", record, 0x64, 0x80190000)
+    struct.pack_into("<I", record, 0x80, 0x80191000)
+    return sparse({0x8007F764: struct.pack("<I", word), 0x8008FE00: struct.pack("<I", 0x0C024047),
+                   0x800BBE5C: struct.pack("<I", 0x0C01D278), 0x8002590C: struct.pack("<I", window),
+                   0x8001B540: bytes(record), 0x80190000: bytes(block),
+                   0x80191000: cells(name) + back["　"] * 2 + bytes(4)})
+
+
+def test_gensou_suikoden_2_lines_names_and_a_question():
+    data = {"tbl": (ROOT / "games/ps1/SLPM-86168.tbl").read_bytes()}
+    with rd.Reader(sui2_memory(window=0xFFD1009E), platform="ps1", game_id="SLPM-86168", data=data) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPM-86168.lua"), "SLPM-86168.lua")
+        r.take()
+        steps = [sui2_memory(window=0xFFD1009E),                          # the title: no address there
+                 sui2_memory(["「もうきがえ"], "はかせ"),                   # typing
+                 sui2_memory(["「もうきがえたのか」"], "はかせ", state=1),   # waiting for a press
+                 sui2_memory(["「もうきがえたのか」"], "はかせ", state=1),
+                 sui2_memory(["いく", "いかない"], "はかせ", choosing=1),    # the answers, in the same rows
+                 sui2_memory(["いく", "いかない"], "はかせ", choosing=1, cursor=1),
+                 sui2_memory(window=0)]
+        events = []
+        for frame, read in enumerate(steps, 1):
+            r.read = read
+            r.frame(frame)
+            events += [(frame, kind, e) for kind, e in r.take() if kind in ("text", "cursor")]
+        texts = [(f, e["channel"], e["speaker"], e["text"]) for f, k, e in events if k == "text"]
+        assert texts == [(3, "dialogue", "はかせ", "「もうきがえたのか」"), (5, "choice", "", "いく\nいかない")]
+        assert [(f, e.get("index", "closed")) for f, k, e in events if k == "cursor"] == [(5, 0), (6, 1), (7, "closed")]
+    with rd.Reader(sui2_memory(word=1), platform="ps1", game_id="SLPM-86168", data=data) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPM-86168.lua"))

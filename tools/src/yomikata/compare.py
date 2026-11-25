@@ -55,6 +55,10 @@ def _from_layout(read: dict) -> dict:
     # only while it says so.
     answers = [] if read.get("choosing") is False else list(read.get("choices") or [])
     message = read.get("message") or ""
+    # A game may type a question's answers into its message rows: a layout then reads them twice, and a script
+    # says them once, as answers.
+    if answers and message.split("\n") == answers:
+        message = ""
     # A name with no message under it (the plate stays up between two lines) is nothing a script can say: a
     # script names the speaker of a text.
     return {"message": message, "speaker": speaker if isinstance(speaker, str) and message else "",

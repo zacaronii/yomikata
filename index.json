@@ -634,6 +634,24 @@
    "needs": [],
    "data": {}
   },
+  "SLPM-86168": {
+   "path": "scripts/ps1/SLPM-86168.lua",
+   "sha256": "af126a0b0f57b0c02b37763743fb5f75f961f961f956552d5c77b2996a53ef8e",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "幻想水滸伝II (Gensou Suikoden II)",
+   "reads": "the dialogue window's four rows and the speaker's name; a question's answers with their cursor",
+   "builds": [
+    "9a8d96efa3ccbfe51510274f33bca6e5a2bc4997"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/ps1/SLPM-86168.tbl",
+     "sha256": "788a00efcd430b52b0c5417bdd1d17f87f627db3d7430e40feb79e3d86e91cf7"
+    }
+   }
+  },
   "SLPS-00097": {
    "path": "scripts/ps1/SLPS-00097.lua",
    "sha256": "106b51e793300fb18ee75f07ffcc130021f48bf0e708d2de2c1a5a0b34f97e7f",
