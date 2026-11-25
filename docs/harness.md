@@ -225,6 +225,19 @@ In the order to try them:
    one call); and a visual novel may play itself: Ever17 starts in its auto mode, so the route needs no
    presses at all, only a wait `until` the script's next text.
 
+16. A game may keep no line but its script's own: the story is a program, text among its commands, and
+   nothing is copied anywhere as it is shown. `find` then gives one place for a line, in the program, and a
+   search for cells that repeat as the line does finds no drawn copy. What moves is the program's place:
+   snap a few lines apart and look for words that point into the program in every snap and differ (a few
+   lines of numpy over fetched snaps did it; `refs` with `snaps` and a `span` over the stretch does the
+   same). `watch` on such a word through a press shows what it does: Kamaitachi no Yoru 2's walks through a
+   piece of text a character a frame and stands after it while the game waits. A script for such a game
+   gathers the pieces the pointer passes and says them when it stands; pieces the program jumps over are
+   never passed, which no reading of the program where it lies would know. Dump the program around a line
+   with its bytes below a space shown as numbers before writing anything: the single bytes between pieces
+   are the game's rows, readings and names. And a name the player gave may be typed from a buffer of its
+   own (the pointer leaves the program for it), so play past a naming screen before trusting a script.
+
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.
 

@@ -6,13 +6,17 @@
   "versions": [
     {
       "exe": "SLPS_251.35",
-      "exe_sha1": "5c3632d45e65905c4b32d9b00e7f8540965eaef4"
+      "exe_sha1": "5c3632d45e65905c4b32d9b00e7f8540965eaef4",
+      "note": "A PS2 emulator names this build SLPS-25135-30690da2"
     }
   ],
-  "encoding": "compressed",
-  "status": "auto",
+  "encoding": "shift_jis",
+  "status": "partial",
   "sources": [
-    "yomikata scan 0.2.0 of the disc files: shift_jis 1,230, utf16le 10 characters of prose-like text"
+    "yomikata scan 0.2.0 of the disc files: shift_jis 1,230, utf16le 10 characters of prose-like text",
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+    "Played from power-on with the names the game offers: the opening, the letter, the room and the start of the boat",
+    "What the script said in play agreed with what each of 36 pictures had gained, over 4 scenes. 19 further screens were played and not read; no screen without text and no choice was among them"
   ],
-  "notes": "Most of the disc is compressed data and little script reads on it; the script is likely compressed on disc. A memory sample from play will settle the encoding."
+  "notes": "Read by the script games/ps2/SLPS-25135.lua. The story is a program loaded whole (packed on the disc), with its text in it as Shift-JIS pieces between bytes 0x02 and 0x03; nothing copies a line anywhere. A word points at where the program has got to and walks through each piece as it types, so the script gathers the pieces it passes and says them when it stands. Rows, furigana and the player's names are commands between pieces. Choices and menus aren't read."
 }
