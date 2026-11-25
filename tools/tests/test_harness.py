@@ -801,3 +801,75 @@ def test_suggest_build_words_where_the_program_is_not_in_memory(session):
     out = session.suggest_build_words(["d", "e", "f"])
     assert out["words"] == [] and "reader.game_id" in out["note"]
 
+
+# ---- snaps kept as what differs from the session's first ----
+
+def test_snapshot_files_whole_and_as_a_difference(tmp_path):
+    import gzip
+    from yomikata import snapfile
+    base = bytes(range(256)) * 400
+    later = bytearray(base)
+    later[10:14] = b"\x00\x00\x00\x00"
+    later[20] = 0xFF                                                 # near the first: one stretch
+    later[90000:90003] = b"abc"
+    assert snapfile.write(tmp_path / "a.ram.gz", base) is False
+    assert snapfile.write(tmp_path / "b.ram.gz", bytes(later), ("a.ram.gz", base)) is True
+    assert snapfile.read(tmp_path / "a.ram.gz") == base and snapfile.read(tmp_path / "b.ram.gz") == bytes(later)
+    assert (tmp_path / "b.ram.gz").stat().st_size < 200 < (tmp_path / "a.ram.gz").stat().st_size
+    body = gzip.decompress((tmp_path / "b.ram.gz").read_bytes())
+    assert body.startswith(b"YKDELTA1\n") and body.count(b"abc") == 1
+    # The same memory again: a difference of nothing. Mostly different, or of another size: written whole.
+    assert snapfile.write(tmp_path / "c.ram.gz", base, ("a.ram.gz", base)) is True and snapfile.read(tmp_path / "c.ram.gz") == base
+    assert snapfile.write(tmp_path / "d.ram.gz", bytes(len(base)), ("a.ram.gz", base)) is False
+    assert snapfile.write(tmp_path / "e.ram.gz", base[:100], ("a.ram.gz", base)) is False
+    # Not gzipped at all, as some tools write memory: read as it is.
+    (tmp_path / "plain.bin").write_bytes(base)
+    assert snapfile.read(tmp_path / "plain.bin") == base
+    # Its base gone, or changed: said, not read wrongly.
+    (tmp_path / "a.ram.gz").write_bytes(gzip.compress(bytes(len(base))))
+    with pytest.raises(snapfile.SnapError, match="changed since"):
+        snapfile.read(tmp_path / "b.ram.gz")
+    snapfile.write(tmp_path / "a.ram.gz", base)
+    assert snapfile.expand(tmp_path / "b.ram.gz") is True and snapfile.expand(tmp_path / "b.ram.gz") is False
+    (tmp_path / "a.ram.gz").unlink()
+    assert snapfile.read(tmp_path / "b.ram.gz") == bytes(later)      # whole now: it needs no other
+    with pytest.raises(snapfile.SnapError, match="isn't beside it"):
+        snapfile.read(tmp_path / "c.ram.gz")
+
+
+def test_a_sessions_later_snaps_are_small_and_read_the_same(session, tmp_path):
+    import gzip
+    from yomikata import cli, layout, snapfile
+    from yomikata.run import _load, _regions
+    session.machine.memory[0x200:0x1000] = os.urandom(0xE00)         # memory that doesn't shrink by itself
+    session.snap("s-0")
+    session.run(10)
+    session.snap("s-1")
+    session.run(10)
+    session.snap("s-2")
+    folder = tmp_path / "scratch/snaps"
+    sizes = [(folder / f"s-{i}.ram.gz").stat().st_size for i in range(3)]
+    assert sizes[0] > 3000 and sizes[1] < 300 and sizes[2] < 300
+    assert gzip.decompress((folder / "s-2.ram.gz").read_bytes()).startswith(b"YKDELTA1")
+    assert gzip.decompress((folder / "s-2.vram.gz").read_bytes()).startswith(b"YKDELTA1")
+    # Everything that takes snapshots reads them: the run and check loaders, a region, the session's own tools.
+    assert _load(folder / "s-2.ram.gz") == bytes(session.machine.memory) == layout.Ram.load(folder / "s-2.ram.gz", BASE).data
+    assert _regions(folder / "s-2.ram.gz") == {"vram": bytes(range(256))}
+    assert session.changed("s-0", "s-1", unit=2)["places"][0]["address"] == "0x80000012"
+    assert session.differs("s-2")["same"] and session.find(text="さようなら", snaps=["s-1"])["found"]["s-1"]
+    # A snap written over the first becomes the first; the others, which needed the old one, are told.
+    session.run(10)
+    session.snap("s-0")
+    assert not gzip.decompress((folder / "s-0.ram.gz").read_bytes()).startswith(b"YKDELTA1")
+    with pytest.raises(snapfile.SnapError):
+        _load(folder / "s-1.ram.gz")
+    session.snap("s-3")
+    assert _load(folder / "s-3.ram.gz") == bytes(session.machine.memory)
+    # Loading a game starts anew: its first snap is whole.
+    session.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc")
+    session.snap("t-0")
+    assert not gzip.decompress((folder / "t-0.ram.gz").read_bytes()).startswith(b"YKDELTA1")
+    # And the command that makes them whole for a tool that doesn't know the form.
+    assert cli.main(["expand", str(folder / "s-3.ram.gz"), str(folder / "t-0.ram.gz")]) == 0
+    assert not gzip.decompress((folder / "s-3.ram.gz").read_bytes()).startswith(b"YKDELTA1")
+

@@ -98,6 +98,20 @@ though not from all three, which have a colour code among them; and with two mom
 copy of the screen (its rows' two halves), not the window's own buffer, which had moved to another slot between
 the two.
 
+### Snaps on disk
+
+A snap is written to `snaps/` in scratch as an inbox-style snapshot: `<name>.ram.gz`, a `<name>.<region>.gz`
+for each region, `<name>.json` and `<name>.png`. The first snap after a game is loaded is whole. The later
+ones are kept as what differs from that first one (`tools/src/yomikata/snapfile.py` has the form): the same
+file names, read by everything here that takes snapshots (`run`, `check`, `compare`, `locate`, `where`,
+`propose`, the harness's own tools). Measured over thirty snaps of a PlayStation game: 535 KB for the first and
+some 60 KB for each of the others, where each was 500 KB before; over ten of a Super Famicom game, 31 KB and
+then 1.4 KB.
+
+What follows from it: the later snaps need the first one beside them. Delete or overwrite it and they say so
+instead of reading wrongly. `yomikata expand <files>` rewrites snaps as whole ones, for moving a few elsewhere or
+for a tool that doesn't know the form. Snapshots a reader uploads to an inbox are never kept this way.
+
 ### Waypoints
 
 A state is the quick way back to a moment, and it only loads in the core build that made it. A waypoint is the
