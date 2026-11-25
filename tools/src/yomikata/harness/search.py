@@ -106,6 +106,23 @@ def string_at(data: bytes, at: int, most: int = 96) -> tuple[str, str] | None:
     return None
 
 
+def kana_rule(characters: str, codes: list[bytes]) -> str | None:
+    """What the codes of some kana have in common, when the game numbers them in the order of the fifty sounds
+    (the plain kana one after the other) or as Unicode does: 'code = place + N', for the rest to be worked out
+    from. None when they follow neither, or fewer than two of them are plain hiragana."""
+    for name, place in (("the fifty sounds (あ is 0, い is 1, …, ん is 45)", GOJUON.find),
+                        ("Unicode's kana (ぁ is 0, あ is 1, ぃ is 2, …)", lambda ch: ord(ch) - 0x3041 if "ぁ" <= ch <= "ん" else -1)):
+        for order in ("little", "big"):
+            steps = {int.from_bytes(code, order) - place(ch) for ch, code in zip(characters, codes) if place(ch) >= 0}
+            if len(steps) == 1 and sum(1 for ch in set(characters) if place(ch) >= 0) >= 2:
+                step = steps.pop()
+                size = len(codes[0])
+                return (f"code = place in {name} + 0x{step:X}" if step >= 0 else f"code = place in {name} - 0x{-step:X}") + \
+                       (f", {order}-endian" if size > 1 else "") + \
+                       " (it holds for these characters: kana of other rows say whether it holds for all)"
+    return None
+
+
 def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool = False, order: str = "",
              stride: int = 1, gap: int = 1, limit: int = 20) -> tuple[int, list[tuple[int, dict[str, int]]]]:
     """Where memory could hold a line in codes of the game's own, `unit` bytes each, `stride` cells apart.

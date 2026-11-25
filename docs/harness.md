@@ -34,7 +34,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `load` | A game in a core, from power-on or from a savestate (one saved here, or a reader's in the inbox) |
 | `run` | N frames with buttons and the left stick held. With a script loaded, what it emitted on the way |
 | `run_until` | Runs until a place in memory changes or holds a value, the script emits something, or the picture has stood still; at most a given number of frames. Says how far it ran and why it stopped |
-| `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap (also every few frames of a wait), take pictures. The pictures come back as one sheet |
+| `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap (also every few frames of a wait), take pictures. The pictures come back as one sheet. With a script loaded: stop repeating when it says something (`until_event`), and steps to do whenever it does (`on`: press down and confirm at each choice) |
 | `screenshot` | The picture now |
 | `read` | Memory by address, a region by offset |
 | `find` | Where a text or bytes stand, in live memory or in snaps. A text is looked for in Shift-JIS, EUC-JP, UTF-16 either way, UTF-8, Shift-JIS as 16-bit little-endian numbers, and the game's own table when one is given; in parts too, when the whole isn't found |
@@ -49,7 +49,8 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `sheet` | The pictures of several snaps as one image, each under its name |
 | `repeat` | Does the same frames or steps again and says whether the game ended up the same: whether the core repeats itself |
 | `differs` | How this moment's memory differs from a snap's, also one another harness wrote |
-| `changed` | Places that differ between two snaps, the same as the first in some others and as the second in others: a flag, a counter, a cursor |
+| `changed` | Places that differ between two snaps, the same as the first in some others and as the second in others: a flag, a counter, a cursor. Or places that go as a pattern says over snaps in order: `abab`, or `aAaA` for one value and anything else in turn |
+| `entered` | Reads a name off a naming screen from a snap after each character: where the name is, each character's code, the rule kana codes follow, lines of a table |
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
 | `pointed` | The words from an address on, and the text each pointer among them leads to: a stack or a record read as strings |
 | `state_save`, `state_load` | States by name, in scratch. A state keeps the way to it beside it |
@@ -94,7 +95,7 @@ In the order to try them:
    as a code that stands for it, and either breaks a line that is taken as one code a character.
 6. A game that lets the player enter a name tells its codes outright. On the naming screen, snap, enter one
    character, snap, enter another, snap: the places that took a value one after the other are the name, and
-   the values are those characters' codes. A few kana give the rule the rest follow (a row, an offset between
+   the values are those characters' codes. `entered` does this from the snaps and the characters. A few kana give the rule the rest follow (a row, an offset between
    hiragana and katakana), and with a handful of codes a plain `find` by bytes finds the dialogue. This is what
    found Final Fantasy IX's text, after every search by the line itself had failed.
 7. The codes it gives are the start of the game's table. With them as a table, `find` (`table`) looks for
