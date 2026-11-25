@@ -102,3 +102,9 @@ def test_answers_count_only_while_the_layout_says_a_choice_is_up(tmp_path):
     # The answers' memory still holds the last choice, and the flag at 0x80000300 is clear.
     result = compare(script, entry, [snapshot(tmp_path, "a", "つくりもののぎょう", "はかせ", ("はい", "いいえ"))], tmp_path, frames=1)
     assert result.agrees and result.rows[0].layout["choices"] == []
+
+
+def test_a_name_with_no_message_is_not_held_against_a_script(tmp_path):
+    script, _ = catalog(tmp_path, SCRIPT % "line")
+    result = compare(script, ENTRY, [snapshot(tmp_path, "a", "", "はかせ")], tmp_path)
+    assert result.agrees and result.counts()["nothing in either"] == 1

@@ -581,3 +581,36 @@ def test_memories_off_2nd_rows_name_and_a_choice():
     with rd.Reader(mo2_memory(word=1), platform="ps1", game_id="SLPS-03292") as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPS-03292.lua"))
+
+
+# ---- games/ps1/SLPS-02296.lua ----
+
+def mo_memory(rows=(), lengths=(), name="", named=0, shown=1, word=0x0C006A04):
+    block = bytearray(57 * 3)
+    for i, row in enumerate(rows):
+        raw = row.encode("cp932")
+        block[57 * i:57 * i + len(raw)] = raw
+    return sparse({0x800244F4: struct.pack("<I", word), 0x8003B314: struct.pack("<I", 0x0C00FEB1),
+                   0x8004AC04: struct.pack("<I", 0x0C012CB3), 0x800F6018: bytes(block),
+                   0x800F7220: bytes(list(lengths) + [0] * (3 - len(lengths))), 0x80074BA2: bytes([shown]),
+                   0x800F3750: name.encode("cp932") + bytes(16), 0x8007253D: bytes([named])})
+
+
+def test_memories_off_rows_cut_by_their_lengths_and_the_name_plate():
+    with rd.Reader(mo_memory(), platform="ps1", game_id="SLPS-02296") as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-02296.lua"), "SLPS-02296.lua")
+        r.take()
+        # Rows are written over and not ended: what is left of a longer line stands after the new one.
+        steps = [mo_memory(["きょうはいいてんきだ", "そうだね　　　"], [10, 7], "ゆえ", 1),
+                 mo_memory(["あしたは？いてんきだ", "そうだね　　　"], [5, 0], "ゆえ", 0),
+                 mo_memory(["あしたは？いてんきだ", "そうだね　　　"], [5, 0], "ゆえ", 0, shown=0),
+                 mo_memory(["あしたは？いてんきだ"], [5], "ゆえ", 1)]
+        seen = []
+        for frame, read in enumerate(steps, 1):
+            r.read = read
+            r.frame(frame)
+            seen += [(frame, e["speaker"], e["text"]) for e in r.take("text")]
+        assert seen == [(1, "ゆえ", "きょうはいいてんきだ\nそうだね"), (2, "", "あしたは？"), (4, "ゆえ", "あしたは？")]
+    with rd.Reader(mo_memory(word=1), platform="ps1", game_id="SLPS-02296") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-02296.lua"))
