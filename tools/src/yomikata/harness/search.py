@@ -165,3 +165,43 @@ def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool 
                 if len(hits) < limit:
                     hits.append((where, codes))
     return total, hits
+
+
+def build_words(base: int, moments: list[bytes], platform: str, others: list[bytes] = (), want: int = 3):
+    """What in memory could tell this build of the game from another: the same in every moment given (power-on,
+    the title, play) and, with `others` (another game or build), different in each of those.
+
+    Where the console keeps the program in memory, words that are calls (a jump-and-link on a MIPS console, a
+    branch on a PowerPC one): they hold addresses of the program, which move from build to build. Elsewhere
+    (a cartridge, whose program isn't in work RAM), the longest stretches that stay and aren't one value.
+    Gives [(address, bytes)], spread through memory, and how many candidates there were."""
+    import numpy as np
+    if len(moments) < 2 or len({len(m) for m in moments}) != 1 or any(len(o) != len(moments[0]) for o in others):
+        raise SearchError("give two or more moments of the same memory")
+    first = np.frombuffer(moments[0], dtype=np.uint8)
+    stays = np.ones(len(first), dtype=bool)
+    for other in moments[1:]:
+        stays &= np.frombuffer(other, dtype=np.uint8) == first
+    # A call, and to somewhere the console's memory is: data that only looks like one mostly isn't.
+    jal = lambda low, high: lambda w: ((w >> 26) == 3) & ((w & 0x03FFFFFF) >= low) & ((w & 0x03FFFFFF) < high)     # noqa: E731
+    calls = {"ps1": ("<u4", jal(0x4000, 0x80000)), "psp": ("<u4", jal(0x2200000, 0x2800000)),
+             "ps2": ("<u4", jal(0x40000, 0x800000)), "gc": (">u4", lambda w: (w >> 26) == 18),
+             "wii": (">u4", lambda w: (w >> 26) == 18)}.get(platform)
+    if calls:
+        size = len(first) // 4 * 4
+        words = np.frombuffer(moments[0][:size], dtype=calls[0])
+        good = stays[:size].reshape(-1, 4).all(axis=1) & calls[1](words) & ((words & 0x03FFFFFF) != 0)
+        for other in others:
+            good &= np.frombuffer(other[:size], dtype=calls[0]) != words
+        where = np.nonzero(good)[0]
+        if len(where) == 0:
+            return [], 0
+        picks = [where[int(i)] for i in np.linspace(0, len(where) - 1, min(want, len(where))).round()]
+        return [(base + 4 * int(i), moments[0][4 * int(i):4 * int(i) + 4]) for i in dict.fromkeys(picks)], int(len(where))
+    plain = stays & (first != 0) & (first != 0xFF)
+    edges = np.flatnonzero(np.diff(np.concatenate(([0], plain.view(np.int8), [0]))))
+    runs = [(int(b - a), int(a)) for a, b in zip(edges[::2], edges[1::2]) if b - a >= 8]
+    runs = [(n, a) for n, a in runs if len(set(moments[0][a:a + n])) >= 4
+            and all(o[a:a + n] != moments[0][a:a + n] for o in others)]
+    runs.sort(reverse=True)
+    return [(base + a, moments[0][a:a + min(n, 16)]) for n, a in runs[:want]], len(runs)

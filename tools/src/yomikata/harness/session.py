@@ -223,6 +223,26 @@ class Session:
                 "frames": getattr(self.machine, "frames", None), "states": states, "snaps": sorted(self.snaps),
                 "script": self.script_name, **({"memory_writes": self.pokes} if self.allow_poke else {})}
 
+    @tool("Which release a game file is: its platform, its id, and what names its build (the SHA-1 of a disc's "
+          "boot executable, a cartridge's header checksum). The id names the script's file; the build goes "
+          "in its `-- reader: build` line.",
+          game=("string", "path of the game under the library (default: the loaded game)", False))
+    def identify(self, game: str = "") -> dict:
+        from ..disc import DiscError
+        from ..identify import identify
+        game = game or self.game
+        if not game:
+            raise HarnessError("no game is loaded: name one")
+        path = self.roots.inside("games", game)
+        if not path.is_file():
+            raise HarnessError(f"no such game: {game}")
+        work = self.roots.scratch / "work"
+        work.mkdir(parents=True, exist_ok=True)
+        try:
+            return identify(path, work).as_dict()
+        except (DiscError, OSError, ValueError) as e:
+            raise HarnessError(f"it couldn't be identified: {e}") from None
+
     @tool("The loaded core's options as it declares them: what each is, the values it takes (the first is the "
           "core's own choice), and what was given at load. Options are given to `load`.")
     def core_options(self) -> dict:
@@ -509,6 +529,40 @@ class Session:
                     break
             out["parts"] = parts
         return out
+
+    @tool("What a script can check to know it is on this build of the game: places in memory that hold the same "
+          "in every snap given, and a Lua line that checks them. Give snaps from power-on's first seconds, the "
+          "title and play, so that nothing loaded later is picked; and, if you have them, snaps of another "
+          "game or build of the same family, which the places must differ in.",
+          snaps=("array", "snaps of this game: early, the title, in play (three or more)", True),
+          others=("array", "snaps of another build or game that must differ there", False))
+    def suggest_build_words(self, snaps: list, others: list | None = None) -> dict:
+        if not isinstance(snaps, list) or len(snaps) < 3:
+            raise HarnessError("give three or more snaps: early after power-on, the title, in play")
+        mine, theirs = self._memories(snaps), self._memories(others) if others else []
+        platform = self._need().platform
+        try:
+            picks, candidates = search.build_words(mine[0][1], [ram for _, _, ram in mine], platform,
+                                                   [ram for _, _, ram in theirs])
+        except search.SearchError as e:
+            raise HarnessError(str(e)) from None
+        if not picks:
+            return {"candidates": 0, "words": [], "note": "nothing stays the same in all of them: the check can "
+                    "only be the game's id (reader.game_id). Say so in the script and the pull request."}
+        big = platform in ("gc", "wii")
+        if len(picks[0][1]) == 4 and candidates and platform in ("ps1", "psp", "ps2", "gc", "wii"):
+            read = "mem.u32be" if big else "mem.u32"
+            terms = [f"{read}(0x{at:08X}) ~= 0x{int.from_bytes(data, 'big' if big else 'little'):08X}" for at, data in picks]
+        else:
+            terms = [f'mem.read(0x{at:06X}, {len(data)}) ~= "' + "".join(f"\\x{b:02X}" for b in data) + '"'
+                     for at, data in picks[:1]]
+        lua = ("if " + " or ".join(terms) + ' then\n    error("this script is for another build of the game", 0)\nend')
+        frames = [json.loads(self.roots.inside("scratch", f"snaps/{n}.json").read_text(encoding="utf-8")).get("frame")
+                  for n in snaps]
+        return {"candidates": candidates, "words": [{"address": f"0x{at:08X}", "bytes": data.hex()} for at, data in picks],
+                "lua": lua, "snap_frames": frames,
+                "note": "They hold from the earliest snap given on. Before that a host gets \"another build\" "
+                        "and tries again (docs/script-api.md): give an early snap so that this is short."}
 
     @tool("Keeps this moment's memory under a name, to compare with others, and writes it to scratch as an "
           "inbox-style snapshot (ram, video memory, the frame) that `yomikata run` and `check` take.",

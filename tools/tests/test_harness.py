@@ -744,3 +744,60 @@ def test_repeat_leaves_the_way_as_one_run(session):
     session.repeat(frames=5, runs=3)
     assert session.route["moves"] == [[8, [], [0.0, 0.0]]]
 
+
+# ---- what a first script needs: which game this is, and what its build check can read ----
+
+def test_identify_says_what_it_can(session, tmp_path):
+    rom = bytearray(0x10000)
+    rom[0xFFC0:0xFFD5] = b"MADE UP GAME         "
+    rom[0xFFD5:0xFFE0] = bytes([0x31, 0x02, 0x0A, 0x03, 0x00, 0x33, 0x00, 0x34, 0x12, 0xCB, 0xED])
+    rom[0xFFB0:0xFFB6] = b"01ZZ  "
+    (tmp_path / "games/snes").mkdir()
+    (tmp_path / "games/snes/Made Up (Japan).sfc").write_bytes(bytes(rom))
+    out = session.identify("snes/Made Up (Japan).sfc")
+    assert out["platform"] == "sfc" and len(out["header_crc32"]) == 8 and out["id"]
+    with pytest.raises(HarnessError, match="couldn't be identified"):
+        session.identify()                                          # the loaded "game" is six bytes of nothing
+    with pytest.raises(HarnessError):
+        session.identify("../secret.txt")
+
+
+def test_suggest_build_words(session):
+    m = session.machine.memory
+    for at, word in ((0x200, 0x48001234), (0x400, 0x4BFFFF01), (0x800, 0x48000F55), (0xA00, 0x48000000)):
+        struct.pack_into(">I", m, at, word)                         # branches of a PowerPC program; the last to nowhere
+    session.run(1); session.snap("early")
+    session.run(30); session.snap("title")
+    struct.pack_into(">I", m, 0x400, 0x4BFFFF99)                    # a part of the program loaded later
+    session.run(30); session.snap("play")
+    out = session.suggest_build_words(["early", "title", "play"])
+    assert out["candidates"] == 2 and [w["address"] for w in out["words"]] == ["0x80000200", "0x80000800"]
+    assert out["lua"].startswith("if mem.u32be(0x80000200) ~= 0x48001234 or mem.u32be(0x80000800) ~= 0x48000F55 then")
+    assert out["snap_frames"] == [1, 31, 61]
+    # Another build has the first of them too: only what differs there will do.
+    session.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc")
+    struct.pack_into(">I", session.machine.memory, 0x200, 0x48001234)
+    session.snap("other")
+    out = session.suggest_build_words(["early", "title", "play"], others=["other"])
+    assert [w["address"] for w in out["words"]] == ["0x80000800"]
+    with pytest.raises(HarnessError, match="three or more"):
+        session.suggest_build_words(["early", "title"])
+
+
+def test_suggest_build_words_where_the_program_is_not_in_memory(session):
+    session.machine.platform = "sfc"
+    put(session, 0x300, bytes(range(0x21, 0x2D)))                   # a table the game writes as it starts
+    put(session, 0x500, b"\x55" * 40)                              # a filled stretch: one value, no use
+    for name in ("a", "b", "c"):
+        session.run(7)
+        session.snap(name)
+    out = session.suggest_build_words(["a", "b", "c"])
+    assert out["words"][0] == {"address": "0x80000300", "bytes": bytes(range(0x21, 0x2D)).hex()}
+    assert out["lua"].startswith('if mem.read(0x80000300, 12) ~= "\\x21\\x22')
+    session.machine.memory[:] = bytes(len(session.machine.memory))
+    session.machine._step = lambda *_: None
+    for name in ("d", "e", "f"):
+        session.snap(name)
+    out = session.suggest_build_words(["d", "e", "f"])
+    assert out["words"] == [] and "reader.game_id" in out["note"]
+

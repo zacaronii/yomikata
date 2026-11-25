@@ -40,6 +40,8 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `find` | Where a text or bytes stand, in live memory or in snaps. A text is looked for in Shift-JIS, EUC-JP, UTF-16 either way, UTF-8, Shift-JIS as 16-bit little-endian numbers, and the game's own table when one is given; in parts too, when the whole isn't found |
 | `text_runs` | The stretches of memory that read as Japanese, longest first: what to hold against the screen before any line is known |
 | `find_relative` | A line read off the screen, looked for in codes of the game's own: where the same characters have the same code and different ones different codes. Gives the codes, the start of a table |
+| `identify` | Which release a game file is: platform, id, and what names its build |
+| `suggest_build_words` | Places that hold the same in snaps from power-on, the title and play, and the Lua lines that check them: a script's build check |
 | `core_options` | The loaded core's options as it declares them, and what was given at load |
 | `snap` | Keeps a moment under a name, and writes it to scratch as an inbox-style snapshot for `yomikata run` and `check` |
 | `snap_lines` | Says what a snap's screen showed, once read off its picture: its lines, or that it has no text |
@@ -60,6 +62,8 @@ The way to a script, with them: `load`, `steps` to a line (a sheet shows where y
 few moments, `changed` and `refs` to find what says it is on screen, write the script, `script_try`, `run_until`
 it emits and read what it says, `overlay`. Then the check: `steps` through a stretch of the game with a snap at
 each, `sheet` to read the snaps' screens, `snap_lines` for each, and `compare`.
+
+docs/first-script.md walks through all of it, from a game file to a pull request.
 
 A step is an object: `buttons`, `stick`, `hold` (frames they are held, 4 unless said), then `wait` (frames) or
 `until` (what `run_until` takes, with its `limit`), `times` to repeat it, `snap` (true, or a name) and `shot`

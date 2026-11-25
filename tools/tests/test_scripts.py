@@ -1129,3 +1129,44 @@ def test_mother_2_the_message_window_as_it_types_and_scrolls():
         with pytest.raises(rd.ScriptError, match="missing"):
             r.load(bundle(ROOT / "games/sfc/SHVC-MB.lua"))
 
+
+# ---- yomikata new-script ----
+
+def test_new_script_writes_a_skeleton_that_is_in_form_and_runs(tmp_path, capsys):
+    from yomikata import cli
+    from yomikata.newscript import new_script
+    import shutil
+    shutil.copytree(ROOT / "schema", tmp_path / "schema")
+    build = "0123456789abcdef0123456789abcdef01234567"
+    written, test = new_script(tmp_path, "ps1", "SLPS-09999", "つくりもの (Made Up)", build)
+    assert [p.name for p in written] == ["SLPS-09999.lua", "SLPS-09999.json"]
+    assert catalog.validate_scripts(tmp_path) == [] and catalog.validate(tmp_path) == []
+    entry = json.loads((tmp_path / "games/ps1/SLPS-09999.json").read_text())
+    assert entry["title"] == "つくりもの" and entry["title_romaji"] == "Made Up" and entry["versions"] == [{"exe_sha1": build}]
+    source = (tmp_path / "games/ps1/SLPS-09999.lua").read_text()
+    assert dict(header(source))["build"] == build
+    # As written it refuses a game (its check is to be filled in); with the check given, it reads its made-up line.
+    with rd.Reader(sparse({}), platform="ps1") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(source)
+    (tmp_path / "games/ps1/SLPS-09999.lua").unlink()
+    check = 'if mem.u32(0x80000100) ~= 0x0C001234 then\n    error("this script is for another build of the game", 0)\nend'
+    new_script(tmp_path, "ps1", "SLPS-09999", "つくりもの (Made Up)", build, check)
+    memory = sparse({0x80000100: struct.pack("<I", 0x0C001234), 0x80001000: "こんにちは".encode("cp932") + b"\0",
+                     0x80002000: b"\x01"})
+    with rd.Reader(memory, platform="ps1", game_id="SLPS-09999") as r:
+        r.load((tmp_path / "games/ps1/SLPS-09999.lua").read_text(), "SLPS-09999.lua")
+        r.frame(1)
+        assert [e["text"] for e in r.take("text")] == ["こんにちは"]
+    assert "def slps_09999_memory" in test and "0x80001000" in test
+    compile(test, "test", "exec")                                   # the test it prints is Python
+    # It never overwrites, and says what it can't take.
+    for bad in (("ps1", "SLPS-09999", build), ("atari", "SLPS-09998", build), ("ps1", "slps", build), ("ps1", "SLPS-09998", "xyz")):
+        with pytest.raises(ValueError):
+            new_script(tmp_path, bad[0], bad[1], "あ (A)", bad[2])
+    # A cartridge, by the command: its header's checksum names the build.
+    assert cli.main(["new-script", "sfc", "SHVC-ZZ", "--title", "あ (A)", "--build", "B343F13A", "--root", str(tmp_path)]) == 0
+    assert "def shvc_zz_memory" in capsys.readouterr().out
+    assert json.loads((tmp_path / "games/sfc/SHVC-ZZ.json").read_text())["versions"] == [{"header_crc32": "b343f13a"}]
+    assert cli.main(["new-script", "sfc", "SHVC-ZZ", "--title", "あ (A)", "--build", "b343f13a", "--root", str(tmp_path)]) == 1
+
