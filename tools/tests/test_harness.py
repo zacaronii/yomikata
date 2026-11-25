@@ -1125,6 +1125,10 @@ def test_watch_lists_a_place_as_it_changes(session):
     assert out["from"] == "0x00000000" and [c["value"] for c in out["changes"]] == ["0x00000001", "0x00000002", "0x00000003"]
     out = session.watch("0x80000020", 6, size=1, buttons=["a"], hold=2)
     assert [(c["frame"], c["value"]) for c in out["changes"]] == [(4, "0x01"), (6, "0x00")]
+    out = session.watch("0x80000020", 4, size=1, buttons=["a"], hold=2, more=["0x80000013"])     # with the counter's low byte
+    assert out["places"] == ["0x80000020", "0x80000013"] and [c["values"] for c in out["changes"]][:2] == ["01 0A", "01 0B"]
+    out = session.watch("0x80000012", 2, size=1, stretch=2)
+    assert out["places"] == ["0x80000012", "0x80000013"] and len(out["changes"]) == 2
     with pytest.raises(HarnessError):
         session.watch("0x80000010", 3, size=3)
 

@@ -1489,21 +1489,32 @@ class Session:
           address=("string", "the place, hex", True), frames=("integer", "how many frames to run", True),
           size=("integer", "bytes: 1, 2 or 4 (default 4)", False),
           buttons=("array", "buttons held for the first `hold` frames", False),
-          hold=("integer", "frames the buttons are held (default 4)", False))
-    def watch(self, address: str, frames: int, size: int = 4, buttons: list | None = None, hold: int = 4) -> dict:
+          hold=("integer", "frames the buttons are held (default 4)", False),
+          more=("array", "other places to list beside it, hex: a row then gives them all, whenever any changes", False),
+          stretch=("integer", "or so many values on end from the place (16 at most): a queue's front, a record", False))
+    def watch(self, address: str, frames: int, size: int = 4, buttons: list | None = None, hold: int = 4,
+              more: list | None = None, stretch: int = 0) -> dict:
         machine = self._need()
         if size not in (1, 2, 4) or not 0 < int(frames) <= MAX_FRAMES:
             raise HarnessError(f"size is 1, 2 or 4; 1 to {MAX_FRAMES} frames")
         at, held, events = int(address, 16), self._buttons(buttons), []
-        changes, last = [], [self._cell(at, size)]
-        first = last[0]
+        places = [at] + [int(str(a), 16) for a in more or ()]
+        if int(stretch) > 0:                    # so many values on end from the first place: a queue's front, a record
+            places = [at + size * k for k in range(min(int(stretch), 16))] + places[1:]
+        if len(places) > 16:
+            raise HarnessError("at most 16 places")
+        several = len(places) > 1
+        changes, last = [], [[self._cell(p, size) for p in places]]
+        first = last[0][0]
+        show = lambda v: None if v is None else f"0x{v:0{2 * size}X}"      # noqa: E731
 
         def note():
-            now = self._cell(at, size)
+            now = [self._cell(p, size) for p in places]
             if now != last[0]:
                 last[0] = now
                 if len(changes) < MAX_HITS:
-                    changes.append({"frame": machine.frames, "value": None if now is None else f"0x{now:0{2 * size}X}"})
+                    changes.append({"frame": machine.frames, "values": " ".join(str(show(v))[2:] for v in now)} if several
+                                   else {"frame": machine.frames, "value": show(now[0])})
             return None
         why = None
         if held:
@@ -1511,7 +1522,11 @@ class Session:
         if not why:
             _, why = self._advance(int(frames) - (min(int(hold), int(frames)) if held else 0) or 1, set(), (0.0, 0.0),
                                    events, note)
-        return {"frames": machine.frames, "from": None if first is None else f"0x{first:0{2 * size}X}",
+        return {"frames": machine.frames,
+                **({"places": [f"0x{p:08X}" for p in places], "from": " ".join(str(show(self._cell(p, size)))[2:] for p in places)}
+                   if several and not changes else {}),
+                **({"places": [f"0x{p:08X}" for p in places]} if several and changes else {}),
+                **({} if several else {"from": None if first is None else f"0x{first:0{2 * size}X}"}),
                 "changes": changes, **({"stopped": why} if why else {}),
                 **({"events": events} if self.reader is not None else {})}
 
