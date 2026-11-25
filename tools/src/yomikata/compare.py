@@ -6,12 +6,14 @@ speaker's name, a choice's answers. The counts hold no text and are what a pull 
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .check import check
 from .run import run
 
+COLON = re.compile("^\u3000*\uff1a")
 SAME, DIFFERENT, BOTH_EMPTY, FAILED = "the same", "different", "nothing in either", "the script didn't load"
 
 
@@ -59,6 +61,12 @@ def _from_layout(read: dict) -> dict:
     # says them once, as answers.
     if answers and message.split("\n") == answers:
         message = ""
+    # Or keep them as the page's last rows, each after a colon: the script says the rows above them as the
+    # line, and the answers as answers.
+    rows = message.split("\n")
+    if answers and len(rows) >= len(answers) and [COLON.sub("", r) for r in rows[-len(answers):]] == answers \
+            and all(COLON.match(r) for r in rows[-len(answers):]):
+        message = "\n".join(rows[:-len(answers)]).rstrip("\n")
     # A name with no message under it (the plate stays up between two lines) is nothing a script can say: a
     # script names the speaker of a text.
     return {"message": message, "speaker": speaker if isinstance(speaker, str) and message else "",

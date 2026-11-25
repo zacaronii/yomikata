@@ -47,8 +47,8 @@ local function bytes(hex)
     end))
 end
 
---- Reads a table's text (reader.data("tbl")). Gives { chars = code -> character, ends = code -> true,
---- newlines = code -> true }, each code a string of its bytes.
+--- Reads a table's text (the file a script asks reader.data for). Gives { chars = code -> character,
+--- ends = code -> true, newlines = code -> true }, each code a string of its bytes.
 function tbl.parse(source)
     local out = { chars = {}, ends = {}, newlines = {} }
     for line in source:gmatch("[^\r\n]+") do
