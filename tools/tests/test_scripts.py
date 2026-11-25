@@ -1827,3 +1827,42 @@ def test_ever17_a_line_is_said_once_it_stands_with_its_first_characters_as_the_s
     with rd.Reader(ever17_memory(word=0), platform="ps2", game_id="SLPS-25149") as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps2/SLPS-25149.lua"))
+
+
+def kamaitachi2_memory(program: bytes, at: int, hero: str = "たろ", word: int = 0x0C074E50):
+    """What Kamaitachi no Yoru 2's script looks at: the build's words, the story's program, where it has got
+    to, and the names the player gave, kept after that word."""
+    names = hero.encode("cp932").ljust(13, b"\0") + "はな".encode("cp932").ljust(13, b"\0")
+    return sparse({0x00100084: struct.pack("<I", word), 0x00175CF4: struct.pack("<I", 0x0C05D048),
+                   0x01F575C8: struct.pack("<I", at) + bytes(8) + names,
+                   0x01AB0000 - 0x400: bytes(0x400) + program + bytes(0x400)})
+
+
+def test_kamaitachi_no_yoru_2_pieces_are_gathered_as_the_program_walks_them_and_said_when_it_waits():
+    def piece(text):
+        return b"\x02" + text.encode("cp932") + b"\x03"
+    # Commands, then: a sentence in two pieces with a change of colour between; a wait; a sentence of two rows
+    # with readings over its first two characters; a jumped-over cut; a name's command inside a sentence.
+    parts = [b"my01\x00\x22s\x07", piece("そらが"), b"L\x02!", piece("あおい。"), b"\x32\x15\x0b\\\x00\x00\x00",
+             piece("うみは"), b"\x04", b"\x06", piece("ひろ"), piece("ふか"), b"\x07", piece("広深い。"), b"\x04\x09p\x0b\x01",
+             piece("とばされる。"), b"\x0bj\x0b\x0c", piece("ぼくは、"), b"\x0d", piece("だ。"), b"\x04\x16"]
+    program, starts = b"", []
+    for part in parts:
+        starts.append(0x01AB0000 + len(program))
+        program += part
+    end = lambda i: starts[i] + len(parts[i])                              # noqa: E731
+    walk = ([starts[1] + 1, starts[1] + 3, starts[1] + 5, starts[3] + 1, starts[3] + 5] + [end(3) + 2] * 5          # typed, then waiting
+            + [starts[5] + 1, starts[5] + 5, starts[8] + 1, starts[9] + 1, starts[11] + 1, starts[11] + 7] + [end(11) + 2] * 5
+            + [end(17) + 1] * 5)                                           # a press brought the last sentence up at once
+    with rd.Reader(kamaitachi2_memory(program, 0), platform="ps2", game_id="SLPS-25135") as r:
+        r.load(bundle(ROOT / "games/ps2/SLPS-25135.lua"), "SLPS-25135.lua")
+        said = []
+        for frame, at in enumerate(walk, 1):
+            r.read = kamaitachi2_memory(program, at)
+            r.frame(frame)
+            said += [(frame, e["text"], e.get("ruby") or []) for e in r.take("text")]
+        assert said == [(9, "そらがあおい。", []), (20, "うみは\n広深い。", [[4, 1, "ひろ"], [5, 1, "ふか"]]),
+                        (25, "ぼくは、たろだ。", [])]                      # the cut jumped over was never said
+    with rd.Reader(kamaitachi2_memory(program, 0, word=0), platform="ps2", game_id="SLPS-25135") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps2/SLPS-25135.lua"))
