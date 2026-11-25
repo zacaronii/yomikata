@@ -317,7 +317,7 @@ class Session:
         self._close_reader()
         self.machine, self.snaps, self.pokes, self.first_snap = None, {}, 0, None
         platform = PLATFORM_ALIASES.get(platform, platform)         # ngc is the catalog's gc
-        self.machine = self.make_machine(core_path, game_path, platform,
+        self.machine = self.make_machine(core_path, self._unpacked(game_path), platform,
                                          self.roots.system or self.roots.scratch / "system",
                                          {str(k): str(v) for k, v in (options or {}).items()})
         self.game, self.loaded = game, (game, core, platform, dict(options or {}))
@@ -327,6 +327,22 @@ class Session:
         if state:
             self.state_load(state)
         return self.status()
+
+    def _unpacked(self, game_path: Path) -> Path:
+        """A game kept as a .zip of one file, unpacked into scratch: not every core opens a zip, and one that
+        doesn't shows a black picture and says nothing."""
+        if game_path.suffix.lower() != ".zip":
+            return game_path
+        import zipfile
+        with zipfile.ZipFile(game_path) as z:
+            members = [m for m in z.infolist() if not m.is_dir()]
+            if len(members) != 1:
+                raise HarnessError("a .zip must hold one game file")
+            out = self.roots.scratch / "work" / "unzipped" / Path(members[0].filename).name
+            if not out.is_file() or out.stat().st_size != members[0].file_size:
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_bytes(z.read(members[0]))
+        return out
 
     @tool("Runs the game for a number of frames, holding buttons and the left stick the whole time.",
           frames=("integer", "how many frames (60 a second)", True),
@@ -1063,6 +1079,8 @@ class Session:
             self._advance(frames, held, where, events)
             self._advance(2, set(), (0.0, 0.0), events)
             return machine.ram()
+        moved("left")                           # away from the right and bottom edges first: a cursor
+        moved("up")                             # against an edge doesn't follow a push towards it
         base, start = machine.ram()
         shots = [start] + [moved(d)[1] for d in ("right", "left", "down", "up")]
         found = {}
@@ -1151,7 +1169,9 @@ class Session:
     @tool("Goes round a picture's spots with the cursor and says what the loaded script read at each: moves "
           "the cursor there (cursor_to), presses the button, then presses on until the script has said "
           "nothing for a press, and does the steps of `after` if any (to leave a close-up, say). For a "
-          "point-and-click scene: every spot of a room in one call. Stops where the call's time is up.",
+          "point-and-click scene: every spot of a room in one call. Where the cursor can't be brought to a "
+          "spot, its numbers are looked for again once (they move from scene to scene). Stops where the "
+          "call's time is up.",
           points=("array", "the spots, each [x, y] in the cursor's numbers", True),
           button=("string", "the button that looks or confirms (default a)", False),
           wait=("integer", "frames after each press (default 130: text may come a hundred frames after its press)", False),
@@ -1169,13 +1189,22 @@ class Session:
         self._cursor_cells("", "", 2)
         press = {"buttons": [button], "hold": 3, "wait": max(1, int(wait))}
         plan = [press] * max(0, int(first)) + [{**press, "times": max(1, int(most)), "until_quiet": 1}] + list(after or [])
-        rows, why = [], None
+        rows, why, found_again = [], None, False
         for x, y in points:
             if self._late():
                 why = "time"
                 break
             moved = self.cursor_to(int(x), int(y), if_stuck=if_stuck)
             row = {"at": [int(x), int(y)], "reached": moved.get("reached", False)}
+            if not moved.get("reached") and not found_again:
+                # A cursor's numbers move from scene to scene: look for them once more, and try again.
+                found_again = True
+                try:
+                    self.cursor_find()
+                    moved = self.cursor_to(int(x), int(y), if_stuck=if_stuck)
+                    row.update(reached=moved.get("reached", False), found_again=True)
+                except HarnessError:
+                    row["found_again"] = False
             if not moved.get("reached"):
                 row["cursor"] = [moved["x"], moved["y"]]
             out = self.steps(plan)
