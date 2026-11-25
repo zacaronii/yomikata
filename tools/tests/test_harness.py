@@ -1325,3 +1325,53 @@ def test_walk_to_goes_one_way_at_a_time_and_round_what_is_in_the_way(session):
     assert session.walk_to(100, 60, patience=8)["reached"] is True       # back round it
     out = session.walk_to(140, 60, patience=8, limit=400)                # straight at the wall: as near as it gets
     assert out["reached"] is False and out["x"] <= 120 and out["turned"] > 6
+
+
+def test_walk_to_stops_where_the_map_changes(session):
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+
+    def stairs(buttons, stick):
+        plain(buttons, stick)
+        if struct.unpack_from(">hh", machine.memory, 0x30) == (110, 80):   # stairs: another map, its own numbers
+            struct.pack_into(">hh", machine.memory, 0x30, 30, 200)
+            machine.memory[0x38] += 1
+    machine._step = stairs
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    out = session.walk_to(140, 80)
+    assert out["map_changed"] is True and out["reached"] is False and out["from"] == [108, 80]
+    assert (out["x"], out["y"]) == (30, 200) and "map" not in out        # it did not walk on towards 140 there
+    # By the place that says which map it is, where the numbers happen to lie close.
+    struct.pack_into(">hh", machine.memory, 0x30, 108, 82)
+    out = session.walk_to(140, 82, jump=0)
+    assert out["reached"] is True
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    out = session.walk_to(140, 80, jump=0, map_address=f"0x{BASE + 0x38:08X}")
+    assert out["map_changed"] is True and out["map"] == 2 and (out["x"], out["y"]) == (30, 200)
+    # Stairs that act a moment after they are stood on.
+    def slow(buttons, stick, count=[0]):
+        plain(buttons, stick)
+        count[0] = count[0] + 1 if struct.unpack_from(">hh", machine.memory, 0x30) == (120, 80) else 0
+        if count[0] == 30:
+            struct.pack_into(">hh", machine.memory, 0x30, 30, 200)
+    machine._step = slow
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    assert session.walk_to(120, 80, linger=0)["reached"] is True
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    out = session.walk_to(120, 80)
+    assert out["map_changed"] is True and out["from"] == [120, 80] and (out["x"], out["y"]) == (30, 200)
+
+
+def test_map_picture_puts_the_games_numbers_over_the_screen(session):
+    from PIL import Image
+    session.cursor_find()
+    kind, out, png = session.map_picture(tile=8, per=2, scale=2)
+    image = Image.open(io.BytesIO(png)).convert("RGB")
+    assert kind == "both" and image.size == (64 * 2 + 22, 48 * 2 + 12)
+    at = session.cursor_to()
+    assert (out["x"], out["y"], out["per_tile"]) == (at["x"], at["y"], 2)
+    # The character's tile is the middle one, 28 pixels from the left: three tiles and a part lie before it.
+    assert out["columns"] == [at["x"] - 8, at["x"] + 8] and out["rows"] == [at["y"] - 6, at["y"] + 6]
+    assert image.getpixel((22 + 28 * 2, 12 + 20 * 2)) == (255, 0, 0)     # its mark
+    out = session.map_picture(tile=8, at_x=0, at_y=0)[1]
+    assert out["columns"][0] == at["x"] and out["rows"][0] == at["y"]

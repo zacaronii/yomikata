@@ -1312,14 +1312,22 @@ class Session:
     @tool("Walks a character on a map to a place, in the game's own numbers for where it stands (cursor_find "
           "finds them as it does a cursor's: give it 20 frames or so each way, since a step takes time). One "
           "way at a time, as such games move: across first, then up or down, and the other way round when "
-          "something is in the way. Stops at the place, or where it can get no nearer, and says which.",
+          "something is in the way. Stops at the place, or where it can get no nearer, and says which. Stops "
+          "too when the map changes (a door, stairs): the numbers start anew on the next map, so a place asked "
+          "for on this one means nothing there. It then waits for the new map's picture and says where the "
+          "character stands on it.",
           x=("integer", "where to, across", True), y=("integer", "where to, down", True),
           x_address=("string", "where the game keeps the place across, hex (default: as cursor_find found)", False),
           y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
           limit=("integer", "at most this many frames (default 1200)", False),
-          patience=("integer", "frames without getting nearer before the other way is tried (default 40)", False))
+          patience=("integer", "frames without getting nearer before the other way is tried (default 40)", False),
+          jump=("integer", "a move of this much or more in one frame is a change of map (default 8; 0: never)", False),
+          map_address=("string", "or where the game keeps which map it is, hex, one byte: a change there is a "
+                                 "change of map", False),
+          linger=("integer", "frames to stand at the place and see whether it is a door or stairs, which may "
+                             "take a moment to act (default 45; 0: none)", False))
     def walk_to(self, x: int, y: int, x_address: str = "", y_address: str = "", size: int = 2, limit: int = 1200,
-                patience: int = 40) -> dict:
+                patience: int = 40, jump: int = 8, map_address: str = "", linger: int = 45) -> dict:
         machine = self._need()
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
 
@@ -1329,13 +1337,27 @@ class Session:
             return signed(self._cell(at_x, size)), signed(self._cell(at_y, size))
         events, ran, why, across, turns = [], 0, None, True, 0
         limit, patience = max(1, min(int(limit), MAX_FRAMES)), max(4, int(patience))
-        best, since = None, 0
+        best, since, last, new_map = None, 0, None, None
+        jump, map_at = max(0, int(jump)), int(map_address, 16) if map_address else None
+        which = self._cell(map_at, 1) if map_at is not None else None
+        stood = 0
         while ran < limit and not why:
             cx, cy = now()
             if cx is None or cy is None:
                 raise HarnessError("the place can't be read")
-            if (cx, cy) == (x, y):
+            # Another map: its numbers are its own, so the walk ends here, wherever it was going.
+            if (map_at is not None and self._cell(map_at, 1) != which) or \
+                    (jump and last and max(abs(cx - last[0]), abs(cy - last[1])) >= jump):
+                new_map = {"from": list(last or (cx, cy))}
                 break
+            last = (cx, cy)
+            if (cx, cy) == (x, y):
+                # There: stairs take a moment to act, so it stands a while with the pad let go.
+                if stood >= max(0, int(linger)) or not (jump or map_at is not None):
+                    break
+                _, why = self._advance(1, set(), (0.0, 0.0), events)
+                ran, stood = ran + 1, stood + 1
+                continue
             far = abs(cx - x) + abs(cy - y)
             if best is None or far < best:
                 best, since = far, 0
@@ -1351,10 +1373,74 @@ class Session:
             _, why = self._advance(1, {held}, (0.0, 0.0), events)
             ran += 1
         self._advance(2, set(), (0.0, 0.0), events)
+        if new_map and not why:
+            # The pad let go, until the new map stands still and shows (it fades in from one colour, and the
+            # place may settle meanwhile).
+            still, before = 0, now()
+            for _ in range(360):
+                _, why = self._advance(1, set(), (0.0, 0.0), events)
+                ran += 1
+                still, before = (still + 1, before) if now() == before else (0, now())
+                frame = machine.picture()
+                if why or (still >= 40 and (frame is None or int(frame.max()) - int(frame.min()) > 64)):
+                    break
         cx, cy = now()
+        if new_map:
+            return {"x": cx, "y": cy, "frames": machine.frames, "ran": ran, "reached": False, "map_changed": True,
+                    **new_map, **({"map": self._cell(map_at, 1)} if map_at is not None else {}),
+                    **({"stopped": why} if why else {}), **({"turned": turns} if turns else {}),
+                    **({"events": events} if self.reader is not None and events else {})}
         return {"x": cx, "y": cy, "frames": machine.frames, "ran": ran, "reached": (cx, cy) == (x, y),
                 **({"stopped": why} if why else {}), **({"turned": turns} if turns else {}),
                 **({"events": events} if self.reader is not None and events else {})}
+
+    @tool("The picture on screen with a grid over it in the game's own numbers for where the character stands, "
+          "the numbers along the top and the left, and the character's own tile marked: so that a door, a "
+          "person or stairs seen in the picture can be given to walk_to as a place. For a map the game keeps "
+          "the character in the middle of (most do); say where it draws the character otherwise.",
+          x_address=("string", "where the game keeps the place across, hex (default: as cursor_find found)", False),
+          y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
+          tile=("integer", "a tile's width and height on screen, in pixels (default 16)", False),
+          per=("integer", "how much the numbers go up from a tile to the next (default 1)", False),
+          at_x=("integer", "the left edge of the character's tile on screen, in pixels (default: the middle)", False),
+          at_y=("integer", "and its top", False),
+          scale=("number", "enlarge the picture (default 2)", False))
+    def map_picture(self, x_address: str = "", y_address: str = "", size: int = 2, tile: int = 16, per: int = 1,
+                    at_x: int | None = None, at_y: int | None = None, scale: float = 2.0):
+        from PIL import Image, ImageDraw
+        at = self._cursor_cells(x_address, y_address, size)
+        cx, cy = self._cell(at[0], at[2]), self._cell(at[1], at[2])
+        if cx is None or cy is None:
+            raise HarnessError("the place can't be read")
+        tile, per, scale = max(4, int(tile)), max(1, int(per)), max(1.0, min(4.0, float(scale)))
+        shot = self._picture().convert("RGB")
+        px = (shot.width - tile) // 2 if at_x is None else int(at_x)
+        py = (shot.height - tile) // 2 if at_y is None else int(at_y)
+        shot = shot.resize((round(shot.width * scale), round(shot.height * scale)), Image.NEAREST)
+        left, top = 22, 12                                              # room for the numbers
+        sheet = Image.new("RGB", (shot.width + left, shot.height + top), (0, 0, 0))
+        sheet.paste(shot, (left, top))
+        draw = ImageDraw.Draw(sheet)
+        first_col, first_row = -((px + tile - 1) // tile), -((py + tile - 1) // tile)
+        columns, rows = [], []
+        col = first_col
+        while (edge := (px + col * tile) * scale) < shot.width:
+            draw.line([(left + edge, top), (left + edge, sheet.height)], fill=(90, 90, 90))
+            if edge >= 0 and (col % 2 == 0 or tile * scale >= 28):
+                draw.text((left + edge + 2, 0), str(cx + col * per), fill=(255, 255, 0))
+            columns.append(cx + col * per)
+            col += 1
+        row = first_row
+        while (edge := (py + row * tile) * scale) < shot.height:
+            draw.line([(left, top + edge), (sheet.width, top + edge)], fill=(90, 90, 90))
+            if edge >= 0:
+                draw.text((0, top + edge + 2), str(cy + row * per), fill=(255, 255, 0))
+            rows.append(cy + row * per)
+            row += 1
+        draw.rectangle([left + px * scale, top + py * scale, left + (px + tile) * scale, top + (py + tile) * scale],
+                       outline=(255, 0, 0), width=2)
+        return ("both", {"x": cx, "y": cy, "columns": [columns[0], columns[-1]], "rows": [rows[0], rows[-1]],
+                         "per_tile": per, "frame": self.machine.frames}, self._png(sheet))
 
     @tool("Goes round a picture's spots with the cursor and says what the loaded script read at each: moves "
           "the cursor there (cursor_to), presses the button, then presses on until the script has said "
