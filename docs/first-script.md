@@ -83,13 +83,17 @@ each scene: another room, a battle, a film, after a save is loaded. Then
 {"scenes": {"the first room": ["room1-000-on01", "…"], "the town": ["…"], "a battle": ["…"]}, "live": true}
 ```
 
-to `compare` (with the script) counts the agreement and says whether the bar is met: thirty screens from play,
-three scenes or more, nine in ten of those with text read as shown, nothing read where there is none, and no
-snap taken after a memory write. Where the game has an entry with a layout, give `compare` the entry as well.
+to `compare` (with the script) counts the agreement and says whether the bar is met: thirty screens with text
+from play (those that show none are counted beside them, not among the thirty), three scenes or more, nine in
+ten of those with text read as shown, nothing read where there is none, and no snap taken after a memory write. Where the game has an entry with a layout, give `compare` the entry as well.
 
 Also: `repeat` a few steps to see that the core repeats itself here; load a state and see that the script says
 the line that is up, once; and `script_try` it on the earliest snap's moment (`waypoint_go` with `replay`, or a
 fresh `load`) to see the build check hold from the start.
+
+How many calls it took is in scratch: the harness writes a line for every tool call to `record/calls.jsonl`
+(when, which run of the harness, the game, the tool, its arguments in short), and `yomikata calls <scratch>`
+sums them by game: calls, runs, failures, and calls by tool. Put those numbers in the pull request.
 
 ## 7. The test, and the pull request
 
