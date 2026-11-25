@@ -298,3 +298,28 @@ def test_disc_text_finds_the_stretches_that_read_through_a_table(tmp_path, capsy
     assert cli.main(["disc-text", str(img), "--table", str(table), "--least", "5", "--out", str(out)]) == 0
     assert out.read_text(encoding="utf-8") == f"{21 * 2048 + 100:X}\tあい山うあ川い\n"
     assert "1 stretches, 7 characters" in capsys.readouterr().err
+
+
+def test_glyph_read_puts_a_second_reading_beside_yours(tmp_path, capsys, monkeypatch):
+    from yomikata import cli, glyphread
+    glyphs = tmp_path / "font.json"
+    glyphs.write_text(json.dumps({"02E6": "0000410042002400", "02FD": "0000380006000000", "0106": "ff00810081008100"}))
+    pictures = glyphread.pictures(glyphs, 4, 2)
+    assert pictures["02E6"].shape == (4, 16) and pictures["02E6"][1, 1] == 1 and pictures["02E6"][0].sum() == 0
+    page = glyphread.enlarged(pictures["0106"])
+    assert page.size == ((8 + 6) * 8, (4 + 6) * 8) and page.getpixel((0, 0)) == (255, 255, 255)   # trimmed to its 8 columns
+    readings = {"02E6": "そ", "02FD": "う", "0106": "口"}
+    by_page = {glyphread.enlarged(picture).tobytes(): readings[code] for code, picture in pictures.items()}
+    monkeypatch.setattr(glyphread, "second_reader", lambda: (lambda image: by_page[image.tobytes()]))
+    mine = tmp_path / "mine.tbl"
+    mine.write_text("02E6=そ\n0106=気\n", encoding="utf-8")
+    text = tmp_path / "text.txt"
+    text.write_text("このように気をつけて\nそうか\n", encoding="utf-8")
+    out = tmp_path / "second.txt"
+    assert cli.main(["glyph-read", str(glyphs), "--rows", "4", "--mine", str(mine), "--text", str(text), "--out", str(out)]) == 0
+    printed = capsys.readouterr()
+    assert out.read_text(encoding="utf-8") == "0106\t口\n02E6\tそ\n02FD\tう\n"
+    assert "0106 気 differ: the second reader says 口  このように[気]をつけて" in printed.out
+    assert "02FD ? unread: the second reader says う" in printed.out and "02E6" not in printed.out
+    assert "3 glyphs: 1 read the same two ways, 1 that differ" in printed.err
+    assert glyphread.sentences(["あいう", "えあお"], "あ", width=1) == {"あ": ["[あ]い", "え[あ]お"]}

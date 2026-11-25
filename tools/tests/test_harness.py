@@ -420,8 +420,15 @@ def test_compare_a_script_with_the_lines_on_screen_and_with_a_layout(session):
     out = session.compare(SCRIPT, snaps=["c-000"], entry=entry, show=True)
     assert out["layout"]["different"] == 1 and out["differing"][0]["layout"]["message"] == "んにちは"
     assert session.compare("error('no', 0)", snaps=["c-000"])["script"]["the script didn't load"] == 1
+    # By scene: whether the bar for a checked script is met, and what is short of it.
+    out = session.compare(SCRIPT, scenes={"the first room": ["c-000", "c-001"], "the walk": ["c-002"]})
+    assert out["bar"]["met"] is False
+    assert out["bar"]["scenes"] == {"the first room": {"screens": 2, "agreeing": 2}, "the walk": {"screens": 1, "agreeing": 0}}
+    short = " / ".join(out["bar"]["short_of_it"])
+    assert "3 screens" in short and "2 scene(s)" in short and "give live" in short and "show no text" in short
     for bad in (lambda: session.compare(SCRIPT, snaps=["nothing"]), lambda: session.snap_lines("nothing", no_text=True),
-                lambda: session.snap_lines("c-000"), lambda: session.compare(SCRIPT, snaps=["c-000"], entry={"id": "x"})):
+                lambda: session.snap_lines("c-000"), lambda: session.compare(SCRIPT, snaps=["c-000"], entry={"id": "x"}),
+                lambda: session.compare(SCRIPT, scenes={"empty": []})):
         with pytest.raises(HarnessError):
             bad()
 
@@ -1293,3 +1300,24 @@ def test_glyph_pairs_keeps_the_picture_the_game_draws_for_each_code(session, tmp
     for bad in ({"queue": "0x80000800", "code": "0x800007F0"}, {}, {"queue": "0x80000800", "size": 3}):
         with pytest.raises(HarnessError):
             session.glyph_pairs("0x80000780", 2, [{"wait": 1}], **bad)
+
+
+def test_walk_to_goes_one_way_at_a_time_and_round_what_is_in_the_way(session):
+    session.cursor_find()
+    start = session.cursor_to()
+    out = session.walk_to(start["x"] + 20, start["y"] - 10)
+    assert out["reached"] is True and (out["x"], out["y"]) == (start["x"] + 20, start["y"] - 10) and "turned" not in out
+    # A wall across the way right, at this height: it goes down first, then across.
+    machine, plain = session.machine, session.machine._step
+
+    def walled(buttons, stick):
+        x, y = struct.unpack_from(">hh", machine.memory, 0x30)
+        if "right" in buttons and x >= 120 and y < 100:
+            buttons = set(buttons) - {"right"}
+        plain(buttons, stick)
+    machine._step = walled
+    out = session.walk_to(140, 110, patience=8)
+    assert out["reached"] is True and out["turned"] >= 1
+    assert session.walk_to(100, 60, patience=8)["reached"] is True       # back round it
+    out = session.walk_to(140, 60, patience=8, limit=400)                # straight at the wall: as near as it gets
+    assert out["reached"] is False and out["x"] <= 120 and out["turned"] > 6

@@ -53,6 +53,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `entered` | Reads a name off a naming screen from a snap after each character: where the name is, each character's code, the rule kana codes follow, lines of a table |
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
+| `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
 | `watch` | Runs the game and lists each change of a place in memory with its frame |
@@ -232,6 +233,21 @@ Another reader helps, as a flag more than as a judge. On Final Fantasy IX, manga
 glyph enlarged eight times with a white margin. It agreed with two readings in three; nearly all the rest were
 its own mistakes at thirteen pixels, but the list of disagreements, each read in a sentence, held the wrong
 readings: a reading it agrees with has been read two ways, and one it doesn't goes to the read-through.
+
+The order of reading a font, then:
+
+1. your own reading of each glyph, off a sheet (`yomikata glyphs`, or the harness's `glyph_pairs` for a font
+   that only shows as the game draws);
+2. `yomikata glyph-read` for the second reader's readings beside yours (run it from a scratch environment that
+   has manga-ocr; it isn't part of the tools): what agrees has been read two ways;
+3. where the font stands in a known order, `yomikata sorted` on the readings: what breaks the order is wrong,
+   and the order names the few characters a doubtful glyph can be;
+4. every reading the two readers differ on, and every one the order doubts, read in a sentence of the game's
+   text: `glyph-read --text` prints one for each, from a dump (`yomikata disc-text`, or `run --dump`), or
+   read it in play. A reading none of this settles is left out of the table.
+
+On Dragon Quest V's first 75 glyphs the second reader agreed on 51; the 24 others were all its own mistakes,
+each already read in a sentence.
 
 On Final Fantasy IX: the fixed font's 461 kanji were read from five sheets; the second place's own font had 218
 glyphs, of which the dictionary from the first place already had 88, and its 130 new ones were one sheet.

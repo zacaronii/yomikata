@@ -1197,8 +1197,9 @@ class Session:
           "frames each and looks for a place that follows the sideways moves only, and one that follows the "
           "others only. The cursor ends where it began, give or take. The places are remembered for cursor_to.",
           frames=("integer", "frames each way (default 6)", False),
-          stick=("boolean", "move with the left stick instead of the pad's arrows", False))
-    def cursor_find(self, frames: int = 6, stick: bool = False) -> dict:
+          stick=("boolean", "move with the left stick instead of the pad's arrows", False),
+          size=("integer", "bytes of each number, when you know: 1, 2 or 4 (default: 2, then 4, then 1 is tried)", False))
+    def cursor_find(self, frames: int = 6, stick: bool = False, size: int = 0) -> dict:
         import numpy as np
         machine = self._need()
         frames, events = max(2, min(int(frames), 60)), []
@@ -1215,29 +1216,36 @@ class Session:
         base, start = machine.ram()
         shots = [start] + [moved(d)[1] for d in ("right", "left", "down", "up")]
         found = {}
-        for size in (2, 4, 1):
+        for size in ((int(size),) if int(size) in (1, 2, 4) else (2, 4, 1)):
             kind = {1: "u1", 2: "<i2", 4: "<i4"}[size] if machine.platform not in ("gc", "wii") else {1: "u1", 2: ">i2", 4: ">i4"}[size]
             cut = len(start) // size * size
             s0, r, l, d, u = (np.frombuffer(x[:cut], dtype=kind).astype(np.int64) for x in shots)
             # A cursor: numbers a screen could have, moved by no more than a screen's worth in those frames.
             small = lambda *a: np.logical_and.reduce([(v >= -64) & (v < 4096) for v in a])            # noqa: E731
             far = 24 * frames
-            xs = np.nonzero((r > s0) & (l < r) & (d == l) & (u == l) & (r - s0 <= far) & (r - l <= far) & small(s0, r, l))[0]
-            ys = np.nonzero((r == s0) & (l == s0) & (d > l) & (u < d) & (d - l <= far) & (d - u <= far) & small(s0, d, u))[0]
+            # It follows the pushes one way only. A push may be stopped by a wall, so one of the two is enough,
+            # as long as the other didn't go the wrong way.
+            xs = np.nonzero((r >= s0) & (l <= r) & ((r > s0) | (l < r)) & (d == l) & (u == l)
+                            & (r - s0 <= far) & (r - l <= far) & small(s0, r, l))[0]
+            ys = np.nonzero((r == s0) & (l == s0) & (d >= l) & (u <= d) & ((d > l) | (u < d))
+                            & (d - l <= far) & (d - u <= far) & small(s0, d, u))[0]
             if len(xs) and len(ys):
                 found = {"size": size, "x": [int(i) * size + base for i in xs[:8]], "y": [int(i) * size + base for i in ys[:8]],
-                         "x_moved": {int(i) * size + base: int(r[i] - s0[i]) for i in xs[:8]},
-                         "y_moved": {int(i) * size + base: int(d[i] - l[i]) for i in ys[:8]}}
+                         "x_moved": {int(i) * size + base: int(max(r[i] - s0[i], r[i] - l[i])) for i in xs[:8]},
+                         "y_moved": {int(i) * size + base: int(max(d[i] - l[i], d[i] - u[i])) for i in ys[:8]}}
                 break
         if not found:
             raise HarnessError("no place followed the moves: is a cursor on screen, and does the pad move it?")
-        # The pair that lie closest together: a cursor's x and y are kept side by side.
-        x, y = min(((a, b) for a in found["x"] for b in found["y"]), key=lambda p: abs(p[0] - p[1]))
+        # The pair that lie closest together, of those that moved alike: x and y are kept side by side, and a
+        # push moves either as far.
+        x, y = min(((a, b) for a in found["x"] for b in found["y"]),
+                   key=lambda p: (found["x_moved"][p[0]] != found["y_moved"][p[1]], abs(p[0] - p[1])))
         self.cursor_at = (x, y, found["size"])
         return {"x_address": f"0x{x:08X}", "y_address": f"0x{y:08X}", "size": found["size"],
                 "x": self._cell(x, found["size"]), "y": self._cell(y, found["size"]),
                 "moved": {"right": found["x_moved"][x], "down": found["y_moved"][y], "frames": frames},
-                "candidates": {"x": [f"0x{a:08X}" for a in found["x"]], "y": [f"0x{a:08X}" for a in found["y"]]},
+                "candidates": {"x": {f"0x{a:08X}": found["x_moved"][a] for a in found["x"]},
+                               "y": {f"0x{a:08X}": found["y_moved"][a] for a in found["y"]}},
                 "frame": machine.frames}
 
     @tool("Moves the cursor to a place, in the game's own numbers for it (cursor_find says where they are kept "
@@ -1295,6 +1303,53 @@ class Session:
         return {"x": cx, "y": cy, "frames": machine.frames, **({"ran": ran} if ran else {}),
                 **({"stopped": why} if why else {}), **({"pressed": pressed} if pressed else {}),
                 **({"reached": abs(cx - x) <= max(0, int(near)) and abs(cy - y) <= max(0, int(near))} if x is not None and y is not None else {}),
+                **({"events": events} if self.reader is not None and events else {})}
+
+    @tool("Walks a character on a map to a place, in the game's own numbers for where it stands (cursor_find "
+          "finds them as it does a cursor's: give it 20 frames or so each way, since a step takes time). One "
+          "way at a time, as such games move: across first, then up or down, and the other way round when "
+          "something is in the way. Stops at the place, or where it can get no nearer, and says which.",
+          x=("integer", "where to, across", True), y=("integer", "where to, down", True),
+          x_address=("string", "where the game keeps the place across, hex (default: as cursor_find found)", False),
+          y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
+          limit=("integer", "at most this many frames (default 1200)", False),
+          patience=("integer", "frames without getting nearer before the other way is tried (default 40)", False))
+    def walk_to(self, x: int, y: int, x_address: str = "", y_address: str = "", size: int = 2, limit: int = 1200,
+                patience: int = 40) -> dict:
+        machine = self._need()
+        at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
+
+        def now():
+            def signed(value):
+                return value - (1 << 8 * size) if value is not None and size > 1 and value >> (8 * size - 1) else value
+            return signed(self._cell(at_x, size)), signed(self._cell(at_y, size))
+        events, ran, why, across, turns = [], 0, None, True, 0
+        limit, patience = max(1, min(int(limit), MAX_FRAMES)), max(4, int(patience))
+        best, since = None, 0
+        while ran < limit and not why:
+            cx, cy = now()
+            if cx is None or cy is None:
+                raise HarnessError("the place can't be read")
+            if (cx, cy) == (x, y):
+                break
+            far = abs(cx - x) + abs(cy - y)
+            if best is None or far < best:
+                best, since = far, 0
+            else:
+                since += 1
+            if since >= patience:                       # no nearer for a while: the other way, a few times
+                across, since, turns = not across, 0, turns + 1
+                if turns > 6:
+                    break
+            want_x = "right" if cx < x else "left" if cx > x else None
+            want_y = "down" if cy < y else "up" if cy > y else None
+            held = (want_x or want_y) if across else (want_y or want_x)
+            _, why = self._advance(1, {held}, (0.0, 0.0), events)
+            ran += 1
+        self._advance(2, set(), (0.0, 0.0), events)
+        cx, cy = now()
+        return {"x": cx, "y": cy, "frames": machine.frames, "ran": ran, "reached": (cx, cy) == (x, y),
+                **({"stopped": why} if why else {}), **({"turned": turns} if turns else {}),
                 **({"events": events} if self.reader is not None and events else {})}
 
     @tool("Goes round a picture's spots with the cursor and says what the loaded script read at each: moves "
@@ -1809,12 +1864,21 @@ class Session:
           tables=("object", "that entry's tables: each path the entry names to the table's text", False),
           version=("string", "which of the entry's versions the snaps are (its exe_sha1 or header_crc32)", False),
           show=("boolean", "also give what was read at each snap", False),
+          scenes=("object", "the snaps by scene, a name for each scene to its snaps: the answer then says "
+                            "whether the bar for a checked script is met (30 screens from play over 3 scenes "
+                            "or more, nine in ten with text agreeing, nothing read where there is none, no "
+                            "memory write), and what is short of it", False),
           live=("boolean", "count what the script said in play on the way to each snap (kept with the snap when "
                            "it was taken with a script loaded) instead of running it over the still snap: for a "
                            "script that reads a line only as it appears", False))
     def compare(self, source: str = "", name: str = "script.lua", data: dict | None = None, snaps: list | None = None,
                 frames: int = 40, entry: dict | None = None, tables: dict | None = None, version: str = "",
-                show: bool = False, live: bool = False) -> dict:
+                show: bool = False, live: bool = False,
+                scenes: dict | None = None) -> dict:
+        if scenes:
+            if not all(isinstance(v, list) and v for v in scenes.values()):
+                raise HarnessError("scenes is an object: a name for each scene to the snaps taken in it")
+            snaps = [n for group in scenes.values() for n in group]
         from .. import compare as cmp
         from ..check import agreement, sidecars
         from ..run import Reading, _load, _regions
@@ -1868,6 +1932,32 @@ class Session:
                           "marked as showing no text": len(empty),
                           "of those, reading nothing": sum(1 for r in empty if not r["read"]),
                           "taken after a memory write": sum(1 for r in rows if r["written"])}}
+        if scenes:
+            # The bar for calling a script checked (docs/first-script.md): thirty screens from play, over three
+            # scenes or more, none after a memory write; nine in ten of those with text read as shown, and
+            # nothing read where there is none.
+            judged = len(lined) + len(empty)
+            agreeing = sum(1 for r in lined if r["agreement"] >= 0.8)
+            quiet = sum(1 for r in empty if not r["read"])
+            short = []
+            if judged < 30:
+                short.append(f"{judged} screens with lines or marked as showing no text: 30 are wanted")
+            if len(scenes) < 3:
+                short.append(f"{len(scenes)} scene(s): 3 are wanted")
+            if not live:
+                short.append("not counted from play: give live")
+            if any(r["written"] for r in rows):
+                short.append("some snaps were taken after a memory write")
+            if lined and agreeing < 0.9 * len(lined):
+                short.append(f"{agreeing} of {len(lined)} screens with text agree: nine in ten are wanted")
+            if quiet < len(empty):
+                short.append(f"something was read on {len(empty) - quiet} screen(s) that show no text")
+            by = {r["snap"]: r for r in rows}
+            out["bar"] = {"met": not short, "short_of_it": short,
+                          "scenes": {scene: {"screens": sum(1 for n in group if by[n]["seen"] is not None),
+                                             "agreeing": sum(1 for n in group if by[n]["seen"] and by[n]["agreement"] >= 0.8)
+                                             + sum(1 for n in group if by[n]["seen"] == [] and not by[n]["read"])}
+                                     for scene, group in scenes.items()}}
         if show:
             out["rows"] = rows[:MAX_ROWS]
         if entry is not None:
