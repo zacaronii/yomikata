@@ -553,7 +553,7 @@
   },
   "SLPS-25918": {
    "path": "games/ps2/SLPS-25918.json",
-   "sha256": "5608bf4220d8649e15ed505405f125a74a4f239dda51db9e58af5b5324e402e0",
+   "sha256": "2d4460204cd1badeeabaf1c6886ea589b6b5f1f47c87a0d9c0cc064e2c8772d2",
    "platform": "ps2",
    "encoding": "shift_jis",
    "status": "auto"

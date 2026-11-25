@@ -22,7 +22,8 @@ HW_FRAME = C.c_void_p(-1).value                 # the frame is in the framebuffe
 DEVICE_JOYPAD, DEVICE_ANALOG, JOYPAD_MASK = 1, 5, 256
 MEMORY_SYSTEM_RAM, MEMORY_VIDEO_RAM = 2, 3
 JOYPAD = {"b": 0, "y": 1, "select": 2, "start": 3, "up": 4, "down": 5, "left": 6, "right": 7,
-          "a": 8, "x": 9, "l": 10, "r": 11}       # libretro RetroPad ids (PS1: a = circle, b = cross)
+          "a": 8, "x": 9, "l": 10, "r": 11,       # libretro RetroPad ids (PS1: a = circle, b = cross)
+          "l2": 12, "r2": 13, "l3": 14, "r3": 15}  # the second shoulder buttons, and the sticks pressed in
 
 
 class GameInfo(C.Structure):
