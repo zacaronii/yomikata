@@ -623,7 +623,7 @@
   },
   "SLPS-02100": {
    "path": "scripts/ps1/SLPS-02100.lua",
-   "sha256": "3dfb667906bcf13fa67f507526f62e4d81fc12e79370c26a769952c9d02929ca",
+   "sha256": "6a953d09e95de5a2f800047db7e109842a301eddbb4679513f7ff4a3016e4a72",
    "platform": "ps1",
    "runtime": 1,
    "title": "ペルソナ2 罪 (Persona 2: Tsumi)",
@@ -632,12 +632,20 @@
     "f477d5135dc515489f5caeb86ff0d4a9a6f97ce4"
    ],
    "needs": [],
-   "data": {
-    "tbl": {
-     "path": "games/ps1/SLPS-02100.tbl",
-     "sha256": "24340765c7af5b001df00e734b42dcf505fc7fb7e3fd4d71248af7678e41cc2f"
-    }
-   }
+   "data": {}
+  },
+  "SLPS-02785": {
+   "path": "scripts/ps1/SLPS-02785.lua",
+   "sha256": "6cd3dee36a14ab6531f4b5bf99675014a585e5b3d285b6405afb8b6e480a6401",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "ペルソナ2 罰 (Persona 2: Batsu)",
+   "reads": "the message window, a message at a time; a choice's answers as part of its message",
+   "builds": [
+    "2052488cf17bd9cbb61bfc4039143aee6c7a0c4d"
+   ],
+   "needs": [],
+   "data": {}
   }
  }
 }

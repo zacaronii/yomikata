@@ -449,3 +449,60 @@ def test_header_lines_are_read_as_the_runtime_reads_them():
               "\n-- a comment\n-- reader:\nlocal x = 1\n-- reader: api 3\n")
     assert header(source) == rd.header(source)
     assert ("no hooks", "") in header(source) and ("needs", "vram oam") in header(source)
+
+
+# ---- games/ps1/SLPS-02785.lua (Tsumi's engine, lib/persona2.lua) ----
+
+def test_persona_2_batsu_reads_as_tsumi_does_with_its_own_codes():
+    from yomikata import tbl
+    table = tbl.parse((ROOT / "games/ps1/SLPS-02785.tbl").read_text(encoding="utf-8"))
+    back = {}
+    for code, ch in table.chars.items():
+        back.setdefault(ch, code)
+    codes = lambda s: b"".join(back[ch] for ch in s)        # noqa: E731
+    # A control with three argument words inside the first message, a name by code, then a second message.
+    first = codes("きょう") + bytes.fromhex("2814 0100 0200 0300") + codes("は") + bytes.fromhex("2011 0111") + codes("あめ")
+    scene = first + bytes.fromhex("0311") + codes("あした") + bytes.fromhex("0311")
+
+    def memory(reading, state=0x44, word=0x0C008999):
+        window = bytearray(0x20)
+        struct.pack_into("<H", window, 0x04, 0x5290)
+        struct.pack_into("<I", window, 0x0C, 0x80150000 + reading)
+        window[0x14] = state
+        return sparse({0x80022A90: struct.pack("<I", word), 0x8003236C: struct.pack("<I", 0x0C00CC16),
+                       0x8004A498: struct.pack("<I", 0x0C011C00), 0x800EC014: struct.pack("<I", 0x80150000),
+                       0x8007CEA0: struct.pack("<I", 0x80170000), 0x80150000: scene + bytes(64),
+                       0x80170000: bytes(window)})
+
+    data = {"tbl": (ROOT / "games/ps1/SLPS-02785.tbl").read_bytes()}
+    with rd.Reader(memory(len(first)), platform="ps1", game_id="SLPS-02785", data=data) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-02785.lua"), "SLPS-02785.lua")
+        r.take()
+        r.frame(1)
+        r.read = memory(len(first) + 4)
+        r.frame(2)
+        r.read = memory(len(first) + 4, state=0x40)         # the bit that says a message is up is clear
+        r.frame(3)
+        r.read = memory(len(first) + 4)
+        r.frame(4)
+        assert [e["text"] for e in r.take("text")] == ["きょうは\nあめ", "あした", "あした"]
+    with rd.Reader(memory(0, word=1), platform="ps1", game_id="SLPS-02785", data=data) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-02785.lua"))
+
+
+def test_a_scripts_table_is_its_entrys_tables_in_order(tmp_path):
+    root = tmp_path
+    (root / "schema").mkdir()
+    (root / "schema/entry.schema.json").write_text((ROOT / "schema/entry.schema.json").read_text(encoding="utf-8"), encoding="utf-8")
+    for name, text in (("tables/ps1/A.tbl", "0001=a\n"), ("tables/ps1/B.tbl", "0002=b\n")):
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(text, encoding="utf-8")
+    (root / "games/ps1").mkdir(parents=True)
+    (root / "games/ps1/ZQ-0001.json").write_text(json.dumps({
+        "id": "ZQ-0001", "platform": "ps1", "title": "つくりもの", "encoding": "table", "status": "partial",
+        "tables": ["tables/ps1/A.tbl", "tables/ps1/B.tbl"], "unit": 2}), encoding="utf-8")
+    (root / "games/ps1/ZQ-0001.tbl").write_text("0001=a\n0002=b\n", encoding="utf-8")
+    assert catalog.validate(root) == []
+    (root / "games/ps1/ZQ-0001.tbl").write_text("0001=a\n0002=c\n", encoding="utf-8")
+    assert ["one after another" in p.message for p in catalog.validate(root)] == [True]
