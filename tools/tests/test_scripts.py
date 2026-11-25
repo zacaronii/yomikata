@@ -1515,11 +1515,10 @@ DQ5_QUEUE = 0x7E0E4B
 DQ5_CHECK = bytes.fromhex("b105b10ab10fb114b11bb122b129b130")
 
 
-def dq5_memory(queue: list[int], check: bytes = DQ5_CHECK, drawing: int = 0):
-    """The game's queue of codes still to be drawn, the next one first, and the code being drawn."""
+def dq5_memory(queue: list[int], check: bytes = DQ5_CHECK, name: bytes = bytes(4)):
+    """The game's queue of codes still to be drawn, the next one first, and the hero's name."""
     words = (queue + [0] * 192)[:192]
-    return sparse({0x7EB7D1: check, DQ5_QUEUE: b"".join(struct.pack("<H", w) for w in words),
-                   0x7E02CC: struct.pack("<H", drawing)})
+    return sparse({0x7EB7D1: check, DQ5_QUEUE: b"".join(struct.pack("<H", w) for w in words), 0x7E2001: name})
 
 
 def test_dragon_quest_v_a_message_is_said_when_its_first_character_is_drawn():
@@ -1540,8 +1539,8 @@ def test_dragon_quest_v_a_message_is_said_when_its_first_character_is_drawn():
             r.frame(frame)
             said.append([(e.get("speaker") or None, e["text"]) for e in r.take("text")])
         assert said == [[], [], [], [("パパス", "「そっ　そうか！")], [], [], [], [],     # said at its first character
-                        [(None, "よし\nうかんだぞ！�")], [], [], [],              # a character the table hasn't got
-                        [(None, "……。")], []]
+                        [("＊", "「よし\nうかんだぞ！�")], [], [], [],           # no name: the game draws ＊「 itself
+                        [("＊", "「……。")], []]                                 # (and a character the table hasn't got)
         # Talking to someone: another queue, and the start mark and the first character gone in one frame.
         talk = [START] + codes("パパス「よし") + [WAIT]
         r.read = dq5_memory(talk[:5])                                   # the queue still filling behind its front
@@ -1549,6 +1548,23 @@ def test_dragon_quest_v_a_message_is_said_when_its_first_character_is_drawn():
         r.read = dq5_memory(talk[2:] + [0x0333] * 40)                   # and what lies after its wait is other now
         r.frame(21)
         assert [(e.get("speaker"), e["text"]) for e in r.take("text")] == [("パパス", "「よし")]
+        # A queue that comes into sight a character late: the name is mended from the speaker's next message.
+        late = codes("パス「こねこ") + [0x1002, START] + codes("パパス「ねこ") + [WAIT]
+        r.read = dq5_memory(late)
+        r.frame(22)
+        r.read = dq5_memory(late[1:])
+        r.frame(23)
+        assert [(e.get("speaker"), e["text"]) for e in r.take("text")] == [("パパス", "「こねこ")]
+        # Nobody speaks after 0x1006; 0x1010 is a wait there; 0x1011 and 0x1012 are the hero's name, kept in the
+        # menus' codes; 0x1002 a wait after which the same speaker goes on.
+        plain = [0x1006, 0x1011] + codes("は　ないた！") + [0x1010, 0x1006] + codes("しかし") + [WAIT] \
+            + codes("よし") + [0x1002] + codes("では　") + [0x1012] + [WAIT]
+        said = []
+        for frame, gone in enumerate((0, 1, 3, 9, 10, 11, 14, 15, 17, 18, 22), 40):
+            r.read = dq5_memory(plain[gone:], name=bytes([0x10, 0x11, 0x42, 0x01]))
+            r.frame(frame)
+            said += [(e.get("speaker") or None, e["text"]) for e in r.take("text")]
+        assert said == [(None, "あいアは　ないた！"), (None, "しかし"), ("＊", "「よし"), ("＊", "「では　あいア")]
         r.state_loaded()                                                # mid-message after a savestate: nothing is known
         r.read = dq5_memory(whole[27:])
         r.frame(30)

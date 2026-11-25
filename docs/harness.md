@@ -53,7 +53,8 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `entered` | Reads a name off a naming screen from a snap after each character: where the name is, each character's code, the rule kana codes follow, lines of a table |
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
-| `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way |
+| `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way; stops where the map changes, since the numbers start anew there |
+| `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to` |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
 | `watch` | Runs the game and lists each change of a place in memory with its frame; of several places, or a stretch of values on end (a queue's front), a row whenever any changes |
@@ -121,6 +122,14 @@ In the order to try them:
    game's own copy of the message, which `find_relative` had given as a second place.
    The same goes for a cursor's numbers: `cursor_find` gives where they are in this scene. In Policenauts they
    moved when the room's light changed; when `cursor_to` no longer reaches a place, find them again.
+   On a map the character walks, `map_picture` shows the screen under a grid in those numbers: read a door's
+   or a person's place off it and give it to `walk_to`, which goes straight and round one thing, not through
+   a maze, so give it the corners. It stops where the map changes. It knows that by a jump in the numbers;
+   where two maps' numbers lie close (stairs that join floors at one place) give it `map_address`, a byte
+   that says which map it is: load a few states on different maps and look for a byte that is the same on
+   each map and differs between them. Dragon Quest V's is 0x7E00BD. People may stand between tiles: when
+   talking brings nothing, step half a tile nearer. And a game may look at the pad only every few frames:
+   on Dragon Quest V's deck a press held 3 frames was lost, and one held 8 was not.
 9. When `find_relative` finds nothing it tries the other ways a game may keep a line and gives those that fit
    (`other_ways`): codes of two bytes, the other byte order, kana as far apart as in an order, counting up or
    down. A line with three or four different kana is enough.
@@ -247,7 +256,7 @@ The order of reading a font, then:
    read it in play. A reading none of this settles is left out of the table.
 
 On Dragon Quest V's first 75 glyphs the second reader agreed on 51; the 24 others were all its own mistakes,
-each already read in a sentence.
+each already read in a sentence. On 124, it agreed on 87.
 
 On Final Fantasy IX: the fixed font's 461 kanji were read from five sheets; the second place's own font had 218
 glyphs, of which the dictionary from the first place already had 88, and its 130 new ones were one sheet.
