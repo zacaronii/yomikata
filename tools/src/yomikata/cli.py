@@ -142,6 +142,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--kind", help="draft this window instead of the best: WIDTHxROWS as listed, e.g. 17x3")
     p.add_argument("--root", type=Path, default=Path("."), help="catalog root, for --table")
     p.add_argument("-o", "--out", type=Path, help="write the draft's layouts here (JSON)")
+    p = sub.add_parser("new-script", help="write the skeleton of a script and, where the game has none, of its entry; prints a test to start from")
+    p.add_argument("platform", help="the catalog's name for the console: ps1, gc, sfc, …")
+    p.add_argument("id", help="the game's id, as `yomikata identify` gives it")
+    p.add_argument("--title", required=True, help="the game's title as on its box, with a romanised one in brackets")
+    p.add_argument("--build", required=True, help="the build it is written on: exe SHA-1, header CRC-32, or GameCube id-version")
+    p.add_argument("--check", default="", help="the Lua lines of its build check, as the harness's suggest_build_words gives them")
+    p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -175,6 +182,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "serve":
         from .inbox import serve
         serve(port=args.port)
+        return 0
+
+    if args.cmd == "new-script":
+        from .newscript import new_script
+        try:
+            written, test = new_script(args.root, args.platform, args.id, args.title, args.build, args.check)
+        except ValueError as e:
+            print(str(e), file=sys.stderr)
+            return 1
+        for path in written:
+            print(f"wrote {path}", file=sys.stderr)
+        print(test)
         return 0
 
     if args.cmd == "identify":
