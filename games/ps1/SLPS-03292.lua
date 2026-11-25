@@ -24,7 +24,8 @@ local NAME = 0x8010B5C2
 local CHOOSING, COUNT, CURSOR = 0x8010BC22, 0x8010BCA0, 0x8010BC23
 local ANSWERS, MOST_ANSWERS = 0x8010BCAC, 10
 
-if mem.u32(BUILD_A) ~= WORD_A or mem.u32(BUILD_B) ~= WORD_B or mem.u32(BUILD_C) ~= WORD_C then
+-- Three calls in the game's code.
+if mem.u32(0x80024D20) ~= 0x0C006FE2 or mem.u32(0x80036470) ~= 0x0C010F1E or mem.u32(0x80044B50) ~= 0x0C0102C9 then
     error("this script is for another build of the game", 0)
 end
 

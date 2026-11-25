@@ -482,3 +482,45 @@ def test_tales_of_destiny_the_page_the_game_is_on():
     with rd.Reader(tod_memory(0, call=0x0C000000)[0], platform="ps1", game_id="SLPS-01100") as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPS-01100.lua"))
+
+
+# ---- games/ps1/SLPS-03292.lua ----
+
+def mo2_memory(rows=(), name="", answers=(), choosing=0, count=0, cursor=-1, mode=1, word=0x0C006FE2):
+    def block(lines, n):
+        out = bytearray(44 * n)
+        for i, line in enumerate(lines):
+            raw = line.encode("cp932")
+            out[44 * i:44 * i + len(raw)] = raw
+        return bytes(out)
+    return sparse({0x80024D20: struct.pack("<I", word), 0x80036470: struct.pack("<I", 0x0C010F1E),
+                   0x80044B50: struct.pack("<I", 0x0C0102C9), 0x8009115C: struct.pack("<I", mode),
+                   0x8010B5C2: name.encode("cp932") + bytes(44 - len(name.encode("cp932"))) + block(rows, 3),
+                   0x8010BC22: struct.pack("<Bb", choosing, cursor), 0x8010BCA0: bytes([count]),
+                   0x8010BCAC: block(answers, 10)})
+
+
+def test_memories_off_2nd_rows_name_and_a_choice():
+    full = "あ" * 22                                             # a full row has no ending zero
+    with rd.Reader(mo2_memory(), platform="ps1", game_id="SLPS-03292") as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-03292.lua"), "SLPS-03292.lua")
+        r.take()
+        steps = [mo2_memory([full, "つづき"], "はかせ"), mo2_memory([full, "つづき"], "はかせ"),
+                 mo2_memory(["どうする？"], "", ["いく", "いかない", "まえのこたえ"], choosing=1, count=2),
+                 mo2_memory(["どうする？"], "", ["いく", "いかない", "まえのこたえ"], choosing=1, count=2, cursor=1),
+                 mo2_memory(["そうか"], "はかせ", ["いく", "いかない", "まえのこたえ"], count=2),
+                 mo2_memory(["そうか"], "はかせ", mode=4), mo2_memory(["そうか"], "はかせ")]
+        events = []
+        for frame, read in enumerate(steps, 1):
+            r.read = read
+            r.frame(frame)
+            events += [(frame, kind, e) for kind, e in r.take() if kind in ("text", "cursor")]
+        texts = [(f, e["channel"], e["speaker"], e["text"]) for f, k, e in events if k == "text"]
+        assert texts == [(1, "dialogue", "はかせ", full + "\nつづき"), (3, "dialogue", "", "どうする？"),
+                         (3, "choice", "", "いく\nいかない"), (5, "dialogue", "はかせ", "そうか"),
+                         (7, "dialogue", "はかせ", "そうか")]             # after the movie the line is said again
+        cursors = [(f, e.get("index", "closed")) for f, k, e in events if k == "cursor"]
+        assert cursors == [(3, -1), (4, 1), (5, "closed")]
+    with rd.Reader(mo2_memory(word=1), platform="ps1", game_id="SLPS-03292") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-03292.lua"))
