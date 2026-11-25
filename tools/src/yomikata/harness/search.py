@@ -583,20 +583,21 @@ def mixed(data: bytes, encoding: str = "shift_jis", marks: dict[int, str] | None
     import codecs
     codecs.lookup(encoding)
     marks, out, i = marks or {}, [], 0
-    wide = {"shift_jis": lambda b: 0x81 <= b <= 0x9F or 0xE0 <= b <= 0xFC, "cp932": lambda b: 0x81 <= b <= 0x9F or 0xE0 <= b <= 0xFC,
-            "euc_jp": lambda b: 0xA1 <= b <= 0xFE}.get(encoding.lower().replace("-", "_"))
+    kind = encoding.lower().replace("-", "").replace("_", "")       # shift_jis, Shift-JIS and shiftjis are one
+    sjis = lambda b: 0x81 <= b <= 0x9F or 0xE0 <= b <= 0xFC         # noqa: E731
+    wide = {"shiftjis": sjis, "sjis": sjis, "cp932": sjis, "eucjp": lambda b: 0xA1 <= b <= 0xFE}.get(kind)
     while i < len(data):
         if i in marks:
             out.append(f"[{marks[i]}]")
         b = data[i]
         length = 1
-        if encoding.lower().replace("-", "") == "utf8":
+        if kind == "utf8":
             length = 2 if 0xC2 <= b <= 0xDF else 3 if 0xE0 <= b <= 0xEF else 4 if 0xF0 <= b <= 0xF4 else 1
         elif wide is not None and wide(b):
             length = 2
         if length > 1 and i + length <= len(data) and not any(i + k in marks for k in range(1, length)):
             try:
-                out.append(data[i:i + length].decode("cp932" if encoding.lower().replace("_", "") == "shiftjis" else encoding))
+                out.append(data[i:i + length].decode("cp932" if kind in ("shiftjis", "sjis") else encoding))
                 i += length
                 continue
             except UnicodeDecodeError:
