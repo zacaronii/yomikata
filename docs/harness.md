@@ -40,6 +40,8 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `snap` | Keeps a moment under a name, and writes it to scratch as an inbox-style snapshot for `yomikata run` and `check` |
 | `snap_lines` | Says what a snap's screen showed, once read off its picture: its lines, or that it has no text |
 | `sheet` | The pictures of several snaps as one image, each under its name |
+| `repeat` | Does the same frames or steps again and says whether the game ended up the same: whether the core repeats itself |
+| `differs` | How this moment's memory differs from a snap's, also one another harness wrote |
 | `changed` | Places that differ between two snaps, the same as the first in some others and as the second in others: a flag, a counter, a cursor |
 | `refs` | Words that point at an address or just past it, in the console's byte order |
 | `state_save`, `state_load` | States by name, in scratch |
@@ -79,8 +81,9 @@ So that this can be told afterwards:
 - a pull request lists every check that relied on a write and what was written. A count with written snaps in
   it is quoted as such.
 
-The count starts again when a game is loaded. A state saved after a write still carries it when loaded later:
-name such states so that it shows.
+The count starts again when a game is loaded. A state saved after a write carries it: a file beside the state
+(`<name>.writes.json`) says how many, and loading that state, in this session or a later one, sets the count, so
+what is snapped from there is marked too. Loading a state from before the writes clears it.
 
 ### A call's time
 
@@ -105,10 +108,31 @@ Dolphin core needs. A core that needs a BIOS looks for it in `system/` under scr
 given as `YOMIKATA_SYSTEM` (mounted read-only): your own console's, never one from elsewhere. PCSX ReARMed plays
 most games without one; some show nothing until it has one.
 
+### Does a core repeat itself?
+
+Everything found by replaying rests on the same steps reaching the same moment. `repeat` checks it: it does
+the same frames or steps two or more times, from this moment (going back by a state kept in memory) or from
+power-on (loading the game anew), and says whether memory, video memory and the picture ended up the same, and
+where memory differs. `differs` holds this moment against a snap written by another harness, for a core that
+can't be loaded twice in one.
+
+Measured with the cores named, on one machine:
+
+| Core | From a state | From power-on |
+|---|---|---|
+| PCSX ReARMed | the same: 3 runs of 752 frames with presses | the same: 2 runs of 900 frames |
+| bsnes-mercury (balanced) | the same: 3 runs of 634 frames with presses | not the same: after 1500 frames some 16,300 bytes of work RAM differ (`0x7FC001`-`0x7FFFFF`), also between two harnesses; the picture and video memory are the same |
+| Dolphin (one emulation thread) | the same: 3 runs of 496 frames with presses | not the same: after 900 frames in two harnesses, 110 of 24 million bytes differ, the console's clock and what derives from it |
+
+So: from a state all three repeat; from power-on only PCSX ReARMed does. On bsnes-mercury, loads made within
+the same second matched and loads seconds apart didn't, which fits memory the core fills from the clock at
+power-on and the game hasn't written yet; that reading comes from these runs, not from the core's source. A
+route kept for these two cores should start from a state made early, not from power-on, or be checked on what
+the game shows rather than on all of memory.
+
 Notes on cores:
 
 - A savestate loads only in the core build that made it. Note the core's SHA-256 with every state kept.
-- The same steps from the same state reach the same moment on the software-rendered cores (docs/replay.md).
 
 Dolphin (`dolphin_libretro.so`, a GameCube or Wii game):
 
@@ -121,9 +145,11 @@ Dolphin (`dolphin_libretro.so`, a GameCube or Wii game):
   derives from it: close to repeatable, not exactly.
 - A savestate made by the same build on an Android device (arm64) loads here (x86-64) and goes on. It must not be
   loaded in the core's first frames, or the game stands still: the harness runs 300 frames first.
+- It can't be loaded twice in one harness: the second load never comes back. The harness refuses it and says
+  to start again.
 - It needs `/dev/shm` larger than Docker's default (the script gives 2 GB), and libcurl, libEGL and libusb
   (in the harness image).
 - Memory is given by address (the 24 MB from `0x80000000`), in the console's byte order.
 - Once, a session stopped answering with one processor busy and nothing coming back, from its first call; the
   same calls ran in seconds when made again. The cause isn't known. The harness now gives such a call up by
-  itself ("A call's time", above); before that, the session had to be killed from outside.
+  itself ("A call's time", above): seen working on a second load of this core, given up after its time.

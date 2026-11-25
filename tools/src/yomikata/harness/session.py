@@ -72,6 +72,8 @@ class Session:
         self.make_machine = make_machine
         self.machine = None
         self.game = None
+        self.loaded = None                      # what load was last given: repeat loads it again from power-on
+        self.once = False                       # a core was loaded that can't be loaded again in this process
         self.snaps: dict[str, Snap] = {}
         self.reader: rd.Reader | None = None
         self.script_name = None
@@ -227,13 +229,17 @@ class Session:
         game_path, core_path = self.roots.inside("games", game), self.roots.inside("cores", core)
         if not game_path.is_file() or not core_path.is_file():
             raise HarnessError("no such game or core")
+        if self.once:
+            raise HarnessError("the core loaded before can't be followed by another load in the same harness: "
+                               "start the harness again (states and snaps in scratch are kept)")
         self._close_reader()
         self.machine, self.snaps, self.pokes = None, {}, 0
         platform = PLATFORM_ALIASES.get(platform, platform)         # ngc is the catalog's gc
         self.machine = self.make_machine(core_path, game_path, platform,
                                          self.roots.system or self.roots.scratch / "system",
                                          {str(k): str(v) for k, v in (options or {}).items()})
-        self.game = game
+        self.game, self.loaded = game, (game, core, platform, dict(options or {}))
+        self.once = bool(getattr(self.machine, "once", False))
         if state:
             self.state_load(state)
         return self.status()
@@ -476,6 +482,24 @@ class Session:
             draw.text((x + 2, y), label[:width // 6], fill=(255, 255, 0))
         return sheet
 
+    @tool("How this moment's memory differs from a snap's: one of this session, or one written to scratch by "
+          "another. Says whether two harnesses that did the same thing ended up the same.",
+          snap=("string", "the snap's name", True))
+    def differs(self, snap: str) -> dict:
+        import numpy as np
+        from ..run import _load
+        path = self.roots.inside("scratch", f"snaps/{self._name(snap)}.ram.gz")
+        if not path.is_file():
+            raise HarnessError(f"no snap called {snap}")
+        base, ram = self._need().ram()
+        then, now = np.frombuffer(_load(path), dtype=np.uint8), np.frombuffer(ram, dtype=np.uint8)
+        if len(then) != len(now):
+            raise HarnessError("the snap isn't of the same memory")
+        where = np.nonzero(then != now)[0]
+        meta = json.loads(path.with_name(f"{snap}.json").read_text(encoding="utf-8"))
+        return {"same": len(where) == 0, "bytes_differing": int(len(where)), "frame": self.machine.frames,
+                "snap_frame": meta.get("frame"), "first_places": [f"0x{base + int(i):08X}" for i in where[:20]]}
+
     @tool("Places in memory that differ between two snaps, narrowed by others: the same as the first in some, "
           "the same as the second in others. Finds a flag, a counter, a cursor.",
           a=("string", "a snap's name", True), b=("string", "another's", True),
@@ -558,6 +582,65 @@ class Session:
             record.write(json.dumps(entry, ensure_ascii=False) + "\n")
         return {"written": len(data), "address": entry["address"], "before": entry["before"], "write": self.pokes}
 
+    @tool("Does the same thing twice or more and says whether the game ended up the same: from this moment "
+          "(it goes back to it by a state kept in memory), or from power-on (the game is loaded anew each time, "
+          "and a loaded script is dropped). Tells whether a core repeats itself, which everything found by "
+          "replaying rests on. Afterwards the game stands where the last run ended.",
+          frames=("integer", "run this many frames each time", False),
+          steps=("array", "or these steps each time, as `steps` takes them (their snaps and pictures are left out)", False),
+          runs=("integer", "how many times (default 2, at most 5)", False),
+          power_on=("boolean", "start each run from power-on instead of from this moment", False))
+    def repeat(self, frames: int = 0, steps: list | None = None, runs: int = 2, power_on: bool = False) -> dict:
+        import numpy as np
+        machine = self._need()
+        if bool(frames) == bool(steps):
+            raise HarnessError("give frames, or steps")
+        runs = max(2, min(int(runs), 5))
+        if power_on and self.once:
+            raise HarnessError("this core can't be loaded twice in one harness. From power-on, run the same "
+                               "frames in two harnesses: snap in the first, and ask `differs` in the second")
+        plan = [{k: v for k, v in step.items() if k not in ("snap", "shot")} for step in steps or []
+                if isinstance(step, dict)]
+        start = None if power_on else machine.save_state()
+        ends, base = [], 0
+        for _ in range(runs):
+            if power_on:
+                game, core, platform, options = self.loaded
+                self.load(game, core, platform, options=options)
+                machine = self.machine
+            else:
+                machine.load_state(start)
+                if self.reader is not None:
+                    self.reader.state_loaded()
+                    self._collect(self.reader.take(), [])
+            first = machine.frames
+            if plan:
+                out = self.steps(plan)
+                out = out[1] if isinstance(out, tuple) else out
+                late = out.get("stopped") == "time"
+            else:
+                late = self._advance(min(int(frames), MAX_FRAMES), set(), (0.0, 0.0), [])[1] == "time"
+            if late:
+                raise HarnessError("the call's time was up before the runs were done: repeat something shorter")
+            base, ram = machine.ram()
+            picture = machine.picture()
+            ends.append((machine.frames - first, np.frombuffer(ram, dtype=np.uint8), machine.regions(),
+                         None if picture is None else picture.copy()))
+        ran, memory, regions, picture = ends[0]
+        differing, places, others = [], [], set()
+        for frames_run, ram, its_regions, its_picture in ends[1:]:
+            if frames_run != ran or len(ram) != len(memory):
+                raise HarnessError("the runs weren't of the same length: the steps wait on something that varies")
+            where = np.nonzero(ram != memory)[0]
+            differing.append(int(len(where)))
+            places = places or [f"0x{base + int(i):08X}" for i in where[:20]]
+            others |= {name for name in regions if its_regions.get(name) != regions[name]}
+            if picture is not None and (its_picture is None or not np.array_equal(picture, its_picture)):
+                others.add("picture")
+        return {"runs": runs, "frames": ran, "from": "power-on" if power_on else "this moment",
+                "same": not any(differing) and not others, "bytes_differing": differing,
+                **({"first_places": places} if places else {}), **({"also_differing": sorted(others)} if others else {})}
+
     # ---- states
 
     @tool("Saves the game's state under a name, in scratch.", name=("string", "a name for it", True))
@@ -565,7 +648,14 @@ class Session:
         path = self._state_file(name)
         state = self._need().save_state()
         path.write_bytes(gzip.compress(state, 1))
-        if self.pokes:                          # a state saved after a write carries it: the record says which
+        # A state saved after a write carries it. A file beside the state says how many, so that loading it
+        # (in this session or a later one) marks what follows; the record says which state.
+        beside = path.with_name(f"{name}.writes.json")
+        if self.pokes:
+            beside.write_text(json.dumps({"memory_writes": self.pokes}), encoding="utf-8")
+        elif beside.is_file():
+            beside.unlink()
+        if self.pokes:
             with (self.roots.scratch / "record" / "memory-writes.jsonl").open("a", encoding="utf-8") as record:
                 record.write(json.dumps({"game": self.game, "frame": self._need().frames, "state_saved": name,
                                          "after_writes": self.pokes}, ensure_ascii=False) + "\n")
@@ -582,10 +672,13 @@ class Session:
             machine.load_state(path.read_bytes())
         except RuntimeError as e:
             raise HarnessError(str(e)) from None
+        # Memory is now the state's: with the writes behind that state, and none of those made since.
+        beside = path.with_name(path.name[:-len(".state.gz")] + ".writes.json")
+        self.pokes = int(json.loads(beside.read_text(encoding="utf-8")).get("memory_writes", 0)) if beside.is_file() else 0
         if self.reader is not None:
             self.reader.state_loaded()
             self._collect(self.reader.take(), [])
-        return {"loaded": name, "frames": machine.frames}
+        return {"loaded": name, "frames": machine.frames, **({"memory_writes": self.pokes} if self.pokes else {})}
 
     # ---- scripts
 

@@ -451,6 +451,24 @@ def test_a_memory_write_is_recorded_and_marks_what_follows(session, tmp_path):
         with pytest.raises(HarnessError):
             bad()
     assert session.status()["memory_writes"] == 2
+    # A state saved after writes says so in a file beside it: loading it, now or in another session, sets the
+    # count, and what is snapped from there is marked. A state from before the writes clears it.
+    assert json.loads((tmp_path / "scratch/states/there.writes.json").read_text()) == {"memory_writes": 2}
+    session.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc")
+    session.state_save("clean")
+    assert not (tmp_path / "scratch/states/clean.writes.json").exists()
+    later = Session(session.roots, FakeMachine)
+    later.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc")
+    assert later.state_load("there")["memory_writes"] == 2 and later.snap("from-there")["memory_writes"] == 2
+    assert meta("from-there")["memory_writes"] == 2
+    assert "memory_writes" not in later.state_load("clean") and "memory_writes" not in later.snap("from-clean")
+    later.close()
+    session.allow_poke = True
+    session.state_load("there")
+    session.state_save("there")                                       # saved again, still after writes
+    session.state_load("clean")
+    session.state_save("there")                                       # and overwritten from a clean moment
+    assert not (tmp_path / "scratch/states/there.writes.json").exists()
     # Loading the game anew starts the count again.
     session.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc")
     assert session.status()["memory_writes"] == 0
@@ -465,4 +483,70 @@ def test_compare_says_which_snaps_follow_a_memory_write(session):
     out = session.compare(SCRIPT, show=True)
     assert out["script"]["taken after a memory write"] == 1
     assert [(r["snap"], r["written"]) for r in out["rows"]] == [("clean", False), ("reached", True)]
+
+
+# ---- repeat ----
+
+def test_repeat_says_whether_the_game_ends_up_the_same(session):
+    session.run(7)
+    out = session.repeat(frames=25)
+    assert out == {"runs": 2, "frames": 25, "from": "this moment", "same": True, "bytes_differing": [0]}
+    assert session.status()["frames"] == 32                         # it stands where the last run ended
+    out = session.repeat(steps=[{"buttons": ["a"], "hold": 2, "wait": 3, "snap": True, "shot": True}, {"wait": 5}], runs=3)
+    assert (out["same"], out["frames"], out["bytes_differing"]) == (True, 10, [0, 0])
+    assert session.status()["snaps"] == []                          # a repeat keeps no snaps
+    out = session.repeat(frames=12, power_on=True)
+    assert (out["same"], out["from"], session.status()["frames"]) == (True, "power-on", 12)
+    for bad in (lambda: session.repeat(), lambda: session.repeat(frames=5, steps=[{"wait": 1}])):
+        with pytest.raises(HarnessError):
+            bad()
+
+
+def test_repeat_finds_a_game_that_does_not_repeat(session):
+    import itertools
+    clock = itertools.count(1)
+    step = session.machine._step
+
+    def with_a_clock(buttons, stick):                               # a cell that follows the world's time, not the game's
+        step(buttons, stick)
+        session.machine.memory[0x300] = next(clock) % 256
+    session.machine._step = with_a_clock
+    out = session.repeat(frames=5)
+    assert out["same"] is False and out["bytes_differing"] == [1] and out["first_places"] == ["0x80000300"]
+    session.machine.picture = lambda: np.full((4, 4, 3), next(clock) % 256, dtype=np.uint8)
+    assert session.repeat(frames=5)["also_differing"] == ["picture"]
+
+
+def test_repeat_gives_up_when_the_calls_time_is_short(session):
+    import time
+    session.deadline = time.monotonic() - 1
+    with pytest.raises(HarnessError, match="shorter"):
+        session.repeat(frames=50)
+
+
+def test_differs_from_a_snap_of_another_session(session):
+    session.run(10)
+    session.snap("at-10")
+    assert session.differs("at-10") == {"same": True, "bytes_differing": 0, "frame": 10, "snap_frame": 10,
+                                        "first_places": []}
+    other = Session(session.roots, FakeMachine)
+    other.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc")
+    other.run(10)
+    assert other.differs("at-10")["same"]
+    other.run(1)
+    out = other.differs("at-10")
+    assert (out["same"], out["bytes_differing"], out["first_places"]) == (False, 1, ["0x80000013"])
+    with pytest.raises(HarnessError):
+        other.differs("nothing")
+    other.close()
+
+
+def test_a_core_that_loads_only_once(session):
+    session.machine.once = True
+    session.once = True
+    with pytest.raises(HarnessError, match="start the harness again"):
+        session.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc")
+    with pytest.raises(HarnessError, match="differs"):
+        session.repeat(frames=5, power_on=True)
+    assert session.repeat(frames=5)["same"]                         # from this moment it still can
 

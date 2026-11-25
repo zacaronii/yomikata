@@ -21,6 +21,9 @@ class Machine:
         self.core = Core(core_path, system_dir, options)
         self.core.load_game(game)
         self.frames = 0
+        # A core that draws with the card can't be loaded a second time in one process: the second load never
+        # comes back (seen with Dolphin).
+        self.once = self.core.hw is not None
 
     def run(self, frames: int, buttons: set[str], stick: tuple[float, float]) -> None:
         self.core.run(frames, buttons, stick)
