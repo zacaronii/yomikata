@@ -1392,6 +1392,92 @@ class Session:
                                "y": {f"0x{a:08X}": found["y_moved"][a] for a in found["y"]}},
                 "frame": machine.frames}
 
+    @tool("Presses a button when a number in memory comes to a value: for a game that asks for a press in time "
+          "(a ring's hand over its mark, a bar that fills, a rhythm). The number is watched a frame at a time, "
+          "and the button goes down on the first frame it has come to each value of `at` in turn, from "
+          "whichever side it was on. It plays through the pad only. With `tries`, several lists of values "
+          "are tried one after the other from this moment, the game put back after each, and what `watch` "
+          "held some frames later is given for each: how the right values are found, by what the game does "
+          "after a press that was in time and one that wasn't. Without it the presses are made for good.",
+          address=("string", "where the number is, hex", True),
+          at=("array", "the values to press at, in turn", False),
+          tries=("array", "or lists of such values to try, the game put back after each", False),
+          kind=("string", "float (default), or u8, u16, u32, s16, s32", False),
+          button=("string", "the button (default a)", False),
+          hold=("integer", "frames it is held (default 2)", False),
+          limit=("integer", "frames at most to wait for each value (default 600)", False),
+          after=("integer", "frames to run after the last press (default 30)", False),
+          watch=("array", "places to read afterwards, hex, each as the same kind: what tells a press in time from "
+                          "one that wasn't", False))
+    def press_at(self, address: str, at: list | None = None, tries: list | None = None, kind: str = "float",
+                 button: str = "a", hold: int = 2, limit: int = 600, after: int = 30, watch: list | None = None) -> dict:
+        machine = self._need()
+        kinds = {"float": ("f", 4), "u8": ("B", 1), "u16": ("H", 2), "u32": ("I", 4), "s16": ("h", 2), "s32": ("i", 4)}
+        if kind not in kinds or bool(at) == bool(tries):
+            raise HarnessError("kind is float, u8, u16, u32, s16 or s32; give at, or tries")
+        code, size = kinds[kind]
+        order = ">" if machine.platform in ("gc", "wii") else "<"
+        place, held = int(address, 16), self._buttons([button])
+        seen = [int(str(a), 16) for a in watch or ()]
+        hold, limit, after = max(1, min(int(hold), 60)), max(1, min(int(limit), MAX_FRAMES)), max(0, min(int(after), 3600))
+
+        def value(where):
+            raw = self._read(where, size)
+            return struct.unpack(order + code, raw)[0] if len(raw) == size else None
+
+        def play(values, events):
+            """The presses for one list of values: each when the number has come to it. What happened, and why
+            it ended early if it did."""
+            presses, why = [], None
+            for wanted in values:
+                wanted = float(wanted)
+                before, waited = value(place), 0
+                if before is None:
+                    raise HarnessError("the number can't be read")
+                rising = before < wanted
+                while waited < limit and not why:
+                    now = value(place)
+                    if now is not None and (now >= wanted if rising else now <= wanted):
+                        break
+                    _, why = self._advance(1, set(), (0.0, 0.0), events)
+                    waited += 1
+                if why or waited >= limit:
+                    presses.append({"at": wanted, "pressed": False, "waited": waited})
+                    break
+                presses.append({"at": wanted, "pressed": True, "frame": machine.frames, "value": round(value(place), 4)})
+                _, why = self._advance(hold, held, (0.0, 0.0), events)
+                if why:
+                    break
+            if not why:
+                _, why = self._advance(after, set(), (0.0, 0.0), events)
+            return presses, why
+        show = lambda v: None if v is None else round(v, 4)                 # noqa: E731
+        if at:
+            events = []
+            presses, why = play(at, events)
+            return {"presses": presses, "value": show(value(place)), "frames": machine.frames,
+                    **({"watch": [show(value(w)) for w in seen]} if seen else {}), **({"stopped": why} if why else {}),
+                    **({"events": events} if self.reader is not None and events else {})}
+        if len(tries) > 64 or not all(isinstance(t, list) and t for t in tries):
+            raise HarnessError("tries is up to 64 lists of values")
+        # Tried off the record, as explore tries its pushes: the game is put back, and nothing of it happened.
+        start, frames, way, rows = machine.save_state(), machine.frames, json.dumps(self.route), []
+        reader, self.reader = self.reader, None
+        try:
+            for values in tries:
+                machine.load_state(start)
+                machine.frames = frames
+                presses, why = play(values, [])
+                rows.append({"at": [float(v) for v in values], "pressed": sum(1 for p in presses if p["pressed"]),
+                             "value": show(value(place)), **({"watch": [show(value(w)) for w in seen]} if seen else {}),
+                             **({"stopped": why} if why else {})})
+                if why == "time":
+                    break
+        finally:
+            machine.load_state(start)
+            machine.frames, self.route, self.reader = frames, json.loads(way), reader
+        return {"tried": len(rows), "rows": rows, "frames": machine.frames}
+
     @tool("Finds where a game of three dimensions keeps the place of the character the pad moves: numbers with "
           "a point (32-bit floats), where cursor_find looks for whole ones. It stands still twice, then pushes "
           "right, left, down and up, and gives the floats that stood while it stood, moved with a push and "

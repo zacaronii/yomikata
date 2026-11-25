@@ -1629,3 +1629,40 @@ def test_place_find_and_explore_by_numbers_with_a_point(session):
     struct.pack_into(">3f", machine.memory, 0x300, 0.0, 2.5, 0.0)
     assert session.explore(**{**cells, "step": 1}, within=[-10, -10, 10, 10])["places"] == 1
     assert session.explore(**{**cells, "step": 1}, within=[-10, -10, 10, 10], diagonals=True)["places"] == 11
+
+
+def test_press_at_presses_when_a_number_comes_to_a_value_and_tries_find_which(session):
+    """A hand that goes round, and a mark from 120 to 150: a press with the hand over it scores, any other
+    stops the hand. `tries` finds the mark by what the game does after each press; `at` then presses for good."""
+    machine, plain = session.machine, session.machine._step
+    struct.pack_into(">ffI", machine.memory, 0x340, 0.0, 1.0, 0)            # the hand, whether it turns, the score
+
+    def ring(buttons, stick):
+        plain(buttons, stick)
+        hand, turning, score = struct.unpack_from(">ffI", machine.memory, 0x340)
+        if turning:
+            if "a" in buttons and not machine.memory[0x34F]:
+                if 120.0 <= hand <= 150.0:
+                    score += 1
+                else:
+                    turning = 0.0
+            hand += 7.5 * turning
+        machine.memory[0x34F] = 1 if "a" in buttons else 0                 # a press counts once, however long it is held
+        struct.pack_into(">ffI", machine.memory, 0x340, hand, turning, score)
+        machine.memory[0x34F] = 1 if "a" in buttons else 0
+    machine._step = ring
+    hand, score = f"0x{BASE + 0x340:08X}", f"0x{BASE + 0x348:08X}"
+    before, frames = machine.save_state(), machine.frames
+    out = session.press_at(hand, tries=[[60], [100], [125], [140], [170]], after=10)
+    assert [row["pressed"] for row in out["rows"]] == [1] * 5
+    turning = [row["value"] > row["at"][0] + 60 for row in out["rows"]]     # the hand went on only after a press in time
+    assert turning == [False, False, True, True, False]
+    assert (machine.save_state(), machine.frames) == (before, frames)       # the game was put back
+    out = session.press_at(hand, at=[130], after=4, watch=[score], kind="float")
+    assert out["presses"][0]["pressed"] and 130 <= out["presses"][0]["value"] < 137.5 and machine.frames > frames
+    assert struct.unpack_from(">I", machine.memory, 0x348)[0] == 1
+    out = session.press_at(score, at=[5], kind="u32", limit=20)             # a value it never comes to
+    assert out["presses"] == [{"at": 5.0, "pressed": False, "waited": 20}]
+    for bad in ({"at": [1], "tries": [[1]]}, {}, {"at": [1], "kind": "double"}, {"tries": [[]]}):
+        with pytest.raises(HarnessError):
+            session.press_at(hand, **bad)
