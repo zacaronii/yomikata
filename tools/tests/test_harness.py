@@ -619,7 +619,7 @@ def test_find_relative_a_line_in_codes_of_the_games_own(session):
     assert out["count"] == 1 and out["places"][0]["address"] == "0x80000B00" and out["places"][0]["codes"]["か"] == "8A"
     put(session, 0xC00, bytes(0x10 + search_gojuon(ch) for ch in "さくらのはな"))
     assert [p["address"] for p in session.find_relative("さくらのはな", order="gojuon")["places"]] == ["0x80000C00"]
-    for bad in (lambda: session.find_relative("あいう"), lambda: session.find_relative("あいうえお"),
+    for bad in (lambda: session.find_relative("あいう"),
                 lambda: session.find_relative(line, unit=3), lambda: session.find_relative(word, order="iroha"),
                 lambda: session.find_relative(), lambda: session.find_relative(line, lines={"now": line})):
         with pytest.raises(HarnessError):
@@ -1044,3 +1044,66 @@ def test_steps_that_answer_what_the_script_says(session):
             session.steps([{"wait": 1}], **bad)
     with pytest.raises(HarnessError):
         session.steps([{"wait": 1, "until_event": "menu"}])
+
+
+def test_find_relative_tries_the_other_ways_by_itself(session):
+    """Codes of two bytes, high byte first, that count DOWN as JIS counts up, at an odd address, with a sign
+    from another range in the line: the plain call finds nothing and says which way does."""
+    def code(ch):
+        jis = ch.encode("euc_jp")
+        return 0xA420 - ((jis[0] & 0x7F) << 8 | jis[1] & 0x7F) if ch != "ー" else 0x30FA
+    line = "レーザーをもちいる"
+    put(session, 0x701, b"".join(struct.pack(">H", code(ch)) for ch in line))
+    out = session.find_relative(line)
+    assert out["count"] == 0
+    way = out["other_ways"][0]
+    assert (way["unit"], way["big_endian"], way["order"], way["count"]) == (2, True, "unicode", 1)
+    assert way["places"][0]["address"] == "0x80000701" and way["places"][0]["codes"]["レ"] == "7EB4"
+
+
+def test_code_rule_says_the_arithmetic_kind_by_kind(session):
+    rules = {row["kind"]: row for row in session.code_rule({
+        "し": "7FE9", "て": "7FDA", "い": "7FFC", "レ": "7EB4", "サ": "7EEB", "Ｌ": "80B4", "９": "80C7", "Ｆ": "80BA",
+        "反": "6B96", "動": "6C01", "銃": "6DF4", "っ": "3FDD", "る": "7FB5"})["kinds"]}
+    assert "code = 0xA420 - JIS" in rules["katakana"]["rules"]
+    assert "(code & 0x3FFF) = 0x6420 - JIS" in rules["hiragana"]["rules"]          # a small kana has a bit cleared
+    assert "code = 0x8100 - ASCII" in rules["letters, digits and ASCII signs"]["rules"]
+    assert rules["kanji"]["rules"] == [] and "fall with JIS" in rules["kanji"]["note"]
+    assert session.code_rule({"あ": "56", "い": "57", "き": "61"})["kinds"][0]["rules"] == []
+    assert "code = the fifty sounds + 0x20" in session.code_rule({"あ": "20", "か": "25", "さ": "2A"})["kinds"][0]["rules"]
+    with pytest.raises(HarnessError):
+        session.code_rule({"あ": "zz", "い": "01"})
+
+
+def test_a_glyph_cut_out_of_video_memory_is_found_in_main_memory(session):
+    glyph = np.array([[0, 0, 3, 3, 0, 0, 0, 0, 2, 1, 0, 0], [0, 3, 0, 0, 3, 0, 0, 2, 0, 0, 1, 0],
+                      [3, 3, 3, 3, 3, 3, 0, 2, 2, 2, 1, 1], [3, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 2]])
+    # The font: 2 bits a pixel, the high bits first, three bytes a row.
+    packed = b"".join(bytes(int("".join(f"{v:02b}" for v in row[i:i + 4]), 2) for i in range(0, 12, 4)) for row in glyph)
+    put(session, 0x900, packed)
+    # The texture the game drew it into: 4 bits a pixel, starting two pixels into a word.
+    vram = np.zeros((512, 1024), dtype="<u2")
+    for y, row in enumerate(glyph):
+        for x, v in enumerate(row):
+            vram[100 + y, 640 + (x + 2) // 4] |= int(v) << (4 * ((x + 2) % 4))
+    session.machine.regions = lambda: {"vram": vram.tobytes()}
+    out = session.find_picture(640, 100, 4, 4, bits=4, skip=2, width=12)
+    assert out["pixels"] == [12, 4] and out["values"] == [0, 1, 2, 3]
+    hit = out["found"][0]
+    assert (hit["at"], hit["bits"], hit["first"], hit["row_bytes"], hit["cut"]) == ("0x80000900", 2, "high", 3, 0)
+    kind, png = session.vram_picture(636, 96, 12, 12, bits=4, scale=4)
+    from PIL import Image
+    assert kind == "image" and Image.open(io.BytesIO(png)).size == (12 * 4 * 4, 12 * 4)
+    assert Image.open(io.BytesIO(session.vram_picture()[1])).size == (1024, 512)
+    session.machine.regions = lambda: {}
+    with pytest.raises(HarnessError, match="video memory"):
+        session.vram_picture()
+
+
+def test_watch_lists_a_place_as_it_changes(session):
+    out = session.watch("0x80000010", 3)                               # the frame counter
+    assert out["from"] == "0x00000000" and [c["value"] for c in out["changes"]] == ["0x00000001", "0x00000002", "0x00000003"]
+    out = session.watch("0x80000020", 6, size=1, buttons=["a"], hold=2)
+    assert [(c["frame"], c["value"]) for c in out["changes"]] == [(4, "0x01"), (6, "0x00")]
+    with pytest.raises(HarnessError):
+        session.watch("0x80000010", 3, size=3)

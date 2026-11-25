@@ -260,3 +260,41 @@ def test_ff9_places_reads_a_package_as_it_lies_on_the_disc():
     assert glyphs.fingerprint(pictures[0]) != glyphs.fingerprint(pictures[1])
     assert ff9.package(Stream(), 60) is None and ff9.fnv1a64(b"") == "cbf29ce484222325"
 
+
+
+def test_a_font_in_jis_order_is_checked_by_its_order(tmp_path, capsys):
+    from yomikata import glyphs
+    font = "亜唖娃阿哀愛挨"                                              # the first kanji of JIS, in order
+    rows = glyphs.in_order(list("亜唖") + [None] + list("阿愛") + ["愛", "挨"])       # one unread, one read wrongly
+    assert [r["status"] for r in rows] == ["ok", "ok", "unread", "ok", "breaks", "ok", "ok"] or \
+        [r["status"] for r in rows] == ["ok", "ok", "unread", "ok", "ok", "breaks", "ok"]
+    assert rows[2]["must_be"] == "娃" and rows[2]["allowed"] == 1
+    rows = glyphs.in_order(["亜", None, "阿", "哀"])
+    assert rows[1]["candidates"] == "唖娃" and "must_be" not in rows[1]
+    readings = tmp_path / "readings.txt"
+    readings.write_text("# a font\n亜\n唖\n? can't tell\n阿\n挨 looks like it\n愛\n挨\n", encoding="utf-8")
+    from yomikata import cli
+    assert cli.main(["sorted", str(readings)]) == 0
+    out = capsys.readouterr()
+    assert out.out == "    2 ? unread must be 娃\n    4 挨 breaks must be 哀\n"         # the wrong reading is put right too
+    assert "7 glyphs: 5 in order, 1 that break it, 1 unread; 2 of those the order settles by itself" in out.err
+    with pytest.raises(ValueError):
+        glyphs.in_order(list(font), "iroha")
+
+
+def test_disc_text_finds_the_stretches_that_read_through_a_table(tmp_path, capsys):
+    from yomikata import disctext
+    table = tmp_path / "game.tbl"
+    table.write_text("20=あ\n21=い\n22=う\nFA01=山\nFA02=川\n", encoding="utf-8")
+    img = tmp_path / "disc.iso"
+    make_ps1(img, False)
+    with open(img, "ab") as f:
+        f.write(bytes(100) + bytes([0x20, 0x21, 0xFA, 0x01, 0x22, 0x20, 0xFA, 0x02, 0x21]) + bytes(2048 - 109))
+        f.write(bytes([0x20, 0x21, 0x22]) + bytes(2045))                # too short to count
+    found = disctext.scan(img, tbl.load([table]), least=5)
+    assert found == [(21 * 2048 + 100, "あい山うあ川い")]
+    out = tmp_path / "text.txt"
+    from yomikata import cli
+    assert cli.main(["disc-text", str(img), "--table", str(table), "--least", "5", "--out", str(out)]) == 0
+    assert out.read_text(encoding="utf-8") == f"{21 * 2048 + 100:X}\tあい山うあ川い\n"
+    assert "1 stretches, 7 characters" in capsys.readouterr().err

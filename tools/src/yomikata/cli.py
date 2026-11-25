@@ -164,6 +164,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dictionary", type=Path, help="fingerprint=character lines already read")
     p.add_argument("--sheet", type=Path, help="write the glyphs the dictionary hasn't got as a PNG, to scratch")
     p.add_argument("--all", action="store_true", help="put every glyph on the sheet, read or not")
+    p = sub.add_parser("sorted", help="check a font's readings by the order its glyphs stand in (JIS, Shift-JIS, Unicode): which readings break it, and what the order allows for each glyph not yet sure")
+    p.add_argument("readings", type=Path, help="a line for each glyph in the font's order: its reading, or ? (anything after the first character is a note)")
+    p.add_argument("--order", default="jis", help="jis (default), sjis or unicode")
+    p.add_argument("--all", action="store_true", help="print the glyphs that are in order as well")
+    p = sub.add_parser("disc-text", help="the stretches of a disc image that read as text through a table of the game's codes (the game's text: write it to scratch)")
+    p.add_argument("disc", type=Path)
+    p.add_argument("--table", type=Path, action="append", required=True, help="a .tbl of the game's codes; several are read as one")
+    p.add_argument("--least", type=int, default=8, help="the fewest characters on end (default 8)")
+    p.add_argument("--out", type=Path, required=True, help="a file in a scratch folder: an offset and a text a line")
     p = sub.add_parser("validate", help="check entries against the schema and the catalog rules")
     p.add_argument("--root", type=Path, default=Path("."))
     p = sub.add_parser("index", help="write index.json; with --check, fail if it's out of date")
@@ -253,6 +262,29 @@ def main(argv: list[str] | None = None) -> int:
               f"{len(unread)} to read" + (f": {args.sheet}" if args.sheet and shown else ""), file=sys.stderr)
         return 0
 
+    if args.cmd == "sorted":
+        from . import glyphs
+        lines = [line.strip() for line in args.readings.read_text(encoding="utf-8").splitlines()]
+        lines = [line for line in lines if line and not line.startswith("#")]
+        rows = glyphs.in_order([None if line[0] == "?" else line[0] for line in lines], args.order)
+        counts = {"ok": 0, "breaks": 0, "unread": 0}
+        for row in rows:
+            counts[row["status"]] += 1
+            if row["status"] != "ok" or args.all:
+                must = f" must be {row['must_be']}" if "must_be" in row else ""
+                allowed = f" one of {row['allowed']}: {row['candidates']}" if "candidates" in row and not must else ""
+                print(f"{row['glyph']:5d} {row['reading'] or '?'} {row['status']}{must}{allowed}")
+        pinned = sum(1 for row in rows if "must_be" in row)
+        print(f"{len(rows)} glyphs: {counts['ok']} in order, {counts['breaks']} that break it, {counts['unread']} unread; "
+              f"{pinned} of those the order settles by itself", file=sys.stderr)
+        return 0
+    if args.cmd == "disc-text":
+        from . import disctext
+        from . import tbl as tables
+        found = disctext.scan(args.disc, tables.load(args.table), args.least, args.out.parent)
+        args.out.write_text("".join(f"{at:X}\t{text}\n" for at, text in found), encoding="utf-8")
+        print(f"{len(found)} stretches, {sum(len(text) for _, text in found)} characters, written to {args.out}", file=sys.stderr)
+        return 0
     if args.cmd == "identify":
         status = 0
         for img in args.images:
