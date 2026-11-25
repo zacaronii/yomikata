@@ -8,6 +8,7 @@ text and pictures: for the agent's eyes and the scratch folder, never for the ca
 from __future__ import annotations
 
 import gzip
+import hashlib
 import io
 import json
 import re
@@ -74,6 +75,10 @@ class Session:
         self.game = None
         self.loaded = None                      # what load was last given: repeat loads it again from power-on
         self.once = False                       # a core was loaded that can't be loaded again in this process
+        # The way here: where it starts ("power-on", or a state it can't see behind) and every move since, as
+        # [frames, buttons, stick] or {"poke": address, "hex": bytes}. A waypoint keeps it.
+        self.route: dict = {"base": "power-on", "moves": []}
+        self.core_hash = None
         self.snaps: dict[str, Snap] = {}
         self.reader: rd.Reader | None = None
         self.script_name = None
@@ -82,7 +87,7 @@ class Session:
         self.allow_poke = False                 # memory writes: only when the harness was started with them on
         self.pokes = 0                          # writes made since the game was loaded
         self.deadline: float | None = None      # set by whoever makes a call (mcp.py); None: no limit
-        for folder in ("states", "snaps", "system", "saves"):
+        for folder in ("states", "snaps", "system", "saves", "waypoints"):
             (roots.scratch / folder).mkdir(parents=True, exist_ok=True)
 
     # ---- helpers
@@ -147,6 +152,7 @@ class Session:
             step = 1 if (self.reader is not None or watch is not None) else min(CHUNK, frames - ran)
             machine.run(step, held, where)
             ran += step
+            self._moved(step, held, where)
             if self.reader is not None:
                 self.reader.frame(machine.frames)
                 self._collect(self.reader.take(), events)
@@ -154,6 +160,14 @@ class Session:
             if why:
                 return ran, why
         return ran, None
+
+    def _moved(self, frames: int, held: set[str], where: tuple[float, float]) -> None:
+        move = [frames, sorted(held), list(where)]
+        moves = self.route["moves"]
+        if moves and isinstance(moves[-1], list) and moves[-1][1:] == move[1:]:
+            moves[-1][0] += frames
+        else:
+            moves.append(move)
 
     def _cell(self, address: int, size: int) -> int | None:
         data = self._read(address, size)
@@ -245,6 +259,8 @@ class Session:
                                          self.roots.system or self.roots.scratch / "system",
                                          {str(k): str(v) for k, v in (options or {}).items()})
         self.game, self.loaded = game, (game, core, platform, dict(options or {}))
+        self.route = {"base": "power-on", "moves": []}
+        self.core_hash = hashlib.sha256(core_path.read_bytes()).hexdigest()
         self.once = bool(getattr(self.machine, "once", False))
         if state:
             self.state_load(state)
@@ -665,6 +681,7 @@ class Session:
         if len(before) < len(data) or machine.write(at, data) != len(data):
             raise HarnessError("that isn't all in main memory")
         self.pokes += 1
+        self.route["moves"].append({"poke": f"0x{at:08X}", "hex": data.hex()})
         entry = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "game": self.game, "frame": machine.frames,
                  "write": self.pokes, "address": f"0x{at:08X}", "before": before.hex(), "after": data.hex(),
                  "why": why.strip(), "synthetic": bool(synthetic)}
@@ -694,6 +711,7 @@ class Session:
         plan = [{k: v for k, v in step.items() if k not in ("snap", "shot")} for step in steps or []
                 if isinstance(step, dict)]
         start = None if power_on else machine.save_state()
+        way = json.dumps(self.route)
         ends, base = [], 0
         for _ in range(runs):
             if power_on:
@@ -702,6 +720,7 @@ class Session:
                 machine = self.machine
             else:
                 machine.load_state(start)
+                self.route = json.loads(way)
                 if self.reader is not None:
                     self.reader.state_loaded()
                     self._collect(self.reader.take(), [])
@@ -742,6 +761,8 @@ class Session:
         path.write_bytes(gzip.compress(state, 1))
         # A state saved after a write carries it. A file beside the state says how many, so that loading it
         # (in this session or a later one) marks what follows; the record says which state.
+        path.with_name(f"{name}.route.json").write_text(
+            json.dumps({"game": self.game, "core": self.core_hash, **self.route}), encoding="utf-8")
         beside = path.with_name(f"{name}.writes.json")
         if self.pokes:
             beside.write_text(json.dumps({"memory_writes": self.pokes}), encoding="utf-8")
@@ -767,10 +788,121 @@ class Session:
         # Memory is now the state's: with the writes behind that state, and none of those made since.
         beside = path.with_name(path.name[:-len(".state.gz")] + ".writes.json")
         self.pokes = int(json.loads(beside.read_text(encoding="utf-8")).get("memory_writes", 0)) if beside.is_file() else 0
+        # The way to this state, when it was kept with it and is this game's; else the way starts at the state.
+        way = path.with_name(path.name[:-len(".state.gz")] + ".route.json")
+        kept = json.loads(way.read_text(encoding="utf-8")) if way.is_file() else {}
+        self.route = ({"base": kept["base"], "moves": kept["moves"]} if kept.get("game") == self.game
+                      else {"base": {"state": name}, "moves": []})
         if self.reader is not None:
             self.reader.state_loaded()
             self._collect(self.reader.take(), [])
         return {"loaded": name, "frames": machine.frames, **({"memory_writes": self.pokes} if self.pokes else {})}
+
+    # ---- waypoints
+
+    def _waypoint(self, name: str) -> Path:
+        return self.roots.inside("scratch", f"waypoints/{self._name(name)}.json")
+
+    def _shown(self):
+        """The picture now as an array, or None."""
+        return self.machine.picture()
+
+    @tool("Keeps this moment as a waypoint: the game and core, every move since power-on (or since the state "
+          "the way started from), a state to come back by, and the picture, by which a replay is checked. A "
+          "waypoint from power-on outlives a new build of the core, which a state doesn't.",
+          name=("string", "a name for it", True),
+          note=("string", "what is on screen here, for whoever comes back", False))
+    def waypoint_save(self, name: str, note: str = "") -> dict:
+        machine, path = self._need(), self._waypoint(name)
+        if machine.picture() is None:
+            raise HarnessError("the game hasn't shown a frame yet: run some frames")
+        game, core, platform, options = self.loaded
+        picture = self._png(self._picture())
+        path.with_suffix(".png").write_bytes(picture)
+        path.with_suffix(".state.gz").write_bytes(gzip.compress(machine.save_state(), 1))
+        point = {"game": game, "core": core, "core_sha256": self.core_hash, "platform": platform, "options": options,
+                 "base": self.route["base"], "moves": self.route["moves"], "frames": machine.frames,
+                 "picture_sha1": hashlib.sha1(machine.picture().tobytes()).hexdigest(),
+                 "memory_writes": self.pokes, "note": note}
+        path.write_text(json.dumps(point, ensure_ascii=False), encoding="utf-8")
+        return {"waypoint": name, "from": point["base"], "moves": len(point["moves"]), "frames": machine.frames,
+                **({"memory_writes": self.pokes} if self.pokes else {})}
+
+    @tool("The waypoints kept in scratch: the game, where each starts, its length, its note.")
+    def waypoints(self) -> dict:
+        out = {}
+        for path in sorted((self.roots.scratch / "waypoints").glob("*.json")):
+            point = json.loads(path.read_text(encoding="utf-8"))
+            out[path.stem] = {"game": point["game"], "core": point["core"], "from": point["base"],
+                              "frames": point["frames"], "note": point.get("note", ""),
+                              **({"memory_writes": point["memory_writes"]} if point.get("memory_writes") else {})}
+        return {"waypoints": out}
+
+    @tool("Goes to a waypoint, loading its game if need be: by its state when the core is the build that made "
+          "it, else by playing its moves again from where its way starts. Then says whether the picture is the "
+          "one kept with it. A replay that reaches it keeps a state of the new build.",
+          name=("string", "the waypoint's name", True),
+          replay=("boolean", "play the moves again even if the state would load: the check that the way still holds", False))
+    def waypoint_go(self, name: str, replay: bool = False) -> dict:
+        import numpy as np
+        path = self._waypoint(name)
+        if not path.is_file():
+            raise HarnessError(f"no waypoint called {name}")
+        point = json.loads(path.read_text(encoding="utf-8"))
+        wanted = (point["game"], point["core"], point["platform"], point["options"])
+        state = path.with_suffix(".state.gz")
+        loaded_now = self.machine is not None and self.loaded == wanted
+        core_file = self.roots.inside("cores", point["core"])
+        same_build = core_file.is_file() and hashlib.sha256(core_file.read_bytes()).hexdigest() == point["core_sha256"]
+        via = "state" if same_build and state.is_file() and not replay else "replay"
+        if via == "state":
+            if not loaded_now:
+                self.load(*wanted[:3], options=wanted[3])
+            try:
+                self.machine.load_state(state.read_bytes())
+            except RuntimeError as e:
+                raise HarnessError(str(e)) from None
+            if self.reader is not None:
+                self.reader.state_loaded()
+                self._collect(self.reader.take(), [])
+        else:
+            base = point["base"]
+            if base == "power-on":
+                if self.once:
+                    raise HarnessError("this core can't be loaded twice in one harness: start it again and make "
+                                       "waypoint_go the first call")
+                self.load(*wanted[:3], options=wanted[3])
+            else:
+                if not loaded_now:
+                    self.load(*wanted[:3], options=wanted[3])
+                self.state_load(base["state"])
+            for move in point["moves"]:
+                if isinstance(move, dict):
+                    if not self.allow_poke:
+                        raise HarnessError("this waypoint's way writes memory: the harness must be started with --allow-poke")
+                    self.poke(move["poke"], move["hex"], f"replaying the waypoint {name}")
+                    continue
+                frames, buttons, stick = move
+                ran, why = self._advance(int(frames), set(buttons), tuple(stick), [])
+                if why == "time":
+                    raise HarnessError(f"the call's time was up {self.machine.frames} frames into the way (of "
+                                       f"{point['frames']}): start the harness with more --call-seconds")
+        self.route = {"base": point["base"], "moves": json.loads(json.dumps(point["moves"]))}
+        self.pokes = int(point.get("memory_writes", 0))
+        picture = self.machine.picture()
+        same = picture is not None and hashlib.sha1(picture.tobytes()).hexdigest() == point["picture_sha1"]
+        out = {"waypoint": name, "via": via, "frames": self.machine.frames, "picture_same": bool(same),
+               "note": point.get("note", "")}
+        if not same and picture is not None:
+            from PIL import Image
+            kept = np.asarray(Image.open(path.with_suffix(".png")).convert("RGB"))
+            if kept.shape == picture.shape:
+                out["pixels_differing"] = round(float((kept != picture).any(axis=2).mean()), 4)
+        if via == "replay" and same:
+            path.with_suffix(".state.gz").write_bytes(gzip.compress(self.machine.save_state(), 1))
+            point["core_sha256"] = self.core_hash
+            path.write_text(json.dumps(point, ensure_ascii=False), encoding="utf-8")
+        return out
 
     # ---- scripts
 

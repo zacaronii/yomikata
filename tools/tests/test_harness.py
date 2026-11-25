@@ -662,3 +662,85 @@ def test_core_options(session):
     session.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc", options={"fake_clock": "fixed"})
     assert session.core_options()["options"]["fake_clock"]["given"] == "fixed"
 
+
+# ---- waypoints ----
+
+def test_a_waypoint_is_reached_by_its_state_or_by_its_moves(session, tmp_path):
+    session.run(3)
+    session.steps([{"buttons": ["a"], "hold": 2, "wait": 5}, {"until": {"limit": 50, "address": "0x80000100", "size": 2}}])
+    session.run(4, ["b"], [0.5, 0])
+    out = session.waypoint_save("first-line", note="the second line is up")
+    assert out == {"waypoint": "first-line", "from": "power-on", "moves": 4, "frames": 24}
+    kept = json.loads((tmp_path / "scratch/waypoints/first-line.json").read_text())
+    assert kept["moves"] == [[3, [], [0.0, 0.0]], [2, ["a"], [0.0, 0.0]], [15, [], [0.0, 0.0]], [4, ["b"], [0.5, 0.0]]]
+    assert kept["game"] == "ngc/Made Up (Japan).iso" and len(kept["core_sha256"]) == 64 and kept["frames"] == 24
+    assert session.waypoints() == {"waypoints": {"first-line": {
+        "game": "ngc/Made Up (Japan).iso", "core": "fake_libretro.so", "from": "power-on", "frames": 24,
+        "note": "the second line is up"}}}
+    memory = session.read("0x80000000", 0x200)
+    session.run(50)
+    # Back by its state: the core is the build that made it.
+    out = session.waypoint_go("first-line")
+    assert (out["via"], out["frames"], out["picture_same"]) == ("state", 24, True)
+    assert session.read("0x80000000", 0x200) == memory
+    # By its moves, in a harness that has nothing loaded: the game is loaded and played to it.
+    other = Session(session.roots, FakeMachine)
+    out = other.waypoint_go("first-line", replay=True)
+    assert (out["via"], out["frames"], out["picture_same"], out["note"]) == ("replay", 24, True, "the second line is up")
+    assert other.read("0x80000000", 0x200) == memory and other.status()["game"] == "ngc/Made Up (Japan).iso"
+    # A way goes on from a waypoint: the next one holds all of it.
+    other.run(6)
+    assert other.waypoint_save("further")["moves"] == 5
+    other.close()
+    # Another build of the core: its state isn't tried, the moves are played, and a state of this build is kept.
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"a newer core")
+    newer = Session(session.roots, FakeMachine)
+    out = newer.waypoint_go("first-line")
+    assert (out["via"], out["picture_same"]) == ("replay", True)
+    assert newer.waypoint_go("first-line")["via"] == "state"
+    newer.close()
+    with pytest.raises(HarnessError):
+        session.waypoint_go("nowhere")
+
+
+def test_a_waypoint_whose_picture_is_no_longer_reached(session, tmp_path):
+    session.run(5)
+    session.waypoint_save("there")
+    session.machine.picture = lambda: np.full((48, 64, 3), 9, dtype=np.uint8)      # the game shows something else now
+    out = session.waypoint_go("there", replay=False)
+    assert out["picture_same"] is False and out["pixels_differing"] == 1.0
+
+
+def test_a_way_from_a_state_and_a_way_with_a_write(session, tmp_path):
+    session.allow_poke = True
+    session.run(4)
+    session.state_save("early")                                       # a state keeps the way to it
+    session.run(3)
+    session.state_load("early")
+    session.run(2, ["a"])
+    assert session.waypoint_save("via-state")["moves"] == 2 and session.route["base"] == "power-on"
+    # A state whose way isn't known (a reader's, from the inbox): the way starts at the state.
+    (tmp_path / "scratch/states/early.route.json").unlink()
+    session.state_load("early")
+    session.run(2)
+    out = session.waypoint_save("from-state")
+    assert out["from"] == {"state": "early"} and out["moves"] == 1
+    assert session.waypoint_go("from-state", replay=True)["picture_same"]
+    # A write on the way is part of it, and of the waypoint.
+    session.poke("0x80000200", "07", "set the chapter flag")
+    session.run(1)
+    out = session.waypoint_save("written")
+    assert out["memory_writes"] == 1 and session.waypoints()["waypoints"]["written"]["memory_writes"] == 1
+    session.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc")
+    out = session.waypoint_go("written", replay=True)
+    assert out["picture_same"] and session.read("0x80000200", 1)["hex"] == "07" and session.status()["memory_writes"] == 1
+    session.allow_poke = False
+    with pytest.raises(HarnessError, match="--allow-poke"):
+        session.waypoint_go("written", replay=True)
+
+
+def test_repeat_leaves_the_way_as_one_run(session):
+    session.run(3)
+    session.repeat(frames=5, runs=3)
+    assert session.route["moves"] == [[8, [], [0.0, 0.0]]]
+

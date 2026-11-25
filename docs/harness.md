@@ -48,7 +48,8 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `differs` | How this moment's memory differs from a snap's, also one another harness wrote |
 | `changed` | Places that differ between two snaps, the same as the first in some others and as the second in others: a flag, a counter, a cursor |
 | `refs` | Words that point at an address or just past it, in the console's byte order |
-| `state_save`, `state_load` | States by name, in scratch |
+| `state_save`, `state_load` | States by name, in scratch. A state keeps the way to it beside it |
+| `waypoint_save`, `waypoint_go`, `waypoints` | A moment kept with every move that leads to it from power-on, and gone back to: by its state, or by playing the moves again when the core is another build |
 | `script_try` | Loads a script on the running game: its load error (another build, a missing region), or its header |
 | `compare` | Runs a script over snaps and counts: what it reads against the lines given with `snap_lines`, and, given an entry, against that entry's layout (as `yomikata compare`). Counts hold no text |
 | `lua` | One line with the script functions on live memory |
@@ -92,6 +93,29 @@ Seen on games that already have scripts: `text_runs` gave both the script and th
 though not from all three, which have a colour code among them; and with two moments it found a tile window's
 copy of the screen (its rows' two halves), not the window's own buffer, which had moved to another slot between
 the two.
+
+### Waypoints
+
+A state is the quick way back to a moment, and it only loads in the core build that made it. A waypoint is the
+lasting one: the game, the core and its options, and every move since power-on, as frames with the buttons and
+the stick held; with a state for speed and the picture to check by.
+
+The harness keeps the way as it goes: each `run`, `run_until` and `steps` adds the frames it actually ran, so a
+wait "until" is kept as the number of frames it took. `state_save` writes the way beside the state, so a state
+loaded later carries on from power-on; a state without one (a reader's, from the inbox) is where the way then
+starts, and a waypoint made from there needs that state. A memory write on the way is part of it: replaying
+such a waypoint writes again, needs `--allow-poke`, and the waypoint says how many writes it holds.
+
+`waypoint_go` loads the game if it isn't loaded, and takes the state when the core file is the one that made
+it (by its SHA-256); otherwise, or with `replay`, it plays the moves. Either way it says whether the picture is
+the one kept. A replay that gets there keeps a state of the new build. What is checked is the picture, not
+memory: from power-on only PCSX ReARMed ends with the same memory (above), and the picture is what a script's
+text is read against.
+
+Replayed in a second harness, from power-on: 11,660 frames with ten presses on PCSX ReARMed, 2,636 frames with
+nine presses on bsnes-mercury, and 1,500 frames without a press on Dolphin; each reached its picture. A long
+way through a game's random events hasn't been tried on the two cores that don't repeat exactly: if one stops
+reaching its picture, make the waypoint from a state taken early instead.
 
 ### Writing memory
 
