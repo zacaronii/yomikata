@@ -73,6 +73,9 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `poke` | Only with `--allow-poke`: writes bytes into main memory, to reach a moment. Recorded ("Writing memory", below) |
 | `overlay` | The picture with the script's layout cells drawn on it |
 
+A script that reads glyphs by their pictures logs those it has no reading for (lib/glyphs.lua); the harness
+writes them to `glyphs/<script>.log` in scratch for `yomikata unread` ("A game's own font", below).
+
 The way to a script, with them: `load`, `steps` to a line (a sheet shows where you are), `find` it, `snap` at a
 few moments, `changed` and `refs` to find what says it is on screen, write the script, `script_try`, `run_until`
 it emits and read what it says, `overlay`. Then the check: `steps` through a stretch of the game with a snap at
@@ -179,6 +182,19 @@ In the order to try them:
    brings their pictures with it. A script for such a game knows a kanji by a hash of its picture
    (`text.hash` of the bytes as they lie), and its dictionary is those hashes, read as below.
 
+14. A game may bring each scene's text with a font of that scene's own: only the characters its lines use,
+   numbered as they come up. Then no search for a line finds anything, in any order or encoding, and a kana
+   stretch and its order find nothing either, since kana have no order there. What is left is the picture:
+   Ryuu ga Gotoku 2's lines were found by counting what is drawn (a count of sprites that went up by four a
+   character as a subtitle came), then by what differs between snaps with each subtitle up (`changed` with a
+   pattern), which led to the rows drawn and from them to the text and the font. Such a game's text is
+   read as the next section says, by its glyphs' pictures. Two things held there that may hold elsewhere:
+   one word points at the rows drawn now, whatever draws them (a scene's subtitles, a window in play, a
+   question's answers, a place's name), so one reader covers them all; and what tells them apart is how
+   they are drawn (an answer's colour, a caption drawn twice for its shadow), not a field that names the
+   kind. A window's first row was there 54 frames before its speaker's name: a script that says a page the
+   moment it sees it says it twice, once without the name.
+
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.
 
@@ -282,6 +298,30 @@ scene's lines), there is no font to read once: let the script, in a copy for try
 reading for as it plays, draw those on a sheet, and read them with the lines they came up in beside you. Its
 first 188 pictures were read so, over four scenes; the second reader agreed on 155, and the 33 others
 were its own mistakes, each read in its sentence.
+
+`yomikata unread` is that way made into a tool, for any size of picture. A script asks `lib/glyphs.lua` for
+each picture's character; a picture the dictionary hasn't got is logged once (`glyph <hash> <width>x<height>x
+<bits> <hex>`), and so is each row of text that held one (`glyph-line`, the hashes in order). The harness keeps
+those lines in scratch (`glyphs/<script>.log`) and leaves them out of a call's events. Then:
+
+```sh
+yomikata unread glyphs/SLPM-66602.log --dictionary games/ps2/SLPM-66602.glyphs \
+    --sheet work/unread.png --second work/second.tsv
+yomikata unread glyphs/SLPM-66602.log --dictionary games/ps2/SLPM-66602.glyphs \
+    --second work/second.tsv --row "12=…" "13=…" --add 5E64=諸
+```
+
+The first draws the unread pictures (`unread.png`) and, numbered, the rows they stand in (`unread-rows.png`),
+and has the second reader read each picture alone and each row whole (run it from the environment that has
+manga-ocr; without it the sheets are drawn all the same). The second writes readings into the dictionary: a
+row read whole by its number, each picture taking the character that stands there, or one picture by the start
+of its hash. It refuses a row read to another length than it has pictures and a reading that differs from the
+dictionary's, and lists the new readings the second reader read otherwise: read those rows again. Reading
+whole rows is quicker than glyph by glyph and surer, since a sentence carries its kanji.
+
+Ryuu ga Gotoku 2's 602 glyphs (24 by 24, two bits a pixel) were read so, from the 269 rows of half an hour's
+play. The second reader agreed on 469 of the 536 it was asked about; the 67 others were its own mistakes, 18 of
+them hangul, which it doesn't read.
 
 On Dragon Quest V's first 75 glyphs the second reader agreed on 51; the 24 others were all its own mistakes,
 each already read in a sentence. On 136, it agreed on 96.
@@ -402,7 +442,12 @@ LRPS2 (`pcsx2_libretro.so`, a PlayStation 2 game; `tools/scripts/get-core.sh pcs
 - A game's build line is its serial and the CRC the emulator gives it; `identify` works both out of the disc
   (`build`), and the core's own log names the same CRC. Identifying a DVD image unpacks it first: a minute or two.
 - It can't write memory cards unless `pcsx2/memcards/` under the system folder is the harness user's to write.
-- Whether it repeats itself from power-on or from a state hasn't been measured yet.
+- From a state it has repeated itself as far as a script's events show: two runs of 17,900 frames through five
+  scenes gave the same 53 pages on the same frames. Its memory after such runs hasn't been compared, nor has a
+  run from power-on.
+- A press may be lost on a frame the game doesn't look at the pad: hold a button 6 frames. The left stick
+  walks; in a game that types its messages, a press while one types only finishes it, so step with a press
+  `until` the script's next text rather than a press a page.
 
 Dolphin (`dolphin_libretro.so`, a GameCube or Wii game):
 

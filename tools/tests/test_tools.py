@@ -367,3 +367,50 @@ def test_a_scripts_dictionary_of_glyph_pictures_is_checked_by_its_own_form(tmp_p
     assert [str(p) for p in catalog.validate(tmp_path)] == [
         "games/ps1/SLPS-99999.glyphs: line 2: expected 16 hex digits, = and one character",
         "games/ps1/SLPS-99999.glyphs: line 3: expected 16 hex digits, = and one character"]
+
+
+# ---- yomikata unread: the pictures a script logged for want of a reading ----
+
+def test_unread_draws_what_a_script_logged_and_writes_readings_into_its_dictionary(tmp_path, capsys):
+    from PIL import Image
+    from yomikata import cli, unread
+    # Three pictures of 8 by 4 at two bits a pixel (two bytes a row), and one of 4 by 4 at a bit a pixel, as
+    # lib/glyphs.lua logs them; the rows they stood in; and a line that isn't what its size says.
+    data = [bytes([0x1B, 0xE4] * 4), bytes([0xFF, 0x00] * 4), bytes([0x00, 0x55] * 4), bytes([0x90, 0x60, 0x60, 0x90])]
+    marks = ["00AA000000000001", "00AB000000000002", "0C00000000000003", "0D00000000000004"]
+    log = tmp_path / "X.log"
+    log.write_text("".join(f"glyph {m} {'8x4x2' if len(d) == 8 else '4x4x1'} {d.hex()}\n" for m, d in zip(marks, data))
+                   + f"glyph-line {marks[0]} _ {marks[1]}\nglyph-line {marks[0]} _ {marks[1]}\n"
+                   + f"other things a host logs\nglyph-line {marks[2]} {marks[0]}\nglyph 0E00000000000005 8x4x2 1b\n",
+                   encoding="utf-8")
+    pictures = unread.logged(log.read_text(encoding="utf-8"))
+    assert list(pictures) == marks                                         # in the order they came up; the short one left out
+    assert pictures[marks[0]].pixels().tolist() == [[0, 1, 2, 3, 3, 2, 1, 0]] * 4
+    assert pictures[marks[3]].pixels().tolist() == [[1, 0, 0, 1], [0, 1, 1, 0], [0, 1, 1, 0], [1, 0, 0, 1]]
+    rows = unread.rows(log.read_text(encoding="utf-8"))
+    assert rows == [[marks[0], None, marks[1]], [marks[2], marks[0]]]      # a row once, however often it was logged
+    dictionary, sheet = tmp_path / "X.glyphs", tmp_path / "sheet.png"
+    dictionary.write_text(f"# made up\n{marks[1]}=二\n", encoding="utf-8")
+    args = ["unread", str(log), "--dictionary", str(dictionary), "--sheet", str(sheet)]
+    assert cli.main(args) == 0
+    out = capsys.readouterr()
+    assert out.out.splitlines() == [f"{marks[0]} 8x4", f"{marks[2]} 8x4", f"{marks[3]} 4x4"]
+    assert "4 pictures logged, 1 in the dictionary, 3 to read" in out.err
+    assert Image.open(sheet).size == (16 * 40, 4 * 3 + 16)
+    assert Image.open(tmp_path / "sheet-rows.png").size[1] == 2 * (4 * 2 + 16)       # both rows show an unread picture
+    # A row read whole gives each of its pictures a character; a reading by a hash's start; one taken out.
+    assert cli.main(args + ["--row", "0=一 二", "--add", "0C=三", "0D=四"]) == 0
+    assert dictionary.read_text(encoding="utf-8") == f"# made up\n{marks[0]}=一\n{marks[1]}=二\n{marks[2]}=三\n{marks[3]}=四\n"
+    assert "4 in the dictionary, 0 to read" in capsys.readouterr().err
+    assert cli.main(args + ["--add", "0D="]) == 0 and marks[3] not in dictionary.read_text(encoding="utf-8")
+    capsys.readouterr()
+    # Refused: a row read to another length, a row that reads a picture otherwise than the dictionary has
+    # it, the start of two hashes, two characters for one picture.
+    for bad in (["--row", "0=一"], ["--row", "1=三二"], ["--add", "00A=五"], ["--add", "0D=四四"]):
+        assert cli.main(args + bad) == 1
+    assert "0D" not in dictionary.read_text(encoding="utf-8")
+    # The second reader on whole rows: where it gives a character a picture, each picture takes its own.
+    whole = unread.second_rows(rows, pictures, reader=lambda page: "一 二" if page.width == 3 * (8 + 2 + 8) else "三…一")
+    assert whole == {marks[0]: ["一"], marks[1]: ["二"]}                    # the second row was read to another length
+    alone = unread.second({marks[3]: pictures[marks[3]]}, reader=lambda page: "四")
+    assert alone == {marks[3]: "四"}
