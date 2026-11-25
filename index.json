@@ -673,6 +673,19 @@
    "needs": [],
    "data": {}
   },
+  "SLPS-03050": {
+   "path": "scripts/ps1/SLPS-03050.lua",
+   "sha256": "4ad28d0beec228b98b5c1b1421e5c417b3b3f7fa3418a8eb8a89d7c83da4f13c",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "テイルズ オブ エターニア (Tales of Eternia)",
+   "reads": "the message window's line and the speaker's name",
+   "builds": [
+    "0e461086b49d4bed0a8648d7ab4b841abfae9336"
+   ],
+   "needs": [],
+   "data": {}
+  },
   "SLPS-03292": {
    "path": "scripts/ps1/SLPS-03292.lua",
    "sha256": "95e5f0b15889a4190d9e3824cf11c5847beea5e4c44407ab677a6dfc12c614a0",
