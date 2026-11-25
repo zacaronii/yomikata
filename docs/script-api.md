@@ -151,6 +151,10 @@ after its BIOS has run). A host that loads a script as the game starts must expe
 try again: once a second through the game's first minute, and after a savestate was loaded. Only a script that
 still refuses after that is not this game's.
 
+A game that runs one program for its title and another for the game itself has no code that is there
+throughout. Its script checks something that is: words of a table the game keeps in memory from power-on. Such
+a script loads at the title and reads nothing until the game's own program is running.
+
 `reader.build_id` is the host's own hash of the build, or nil. Furoshiki's is "a hash of the program as it
 ships"; *open: which hash, and whether it equals this catalog's `exe_sha1` on any console.* Until that is known a
 script shouldn't compare it to a constant.

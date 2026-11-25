@@ -643,3 +643,49 @@ def test_tales_of_eternia_a_line_with_codes_whose_second_byte_is_zero():
     with rd.Reader(toe_memory(word=1), platform="ps1", game_id="SLPS-03050") as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPS-03050.lua"))
+
+
+# ---- games/ps1/SLPS-00097.lua ----
+
+def sui_memory(rows=(), is_open=1, mark=0, window=0x80189A90, word=0x0B2D0B6F):
+    from yomikata import tbl
+    table = tbl.parse((ROOT / "games/ps1/SLPS-00097.tbl").read_text(encoding="utf-8"))
+    back = {}
+    for code, ch in table.chars.items():
+        back.setdefault(ch, code)
+    block = bytearray(back["　"] * 80)                        # four rows of twenty blank cells
+    for i, row in enumerate(rows):
+        raw = b"".join(back[ch] for ch in row)
+        block[40 * i:40 * i + len(raw)] = raw
+    record = bytearray(0x20)
+    record[0x08] = is_open
+    struct.pack_into("<I", record, 0x18, 0x80190000)
+    return sparse({0x8009A000: struct.pack("<I", word), 0x8009C000: struct.pack("<I", 0xF4D3F491),
+                   0x80095000: struct.pack("<I", 0x040107FF), 0x8017DBC0: struct.pack("<I", window),
+                   0x80189A90: bytes(record), 0x80190000: bytes(block), 0x801BA436: bytes([mark])})
+
+
+def test_gensou_suikoden_a_line_is_said_when_it_is_whole():
+    data = {"tbl": (ROOT / "games/ps1/SLPS-00097.tbl").read_bytes()}
+    with rd.Reader(sui_memory(window=0), platform="ps1", game_id="SLPS-00097", data=data) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-00097.lua"), "SLPS-00097.lua")
+        r.take()
+        seen, frame = [], 0
+
+        def run(read, frames=1):
+            nonlocal frame
+            r.read = read
+            for _ in range(frames):
+                frame += 1
+                r.frame(frame)
+                seen.extend((frame, e["text"]) for e in r.take("text"))
+        run(sui_memory(window=0), 3)                                  # before the first window: nothing to read
+        run(sui_memory(["はかせ", "「どう"]), 5)                        # typing
+        run(sui_memory(["はかせ", "「どうした"]), 5)
+        run(sui_memory(["はかせ", "「どうした"], mark=24), 3)           # the wait mark: the line is whole
+        run(sui_memory(["はかせ", "「どうした"], is_open=0), 2)         # closed; the text stays in memory
+        run(sui_memory(["いくぞ"]), 40)                               # a line the game moves on from by itself
+        assert seen == [(14, "はかせ\n「どうした"), (49, "いくぞ")]     # thirty frames after it stood still
+    with rd.Reader(sui_memory(word=1), platform="ps1", game_id="SLPS-00097", data=data) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-00097.lua"))

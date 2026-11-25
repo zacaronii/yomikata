@@ -31,6 +31,31 @@ function tbl.parse(source)
     return out
 end
 
+--- Text from `bytes`, `unit` bytes a code, with a parsed table: a code the table ends a text with is a blank
+--- line, one it breaks a line with a line break, and one it hasn't got is U+FFFD.
+function tbl.decode(bytes, parsed, unit)
+    local out = {}
+    for i = 1, #bytes - unit + 1, unit do
+        local code = bytes:sub(i, i + unit - 1)
+        if parsed.ends[code] then
+            out[#out + 1] = "\n\n"
+        elseif parsed.newlines[code] then
+            out[#out + 1] = "\n"
+        else
+            out[#out + 1] = parsed.chars[code] or "\u{FFFD}"
+        end
+    end
+    return table.concat(out)
+end
+
+--- A line without the wide spaces at its end, as a game pads a window's rows.
+function tbl.trim_end(line)
+    while line:sub(-3) == "\u{3000}" do
+        line = line:sub(1, -4)
+    end
+    return line
+end
+
 --- A line without the wide spaces at its start and its end, as a game pads a window's rows.
 function tbl.trim_wide(line)
     local space = "\u{3000}"
