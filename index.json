@@ -734,6 +734,19 @@
     }
    }
   },
+  "SLPS-00404": {
+   "path": "scripts/ps1/SLPS-00404.lua",
+   "sha256": "c2ef1b0fa54818aecc4d0f0b6f3b2308f290178e28e888abf1de77cfe85a259d",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "学校であった怖い話S (Gakkou de Atta Kowai Hanashi S)",
+   "reads": "the text as it types, a part at a time, and a choice's question and answers with its cursor",
+   "builds": [
+    "0fbbbf73b02ad1c3409c431ccf9be2c7f83c62c3"
+   ],
+   "needs": [],
+   "data": {}
+  },
   "SLPS-00405": {
    "path": "scripts/ps1/SLPS-00405.lua",
    "sha256": "c774edf756e4f30940a57de2127330acecff8aef6d4994925c69813f6c4057ae",
