@@ -257,7 +257,7 @@ The order of reading a font, then:
    read it in play. A reading none of this settles is left out of the table.
 
 On Dragon Quest V's first 75 glyphs the second reader agreed on 51; the 24 others were all its own mistakes,
-each already read in a sentence. On 124, it agreed on 87.
+each already read in a sentence. On 136, it agreed on 96.
 
 On Final Fantasy IX: the fixed font's 461 kanji were read from five sheets; the second place's own font had 218
 glyphs, of which the dictionary from the first place already had 88, and its 130 new ones were one sheet.

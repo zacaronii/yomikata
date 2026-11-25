@@ -120,7 +120,7 @@
   },
   "SFC-F061BF93": {
    "path": "games/sfc/SFC-F061BF93.json",
-   "sha256": "122d82a9afead17138f11b73382c08f76b6e2d4d26304afa1d17114a8b0ac4d5",
+   "sha256": "302faad6cd45241d1015ee25522c52f5c046b7174f33f0159a28a67e567f9339",
    "platform": "sfc",
    "encoding": "table",
    "status": "partial"
@@ -720,7 +720,7 @@
   },
   "SFC-F061BF93": {
    "path": "scripts/sfc/SFC-F061BF93.lua",
-   "sha256": "a851477b6b4aa696390b1fc89aca3b40ea1e3ea013d9c1d88b89618d7502e584",
+   "sha256": "7945e8425e90b0f3b64ea54ddeea5b3d86f050ea602b9c02cf2d40ce472f6954",
    "platform": "sfc",
    "runtime": 1,
    "title": "ドラゴンクエストV 天空の花嫁 (Dragon Quest V: Tenkuu no Hanayome)",
@@ -732,7 +732,7 @@
    "data": {
     "tbl": {
      "path": "games/sfc/SFC-F061BF93.tbl",
-     "sha256": "0db98505ec69f80b4e4ed15417d23e9a3bbe47cb38d740e3ef0f483060f0b21e"
+     "sha256": "cc1ed5d6c9cdd146364d6fd32d0812cd149884e690a80afec408986aaf2fe454"
     }
    }
   },
