@@ -108,3 +108,21 @@ def test_a_name_with_no_message_is_not_held_against_a_script(tmp_path):
     script, _ = catalog(tmp_path, SCRIPT % "line")
     result = compare(script, ENTRY, [snapshot(tmp_path, "a", "", "はかせ")], tmp_path)
     assert result.agrees and result.counts()["nothing in either"] == 1
+
+
+def test_answers_typed_into_the_message_rows_count_once(tmp_path):
+    entry = {"id": "ZQ-0001", "platform": "ps1", "encoding": "shift_jis", "layouts": [{
+        "message": {"address": "0x80000200", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                    "rows": {"count": 2, "stride": 16}},
+        "choices": {"address": "0x80000200", "charset": "shift_jis", "max_bytes": 16, "terminator": "00",
+                    "rows": {"count": 2, "stride": 16}},
+        "choosing": {"address": "0x80000300"}}]}
+    script, _ = catalog(tmp_path, "-- reader: no hooks\nreader.on_frame(function() if mem.u8(0x80000300) ~= 0 then "
+                                  "reader.emit{ text = text.sjis(mem.cstr(0x80000200, 16)) .. '\\n' .. text.sjis(mem.cstr(0x80000210, 16)), "
+                                  "channel = 'choice' } end end)")
+    path = snapshot(tmp_path, "a", "", "", ("はい", "いいえ"))
+    ram = bytearray(gzip.decompress(path.read_bytes()))
+    ram[0x300] = 1
+    path.write_bytes(gzip.compress(bytes(ram)))
+    result = compare(script, entry, [path], tmp_path, frames=1)
+    assert result.agrees and result.rows[0].layout == {"message": "", "choices": ["はい", "いいえ"]}
