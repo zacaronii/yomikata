@@ -1515,6 +1515,99 @@ class Session:
                 **({"stopped": why} if why else {}), **({"turned": turns} if turns else {}),
                 **({"events": events} if self.reader is not None and events else {})}
 
+    @tool("Finds where the character can walk by trying it: from where it stands it pushes each way for a few "
+          "frames, goes back, and does the same from every place it got to, until nothing new comes or `most` "
+          "places are known. For a map walk_to can't cross (ledges, fences, a maze) or one too dark to read. "
+          "Gives the places as rows of a map in the game's own numbers (# reached, @ where it stands, D where "
+          "the next push changed the map: a door, stairs), and the game is left where it was. Given `to`, the "
+          "game is then put at that place as it was reached while trying (the pushes go into the record of the "
+          "way), or it says that the place wasn't among those reached.",
+          x_address=("string", "where the game keeps the place across, hex (default: as cursor_find found)", False),
+          y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
+          step=("integer", "frames a push is held (default 8): about one of the game's numbers a push is best", False),
+          most=("integer", "places at most (default 400, 1500 at most)", False),
+          to=("array", "a place [x, y] to walk to by the way found", False),
+          near=("integer", "how near to it is near enough, each way (default 1)", False),
+          jump=("integer", "a move of this much or more in one push is a change of map (default 8)", False),
+          within=("array", "look no further than [x0, y0, x1, y1]", False))
+    def explore(self, x_address: str = "", y_address: str = "", size: int = 2, step: int = 8, most: int = 400,
+                to: list | None = None, near: int = 1, jump: int = 8, within: list | None = None) -> dict:
+        machine = self._need()
+        at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
+        step, most, jump = max(1, min(int(step), 60)), max(2, min(int(most), 1500)), max(2, int(jump))
+        if within is not None and (len(within) != 4 or within[0] > within[2] or within[1] > within[3]):
+            raise HarnessError("within is [x0, y0, x1, y1]")
+
+        def now():
+            def signed(value):
+                return value - (1 << 8 * size) if value is not None and size > 1 and value >> (8 * size - 1) else value
+            return signed(self._cell(at_x, size)), signed(self._cell(at_y, size))
+        origin = now()
+        if None in origin:
+            raise HarnessError("the place can't be read")
+        # Tried without the script and off the record of the way: the game is put back afterwards, so nothing
+        # of the trying happened as far as a state or a waypoint knows.
+        start, frames = machine.save_state(), machine.frames
+        places = {origin: (start, None, None)}             # a place: the state there, where it was reached from, the push
+        doors, queue, held, late = {}, [origin], len(start), False
+        while queue and not late:
+            here = queue.pop(0)
+            for push in ("up", "down", "left", "right"):
+                if self._late():
+                    late = True
+                    break
+                machine.load_state(places[here][0])
+                machine.run(step, {push}, (0.0, 0.0))
+                there = now()
+                if None in there or there == here:
+                    continue
+                if max(abs(there[0] - here[0]), abs(there[1] - here[1])) >= jump:
+                    doors.setdefault(here, push)
+                    continue
+                inside = within is None or (within[0] <= there[0] <= within[2] and within[1] <= there[1] <= within[3])
+                if there not in places and inside and len(places) < most and held < 1 << 30:
+                    places[there] = (machine.save_state(), here, push)
+                    held += len(places[there][0])
+                    queue.append(there)
+        machine.load_state(start)
+        machine.frames = frames
+        xs, ys = [p[0] for p in places], [p[1] for p in places]
+        rows = ["".join("@" if (x, y) == origin else "D" if (x, y) in doors else "#" if (x, y) in places else "."
+                        for x in range(min(xs), max(xs) + 1)) for y in range(min(ys), max(ys) + 1)]
+        out = {"x": origin[0], "y": origin[1], "places": len(places), "columns": [min(xs), max(xs)],
+               "rows": [min(ys), max(ys)], "map": rows,
+               "doors": [{"at": list(p), "push": push} for p, push in sorted(doors.items())][:MAX_ROWS],
+               **({"stopped": "time"} if late else {}),
+               **({"more": "places beyond these weren't tried: raise most, or give within"}
+                  if not late and len(places) >= most else {})}
+        if to is None:
+            return out
+        near = max(0, int(near))
+        fits = [p for p in places if abs(p[0] - to[0]) <= near and abs(p[1] - to[1]) <= near]
+        if not fits:
+            return {**out, "reached": False, "why": "the place isn't among those it got to"}
+        goal = min(fits, key=lambda p: abs(p[0] - to[0]) + abs(p[1] - to[1]))
+        pushes, at = [], goal
+        while places[at][1] is not None:
+            pushes.append(places[at][2])
+            at = places[at][1]
+        # The game is taken as it stood at that place while trying, and the pushes that led there go into the
+        # record of the way. Playing them again from here may end elsewhere: a core need not go on from a
+        # loaded state exactly as it would have run through it, and each place was reached from a loaded one.
+        machine.load_state(places[goal][0])
+        machine.frames = frames + step * len(pushes)
+        for push in reversed(pushes):
+            self._moved(step, {push}, (0.0, 0.0))
+        events = []
+        if self.reader is not None:
+            self.reader.state_loaded()
+            self._collect(self.reader.take(), events)
+        self._advance(2, set(), (0.0, 0.0), events)
+        cx, cy = now()
+        return {**{k: v for k, v in out.items() if k != "map"}, "x": cx, "y": cy, "pushes": len(pushes),
+                "reached": (cx, cy) == goal, "frames": machine.frames,
+                **({"events": events} if self.reader is not None and events else {})}
+
     @tool("The picture on screen with a grid over it in the game's own numbers for where the character stands, "
           "the numbers along the top and the left, and the character's own tile marked: so that a door, a "
           "person or stairs seen in the picture can be given to walk_to as a place. For a map the game keeps "

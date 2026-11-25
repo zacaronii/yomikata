@@ -1467,3 +1467,38 @@ def test_the_second_shoulder_buttons_and_the_sticks_pressed_in_are_buttons_too(s
     assert session.run(2, buttons=["a", "r2", "l3"])["frames"] > 0
     with pytest.raises(HarnessError, match="buttons are"):
         session.run(1, buttons=["r4"])
+
+
+def test_explore_finds_where_one_can_walk_by_trying_and_walks_the_way_it_found(session):
+    """A room walled off but for a gap: every place the pushes reach is listed, the game is left as it was,
+    and a place behind the wall is walked to through the gap."""
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+
+    def walled(buttons, stick):
+        x, y = struct.unpack_from(">hh", machine.memory, 0x30)
+        buttons = set(buttons)
+        if x == 108 and "right" in buttons and y != 88:                  # a wall right of 108, open at 88 only
+            buttons.discard("right")
+        if x == 110 and "left" in buttons and y != 88:
+            buttons.discard("left")
+        plain(buttons, stick)
+        if struct.unpack_from(">hh", machine.memory, 0x30) == (116, 76):   # stairs behind the wall
+            struct.pack_into(">hh", machine.memory, 0x30, 30, 200)
+    machine._step = walled
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    before, frames, way = machine.save_state(), machine.frames, json.dumps(session.route)
+    out = session.explore(step=1, within=[96, 76, 116, 92])
+    assert (out["x"], out["y"]) == (100, 80) and out["columns"] == [96, 116] and out["rows"] == [76, 92]
+    assert out["map"][4] == "#.#.@.#.#.#.#.#.#.#.#" and out["map"][1] == "." * 21      # two a push: every other place
+    assert out["places"] == 11 * 9 - 1 and out["doors"] == [{"at": [114, 76], "push": "right"}, {"at": [116, 78], "push": "up"}]
+    assert (machine.save_state(), machine.frames, json.dumps(session.route)) == (before, frames, way)   # nothing happened
+    out = session.explore(step=1, within=[96, 76, 116, 92], to=[112, 80], near=0)
+    assert out["reached"] is True and (out["x"], out["y"]) == (112, 80) and out["pushes"] == 14 and "map" not in out
+    assert struct.unpack_from(">hh", machine.memory, 0x30) == (112, 80) and machine.frames > frames
+    out = session.explore(step=1, within=[96, 76, 116, 92], to=[200, 80])
+    assert out["reached"] is False and "isn't among" in out["why"]
+    out = session.explore(step=1, most=5)
+    assert out["places"] == 5 and "more" in out
+    with pytest.raises(HarnessError, match="within"):
+        session.explore(within=[1, 2, 3])
