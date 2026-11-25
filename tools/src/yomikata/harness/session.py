@@ -1392,6 +1392,57 @@ class Session:
                                "y": {f"0x{a:08X}": found["y_moved"][a] for a in found["y"]}},
                 "frame": machine.frames}
 
+    @tool("Finds where a game of three dimensions keeps the place of the character the pad moves: numbers with "
+          "a point (32-bit floats), where cursor_find looks for whole ones. It stands still twice, then pushes "
+          "right, left, down and up, and gives the floats that stood while it stood, moved with a push and "
+          "came back with the push the other way, grouped where they lie three on end (a place is kept as "
+          "x, y, z; the one of the three that doesn't move is the height). The camera may be turned, so a push "
+          "right may move both of the other two. Give two of a group's addresses to explore with `grid`.",
+          frames=("integer", "frames each way (default 20)", False),
+          stick=("boolean", "move with the left stick instead of the pad's arrows", False),
+          least=("number", "how far a push must move a number to count (default 1.0)", False))
+    def place_find(self, frames: int = 20, stick: bool = False, least: float = 1.0) -> dict:
+        import numpy as np
+        machine = self._need()
+        frames, events, least = max(2, min(int(frames), 120)), [], max(1e-6, float(least))
+        kind = ">f4" if machine.platform in ("gc", "wii") else "<f4"
+
+        def after(direction):
+            held = set() if stick or direction is None else {direction}
+            where = {"right": (1.0, 0.0), "left": (-1.0, 0.0), "down": (0.0, 1.0), "up": (0.0, -1.0)}[direction] \
+                if stick and direction else (0.0, 0.0)
+            self._advance(frames, held, where, events)
+            self._advance(4, set(), (0.0, 0.0), events)
+            base, ram = machine.ram()
+            return base, np.frombuffer(ram[:len(ram) // 4 * 4], dtype=kind).astype(np.float64)
+        base, still = after(None)
+        _, s0 = after(None)
+        r, l, d, u = (after(way)[1] for way in ("right", "left", "down", "up"))
+        with np.errstate(invalid="ignore", over="ignore"):
+            sane = np.isfinite(s0) & np.isfinite(r) & np.isfinite(l) & np.isfinite(d) & np.isfinite(u) \
+                & (np.abs(s0) < 1e6) & (np.abs(r) < 1e6) & (np.abs(d) < 1e6) & (still == s0)
+            # A push moved it, and the push the other way took it back at least half the way.
+            across = (np.abs(r - s0) >= least) & (np.abs(l - s0) <= 0.5 * np.abs(r - s0) + least)
+            along = (np.abs(d - l) >= least) & (np.abs(u - l) <= 0.5 * np.abs(d - l) + least)
+            moved = np.nonzero(sane & (across | along))[0]
+        show = lambda i: {"address": f"0x{base + 4 * int(i):08X}", "value": round(float(s0[i]), 3),       # noqa: E731
+                          "right": round(float(r[i] - s0[i]), 3), "down": round(float(d[i] - l[i]), 3)}
+        chosen, groups = set(int(i) for i in moved), []
+        for i in sorted(chosen):
+            for first in (i - 2, i - 1, i):                 # x, y, z on end: two of the three moved
+                three = [first, first + 1, first + 2]
+                if first >= 0 and first + 2 < len(s0) and sum(1 for k in three if k in chosen) >= 2 \
+                        and not any(abs(g["at"] - three[0]) < 3 for g in groups) and all(bool(sane[k]) for k in three):
+                    groups.append({"at": three[0], "places": [show(k) for k in three],
+                                   "moved": round(float(sum(abs(r[k] - s0[k]) + abs(d[k] - l[k]) for k in three)), 3)})
+                    break
+        groups.sort(key=lambda g: -g["moved"])
+        if not groups and not len(moved):
+            raise HarnessError("no number followed the moves: does the pad move the character here?")
+        return {"frames": frames, "floats_that_followed": int(len(moved)),
+                "groups": [{"places": g["places"]} for g in groups[:12]],
+                "alone": [show(i) for i in moved[:12]] if not groups else [], "frame": machine.frames}
+
     @tool("Moves the cursor to a place, in the game's own numbers for it (cursor_find says where they are kept "
           "and how far a few frames move it; the picture says what the numbers mean): holds the pad a frame "
           "at a time until the cursor is there, or as near as it gets, letting go between pushes when it is "
@@ -1553,16 +1604,36 @@ class Session:
           to=("array", "a place [x, y] to walk to by the way found", False),
           near=("integer", "how near to it is near enough, each way (default 1)", False),
           jump=("integer", "a move of this much or more in one push is a change of map (default 8)", False),
-          within=("array", "look no further than [x0, y0, x1, y1]", False))
+          within=("array", "look no further than [x0, y0, x1, y1]", False),
+          diagonals=("boolean", "push the four slanting ways too: for a passage that runs aslant of the pad's "
+                                "ways and is narrower than a push (a camera turned, as in most games of three "
+                                "dimensions)", False),
+          grid=("number", "for a place kept as numbers with a point (place_find): read both as 32-bit floats and "
+                          "count in cells of this many of the game's units, so that places a hair apart are "
+                          "one. About what one push moves the character is best", False))
     def explore(self, x_address: str = "", y_address: str = "", size: int = 2, step: int = 8, most: int = 400,
-                to: list | None = None, near: int = 1, jump: int = 8, within: list | None = None) -> dict:
+                to: list | None = None, near: int = 1, jump: int = 8, within: list | None = None,
+                grid: float = 0.0, diagonals: bool = False) -> dict:
         machine = self._need()
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
         step, most, jump = max(1, min(int(step), 60)), max(2, min(int(most), 1500)), max(2, int(jump))
         if within is not None and (len(within) != 4 or within[0] > within[2] or within[1] > within[3]):
             raise HarnessError("within is [x0, y0, x1, y1]")
 
+        grid = float(grid)
+        if grid < 0:
+            raise HarnessError("grid is how many of the game's units make a cell: above 0")
+
         def now():
+            if grid:
+                import math
+                order = ">f" if machine.platform in ("gc", "wii") else "<f"
+                raw = [self._read(at, 4) for at in (at_x, at_y)]
+                if any(len(b) < 4 for b in raw):
+                    return None, None
+                values = [struct.unpack(order, b)[0] for b in raw]
+                return tuple(round(v / grid) if math.isfinite(v) and abs(v) < 1e9 else None for v in values)
+
             def signed(value):
                 return value - (1 << 8 * size) if value is not None and size > 1 and value >> (8 * size - 1) else value
             return signed(self._cell(at_x, size)), signed(self._cell(at_y, size))
@@ -1574,14 +1645,15 @@ class Session:
         start, frames = machine.save_state(), machine.frames
         places = {origin: (start, None, None)}             # a place: the state there, where it was reached from, the push
         doors, queue, held, late = {}, [origin], len(start), False
+        ways = ("up", "down", "left", "right") + (("up+left", "up+right", "down+left", "down+right") if diagonals else ())
         while queue and not late:
             here = queue.pop(0)
-            for push in ("up", "down", "left", "right"):
+            for push in ways:
                 if self._late():
                     late = True
                     break
                 machine.load_state(places[here][0])
-                machine.run(step, {push}, (0.0, 0.0))
+                machine.run(step, set(push.split("+")), (0.0, 0.0))
                 there = now()
                 if None in there or there == here:
                     continue
@@ -1621,7 +1693,7 @@ class Session:
         machine.load_state(places[goal][0])
         machine.frames = frames + step * len(pushes)
         for push in reversed(pushes):
-            self._moved(step, {push}, (0.0, 0.0))
+            self._moved(step, set(push.split("+")), (0.0, 0.0))
         events = []
         if self.reader is not None:
             self.reader.state_loaded()
