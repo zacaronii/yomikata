@@ -621,6 +621,19 @@
    "needs": [],
    "data": {}
   },
+  "NPJH50372": {
+   "path": "scripts/psp/NPJH50372.lua",
+   "sha256": "91db7d48a0ec7c14c689108770c7195494f17bef9864638f36d580016ce232f2",
+   "platform": "psp",
+   "runtime": 1,
+   "title": "ダンガンロンパ　希望の学園と絶望の高校生 (Danganronpa: Kibou no Gakuen to Zetsubou no Koukousei)",
+   "reads": "the message window's rows",
+   "builds": [
+    "e259164dd103d5d0306b8cd7e9dc2be0cb282804"
+   ],
+   "needs": [],
+   "data": {}
+  },
   "SLPS-01100": {
    "path": "scripts/ps1/SLPS-01100.lua",
    "sha256": "932957f885fefc577b80ed4c1fe75d4d03361b87c35fde0b75c8bcec389f25e8",
