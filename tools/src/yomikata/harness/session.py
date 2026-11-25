@@ -11,6 +11,7 @@ import gzip
 import hashlib
 import io
 import json
+import struct
 import re
 import time
 from dataclasses import dataclass
@@ -79,6 +80,7 @@ class Session:
         # [frames, buttons, stick] or {"poke": address, "hex": bytes}. A waypoint keeps it.
         self.route: dict = {"base": "power-on", "moves": []}
         self.cursor_at: tuple[int, int, int] | None = None
+        self.each_frame = None                  # called after every frame while set (glyph_pairs)
         self.core_hash = None
         self.snaps: dict[str, Snap] = {}
         # The session's first snap, whole on disk: the later ones are kept as what differs from it.
@@ -156,13 +158,16 @@ class Session:
         while ran < frames:
             if self._late():
                 return ran, "time"
-            step = 1 if (self.reader is not None or watch is not None) else min(CHUNK, frames - ran)
+            step = 1 if (self.reader is not None or watch is not None or self.each_frame is not None) \
+                else min(CHUNK, frames - ran)
             machine.run(step, held, where)
             ran += step
             self._moved(step, held, where)
             if self.reader is not None:
                 self.reader.frame(machine.frames)
                 self._collect(self.reader.take(), events)
+            if self.each_frame is not None:
+                self.each_frame()
             why = watch() if watch is not None else None
             if why:
                 return ran, why
@@ -1024,7 +1029,9 @@ class Session:
 
     @tool("A rectangle of video memory as a picture (PlayStation: 1024 by 512 words): the frames, and the "
           "textures the game draws from, a glyph cache among them. As colours, or as a texture of 4 or 8 bits "
-          "a pixel shown in greys.",
+          "a pixel shown in greys. On a Super Famicom: all of video memory as tiles, 64 across, at 2 bits a "
+          "pixel (the text layer's) or 4; x, y, w and h are then in tiles. A fixed font shows there in order, "
+          "and so does a message the game draws as a picture; tile n is at column n % 64, row n // 64.",
           x=("integer", "left edge, in words (default 0)", False), y=("integer", "top (default 0)", False),
           w=("integer", "width in words (default all)", False), h=("integer", "height (default all)", False),
           bits=("integer", "16 for colours (default), or 4 or 8: a texture's pixels", False),
@@ -1032,6 +1039,25 @@ class Session:
     def vram_picture(self, x: int = 0, y: int = 0, w: int = 1024, h: int = 512, bits: int = 16, scale: float = 1.0):
         import numpy as np
         from PIL import Image
+        if self._need().platform == "sfc":
+            # 64 KB of tiles and tilemaps: drawn as tiles of 8 by 8, 64 across, at 2 or 4 bits a pixel. x, y, w
+            # and h are then in tiles of that sheet.
+            data = self.machine.regions().get("vram")
+            if data is None or len(data) < 0x10000:
+                raise HarnessError("the core gives out no video memory")
+            bits = 2 if int(bits) not in (2, 4) else int(bits)
+            size = 8 * bits
+            tiles = np.frombuffer(data[:0x10000 // size * size], dtype=np.uint8).reshape(-1, size)
+            # A row of a tile is a byte of each of two planes; a 4-bit tile has two more planes in its second half.
+            planes = [np.unpackbits(tiles[:, 16 * (k // 2) + k % 2:16 * (k // 2) + 16:2], axis=1) for k in range(bits)]
+            pixels = sum(plane.astype(np.int64) << k for k, plane in enumerate(planes)).reshape(-1, 8, 8)
+            rows = len(pixels) // 64
+            sheet = pixels[:rows * 64].reshape(rows, 64, 8, 8).transpose(0, 2, 1, 3).reshape(rows * 8, 512)
+            x, y = max(0, min(int(x), 63)), max(0, min(int(y), rows - 1))
+            w, h = max(1, min(int(w), 64 - x)), max(1, min(int(h), rows - y))
+            cut = sheet[y * 8:(y + h) * 8, x * 8:(x + w) * 8]
+            image = Image.fromarray((cut * (255 // ((1 << bits) - 1))).astype(np.uint8))
+            return ("image", self._png(image, scale))
         words = self._vram(x, y, w, h)
         if int(bits) == 16:
             image = Image.fromarray(np.stack([(words >> s & 31) << 3 for s in (0, 5, 10)], axis=2).astype(np.uint8))
@@ -1040,6 +1066,104 @@ class Session:
             top = max(1, int(pixels.max()))
             image = Image.fromarray((pixels * (255 // top)).astype(np.uint8))
         return ("image", self._png(image, scale))
+
+    @tool("A tilemap out of Super Famicom video memory, as numbers: which tile stands in each cell, a row a "
+          "line. A window of text kept as tiles shows as a run of numbers that change with the text.",
+          offset=("string", "where the map starts in video memory, hex bytes (maps start at multiples of 0x800)", True),
+          x=("integer", "first column (default 0)", False), y=("integer", "first row (default 0)", False),
+          w=("integer", "columns (default 32)", False), h=("integer", "rows (default 28)", False))
+    def vram_tilemap(self, offset: str, x: int = 0, y: int = 0, w: int = 32, h: int = 28) -> dict:
+        data = self._need().regions().get("vram")
+        if self.machine.platform != "sfc" or data is None:
+            raise HarnessError("a Super Famicom's video memory only")
+        at = int(offset, 16)
+        x, y = max(0, min(int(x), 31)), max(0, min(int(y), 31))
+        w, h = max(1, min(int(w), 32 - x)), max(1, min(int(h), 32 - y))
+        rows = []
+        for row in range(y, y + h):
+            cells = struct.unpack_from(f"<{w}H", data, at + 64 * row + 2 * x) if at + 64 * row + 2 * (x + w) <= len(data) else ()
+            rows.append(" ".join(f"{c & 0x3FF:03X}" for c in cells))
+        return {"offset": hex(at), "tiles": rows, "note": "a cell's low 10 bits; the rest are its palette and flips"}
+
+    @tool("Pairs codes with the pictures the game draws for them, while you play: for a font that isn't in "
+          "memory whole. Each frame it looks at where the game keeps the code of the character it draws (or at a "
+          "queue of codes still to draw, whose first leaves as it is drawn) and at the buffer the glyph's "
+          "picture is in, and keeps the picture of each code the first time. Give steps to play, as `steps` "
+          "takes them. Writes a sheet of the glyphs under their codes to scratch (work/<name>.png, and the "
+          "rows as hex in work/<name>.json, added to from call to call) and gives the sheet back.",
+          picture=("string", "where the glyph being drawn is, hex", True),
+          rows=("integer", "its rows", True), row_bytes=("integer", "bytes a row, the high bit first (default 2)", False),
+          steps=("array", "what to play meanwhile, as `steps` takes it", True),
+          queue=("string", "the front of a queue of codes still to draw, hex: a code is paired when the queue "
+                           "has moved up by exactly one", False),
+          code=("string", "or the place of the code being drawn, hex: paired when it takes a new value", False),
+          size=("integer", "bytes of a code: 1 or 2 (default 2)", False),
+          least=("string", "codes below this aren't characters, hex (default 1)", False),
+          below=("string", "nor codes from this on, hex (default 1000)", False),
+          name=("string", "the sheet's name in scratch (default glyphs)", False))
+    def glyph_pairs(self, picture: str, rows: int, steps: list, row_bytes: int = 2, queue: str = "", code: str = "",
+                    size: int = 2, least: str = "1", below: str = "1000", name: str = "glyphs"):
+        import numpy as np
+        from .. import glyphs as sheets
+        machine = self._need()
+        if bool(queue) == bool(code) or size not in (1, 2) or not 1 <= int(rows) <= 32 or not 1 <= int(row_bytes) <= 4:
+            raise HarnessError("give queue or code; size is 1 or 2; rows up to 32 of up to 4 bytes")
+        at, low, high = int(queue or code, 16), int(least, 16), int(below, 16)
+        where, rows, row_bytes, look = int(picture, 16), int(rows), int(row_bytes), 16
+        order = "big" if machine.platform in ("gc", "wii") else "little"
+        path = self.roots.inside("scratch", f"work/{self._name(name)}.json")
+        kept = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        state = {"before": None, "new": 0, "drawn": 0}
+
+        def cells(count):
+            data = self._read(at, size * count)
+            return [int.from_bytes(data[i:i + size], order) for i in range(0, len(data) - size + 1, size)]
+
+        def frame():
+            now = cells(look + 1 if queue else 1)
+            before, state["before"] = state["before"], now
+            if before is None or len(now) != len(before):
+                return
+            if queue:
+                if now[:look] != before[1:look + 1] or now == before:
+                    return
+                value = before[0]
+            else:
+                if now[0] == before[0]:
+                    return
+                value = now[0]
+            if not low <= value < high:
+                return
+            state["drawn"] += 1
+            key = f"{value:0{2 * size}X}"
+            if key not in kept:
+                kept[key] = self._read(where, rows * row_bytes).hex()
+                state["new"] += 1
+        self.each_frame = frame
+        try:
+            played = self.steps(steps)
+        finally:
+            self.each_frame = None
+        if isinstance(played, tuple):
+            played = played[1]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(kept), encoding="utf-8")
+        codes = sorted(kept)
+        pictures = []
+        for key in codes:
+            data = bytes.fromhex(kept[key])
+            bits = np.unpackbits(np.frombuffer(data, dtype=np.uint8)).reshape(rows, row_bytes * 8)
+            pictures.append(bits.astype(np.uint8))
+        columns = 16
+        image = sheets.sheet(pictures, codes, columns=columns, scale=4) if pictures else None
+        out = {"frames": machine.frames, "drawn": state["drawn"], "new": state["new"], "codes": len(kept),
+               "sheet": f"work/{self._name(name)}.png", "across": columns,
+               "in_order": [" ".join(codes[i:i + columns]) for i in range(0, len(codes), columns)],
+               **({"stopped": played["stopped"]} if played.get("stopped") else {})}
+        if image is None:
+            return out
+        image.save(path.with_suffix(".png"))
+        return ("both", out, self._png(image))
 
     @tool("Looks in main memory for a picture cut out of video memory: a glyph the game has drawn into a "
           "texture, to find the font it came from. Give the rectangle of one character (a few rows of it are "

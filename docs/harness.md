@@ -57,7 +57,9 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
 | `watch` | Runs the game and lists each change of a place in memory with its frame |
 | `code_rule` | What arithmetic ties codes to characters, kind by kind, from a few characters and their codes; or that the codes only keep JIS order |
-| `vram_picture` | A rectangle of video memory as a picture: frames, textures, a glyph cache (PlayStation) |
+| `vram_picture` | A rectangle of video memory as a picture: frames, textures, a glyph cache (PlayStation); all of it as tiles, 64 across (Super Famicom) |
+| `vram_tilemap` | A tilemap out of Super Famicom video memory as tile numbers, a row a line |
+| `glyph_pairs` | While you play, pairs each code the game draws with the glyph picture it draws for it, and writes a sheet of the glyphs under their codes to scratch: a font that isn't in memory whole, read as it comes up |
 | `find_picture` | Looks in main memory for a glyph cut out of video memory: finds the font and how it is packed |
 | `pointed` | The words from an address on, and the text each pointer among them leads to: a stack or a record read as strings |
 | `state_save`, `state_load` | States by name, in scratch. A state keeps the way to it beside it |
@@ -142,6 +144,8 @@ In the order to try them:
    `snaps` to see a stretch frame by frame. Dragon Quest V unpacks whole messages ahead into such a queue, and
    its script reads them there. The codes are the dialogue font's own (a naming screen's codes are the menu
    font's and don't help), so the table comes from pairing each code with the glyph the game draws for it.
+   `glyph_pairs` does that pairing while you play and writes the sheet. When every search is empty, look at
+   `vram_picture` first: a message drawn as a picture shows there at once, below the fixed font.
 
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.
