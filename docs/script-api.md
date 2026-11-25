@@ -146,6 +146,11 @@ at the start of memory (the id's six characters at `0x80000000`, the version's b
 that only sees memory knows the build, the script's own check reads the same two, and the inbox stores them
 with each snapshot.
 
+**The check needs the game's program in memory,** which it isn't in a console's first moments (a PS1 loads it
+after its BIOS has run). A host that loads a script as the game starts must expect "another build" then, and
+try again: once a second through the game's first minute, and after a savestate was loaded. Only a script that
+still refuses after that is not this game's.
+
 `reader.build_id` is the host's own hash of the build, or nil. Furoshiki's is "a hash of the program as it
 ships"; *open: which hash, and whether it equals this catalog's `exe_sha1` on any console.* Until that is known a
 script shouldn't compare it to a constant.
