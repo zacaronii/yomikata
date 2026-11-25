@@ -400,6 +400,8 @@ def test_compare_a_script_with_the_lines_on_screen_and_with_a_layout(session):
                              "marked as showing no text": 1, "of those, reading nothing": 0,
                              "taken after a memory write": 0}
     assert [r["read"] for r in out["rows"]] == ["こんにちは", "さようなら", "またあした"] and "layout" not in out
+    named = SCRIPT.replace('window = "w" }', 'window = "w", speaker = "ミカ" }')
+    assert session.compare(named, snaps=["c-000"], show=True)["rows"][0]["read"] == "ミカ\nこんにちは"   # with who says it
     entry = {"id": "GXXJ01", "platform": "gc", "encoding": "shift_jis",
              "layouts": [{"message": {"address": "0x80000100", "charset": "shift_jis", "max_bytes": 32,
                                       "terminator": "00"}}]}
@@ -872,6 +874,64 @@ def test_a_sessions_later_snaps_are_small_and_read_the_same(session, tmp_path):
     # And the command that makes them whole for a tool that doesn't know the form.
     assert cli.main(["expand", str(folder / "s-3.ram.gz"), str(folder / "t-0.ram.gz")]) == 0
     assert not gzip.decompress((folder / "s-3.ram.gz").read_bytes()).startswith(b"YKDELTA1")
+
+
+def test_find_relative_lines_apart_in_one_memory(session):
+    # A scene's lines as they lie in its script: none repeats a character, each is somewhere else, and other
+    # bytes lie between them. What they share ties them together.
+    lines = ["「いんや、まだずらよ", "「すまん", "ところで、ボスはもう"]
+    own = {ch: 0x21 + 5 * i for i, ch in enumerate(dict.fromkeys("".join(lines)))}
+    cells = lambda text: bytes(own[ch] for ch in text)                                   # noqa: E731
+    put(session, 0x300, cells(lines[1]) + b"\xF7\x01" + cells(lines[2]))
+    put(session, 0x380, cells(lines[0]))
+    put(session, 0x500, bytes(range(1, 200)))                                            # other data
+    out = session.find_relative(apart=lines)
+    assert out["count"] == 1 and out["sets"][0]["lines"] == ["0x80000380", "0x80000300", "0x80000306"]
+    assert out["sets"][0]["codes"] == {ch: f"{code:02X}" for ch, code in own.items()}
+    session.snap("apart")
+    put(session, 0x380, bytes(16))
+    assert session.find_relative(apart=lines)["count"] == 0 and session.find_relative(apart=lines, snap="apart")["count"] == 1
+    assert session.find_relative(apart=lines, snap="apart", window=64)["count"] == 0     # the first lies farther off
+    for bad in (["「すまん"], ["あいう", "えおか"], ["「すまん", "「"]):
+        with pytest.raises(HarnessError):
+            session.find_relative(apart=bad)
+
+
+def test_a_playstation_core_gets_its_video_memory_from_its_savestate(tmp_path):
+    """The real machine wrapper, with a made-up core: no video memory given out, but a savestate laid out as
+    PCSX ReARMed's, from which the harness takes it as the region `vram`."""
+    from yomikata.harness.machine import Machine
+    from yomikata import vram
+
+    class Core:
+        maps, hw, variables, options = [], None, {}, {}
+
+        def __init__(self):
+            self.video = bytes(range(256)) * (vram.VRAM_SIZE // 256)
+            self.saves = 0
+
+        def video_ram(self):
+            return None
+
+        def save_state(self):
+            self.saves += 1
+            head = bytes(32 + 4 + 1 + 128 * 96 * 3 + vram.RAM_SIZE + vram.BIOS_SIZE + vram.HW_SIZE)
+            control = [0] * 256
+            for n in range(6):
+                control[0xE1 + n] = (0xE1 + n) << 24
+            gpu = struct.pack("<II", 1, 0x14802000) + struct.pack("<256I", *control) + self.video
+            return b"ST" + head[2:] + bytes(64) + gpu + bytes(64)
+
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core, machine.frames = "ps1", Core(), 0
+    assert machine.regions() == {"vram": machine.core.video}
+    machine.regions()
+    assert machine.core.saves == 1                                   # once for a frame, however often asked
+    machine.frames = 1
+    machine.regions()
+    assert machine.core.saves == 2
+    machine.platform = "gc"                                          # another console: nothing made up
+    assert machine.regions() == {}
 
 
 @needs_reader

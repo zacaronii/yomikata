@@ -34,7 +34,8 @@ With a line on screen, in this order (docs/harness.md, "Finding where the text i
 - `text_runs`: a game in a standard encoding shows its text here, often twice: the script where it lies, and the
   buffer it is typed into. The one to read is the one that changes with the screen.
 - `find` with the line, or with parts of it.
-- `find_relative` when neither finds it: the codes are the game's own. Then the script needs a table beside it
+- `find_relative` when neither finds it: the codes are the game's own. If the game has a naming screen, use it
+  first: entering a name a character at a time shows each character's code (docs/harness.md). Then the script needs a table beside it
   (`games/<platform>/<id>.tbl`), which grows from the codes each found line gives.
 
 Take two snaps at different lines and ask `changed`: what differs is the text and whatever counts it. Look for

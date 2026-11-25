@@ -497,11 +497,29 @@ class Session:
           order=("string", "unicode (kana as in JIS, small and voiced ones between) or gojuon (the 46 plain kana in a row)", False),
           stride=("integer", "codes are this many cells apart (default 1; 2 where each character has a second cell)", False),
           gap=("integer", "cells a line break in the line stands for (default 1: one code for the break)", False),
-          big_endian=("boolean", "the byte order of 2- and 4-byte codes (default: the console's)", False))
+          big_endian=("boolean", "the byte order of 2- and 4-byte codes (default: the console's)", False),
+          apart=("array", "or several lines of one scene, each wherever it lies in memory (a script read where "
+                          "it is): two of them must share three characters or more. Kana stretches are safest", False),
+          snap=("string", "with apart: the snap to look in (default: live memory)", False),
+          window=("integer", "with apart: how far from the first line the others may lie, in bytes (default 65536)", False))
     def find_relative(self, text: str = "", lines: dict | None = None, unit: int = 1, order: str = "",
-                      stride: int = 1, gap: int = 1, big_endian: bool | None = None) -> dict:
+                      stride: int = 1, gap: int = 1, big_endian: bool | None = None, apart: list | None = None,
+                      snap: str = "", window: int = 0x10000) -> dict:
+        if apart:
+            _, base, ram = self._memories([snap] if snap else None)[0]
+            if big_endian is None:
+                big_endian = getattr(self.machine, "platform", "") in ("gc", "wii")
+            try:
+                total, sets = search.relative_apart(ram, [str(line) for line in apart], int(unit), bool(big_endian),
+                                                    int(window))
+            except search.SearchError as e:
+                raise HarnessError(str(e)) from None
+            width = 2 * int(unit)
+            return {"count": total, "sets": [{"lines": [f"0x{base + at:08X}" for at in places],
+                                              "codes": {ch: f"{code:0{width}X}" for ch, code in codes.items()}}
+                                             for places, codes in sets]}
         if bool(text) == bool(lines):
-            raise HarnessError("give the line on screen now (text), or lines for several snaps")
+            raise HarnessError("give the line on screen now (text), lines for several snaps, or apart")
         wanted = lines or {"now": text}
         memories, base = [], 0
         for name, line in wanted.items():
@@ -1059,7 +1077,8 @@ class Session:
             except rd.ReaderUnavailable as e:
                 raise HarnessError(str(e)) from None
             readings.append(reading)
-            said = "\n".join(e["text"] for e in reading.story())
+            # All that was read: each text with its speaker's name, as the screen shows both.
+            said = "\n".join(part for e in reading.story() for part in (e.get("speaker") or "", e["text"]) if part)
             unknown = meta.get("ocr_unavailable") or ("ocr" not in meta and not meta.get("no_text"))
             seen = None if unknown else list(meta.get("ocr") or [])
             rows.append({"snap": n, "read": said, "seen": seen, "error": reading.error,

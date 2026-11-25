@@ -76,7 +76,7 @@ def validate(root: Path) -> list[Problem]:
             problems.append(Problem(str(p.relative_to(root)), f"differs from {other.relative_to(root)}"))
 
     for p in sorted([*(root / "tables").rglob("*.tbl"), *(root / "games").glob("*/*.tbl"),
-                     *(a for a in asked if a.suffix not in (".tbl", ".charset", ".codes") and a.is_file())]):
+                     *(a for a in asked if a.suffix not in (".tbl", ".charset", ".codes", ".places") and a.is_file())]):
         try:
             tbl.parse(p.read_text(encoding="utf-8"), str(p.relative_to(root)))
         except (tbl.TableError, UnicodeDecodeError) as e:

@@ -1,0 +1,44 @@
+{
+  "id": "SLPS-02000",
+  "aliases": [
+    "SLPS-02001",
+    "SLPS-02002",
+    "SLPS-02003"
+  ],
+  "platform": "ps1",
+  "title": "ファイナルファンタジーIX",
+  "title_romaji": "Final Fantasy IX",
+  "versions": [
+    {
+      "exe": "SLPS_020.00",
+      "exe_sha1": "8ba95c45e7c38ae944b74d9a75cb565c36d6a906"
+    },
+    {
+      "id": "SLPS-02001",
+      "exe": "SLPS_020.01",
+      "exe_sha1": "8ba95c45e7c38ae944b74d9a75cb565c36d6a906"
+    },
+    {
+      "id": "SLPS-02002",
+      "exe": "SLPS_020.02",
+      "exe_sha1": "8ba95c45e7c38ae944b74d9a75cb565c36d6a906"
+    },
+    {
+      "id": "SLPS-02003",
+      "exe": "SLPS_020.03",
+      "exe_sha1": "8ba95c45e7c38ae944b74d9a75cb565c36d6a906"
+    }
+  ],
+  "encoding": "table",
+  "tables": [
+    "tables/ps1/SLPS-02000.tbl"
+  ],
+  "unit": 1,
+  "status": "partial",
+  "sources": [
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+    "The codes of kana from the naming screen: a name entered a character at a time, its bytes read after each",
+    "Played from power-on through the first place and into the second; the script's readings compared with the lines read off 30 pictures"
+  ],
+  "notes": "Read by the script games/ps1/SLPS-02000.lua; there is no layout. The four discs share one boot executable. Messages lie in memory as the place's block, one byte a kana, kanji two bytes. Kanji 0xFA nn and 0xFB nn are the same everywhere; kanji from 0xFC 00 are a font of the place's own, so the script keeps them by place (SLPS-02000.places). Both lists hold only kanji read off the screen so far: the rest come out as U+FFFD. Battle messages, menus and the naming screen aren't read."
+}

@@ -1200,6 +1200,118 @@ def test_new_script_writes_a_skeleton_that_is_in_form_and_runs(tmp_path, capsys)
         new_script(tmp_path, "ps2", "SLPM-12346", "あ (A)", "SLPM-12346-1A2B3C4D")       # the CRC in lowercase
 
 
+# ---- games/ps1/SLPS-02000.lua ----
+
+FF9_BLOCK, FF9_WINDOWS, FF9_NAMES = 0x800D38A8, 0x8007AE84, 0x8008FA8C
+
+
+def ff9_codes(text: str) -> bytes:
+    from yomikata import tbl
+    back = {}
+    for name in ("tbl",):
+        for code, ch in tbl.parse((ROOT / f"games/ps1/SLPS-02000.{name}").read_text(encoding="utf-8")).chars.items():
+            back.setdefault(ch, code)
+    return b"".join(back[ch] for ch in text)
+
+
+def ff9_memory(messages=(), windows=(), cursor=0, hero="ジタン", glyphs=3, word=0x0C050003):
+    """A place's block of `messages` (bytes each, as the game keeps them), and windows as (slot, message number)."""
+    records, body = b"", b""
+    for message in messages:
+        start = 8 * len(messages) + len(body)
+        records += struct.pack("<HHHH", start, 0x1020, start, 0)
+        body += message
+    block = struct.pack("<H", len(messages)) + b"\0\0" + records + body
+    font = FF9_BLOCK - 8 + 0x4000
+    memory = {0x80012614: struct.pack("<I", word), 0x8003F4D0: struct.pack("<I", 0x0C014B25),
+              FF9_BLOCK - 8: struct.pack("<II", 8, 0x4000), FF9_BLOCK: block, 0x8007AE14: struct.pack("<I", FF9_BLOCK),
+              0x8007AE18: struct.pack("<I", cursor), font: bytes(0x18) + struct.pack("<I", glyphs) + bytes(range(4 * glyphs)),
+              FF9_NAMES: ff9_codes(hero) + b"\xFF", FF9_NAMES + 0x90: ff9_codes("ビビ") + b"\xFF"}
+    slots = bytearray(0x2C * 8)
+    for slot, number in windows:
+        struct.pack_into("<H", slots, 0x2C * slot + 4, 1)
+        struct.pack_into("<H", slots, 0x2C * slot + 0x1A, number)
+    memory[FF9_WINDOWS] = bytes(slots)
+    return sparse(memory)
+
+
+def ff9_data(places: str = ""):
+    return {"tbl": (ROOT / "games/ps1/SLPS-02000.tbl").read_bytes(), "places": places.encode("utf-8")}
+
+
+def ff9_messages():
+    c = ff9_codes
+    return [c("テスト") + b"\xFF",
+            c("まだ") + b"\xFB\x50" + c("も") + b"\xFC\x03" + c("てないのか？") + b"\xFF",        # 誰 everywhere, 来 the place's
+            b"\xF9\x10\xF7" + c("「すまん") + b"\xF7\xF8" + c("ところで、ボスは") + b"\xF9\x02\x02" + c("……") + b"\xF9\x42\xFF",
+            b"\xF7" + c("ロウソクに") + c("をともそう！") + b"\xF9\x09",                               # goes on in the next
+            b"\xF9\x55\xF7" + c("ボタンを") + b"\xFF",
+            b"\xF9\x0C\xF9\x11\xF7" + c("「よし！") + b"\xF7\xF8\xF9\x08" + c("\u3000\u3000ともす") + b"\xF7"
+            + c("\u3000\u3000やめる") + b"\xFF"]
+
+
+def ff9_play(moments, places=""):
+    """Each moment (windows, cursor) held for six frames; what was said at each."""
+    said = []
+    with rd.Reader(ff9_memory(ff9_messages()), platform="ps1", game_id="SLPS-02000", data=ff9_data(places)) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-02000.lua"), "SLPS-02000.lua")
+        r.take()
+        frame = 0
+        for windows, cursor in moments:
+            for _ in range(6):
+                frame += 1
+                r.read = ff9_memory(ff9_messages(), windows, cursor)
+                r.frame(frame)
+            said.append([(e["channel"], e["speaker"], e["text"]) if k == "text" else ("cursor", e.get("index", "closed"))
+                         for k, e in r.take() if k in ("text", "cursor")])
+    return said
+
+
+def test_final_fantasy_ix_a_windows_message_its_speaker_and_a_choice():
+    said = ff9_play([([(1, 1)], 0), ([(1, 1)], 0), ([], 0), ([(2, 2)], 0), ([(2, 3)], 0), ([(2, 4)], 0),
+                     ([(0, 5)], 0), ([(0, 5)], 1), ([], 0), ([(1, 1)], 0)])
+    assert said[0] == [("dialogue", "", "まだ誰も\ufffdてないのか？")]          # the place's own kanji isn't known
+    assert said[1] == [] and said[2] == []                                       # said once while it stays up
+    assert said[3] == [("dialogue", "ジタン", "「すまん\nところで、ボスは……")]   # the name put in is the speaker
+    assert said[4] == [("dialogue", "", "ロウソクにをともそう！")]               # as far as this window shows
+    assert said[5] == [("dialogue", "", "ボタンを")]
+    assert said[6] == [("dialogue", "ビビ", "「よし！"), ("choice", "", "ともす\nやめる"), ("cursor", 0)]
+    assert said[7] == [("cursor", 1)] and said[8] == [("cursor", "closed")]
+    assert said[9] == [("dialogue", "", "まだ誰も\ufffdてないのか？")]          # a window that opens again says it again
+
+
+def test_final_fantasy_ix_a_places_own_kanji_by_its_key():
+    # The key of the made-up place, as the script works it out; then the same line with that place known.
+    with rd.Reader(ff9_memory(ff9_messages()), platform="ps1", game_id="SLPS-02000", data=ff9_data()) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-02000.lua"))
+        font = FF9_BLOCK - 8 + 0x4000
+        key = r.eval(f"text.hash(mem.read({font + 0x1C}, 12) .. mem.read({FF9_BLOCK + 4}, 48))")
+    places = f"# a place\n@0000000000000000\n03=去\n@{key}\n03=来\n"
+    assert ff9_play([([(1, 1)], 0)], places)[0] == [("dialogue", "", "まだ誰も来てないのか？")]
+
+
+def test_final_fantasy_ix_a_message_shown_for_a_frame_another_build_and_a_missing_table():
+    with rd.Reader(ff9_memory(ff9_messages()), platform="ps1", game_id="SLPS-02000", data=ff9_data()) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-02000.lua"))
+        r.take()
+        for frame, number in enumerate((3, 3, 4, 4, 4, 4, 4), 1):               # two frames on the way to another
+            r.read = ff9_memory(ff9_messages(), [(1, number)])
+            r.frame(frame)
+        assert [e["text"] for e in r.take("text")] == ["ボタンを"]
+        # A name the player chose is read as chosen.
+        r.state_loaded()
+        for frame in range(8, 14):
+            r.read = ff9_memory(ff9_messages(), [(1, 2)], hero="ガガ")
+            r.frame(frame)
+        assert [e["speaker"] for e in r.take("text")] == ["ガガ"]
+    with rd.Reader(ff9_memory(word=1), platform="ps1", game_id="SLPS-02000", data=ff9_data()) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-02000.lua"))
+    with rd.Reader(ff9_memory(), platform="ps1", game_id="SLPS-02000", data={}) as r:
+        with pytest.raises(rd.ScriptError, match="missing"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-02000.lua"))
+
+
 # ---- lib/halfkana.lua and games/ps1/SCPS-10053.lua ----
 
 def test_halfkana_folds_single_byte_hiragana():
