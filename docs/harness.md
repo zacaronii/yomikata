@@ -46,7 +46,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `core_options` | The loaded core's options as it declares them, and what was given at load |
 | `snap` | Keeps a moment under a name, and writes it to scratch as an inbox-style snapshot for `yomikata run` and `check` |
 | `snap_lines` | Says what a snap's screen showed, once read off its picture: its lines, or that it has no text |
-| `sheet` | The pictures of several snaps as one image, each under its name |
+| `sheet` | The pictures of several snaps as one image, each under its name; with `crop`, only the part the text is in, and with `number` each numbered: a route's screens read by the dozen |
 | `repeat` | Does the same frames or steps again and says whether the game ended up the same: whether the core repeats itself |
 | `differs` | How this moment's memory differs from a snap's, also one another harness wrote |
 | `changed` | Places that differ between two snaps, the same as the first in some others and as the second in others: a flag, a counter, a cursor. Or places that go as a pattern says over snaps in order: `abab`, or `aAaA` for one value and anything else in turn |
@@ -213,6 +213,17 @@ In the order to try them:
    they are drawn (an answer's colour, a caption drawn twice for its shadow), not a field that names the
    kind. A window's first row was there 54 frames before its speaker's name: a script that says a page the
    moment it sees it says it twice, once without the name.
+
+15. The easy case, for the measure of it: a game that loads a scene's script whole in a standard encoding and
+   copies the line it shows to a fixed place. `text_runs` with a line up shows the script at once; the line
+   is found twice more by a plain search of a snap, and the copy that changes with the screen (snaps a line
+   apart) is the one to read. Ever17 is such a game, and its script met the bar in 25 runs of the harness and
+   fourteen minutes (323 calls, half of them the screens' lines given to `snap_lines`, twice). What it still taught: a place that looks like the shown line may be the backlog, a line
+   behind (hold it against the picture a line later, not only now); a speaker joined to a line ("name「…」")
+   is better cut by something the game keeps than by the bracket (there a word holds the name's length; a
+   count of lines with a name against words that are zero without one, over the route's snaps, found it in
+   one call); and a visual novel may play itself: Ever17 starts in its auto mode, so the route needs no
+   presses at all, only a wait `until` the script's next text.
 
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.
