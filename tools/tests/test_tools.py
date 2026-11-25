@@ -225,3 +225,33 @@ def test_glyphs_are_drawn_fingerprinted_and_sorted_by_what_is_read(tmp_path, cap
     (tmp_path / "s.vram.gz").unlink()
     assert cli.main(args) == 1
 
+
+def test_ff9_places_reads_a_package_as_it_lies_on_the_disc():
+    """tools/scripts/ff9_places.py on a made-up package: the place's key as the script works it out, and its
+    glyphs' pictures out of the font's TIM image."""
+    import importlib.util
+    import struct
+    import numpy as np
+    from yomikata import glyphs
+    script = Path(__file__).resolve().parents[1] / "scripts/ff9_places.py"
+    spec = importlib.util.spec_from_file_location("ff9_places", script)
+    ff9 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ff9)
+    records = struct.pack("<HHHH", 8, 0x1020, 8, 0)                    # one message
+    block = struct.pack("<HH", 1, 0) + records + b"\x56\x57\xFF"
+    listed = bytes([0, 182, 5, 0xA0, 0, 182, 5 | 0x40, 0xA0])           # two glyphs in one cell, on two planes
+    words = np.zeros((13, 4), dtype="<u2")
+    words[0, 0] = 0x1111 | 0x0440                                      # a stroke on each plane in the top row
+    tim = struct.pack("<3I", 0x10, 8, 12) + bytes(8) + struct.pack("<I4H", 12 + words.nbytes, 896, 256 + 182, 4, 13) + words.tobytes()
+    font = struct.pack("<7I", 0x10D, 7, 8, 0x1C + len(listed) - 8, 0, 0xFFFFFFFF, 2) + listed + bytes(16) + tim
+    whole = struct.pack("<4I", 0x106, 0x21, 8, 8 + len(block)) + block + font
+
+    class Stream:
+        def read(self, at, size):
+            return (bytes(64) + whole + bytes(64))[at:at + size].ljust(size, b"\0")
+    key, messages, pictures, kept = ff9.package(Stream(), 64)
+    assert messages == 1 and key == ff9.fnv1a64(listed + records) and kept.startswith(struct.pack("<I", 0x106))
+    assert pictures[0][0].tolist() == [1, 1, 1, 1, 0] and pictures[1][0].tolist() == [0, 1, 1, 0, 0]
+    assert glyphs.fingerprint(pictures[0]) != glyphs.fingerprint(pictures[1])
+    assert ff9.package(Stream(), 60) is None and ff9.fnv1a64(b"") == "cbf29ce484222325"
+

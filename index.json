@@ -952,11 +952,11 @@
    "data": {
     "places": {
      "path": "games/ps1/SLPS-02000.places",
-     "sha256": "eb28156c277d830bbf173ce4959ea95cd95851b9cf54cadbce02df42de4194ec"
+     "sha256": "3b3a8a1a3cece1bbb1dd1a5c1e4adb2c562cad020abd5c6e4c0cffea5e04c0a1"
     },
     "tbl": {
      "path": "games/ps1/SLPS-02000.tbl",
-     "sha256": "b8bc99d33db077ea96c7bafd93df8a0324c786f4d7101aa19c23ea535f3be896"
+     "sha256": "0a171949d6af0c179ace39fe8e622e9f28e10423074ae4a5789e49398669f2d1"
     }
    }
   },
