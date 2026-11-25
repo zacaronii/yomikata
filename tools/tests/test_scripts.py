@@ -798,3 +798,97 @@ def test_boku_no_natsuyasumi_the_page_the_pointer_is_on():
     with rd.Reader(boku_memory(0, word=1), platform="ps1", game_id="SCPS-10088", data=data) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SCPS-10088.lua"))
+
+
+# ---- lib/inplace.lua, against the layout reader it follows ----
+
+def test_inplace_page_reads_as_the_layout_reader_does():
+    """Made-up scripts of marks, texts, end codes, page breaks and codes with arguments, read at every position
+    by lib/inplace.lua and by layout.py's `_script`: the two must give the same pieces."""
+    import random
+    from yomikata import layout
+    rng = random.Random(7)
+    end, page, arg = bytes.fromhex("FFFF"), bytes.fromhex("FFFC"), bytes.fromhex("FFF9")
+    lua = ('local inplace = require("lib.inplace")\n'
+           'local game = { unit = 2, ends = { ["\\xFF\\xFF"] = true }, breaks = { ["\\xFF\\xFC"] = true },\n'
+           '               newlines = {}, silent = {}, sizes = { ["\\xFF\\xF9"] = 4 } }\n'
+           'local function unhex(h) return (h:gsub("%x%x", function(p) return string.char(tonumber(p, 16)) end)) end\n'
+           'function page(both, size, mark, rows)\n'
+           '    local out = {}\n'
+           '    for i, piece in ipairs(inplace.page(unhex(both), size, game, unhex(mark), rows)) do\n'
+           '        out[i] = (piece:gsub(".", function(c) return string.format("%02x", c:byte()) end))\n'
+           '    end\n'
+           '    return #out .. ":" .. table.concat(out, "|")\n'
+           'end')
+    checked = 0
+    with rd.Reader(sparse({})) as r:
+        r.load(bundle_text(lua))
+        for mark, rows in ((bytes.fromhex("8000"), False), (bytes.fromhex("000001"), True)):
+            for _ in range(40):
+                script = bytearray()
+                for _ in range(rng.randint(2, 6)):
+                    script += bytes(rng.choice((0x12, 0x34, 0x00)) for _ in range(2 * rng.randint(0, 2)))     # instructions
+                    script += mark
+                    for _ in range(rng.randint(0, 5)):
+                        script += rng.choice((b"\x01\x02", b"\x03\x04", page, arg + b"\x00\x1e", b"\x05\x06"))
+                    script += end * rng.choice((1, 1, 2))
+                    if rng.random() < 0.3:
+                        script += mark + b"\x07\x08" + end                                                # carries on
+                for size in range(0, len(script) + 1, 1 if len(mark) == 3 else 2):
+                    both = bytes(script[:size + len(mark)])
+                    want = layout._script(both, size, 2, mark, {end}, {page}, {arg: 4}, rows) if size else []
+                    got = r.eval(f'page("{both.hex()}", {size}, "{mark.hex()}", {"true" if rows else "false"})') if size else "0:"
+                    assert got == f"{len(want)}:" + "|".join(w.hex() for w in want), (both.hex(), size, mark.hex())
+                    checked += 1
+    assert checked > 1000
+
+
+# ---- games/ps1/SLPS-01001.lua ----
+
+def moon_memory(offset: int, state: int, up: int = 0x80, cursor: int = 0, labels: int = 36, word=0x0C005CF9):
+    from yomikata import tbl
+    table = tbl.parse((ROOT / "games/ps1/SLPS-01001.kana").read_text(encoding="utf-8"))
+    back = {}
+    for code, ch in table.chars.items():
+        back.setdefault(ch, code)
+    cells = lambda s: b"".join(back[ch] for ch in s)        # noqa: E731
+    script = (b"\x12\x34" + b"\x80\x00" + cells("きょうは") + b"\xFF\xFD" + cells("あめ") + b"\xFF\xFF"
+              + b"\x80\x07" + b"\x00\x00\x01" + cells("いく") + b"\xFF\xFF" + b"\x00\x00\x01" + cells("いかない") + b"\xFF\xFF")
+    return sparse({0x80017278: struct.pack("<I", word), 0x80021C74: struct.pack("<I", 0x0C009385),
+                   0x8002FD3C: struct.pack("<I", 0x0C00BE00), 0x8008BEF0: struct.pack("<III", 0x80150000, offset, labels),
+                   0x8008BF00: struct.pack("<i", state), 0x8008F0E4: bytes([up]), 0x8008E33C: bytes([cursor]),
+                   0x80150000: script + bytes(64)}), script
+
+
+def moon_data():
+    return {p.suffix[1:]: p.read_bytes() for p in (ROOT / "games/ps1").glob("SLPS-01001.*")
+            if p.suffix not in (".lua", ".json")}
+
+
+def test_moonlight_syndrome_what_the_page_gains_and_a_choice():
+    _, script = moon_memory(0, 0)
+    text_end = script.index(b"\xFF\xFF") + 2
+    with rd.Reader(moon_memory(0, 0)[0], platform="ps1", game_id="SLPS-01001", data=moon_data()) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-01001.lua"), "SLPS-01001.lua")
+        r.take()
+        steps = [(8, 1, 0x80, 0), (12, 2, 0x80, 0),               # typing; then the window waits with one row up
+                 (text_end, 1, 0x80, 0), (text_end, 2, 0x80, 0),  # the second row types; the window waits again
+                 (len(script), 4, 0, 0), (len(script), 4, 0, 1),  # the choice: the window's flag is down
+                 (len(script), 5, 0, 1)]
+        events = []
+        for frame, (offset, state, up, cursor) in enumerate(steps, 1):
+            r.read = moon_memory(offset, state, up, cursor)[0]
+            r.frame(frame)
+            events += [(frame, kind, e) for kind, e in r.take() if kind in ("text", "cursor")]
+        texts = [(f, e["channel"], e["text"]) for f, k, e in events if k == "text"]
+        assert texts == [(2, "dialogue", "きょうは"), (4, "dialogue", "あめ"), (5, "choice", "いく\nいかない")]
+        assert [(f, e.get("index", "closed")) for f, k, e in events if k == "cursor"] == [(5, 0), (6, 1), (7, "closed")]
+    # A chapter the script has no table for: nothing is read. And another build.
+    with rd.Reader(moon_memory(12, 2, labels=999)[0], platform="ps1", game_id="SLPS-01001", data=moon_data()) as r:
+        r.load(bundle(ROOT / "games/ps1/SLPS-01001.lua"))
+        r.take()
+        r.frame(1)
+        assert r.take("text") == []
+    with rd.Reader(moon_memory(0, 0, word=1)[0], platform="ps1", game_id="SLPS-01001", data=moon_data()) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-01001.lua"))

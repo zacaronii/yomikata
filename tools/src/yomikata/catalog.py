@@ -46,8 +46,11 @@ def validate(root: Path) -> list[Problem]:
     seen: dict[str, str] = {}
 
     # Only entries and tables live in games/ and tables/: no images, executables or script dumps.
+    asked = {data for script in scripts(root) for data in script_data(root, script).values()}
     for folder, exts in ALLOWED.items():
         for p in (root / folder).rglob("*"):
+            if p in asked:                          # a script's data file, whatever it is called after the id
+                continue
             if p.is_file() and p.suffix not in exts and p.name != ".gitkeep":
                 problems.append(Problem(str(p.relative_to(root)), f"only {', '.join(sorted(exts))} files belong here"))
 
@@ -60,7 +63,19 @@ def validate(root: Path) -> list[Problem]:
             if p.read_bytes() != b"".join((root / t).read_bytes() for t in listed):
                 problems.append(Problem(str(p.relative_to(root)), f"isn't the entry's tables one after another ({', '.join(listed)})"))
 
-    for p in sorted([*(root / "tables").rglob("*.tbl"), *(root / "games").glob("*/*.tbl")]):
+    # A script's table for one part of its game (games/<platform>/<id>.<part>) is the catalog's table of that
+    # name: tables/<platform>/<id>-<part>.tbl, or a shared tables/…-<part>.tbl.
+    for p in sorted(asked):
+        if p.suffix == ".tbl" or not p.is_file():
+            continue
+        part = p.suffix[1:]
+        named = [root / "tables" / p.parent.name / f"{p.stem}-{part}.tbl", *sorted((root / "tables").glob(f"*-{part}.tbl"))]
+        other = next((t for t in named if t.is_file()), None)
+        if other is not None and other.read_bytes() != p.read_bytes():
+            problems.append(Problem(str(p.relative_to(root)), f"differs from {other.relative_to(root)}"))
+
+    for p in sorted([*(root / "tables").rglob("*.tbl"), *(root / "games").glob("*/*.tbl"),
+                     *(a for a in asked if a.suffix not in (".tbl", ".charset") and a.is_file())]):
         try:
             tbl.parse(p.read_text(encoding="utf-8"), str(p.relative_to(root)))
         except (tbl.TableError, UnicodeDecodeError) as e:
