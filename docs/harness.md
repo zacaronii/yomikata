@@ -179,8 +179,17 @@ Before reading a font place by place, ask `on_disc` whether the place's text and
 do in memory. Where they do, a small script over the disc image finds every place at once
 (`tools/scripts/ff9_places.py` is one) and nothing has to be played to or written.
 
+Another reader helps, as a flag more than as a judge. On Final Fantasy IX, manga-ocr (the model
+`kha-white/manga-ocr-base`, from Hugging Face; run in a scratch folder, not part of the tools) was given each
+glyph enlarged eight times with a white margin. It agreed with two readings in three; nearly all the rest were
+its own mistakes at thirteen pixels, but the list of disagreements, each read in a sentence, held the wrong
+readings: a reading it agrees with has been read two ways, and one it doesn't goes to the read-through.
+
 On Final Fantasy IX: the fixed font's 461 kanji were read from five sheets; the second place's own font had 218
 glyphs, of which the dictionary from the first place already had 88, and its 130 new ones were one sheet.
+The four discs have 64 places and 1,007 distinct pictures between them. Of the 236 that the first disc hadn't
+shown, a first reading by eye was wrong for 31: rarer kanji, read alone. Sentences and the other reader put
+them right, and found ten wrong among the 1,200 read before.
 
 ### Writing memory
 
