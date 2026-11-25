@@ -6,7 +6,7 @@
 # name's bytes, and checked on the lines of the first scene.
 # Digits and letters are read off the game's own debug messages, not off the screen.
 # Kanji 0xFA nn and 0xFB nn, the same in every place: read off the game's own glyph pictures, drawn from its
-# glyph list and video memory, and checked by reading messages decoded with them. Fourteen glyphs whose reading
+# glyph list and video memory, and checked by reading messages decoded with them. Nineteen glyphs whose reading
 # stayed in doubt are left out. Codes from 0xFC 00 differ by place: the script's file of places.
 00=0
 01=1
@@ -349,7 +349,6 @@ FA6B=消
 FA6C=列
 FA6D=力
 FA6E=気
-FA6F=遊
 FA70=取
 FA71=入
 FA72=精
@@ -400,14 +399,12 @@ FAA2=光
 FAA3=鎧
 FAA4=衣
 FAA5=内
-FAA6=舞
 FAA7=司
 FAA8=祭
 FAA9=本
 FAAA=妖
 FAAB=後
 FAAD=忍
-FAAE=想
 FAAF=呪
 FAB0=斬
 FAB1=女
@@ -553,7 +550,6 @@ FB40=最
 FB41=闘
 FB42=個
 FB43=選
-FB44=獣
 FB45=種
 FB46=険
 FB47=冒
@@ -687,4 +683,3 @@ FBC8=港
 FBC9=王
 FBCA=国
 FBCB=裏
-FBCC=係
