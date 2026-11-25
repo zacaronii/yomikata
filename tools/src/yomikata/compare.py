@@ -84,8 +84,14 @@ def compare(script: Path, entry: dict, snapshots: list[Path], root: Path, base: 
             version: str | None = None, frames: int = 2) -> Result:
     """Each snapshot through the entry's layout and through the script. A layout field the entry hasn't got
     (no speaker, no choices) isn't held against the script: only what the layout reads is compared."""
-    reference = check(entry, snapshots, root, base, version)
     readings = run(script, snapshots, platform=entry["platform"], base=base, frames=frames)
+    return compare_readings(entry, snapshots, readings, root, base, version)
+
+
+def compare_readings(entry: dict, snapshots: list[Path], readings: list, root: Path, base: int | None = None,
+                     version: str | None = None) -> Result:
+    """The same, with the script already run: `readings` are what it gave over each snapshot, in order."""
+    reference = check(entry, snapshots, root, base, version)
     lays = entry.get("layouts", [])
     has = {key: any(key in lay for lay in lays) for key in ("speaker", "choices")}
     out = Result()

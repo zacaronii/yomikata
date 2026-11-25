@@ -33,19 +33,40 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `status`, `games` | What is loaded; the library's folders and files |
 | `load` | A game in a core, from power-on or from a savestate (one saved here, or a reader's in the inbox) |
 | `run` | N frames with buttons and the left stick held. With a script loaded, what it emitted on the way |
+| `run_until` | Runs until a place in memory changes or holds a value, the script emits something, or the picture has stood still; at most a given number of frames. Says how far it ran and why it stopped |
+| `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap, take pictures. The pictures come back as one sheet |
 | `screenshot` | The picture now |
 | `read`, `find` | Memory by address, a region by offset; where a text (Shift-JIS, EUC-JP, UTF-16 either way, UTF-8) or bytes stand |
 | `snap` | Keeps a moment under a name, and writes it to scratch as an inbox-style snapshot for `yomikata run` and `check` |
+| `snap_lines` | Says what a snap's screen showed, once read off its picture: its lines, or that it has no text |
+| `sheet` | The pictures of several snaps as one image, each under its name |
 | `changed` | Places that differ between two snaps, the same as the first in some others and as the second in others: a flag, a counter, a cursor |
 | `refs` | Words that point at an address or just past it, in the console's byte order |
 | `state_save`, `state_load` | States by name, in scratch |
 | `script_try` | Loads a script on the running game: its load error (another build, a missing region), or its header |
+| `compare` | Runs a script over snaps and counts: what it reads against the lines given with `snap_lines`, and, given an entry, against that entry's layout (as `yomikata compare`). Counts hold no text |
 | `lua` | One line with the script functions on live memory |
 | `overlay` | The picture with the script's layout cells drawn on it |
 
-The way to a script, with them: `load`, `run` to a line, `screenshot` to read it, `find` it, `snap` at a few
-moments, `changed` and `refs` to find what says it is on screen, write the script, `script_try`, `run` and read
-what it emits, `overlay`, then `snap` a set and `yomikata check` it.
+The way to a script, with them: `load`, `steps` to a line (a sheet shows where you are), `find` it, `snap` at a
+few moments, `changed` and `refs` to find what says it is on screen, write the script, `script_try`, `run_until`
+it emits and read what it says, `overlay`. Then the check: `steps` through a stretch of the game with a snap at
+each, `sheet` to read the snaps' screens, `snap_lines` for each, and `compare`.
+
+A step is an object: `buttons`, `stick`, `hold` (frames they are held, 4 unless said), then `wait` (frames) or
+`until` (what `run_until` takes, with its `limit`), `times` to repeat it, `snap` (true, or a name) and `shot`
+(true: its picture goes on the sheet). For example, a press and a wait for the next line, twenty times, a snap
+at each: `{"buttons": ["a"], "until": {"limit": 600, "event": "text"}, "times": 20, "snap": true}`.
+
+### A call's time
+
+A call that runs the game stops by itself after `--call-seconds` (120 unless said) and says so: `"stopped":
+"time"`, with how far it got; the game stands where it stopped and the next call goes on. This is what a slow
+core does to a long run, and nothing is lost by it.
+
+A core that hangs inside one frame can't be stopped that way. A call that hasn't come back a minute after its
+time is answered with an error that says so, and the harness ends: its container goes, states and snaps in
+scratch stay. Start it again and load a state.
 
 ## Running it
 
@@ -80,5 +101,5 @@ Dolphin (`dolphin_libretro.so`, a GameCube or Wii game):
   (in the harness image).
 - Memory is given by address (the 24 MB from `0x80000000`), in the console's byte order.
 - Once, a session stopped answering with one processor busy and nothing coming back, from its first call; the
-  same calls ran in seconds when made again. The cause isn't known. A session that goes quiet is to be killed
-  and started again: states and snaps are in scratch and survive it.
+  same calls ran in seconds when made again. The cause isn't known. The harness now gives such a call up by
+  itself ("A call's time", above); before that, the session had to be killed from outside.
