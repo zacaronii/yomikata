@@ -1573,7 +1573,10 @@ def test_read_shows_a_script_with_text_among_its_commands():
     assert search.mixed(data) == 'lb01<00>"<02>そらは<03><04><02>あおい。<03><0B><85>'
     assert search.mixed(data, marks={7: "start", 9: "AT"}) == 'lb01<00>"<02>[start]そ[AT]らは<03><04><02>あおい。<03><0B><85>'
     assert search.mixed(data, marks={8: "AT"}).startswith('lb01<00>"<02><82>[AT]<BB>らは')     # a mark inside a character
-    assert search.mixed("あ".encode("utf-8") + b"\x01", "utf8") == "あ<01>"
+    for name in ("utf8", "utf_8", "UTF-8"):                               # however the encoding is spelt
+        assert search.mixed("あ".encode("utf-8") + b"\x01", name) == "あ<01>"
+    assert search.mixed(data, "Shift-JIS") == search.mixed(data) == search.mixed(data, "sjis")
+    assert search.mixed("あ".encode("euc_jp") + b"\x01", "EUC-JP") == "あ<01>"
     with pytest.raises(LookupError):
         search.mixed(data, "no-such-encoding")
 
