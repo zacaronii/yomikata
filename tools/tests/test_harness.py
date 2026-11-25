@@ -991,3 +991,56 @@ def test_words_and_the_text_they_point_at(session):
                                              "text": "こんにちは"}]}
     session.machine.memory[0x44:0x48] = struct.pack(">I", BASE + 0x800)                # points at nothing readable
     assert session.pointed("0x80000040", count=2)["pointers"][1] == {"at": "0x80000044", "points_at": "0x80000800"}
+
+
+def test_changed_by_a_pattern_over_snaps(session):
+    m = session.machine.memory
+    for name, flag, pointer in (("s0", 1, 0), ("s1", 2, 0x111), ("s2", 1, 0), ("s3", 2, 0x222)):
+        m[0x300] = flag
+        m[0x310:0x314] = struct.pack(">I", pointer)
+        session.snap(name)
+    names = ["s0", "s1", "s2", "s3"]
+    assert session.changed(snaps=names, pattern="abab") == {
+        "count": 1, "places": [{"address": "0x80000300", "a": "01", "b": "02"}]}
+    loose = session.changed(snaps=names, pattern="aAaA", unit=4)["places"]
+    assert [p["address"] for p in loose] == ["0x80000300", "0x80000310"] and loose[1]["a"] == "00000000"
+    assert session.changed(snaps=names, pattern="a.aA")["count"] >= 2
+    for bad in ({"snaps": names, "pattern": "aba"}, {"snaps": names, "pattern": "aaaa"}, {"snaps": names, "pattern": "aBaB"},
+                {"snaps": names, "pattern": "ab1b"}, {"a": "s0", "snaps": names, "pattern": "abab"}, {"a": "s0"}):
+        with pytest.raises(HarnessError):
+            session.changed(**bad)
+
+
+def test_a_name_read_off_a_naming_screen(session):
+    m = session.machine.memory
+    session.snap("n0")
+    for k, ch in enumerate("あかさ"):                                   # the game's own codes: the fifty sounds from 0x20
+        m[0x400 + k] = 0x20 + "あいうえおかきくけこさ".index(ch)
+        m[0x500] = k + 1                                                 # a cursor: changes each time, isn't the name
+        session.snap(f"n{k + 1}")
+    out = session.entered(["n0", "n1", "n2", "n3"], "あかさ")
+    assert out["count"] == 1
+    name = out["names"][0]
+    assert name["address"] == "0x80000400" and name["unit"] == 1
+    assert name["codes"] == {"あ": "20", "か": "25", "さ": "2A"} and name["table"] == ["20=あ", "25=か", "2A=さ"]
+    assert name["rule"].startswith("code = place in the fifty sounds") and "+ 0x20 (it holds for these" in name["rule"]
+    with pytest.raises(HarnessError):
+        session.entered(["n0", "n1"], "あか")
+
+
+@needs_reader
+def test_steps_that_answer_what_the_script_says(session):
+    session.script_try(SCRIPT)
+    out = session.steps([{"wait": 4, "times": 20, "until_event": "dialogue"}, {"wait": 1}],
+                        on={"dialogue": [{"buttons": ["a"], "hold": 2, "snap": True}]}, prefix="go")
+    rows = out["steps"]
+    stopped = next(i for i, r in enumerate(rows) if r.get("stopped") == "event")
+    assert stopped < 19 and rows[stopped + 1] == {"step": rows[stopped]["step"], "on": "dialogue",
+                                                  "frames": rows[stopped]["frames"] + 2,
+                                                  "snap": f"go-{rows[stopped]['step']:03d}-on01"}
+    assert rows[-1]["step"] == 20 and len(rows) == stopped + 3          # the repetition's rest was left out
+    for bad in ({"on": {"dialogue": []}}, {"on": {"menu": [{"wait": 1}]}}, {"on": {"text": [{"wait": 1, "times": 2}]}}):
+        with pytest.raises(HarnessError):
+            session.steps([{"wait": 1}], **bad)
+    with pytest.raises(HarnessError):
+        session.steps([{"wait": 1, "until_event": "menu"}])

@@ -373,16 +373,30 @@ class Session:
                           "still, with limit), times (repeat it, default 1), snap (true, or a name), shot (true), "
                           "every (with wait and snap: a snap each so many frames of the wait, to catch what "
                           "is there only while something happens)", True),
+          on=("object", "what to do when the script says something: a kind of event (text, dialogue, choice, "
+                        "any) and the steps to do right after the step it came in, e.g. {\"choice\": [{\"buttons\": "
+                        "[\"down\"]}, {\"buttons\": [\"a\"], \"wait\": 30}]}. A step with times and "
+                        "until_event (a kind) stops repeating once such an event has come", False),
           prefix=("string", "names snaps taken with snap: true, as <prefix>-000, -001, … (default: step)", False),
           columns=("integer", "pictures across the sheet (default 4)", False),
           scale=("number", "each picture's scale on the sheet (default 1: text stays readable)", False))
-    def steps(self, steps: list, prefix: str = "step", columns: int = 4, scale: float = 1.0):
+    def steps(self, steps: list, prefix: str = "step", columns: int = 4, scale: float = 1.0,
+              on: dict | None = None):
         machine, prefix = self._need(), self._name(prefix)
         if not isinstance(steps, list) or not steps or not all(isinstance(s, dict) for s in steps):
             raise HarnessError("steps is a list of objects")
-        known = {"buttons", "stick", "hold", "wait", "until", "times", "snap", "shot", "every"}
+        known = {"buttons", "stick", "hold", "wait", "until", "times", "snap", "shot", "every", "until_event"}
+        kinds = ("text", "any", *STORY)
+        on = dict(on or {})
+        if on or any("until_event" in step for step in steps):
+            if self.reader is None:
+                raise HarnessError("no script is loaded to say anything: call script_try first")
+            if set(on) - set(kinds) or any(step.get("until_event", "text") not in kinds for step in steps) or not all(
+                    isinstance(v, list) and v and all(isinstance(x, dict) and not set(x) - (known - {"until_event", "times"})
+                                                      for x in v) for v in on.values()):
+                raise HarnessError("on and until_event take: text, dialogue, choice or any; on gives steps for each")
         plan, during = [], 0
-        for step in steps:
+        for step in [*steps, *(x for v in on.values() for x in v)]:
             if set(step) - known:
                 raise HarnessError(f"a step has: {', '.join(sorted(known))}")
             if "every" in step:
@@ -391,17 +405,33 @@ class Session:
                 during += max(1, int(step.get("times", 1))) * (int(step["wait"]) // int(step["every"]))
         if during > MAX_STEPS:
             raise HarnessError(f"at most {MAX_STEPS} snaps during waits in a call")
-        for step in steps:
+        for step in [*steps, *(x for v in on.values() for x in v)]:
             self._buttons(step.get("buttons"))
             if "until" in step and not (isinstance(step["until"], dict) and "limit" in step["until"]):
                 raise HarnessError("until is an object with a limit, as run_until takes")
+        for step in steps:
             plan += [step] * max(1, min(int(step.get("times", 1)), MAX_STEPS))
         if len(plan) > MAX_STEPS:
             raise HarnessError(f"at most {MAX_STEPS} steps in a call")
+        def came(kind, since):
+            return any(kind == "any" or (e["kind"] == "text" and (kind == "text" or e.get("channel") == kind))
+                       for e in events[since:])
+
         events, done, shots, why, left = [], [], [], None, 0
-        for number, step in enumerate(plan):
+        queue, number, skipping, extra, answers = list(plan), -1, None, 0, 0
+        while queue:
+            step = queue.pop(0)
+            answer = step.get("_answer")
+            if not answer:
+                number += 1
+            if not answer and skipping is not None:
+                if step is skipping:                        # the rest of a repetition whose event has come
+                    continue
+                skipping = None
             held, where, before = self._buttons(step.get("buttons")), self._stick(step.get("stick")), len(events)
-            row, why = {"step": number}, None
+            row, why = {"step": number, **({"on": answer} if answer else {})}, None
+            answers = answers + 1 if answer else answers
+            label = f"{prefix}-{number:03d}" + (f"-on{answers:02d}" if answer else "")
             if held or where != (0.0, 0.0):
                 _, why = self._advance(max(1, min(int(step.get("hold", 4)), MAX_FRAMES)), held, where, events)
             if not why and "until" in step:
@@ -416,7 +446,7 @@ class Session:
             elif not why and "every" in step:
                 # A snap each few frames of the wait: for what memory holds only while a line types or a
                 # window opens, which a snap after the wait never sees.
-                name = step["snap"] if isinstance(step["snap"], str) else f"{prefix}-{number:03d}"
+                name = step["snap"] if isinstance(step["snap"], str) else label
                 left_frames, every, taken = min(int(step["wait"]), MAX_FRAMES), int(step["every"]), []
                 while left_frames >= every and not why:
                     _, why = self._advance(every, set(), (0.0, 0.0), events)
@@ -433,14 +463,22 @@ class Session:
                 row["events"] = len(events) - before
             if why == "time":
                 done.append({**row, "stopped": "time"})
-                left = len(plan) - number           # this step and those after it
+                left = len(queue) + 1               # this step and those after it
                 break
             if step.get("snap") and "every" not in step:
-                name = step["snap"] if isinstance(step["snap"], str) else f"{prefix}-{number:03d}"
+                name = step["snap"] if isinstance(step["snap"], str) else label
                 row["snap"] = self.snap(name)["snap"]
             if step.get("shot") and len(shots) < MAX_SHOTS and machine.picture() is not None:
                 shots.append((str(number), self._picture()))
             done.append(row)
+            if not answer:
+                if "until_event" in step and came(step["until_event"], before):
+                    row["stopped"], skipping = "event", step
+                # What the script said in this step decides what comes next: the first kind of `on` it fits.
+                kind = next((k for k in on if came(k, before)), None)
+                if kind and extra < MAX_STEPS:
+                    extra += len(on[kind])
+                    queue[:0] = [{**x, "_answer": kind} for x in on[kind]]
         out = {"frames": machine.frames, "steps": done, **({"stopped": "time", "left": left} if why == "time" else {}),
                **({"events": events} if self.reader is not None else {})}
         return ("both", out, self._png(self._sheet(shots, columns, scale))) if shots else out
@@ -756,13 +794,20 @@ class Session:
                 "snap_frame": meta.get("frame"), "first_places": [f"0x{base + int(i):08X}" for i in where[:20]]}
 
     @tool("Places in memory that differ between two snaps, narrowed by others: the same as the first in some, "
-          "the same as the second in others. Finds a flag, a counter, a cursor.",
-          a=("string", "a snap's name", True), b=("string", "another's", True),
+          "the same as the second in others. Finds a flag, a counter, a cursor. Or, with snaps and a pattern, "
+          "places that go as the pattern says over those snaps: abab is one value, another, the first again, "
+          "the other again; aAaA is one value, anything else, the value again, anything else (a pointer that "
+          "is set while a window is open); a dot is a snap that doesn't matter.",
+          a=("string", "a snap's name", False), b=("string", "another's", False),
           same_as_a=("array", "snaps where the place must hold what it holds in a", False),
           same_as_b=("array", "snaps where it must hold what it holds in b", False),
-          unit=("integer", "bytes compared together: 1, 2 or 4 (default 1)", False))
-    def changed(self, a: str, b: str, same_as_a: list | None = None, same_as_b: list | None = None,
-                unit: int = 1) -> dict:
+          unit=("integer", "bytes compared together: 1, 2 or 4 (default 1)", False),
+          snaps=("array", "snaps in order, for a pattern", False),
+          pattern=("string", "a character for each snap: the same small letter is the same value, another "
+                             "letter another value, a capital anything but its small letter's value, a dot "
+                             "anything", False))
+    def changed(self, a: str = "", b: str = "", same_as_a: list | None = None, same_as_b: list | None = None,
+                unit: int = 1, snaps: list | None = None, pattern: str = "") -> dict:
         import numpy as np
         if unit not in (1, 2, 4):
             raise HarnessError("unit is 1, 2 or 4")
@@ -771,6 +816,41 @@ class Session:
                 raise HarnessError(f"no snap called {name}")
             data = np.frombuffer(snapfile.read(self.roots.scratch / "snaps" / f"{name}.ram.gz"), dtype=np.uint8)
             return data[:len(data) // unit * unit].reshape(-1, unit)
+        if snaps or pattern:
+            snaps = list(snaps or ())
+            if a or b or same_as_a or same_as_b:
+                raise HarnessError("a pattern goes with snaps alone")
+            if len(pattern) != len(snaps) or not all(ch == "." or ch.isalpha() and ch.isascii() for ch in pattern):
+                raise HarnessError("the pattern has a character for each snap: letters and dots")
+            values = {}                                  # a small letter: the first snap's cells that has it
+            for name, ch in zip(snaps, pattern):
+                if ch.islower() and ch not in values:
+                    values[ch] = cells(name)
+            if len(values) < 1 or any(ch.isupper() and ch.lower() not in values for ch in pattern) \
+                    or len({v.shape for v in values.values()}) != 1:
+                raise HarnessError("a capital needs its small letter in the pattern, and the snaps one memory")
+            if len(values) == 1 and not any(ch.isupper() for ch in pattern):
+                raise HarnessError("a pattern of one value finds nothing: give another letter or a capital")
+            letters = sorted(values)
+            keep = np.ones(len(values[letters[0]]), dtype=bool)
+            for i, one in enumerate(letters):
+                for other in letters[i + 1:]:
+                    keep &= (values[one] != values[other]).any(axis=1)
+            for name, ch in zip(snaps, pattern):
+                if ch == ".":
+                    continue
+                now = cells(name)
+                if now.shape != values[ch.lower()].shape:
+                    raise HarnessError("the snaps aren't of the same memory")
+                same = (now == values[ch.lower()]).all(axis=1)
+                keep &= same if ch.islower() else ~same
+            places = np.nonzero(keep)[0]
+            base = self.snaps[snaps[0]].base
+            return {"count": int(len(places)),
+                    "places": [{"address": f"0x{base + int(i) * unit:08X}",
+                                **{ch: values[ch][i].tobytes().hex() for ch in letters}} for i in places[:MAX_HITS]]}
+        if not a or not b:
+            raise HarnessError("give two snaps (a, b), or snaps and a pattern")
         first, second = cells(a), cells(b)
         if first.shape != second.shape:
             raise HarnessError("the snaps aren't of the same memory")
@@ -784,6 +864,45 @@ class Session:
         return {"count": int(len(places)),
                 "places": [{"address": f"0x{base + int(i) * unit:08X}", "a": first[i].tobytes().hex(),
                             "b": second[i].tobytes().hex()} for i in places[:MAX_HITS]]}
+
+    @tool("Reads a name off a naming screen. Snap the empty name, enter a character, snap, enter another, "
+          "snap, and so on: this finds the places that took a value one after the other, which are the name, "
+          "and gives each character's code. With kana in the order of the fifty sounds it says the rule the "
+          "codes follow, and the lines of a table for `find`.",
+          snaps=("array", "the snaps in order: the empty name first, then one after each character", True),
+          characters=("string", "the characters entered, in order", True))
+    def entered(self, snaps: list, characters: str) -> dict:
+        import numpy as np
+        if len(characters) < 2 or len(snaps) != len(characters) + 1:
+            raise HarnessError("give two characters or more, and one snap more than characters")
+        memories = self._memories(snaps)
+        raw = [np.frombuffer(ram, dtype=np.uint8) for _, _, ram in memories]
+        if len({len(r) for r in raw}) != 1:
+            raise HarnessError("the snaps aren't of the same memory")
+        base, count, found = memories[0][1], len(characters), []
+        for unit in (1, 2):
+            moments = [r[:len(r) // unit * unit].reshape(-1, unit) for r in raw]
+            cells = len(moments[0]) - count
+            keep = np.ones(cells, dtype=bool)
+            # The cell of character k: set at snap k+1, kept after. Before its turn it may change too: a game
+            # moves the name's end mark along.
+            for k in range(count):
+                cell = [m[k:k + cells] for m in moments]
+                keep &= (cell[k + 1] != cell[k]).any(axis=1)
+                for later in range(k + 2, count + 1):
+                    keep &= (cell[later] == cell[k + 1]).all(axis=1)
+            for i in np.nonzero(keep)[0][:8]:
+                codes = [moments[-1][int(i) + k].tobytes() for k in range(count)]
+                if len(set(codes)) < len(set(characters)):
+                    continue
+                row = {"address": f"0x{base + int(i) * unit:08X}", "unit": unit,
+                       "codes": {ch: code.hex().upper() for ch, code in zip(characters, codes)},
+                       "table": [f"{code.hex().upper()}={ch}" for ch, code in dict(zip(characters, codes)).items()]}
+                rule = search.kana_rule(characters, codes)
+                if rule:
+                    row["rule"] = rule
+                found.append(row)
+        return {"count": len(found), "names": found}
 
     @tool("Words in memory that point at an address, or into the stretch after it. With snaps, the same for "
           "each of them, a row for each word: which moments it points there in, and where. A word that "
