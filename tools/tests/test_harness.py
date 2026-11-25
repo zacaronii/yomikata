@@ -383,6 +383,13 @@ def test_steps_in_one_call_with_snaps_and_a_sheet(session, tmp_path):
     assert kind == "image" and Image.open(io.BytesIO(png)).size == (64, 72)
     with pytest.raises(HarnessError):
         session.sheet(["nothing"])
+    # Only the part of each picture the text is in, numbered: a route's screens by the dozen.
+    kind, png = session.sheet(["walk-000", "walk-002", "walk-003"], columns=3, crop=[8, 30, 40, 18], number=24)
+    assert Image.open(io.BytesIO(png)).size == (3 * 40, 18 + 12)
+    assert Image.open(io.BytesIO(session.sheet(["walk-000"], crop=[60, 40, 40, 40])[1])).size == (4, 8 + 12)   # cut at the edge
+    for bad in ([1, 2, 3], [0, 0, 0, 5], [-1, 0, 5, 5]):
+        with pytest.raises(HarnessError, match="crop"):
+            session.sheet(["walk-000"], crop=bad)
 
 
 def test_a_call_stops_when_its_time_is_up(session):

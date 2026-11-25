@@ -865,17 +865,29 @@ class Session:
     @tool("The pictures of several snaps as one sheet, each under its name: many moments for one look.",
           snaps=("array", "snaps' names, in this session or written to scratch before", True),
           columns=("integer", "pictures across (default 4)", False),
-          scale=("number", "each picture's scale (default 1: text stays readable)", False))
-    def sheet(self, snaps: list, columns: int = 4, scale: float = 1.0):
+          scale=("number", "each picture's scale (default 1: text stays readable)", False),
+          crop=("array", "only this part of each picture, [x, y, width, height] in its pixels: the window the "
+                         "text is in, so that a route's screens can be read by the dozen", False),
+          number=("integer", "label each with a number counted from this one, before its name: what to "
+                             "call a screen by when reading a route's sheets one after the other", False))
+    def sheet(self, snaps: list, columns: int = 4, scale: float = 1.0, crop: list | None = None,
+              number: int | None = None):
         from PIL import Image
         if not snaps or len(snaps) > MAX_SHOTS:
             raise HarnessError(f"1 to {MAX_SHOTS} snaps")
+        if crop is not None and (len(crop) != 4 or min(int(v) for v in crop) < 0 or int(crop[2]) < 1 or int(crop[3]) < 1):
+            raise HarnessError("crop is [x, y, width, height]")
         shots = []
-        for name in snaps:
+        for i, name in enumerate(snaps):
             path = self.roots.inside("scratch", f"snaps/{self._name(name)}.png")
             if not path.is_file():
                 raise HarnessError(f"no picture was kept for {name}")
-            shots.append((name, Image.open(path).convert("RGB")))
+            image = Image.open(path).convert("RGB")
+            if crop is not None:
+                x, y, w, h = (int(v) for v in crop)
+                image = image.crop((min(x, image.width - 1), min(y, image.height - 1),
+                                    min(x + w, image.width), min(y + h, image.height)))
+            shots.append((name if number is None else f"{int(number) + i} {name}", image))
         return ("image", self._png(self._sheet(shots, columns, scale)))
 
     def _sheet(self, shots: list, columns: int = 4, scale: float = 1.0):

@@ -1798,3 +1798,32 @@ def test_ryuu_ga_gotoku_2_subtitles_a_window_with_its_speaker_a_question_and_a_c
     with rd.Reader(rgg2_memory(blocks, [], word=0), platform="ps2", game_id="SLPM-66602", data=data) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps2/SLPM-66602.lua"))
+
+
+def ever17_memory(line: str = "", named: int = 0, word: int = 0x0C06F99E):
+    """What Ever17's script looks at: the build's words, the line shown as a Shift-JIS string after the word
+    that points into the scene's script, and how many of its characters are the speaker's name."""
+    return sparse({0x00100198: struct.pack("<I", word), 0x00168A34: struct.pack("<I", 0x0C06B16E),
+                   0x00EC4C50: struct.pack("<I", 0x00EC9542) + line.encode("cp932") + bytes(64),
+                   0x00EDA430: struct.pack("<I", named)})
+
+
+def test_ever17_a_line_is_said_once_it_stands_with_its_first_characters_as_the_speaker():
+    with rd.Reader(ever17_memory(), platform="ps2", game_id="SLPS-25149") as r:
+        r.load(bundle(ROOT / "games/ps2/SLPS-25149.lua"), "SLPS-25149.lua")
+        moments = [("", 0), ("そらは、あおい。", 0), ("そらは、あおい。", 0),
+                   ("ねこ「ねむい……」", 0),                          # the line is there, its name's length not yet
+                   ("ねこ「ねむい……」", 2), ("ねこ「ねむい……」", 2),
+                   ("うみだ。%Nひろい%T60うみだ。%p", 0), ("うみだ。%Nひろい%T60うみだ。%p", 0),   # a new row, pauses
+                   ("かれは「うん」", 0), ("かれは「うん」", 0),        # a bracket in a line nobody speaks
+                   ("", 0), ("そらは、あおい。", 0), ("そらは、あおい。", 0)]
+        said = []
+        for frame, (line, named) in enumerate(moments, 1):
+            r.read = ever17_memory(line, named)
+            r.frame(frame)
+            said += [(frame, e.get("speaker") or None, e["text"]) for e in r.take("text")]
+        assert said == [(3, None, "そらは、あおい。"), (5, "ねこ", "「ねむい……」"), (8, None, "うみだ。\nひろいうみだ。"),
+                        (10, None, "かれは「うん」"), (13, None, "そらは、あおい。")]
+    with rd.Reader(ever17_memory(word=0), platform="ps2", game_id="SLPS-25149") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps2/SLPS-25149.lua"))

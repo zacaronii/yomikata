@@ -6,13 +6,17 @@
   "versions": [
     {
       "exe": "SLPS_251.49",
-      "exe_sha1": "70abfd7e7daf2fbc790dca21284659519e1dcb17"
+      "exe_sha1": "70abfd7e7daf2fbc790dca21284659519e1dcb17",
+      "note": "A PS2 emulator names this build SLPS-25149-6e86bb5a"
     }
   ],
-  "encoding": "unknown",
-  "status": "auto",
+  "encoding": "shift_jis",
+  "status": "partial",
   "sources": [
-    "yomikata scan 0.2.0 of the disc files: shift_jis 2,409, utf16le 486 characters of prose-like text"
+    "yomikata scan 0.2.0 of the disc files: shift_jis 2,409, utf16le 486 characters of prose-like text",
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+    "Played from power-on in the game's own auto mode: the prologue's first 130 lines, over five scenes",
+    "What the script said in play agreed with the lines read off 84 of 84 pictures, speakers too, over 5 scenes. No screen without a line was among them, and no choice"
   ],
-  "notes": "Only a little prose reads on disc, far less than the game's script, so the script is likely packed. A memory sample from play will settle the encoding."
+  "notes": "Read by the script games/ps2/SLPS-25149.lua. A scene's script is loaded whole as Shift-JIS strings (which is why little of it reads on the disc: it is packed there), and the line shown is copied out to a fixed place, whole from its first frame; a word says how many of its first characters are the speaker's name. The engine's marks are %K, %P, %N, %p, %O and %T with a number. Choices, the backlog and menus aren't read."
 }

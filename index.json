@@ -516,10 +516,10 @@
   },
   "SLPS-25149": {
    "path": "games/ps2/SLPS-25149.json",
-   "sha256": "c4ef96bb0c1c4757fb2d8c47526f9e8173a00c5c02fc8eb60f8d8b143fe082ca",
+   "sha256": "21f4beb9a16f13c55ab8c5fd15b045437c88f916b7813c6493cdaf51d113d45d",
    "platform": "ps2",
-   "encoding": "unknown",
-   "status": "auto"
+   "encoding": "shift_jis",
+   "status": "partial"
   },
   "SLPS-25368": {
    "path": "games/ps2/SLPS-25368.json",
@@ -1161,6 +1161,19 @@
    "reads": "the message window's three rows, the speaker's name, and a choice's answers with its cursor",
    "builds": [
     "8ff227df40eccefd0a9e772f4930d693b89fc117"
+   ],
+   "needs": [],
+   "data": {}
+  },
+  "SLPS-25149": {
+   "path": "scripts/ps2/SLPS-25149.lua",
+   "sha256": "c1d150f81dbc91b09c4ee9884dc6a5bb9bbbb9cc0fdd4b2b5a1e115c1943208f",
+   "platform": "ps2",
+   "runtime": 1,
+   "title": "Ever17 -the out of infinity- (Ever17: The Out of Infinity)",
+   "reads": "the message window's line and its speaker",
+   "builds": [
+    "SLPS-25149-6e86bb5a"
    ],
    "needs": [],
    "data": {}
