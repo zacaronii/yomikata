@@ -396,8 +396,8 @@ def test_unread_draws_what_a_script_logged_and_writes_readings_into_its_dictiona
     out = capsys.readouterr()
     assert out.out.splitlines() == [f"{marks[0]} 8x4", f"{marks[2]} 8x4", f"{marks[3]} 4x4"]
     assert "4 pictures logged, 1 in the dictionary, 3 to read" in out.err
-    assert Image.open(sheet).size == (16 * 40, 4 * 3 + 16)
-    assert Image.open(tmp_path / "sheet-rows.png").size[1] == 2 * (4 * 2 + 16)       # both rows show an unread picture
+    assert Image.open(sheet).size == (16 * 36, 4 * 3 + 16)
+    assert Image.open(tmp_path / "sheet-rows.png").size[1] == 2 * (4 * 2 + 26)       # both rows show an unread picture
     # A row read whole gives each of its pictures a character; a reading by a hash's start; one taken out.
     assert cli.main(args + ["--row", "0=一 二", "--add", "0C=三", "0D=四"]) == 0
     assert dictionary.read_text(encoding="utf-8") == f"# made up\n{marks[0]}=一\n{marks[1]}=二\n{marks[2]}=三\n{marks[3]}=四\n"
@@ -410,7 +410,61 @@ def test_unread_draws_what_a_script_logged_and_writes_readings_into_its_dictiona
         assert cli.main(args + bad) == 1
     assert "0D" not in dictionary.read_text(encoding="utf-8")
     # The second reader on whole rows: where it gives a character a picture, each picture takes its own.
-    whole = unread.second_rows(rows, pictures, reader=lambda page: "一 二" if page.width == 3 * (8 + 2 + 8) else "三…一")
+    whole = unread.second_rows(rows, pictures, reader=lambda page: "一 二" if page.width == 18 * (8 + 2 + 8) else "三…一")
     assert whole == {marks[0]: ["一"], marks[1]: ["二"]}                    # the second row was read to another length
     alone = unread.second({marks[3]: pictures[marks[3]]}, reader=lambda page: "四")
     assert alone == {marks[3]: "四"}
+    # A row may have characters as text among its pictures (a script that knows them by code): a reading of
+    # the row must have them where they stand, and the pictures take the rest.
+    mixed = unread.rows(f"glyph-line =あの {marks[0]} _ =は {marks[2]} =。\n")
+    assert mixed == [["=あの", marks[0], None, "=は", marks[2], "=。"]]
+    assert unread.row_readings(mixed, {0: "あの一 は三。"}) == {marks[0]: "一", marks[2]: "三"}
+    for wrong in ("あの一は三", "あね一は三。"):
+        with pytest.raises(ValueError, match="row 0"):
+            unread.row_readings(mixed, {0: wrong})
+    assert unread.second_rows(mixed, pictures, reader=lambda page: "あの一は三。") == {}       # no font: not read whole
+    assert unread.row_sheet({0: mixed[0]}, pictures, {marks[0]}).size[1] == 4 * 2 + 26
+    assert unread.starts(marks + ["00AA0F0000000009"]) == {marks[0]: "00AA00", "00AA0F0000000009": "00AA0F", marks[1]: "00AB", marks[2]: "0C00", marks[3]: "0D00"}
+
+
+def test_mgs_lines_finds_a_list_and_a_call_and_writes_what_unread_reads():
+    """tools/scripts/mgs_lines.py on a made-up list of lines and a made-up radio call, each with the pictures
+    of its own kanji after it: the lines as marks, and the log `yomikata unread` reads."""
+    import importlib.util
+    import struct
+    from yomikata import unread
+    spec = importlib.util.spec_from_file_location("mgs_lines", Path(__file__).resolve().parents[1] / "scripts/mgs_lines.py")
+    mgs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mgs)
+
+    def text(*codes):                                                  # codes as the game writes them: high byte first
+        return b"".join(bytes([c]) if c < 0x80 else struct.pack(">H", c | 0x8000) for c in codes) + b"\0"
+
+    def record(size_of, start, body):
+        body += bytes(-len(body) % 4)
+        return struct.pack("<4I", 16 + len(body) if size_of else 0, start, 40, 0) + body
+    pictures = [bytes([n]) * 33 + bytes(3) for n in (0x3F, 0x2A, 0x15)]
+    # A list of two lines: kana, the fixed font, a space, its own kanji 1 and 2, a word with a reading.
+    first = text(0x0128, 0x1C01, 0x1002, 0x20, 0x0129, 0x1C02)
+    second = text(0x23, 0x7B, 0x1C01, 0x012A, 0x1002, 0x0201, 0x7D, 0x23, 0x1003)
+    listed = record(True, 0, first) + record(False, 90, second)
+    listed += bytes(-len(listed) % 4) + pictures[0] + pictures[1]
+    data = bytes(64) + listed + bytes(64)
+    found = mgs.lists(data)
+    assert len(found) == 1 and found[0]["at"] == 64 and found[0]["pictures"] == pictures[:2] and len(found[0]["lines"]) == 2
+    fixed = mgs.fixed_font("# made up\n9002=、\n9003=。\n")
+    one, two = mgs.fnv(pictures[0]), mgs.fnv(pictures[1])
+    assert mgs.marks(found[0]["lines"][0], mgs.OWN, pictures, fixed) == ["=と", one, "=、", "_", "=ど", two]
+    assert mgs.marks(found[0]["lines"][1], mgs.OWN, pictures, fixed) == [one, "=な。"]      # the reading left out
+    # A call: its frequency, its length, a line after 0xFF 0x01, then its pictures.
+    line = b"\xff\x01" + struct.pack(">H", 20) + bytes(6) + text(0x0142, 0x1601, 0x4E | 0, 0x1003)
+    call = struct.pack(">H", 14085) + bytes(6) + b"\x80" + struct.pack(">H", 2 + len(line)) + line
+    radio = bytes(32) + call + pictures[2] + bytes(40)
+    called = mgs.calls(radio)
+    assert len(called) == 1 and called[0]["pictures"] == [pictures[2]]
+    log = mgs.log(found + called, fixed)
+    assert log[0] == f"glyph {one} 12x12x2 {pictures[0].hex()}" and len([x for x in log if x.startswith("glyph ")]) == 3
+    assert f"glyph-line {one} =な。" in log and f"glyph-line =と {one} =、 _ =ど {two}" in log
+    logged = unread.logged("\n".join(log))
+    assert set(logged) == {one, two, mgs.fnv(pictures[2])} and logged[one].width == 12
+    assert [one, "=な。"] in unread.rows("\n".join(log))

@@ -338,6 +338,23 @@ of its hash. It refuses a row read to another length than it has pictures and a 
 dictionary's, and lists the new readings the second reader read otherwise: read those rows again. Reading
 whole rows is quicker than glyph by glyph and surer, since a sentence carries its kanji.
 
+A row may carry text among its pictures: what a script knows by code (kana, a fixed font) is logged as `=`
+and the characters, and drawn on the rows' sheet with a font given as `--font`, greyer than the pictures. A
+reading of such a row must have those characters where they stand, which catches a row read one place off.
+`--most` takes only the first so many unread pictures, `--each` says how many rows are drawn for each (2
+unless said), and a picture is labelled with as much of its hash as tells it from every other.
+
+Where the text lies on the disc as it is loaded, nothing has to be played to: a script over the disc writes
+the same lines a script in play would have logged. `tools/scripts/mgs_lines.py` does it for Metal Gear Solid:
+1,439 distinct pictures of kanji in the lists and calls of its two discs, the most used first, each with the
+two shortest lines it stands in. From that log the 250 most used after the 188 of the lines played were read,
+which took the dictionary from 43 to 83 in 100 of all uses. Three things that reading taught. At twelve
+pixels a kanji read in its sentence from a small sheet went wrong five times in 250 (a neighbour in a
+compound taken for it, a likely word read into the row): what caught them was a second sheet, each picture
+drawn large beside the character it was read as, and the dictionary's own notice that a character had been
+given to two pictures. The second reader agrees on about half at this size and was no help as a judge. And
+a reading is best given by its hash, a character at a time: nothing of the game's text is then typed anywhere.
+
 Ryuu ga Gotoku 2's 602 glyphs (24 by 24, two bits a pixel) were read so, from the 269 rows of half an hour's
 play. The second reader agreed on 469 of the 536 it was asked about; the 67 others were its own mistakes, 18 of
 them hangul, which it doesn't read.

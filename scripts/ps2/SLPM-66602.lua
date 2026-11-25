@@ -68,8 +68,9 @@ __module["lib.glyphs"] = function()
 --
 -- A glyph is read surest in its sentence. So a script may also say which pictures made up a row of text
 -- that had one without a reading, and that is logged once too, as
---     glyph-line <HASH> <HASH> _ <HASH> …
--- a hash for each picture in order and "_" for a space: `yomikata unread` then draws the row whole.
+--     glyph-line <HASH> <HASH> _ =<characters> <HASH> …
+-- a hash for each picture in order, "_" for a space, and "=" before characters the script knows by code:
+-- `yomikata unread` then draws the row whole.
 
 local glyphs = {}
 
@@ -103,13 +104,18 @@ function glyphs.open(source)
         return character, hash
     end
 
-    --- A row of text the script has read, as the hashes `read` gave for its pictures in order (false for a
-    --- space). Logged once, if the dictionary lacks one of them.
+    --- A row of text the script has read, as the hashes `read` gave for its pictures in order; false for a
+    --- space, and for what the script knows by code, not by picture, the characters themselves (without
+    --- spaces). Logged once, if the dictionary lacks one of the pictures.
     function dictionary:line(hashes)
         local marks, lacking = {}, false
         for i, hash in ipairs(hashes) do
-            marks[i] = hash or "_"
-            lacking = lacking or (hash and not self.known[hash])
+            if hash and not hash:find("^%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then
+                marks[i] = "=" .. hash
+            else
+                marks[i] = hash or "_"
+                lacking = lacking or (hash and not self.known[hash])
+            end
         end
         local row = table.concat(marks, " ")
         if lacking and not self.logged[row] then
