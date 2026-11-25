@@ -121,6 +121,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--sequence", action="store_true", help="the snapshots are consecutive moments of one run: one reader, one tick each")
     p.add_argument("--log", action="store_true", help="print the script's log lines too")
     p.add_argument("--story", action="store_true", help="only what is read: dialogue and choices, not interface text")
+    p.add_argument("--dump", action="store_true", help="everything the game has in memory at each snapshot, as the script's own dump function says it: for reading a place's whole text through the script's decoder")
+    p.add_argument("--containing", default="", help="with --dump: only, for each of these characters, the two shortest texts that have it (a doubtful reading shows in its sentence)")
     p = sub.add_parser("bundle", help="a script as it is run and published: one file, with the lib/ modules it asks for inside it")
     p.add_argument("script", type=Path, help="games/<platform>/<id>.lua")
     p.add_argument("-o", "--out", type=Path, help="write it here (default: print it)")
@@ -538,11 +540,29 @@ def main(argv: list[str] | None = None) -> int:
         from .run import STORY_CHANNELS, run
         try:
             readings = run(args.script, args.snapshots, platform=args.platform,
-                           base=int(args.base, 16) if args.base else None, frames=args.frames, sequence=args.sequence)
+                           base=int(args.base, 16) if args.base else None, frames=args.frames, sequence=args.sequence,
+                           dump=args.dump)
         except (rd.ReaderUnavailable, ValueError, OSError) as e:        # a BundleError is a ValueError
             print(e, file=sys.stderr)
             return 1
         status = 0
+        if args.dump:
+            for reading in readings:
+                if reading.error is not None:
+                    print(f"{reading.name}: {reading.error}", file=sys.stderr)
+                    status = 1
+                texts = [e["text"] for e in reading.texts()]
+                unread = sum(t.count("\ufffd") for t in texts)
+                print(f"{reading.name}: {len(texts)} texts, {sum(len(t) for t in texts)} characters, "
+                      f"{unread} without a reading", file=sys.stderr)
+                if args.containing:
+                    for ch in dict.fromkeys(args.containing):
+                        for text in sorted((t for t in texts if ch in t), key=len)[:2]:
+                            print(json.dumps({"snapshot": reading.name, "character": ch, "text": text}, ensure_ascii=False))
+                else:
+                    for event in reading.texts():
+                        print(json.dumps({"snapshot": reading.name, **event}, ensure_ascii=False))
+            return status
         for reading in readings:
             if reading.error is not None:
                 print(f"{reading.name}: {reading.error}", file=sys.stderr)

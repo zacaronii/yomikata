@@ -83,9 +83,25 @@ def _open(script: Path, snapshot: Path, platform: str | None, base: int | None, 
 
 
 def run(script: Path, snapshots: list[Path], *, platform: str | None = None, base: int | None = None,
-        frames: int = 2, sequence: bool = False, **limits) -> list[Reading]:
+        frames: int = 2, sequence: bool = False, dump: bool = False, **limits) -> list[Reading]:
+    """What the script emits over each snapshot. With `dump`, not what is on screen but everything the game
+    has in memory there, as the script's own `dump` function says it (docs/script-api.md): the way to read
+    through a place's whole text with the script's decoder and tables."""
     source = bundle(script).encode("utf-8")
     out = [Reading(path.name.split(".")[0]) for path in snapshots]
+    if dump:
+        for path, reading in zip(snapshots, out):
+            with _open(script, path, platform, base, limits) as reader:
+                try:
+                    reader.load(source, script.name)
+                    reader.take()
+                    if reader.eval("return type(dump)") != "function":
+                        raise rd.ScriptError("the script has no dump function")
+                    reader.eval("dump()")
+                except rd.ScriptError as e:
+                    reading.error = str(e)
+                reading.events = reader.take()
+        return out
     if sequence:
         with _open(script, snapshots[0], platform, base, limits) as reader:
             try:
