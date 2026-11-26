@@ -2015,6 +2015,35 @@ def test_explore_finds_where_one_can_walk_by_trying_and_walks_the_way_it_found(s
         session.explore(within=[1, 2, 3])
 
 
+def test_explore_says_when_a_window_takes_the_pad_and_closes_it_with_close(session):
+    """A message open takes the pad (Dragon Quest I & II's, after a search): explore without `close` gives one
+    place and says why it may be; with `close` it presses the button, keeps the press in the record of the
+    way, and maps the room from there."""
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+
+    def windowed(buttons, stick):
+        buttons = set(buttons)
+        if machine.memory[0x7F0]:                     # a message open: the pad moves nobody, A closes it
+            if "a" in buttons:
+                machine.memory[0x7F0] = 0
+            buttons = set()
+        plain(buttons, stick)
+    machine._step = windowed
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    machine.memory[0x7F0] = 1
+    before, frames, way = machine.save_state(), machine.frames, json.dumps(session.route)
+    out = session.explore(step=1, within=[96, 76, 104, 84])
+    assert out["places"] == 1 and "close" in out["still"] and "closed" not in out
+    assert (machine.save_state(), machine.frames, json.dumps(session.route)) == (before, frames, way)
+    out = session.explore(step=1, within=[96, 76, 104, 84], close="a")
+    assert out["places"] > 1 and out["closed"] == 1 and "still" not in out
+    assert machine.memory[0x7F0] == 0 and machine.frames > frames and json.dumps(session.route) != way
+    assert ["a"] in [m[1] for m in session.route["moves"] if isinstance(m, list)]
+    again = session.explore(step=1, within=[96, 76, 104, 84], close="a")      # nothing to close: no press
+    assert "closed" not in again and again["places"] == out["places"]
+
+
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
     """`yomikata calls --trend`: for each game, the calls, runs and minutes from its first call to the first
     comparison by scenes that met the bar; a comparison's outcome is kept with its call (counts only)."""
@@ -2374,6 +2403,29 @@ def test_advancing_finds_the_pointer_that_walks_while_a_line_types(session):
     assert none["count"] == 0 and "spaces: true" in none["nothing_advances"]          # and it says where to look instead
     with pytest.raises(HarnessError):
         session.advancing(names[:3])
+
+
+def test_advancing_finds_a_pointer_at_an_odd_address_with_unit_2(session):
+    """A Game Boy keeps words at odd addresses (Dragon Quest I & II's text pointer is at 0xC80F): with unit 2
+    the odd offsets are looked at as well, and the pointer is given at its own address."""
+    machine, plain = session.machine, session.machine._step
+    state = {"at": 0x4210, "typed": 0}
+
+    def typing(buttons, stick):
+        plain(buttons, stick)
+        if state["typed"] < 7:
+            state["at"] += 1
+            state["typed"] += 1
+        struct.pack_into(">H", machine.memory, 0x381, state["at"])
+    machine._step = typing
+    names = []
+    for i in range(12):
+        session.run(1)
+        session.snap(f"od-{i:02d}")
+        names.append(f"od-{i:02d}")
+    span = [f"0x{BASE + 0x300:08X}", f"0x{BASE + 0x400:08X}"]
+    found = session.advancing(names[:8], rest=names[8:], within=span)
+    assert [p["address"] for p in found["places"]] == [f"0x{BASE + 0x381:08X}"]
 
 
 def test_advancing_looks_in_a_consoles_other_memory_and_takes_slow_typing(session, monkeypatch):

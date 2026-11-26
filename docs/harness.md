@@ -57,7 +57,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in, or only those that point there in all and move (`moving`) |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
 | `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way; stops where the map changes, since the numbers start anew there. `near` for numbers finer than a step |
-| `advancing` | Whole numbers that only go up, a little a frame, over snaps taken while a line types, and stand afterwards: a pointer walking through a script, a count of characters drawn. For a game whose text no search finds |
+| `advancing` | Whole numbers that only go up, a little a frame, over snaps taken while a line types, and stand afterwards: a pointer walking through a script, a count of characters drawn. For a game whose text no search finds. Numbers at any address, odd ones too |
 | `steady` | Numbers that go up or down by the same amount from each snap to the next: a hand going round, a bar filling, a timer. What `press_at` watches |
 | `press_at` | Presses a button when a number in memory comes to a value, several in turn: a press in time (a ring's hand over its mark, a bar that fills). With `tries`, lists of values are tried from this moment, the game put back after each, and what the game held afterwards is given for each |
 | `place_find` | Where a game of three dimensions keeps the character's place: floats that stand while the pad is let go, move with a push and come back with the push the other way, grouped three on end |
@@ -188,7 +188,12 @@ In the order to try them:
    across a room is a few seconds, and across Mother 2's hill (93 pushes) under a minute, where trying evenly
    ran out of time. A long `step` (16) with four ways covers ground fastest. What it can't see: a door whose
    change of map takes longer than a push (that game's house doors), and a way that leads away from the place
-   before it leads to it costs the whole map first: walk such a way in legs.
+   before it leads to it costs the whole map first: walk such a way in legs. A start where no push moves the
+   character (a message left open takes the pad: Dragon Quest I & II after a search) gives one place and says so
+   (`still`); `close` with the button that closes the window presses it first, and the press stays in the record.
+   The words a place is read from may hold only on some maps: in Dragon Quest I & II they did in the first room
+   and read 0xF8 and 0 after the stairs. After a change of map, push once by hand and read them before trusting
+   a walk; `cursor_find` again where they don't move.
    A game may keep two sets of numbers for everything that walks: where each is on the map, and where each
    is drawn on screen. Chrono Trigger does (the map's at 0x7E1800 across and 0x7E1880 down, a word for each
    of 32 things, 16 to a pixel; the screen's at 0x7E0A00 and 0x7E0A80), and `cursor_find` gave the screen's,
@@ -372,7 +377,9 @@ its cartridge or from a script it never copies. Snap every frame of one line's t
 `every`: 1 and `snap`), and ask `advancing` with those snaps and one or two from after as `rest`. It gives
 the whole numbers that only went up, a little a frame, and then stood. On Live A Live's fourteen snaps it
 gives two: the count of characters drawn, and beside it the 16-bit pointer into the cartridge's script, which was away for two of the snaps (a row of dots is kept elsewhere) and is
-found all the same. That is three calls where the search by hand had been about a hundred.
+found all the same. That is three calls where the search by hand had been about a hundred. Every offset into
+the unit is looked at: Dragon Quest I & II keeps its pointer at an odd address (0xC80F), which a look at even
+ones only had missed.
 
 `advancing` reads the snaps one at a time and keeps only what the walk needs, so many snaps of a large memory
 are fine: forty of a Dreamcast's 16 MB take about 160 MB, where holding them all took more than the
