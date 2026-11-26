@@ -7,6 +7,7 @@ import struct
 
 import numpy as np
 import pytest
+from pathlib import Path
 
 from yomikata import reader as rd
 from yomikata.harness import mcp
@@ -2208,3 +2209,70 @@ def test_identify_saturn_dreamcast_and_hucard_and_a_gamecube_id_of_letters_and_d
     assert identify_nintendo_disc(bytes(head)) is None
     head[:6] = b"gabj01"
     assert identify_nintendo_disc(bytes(head)) is None
+
+
+def test_a_plan_played_outside_the_harness_is_its_calls_in_the_record_and_keeps_to_the_budget(tmp_path):
+    """`yomikata play`: each call of a plan is a line in the record (offline_play, with the tool it was and the
+    frames), counted against the game's budget like the same call in the harness, and a run is one run; a plan
+    whose calls don't fit in what is left of the budget isn't run at all; a plan can't set a budget or measure
+    a script."""
+    from yomikata.harness import play
+    from yomikata.calls import summary
+    for name in ("games/ngc", "cores", "inbox", "scratch/record"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/ngc/Made Up (Japan).iso").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    game = "ngc/Made Up (Japan).iso"
+    load = ["load", {"game": game, "core": "fake_libretro.so", "platform": "ngc"}]
+    plan = [load, ["steps", {"steps": [{"buttons": ["a"], "hold": 4, "wait": 30, "times": 2, "snap": True}]}]]
+    (tmp_path / "scratch/record/budgets.json").write_text(json.dumps({game: 5}))
+    record_file = tmp_path / "scratch/record/calls.jsonl"
+    roots = lambda: Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch")  # noqa: E731
+    said = []
+    s = Session(roots(), FakeMachine)
+    lines = play.run(s, plan, tmp_path / "out", say=said.append)
+    s.close()
+    assert [e["arguments"] for e in lines] == [{"tool": "load", "call": 0}, {"tool": "steps", "call": 1}]
+    assert all(e["tool"] == "offline_play" and e["ok"] for e in lines) and lines[-1]["outcome"]["frames"] == 68
+    assert len(said) == 2 and len(record_file.read_text().splitlines()) == 2
+    s = Session(roots(), FakeMachine)
+    for bad in ([["budget", {"calls": 9}]], [["compare", {"source": "-- x"}]]):     # refused before anything runs
+        with pytest.raises(HarnessError, match="isn't for a plan"):
+            play.run(s, [load] + bad, say=said.append)
+    with pytest.raises(HarnessError, match="begins with a load"):
+        play.run(s, plan[1:], say=said.append)
+    assert s.machine is None and len(record_file.read_text().splitlines()) == 2
+    with pytest.raises(HarnessError, match="don't fit"):                               # 2 used + 4 > 5
+        play.run(s, plan + plan[1:] * 2, say=said.append)
+    assert s.machine is None and len(record_file.read_text().splitlines()) == 2
+    assert len(play.run(s, plan + plan[1:], say=said.append)) == 3                       # 2 + 3 = 5: fits
+    s.close()
+    rows = summary(record_file)
+    assert rows[0]["calls"] == 5 and rows[0]["tools"] == {"offline_play": 5} and rows[0]["sessions"] == 2
+    s = Session(roots(), FakeMachine)                                                     # spent: nothing runs
+    with pytest.raises(HarnessError, match="don't fit"):
+        play.run(s, plan[:1], say=said.append)
+    s.close()
+
+
+def test_the_record_takes_lines_from_two_writers_at_once_whole():
+    """Two processes appending to the record at the same time: every line comes out whole."""
+    import multiprocessing
+    import tempfile
+    from yomikata.harness import record
+    with tempfile.TemporaryDirectory() as scratch:
+        writers = [multiprocessing.Process(target=_append_many, args=(scratch, tag)) for tag in "ab"]
+        for w in writers:
+            w.start()
+        for w in writers:
+            w.join()
+        lines = record.path(Path(scratch)).read_text(encoding="utf-8").splitlines()
+        entries = [json.loads(line) for line in lines]
+        assert len(entries) == 400 and all(e["pad"] == e["tool"] * 3000 for e in entries)
+        assert record.counts(Path(scratch))[1] == {"g": 400}
+
+
+def _append_many(scratch, tag):
+    from yomikata.harness import record
+    for _ in range(200):
+        record.append(Path(scratch), {"game": "g", "tool": tag, "pad": tag * 3000})
