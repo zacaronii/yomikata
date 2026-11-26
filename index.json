@@ -78,6 +78,13 @@
    "encoding": "shift_jis",
    "status": "partial"
   },
+  "RZDJ01": {
+   "path": "games/wii/RZDJ01.json",
+   "sha256": "51ec9ed2034d030e830c526671b5629813b921fdd173fcea122ca6a84b632f39",
+   "platform": "wii",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "SCPS-10053": {
    "path": "games/ps1/SCPS-10053.json",
    "sha256": "67aeec3c102d4e73afeafdc53982122833b0b56c60d470acbf1b4b3305ef09ee",
@@ -881,6 +888,19 @@
    "reads": "a message window's page once the game has typed it out and waits for the button",
    "builds": [
     "92261ece"
+   ],
+   "needs": [],
+   "data": {}
+  },
+  "RZDJ01": {
+   "path": "scripts/wii/RZDJ01.lua",
+   "sha256": "b84e6630a804ffda5da7a6952cddb8f35929815f68a99680bf0fcd00a256fa83",
+   "platform": "wii",
+   "runtime": 1,
+   "title": "ゼルダの伝説 トワイライトプリンセス (Zelda no Densetsu: Twilight Princess, Wii)",
+   "reads": "the message window's page each time the game puts a new one in",
+   "builds": [
+    "RZDJ01-00"
    ],
    "needs": [],
    "data": {}

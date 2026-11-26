@@ -1,0 +1,22 @@
+{
+ "id": "RZDJ01",
+ "platform": "wii",
+ "title": "ゼルダの伝説 トワイライトプリンセス",
+ "title_romaji": "Zelda no Densetsu: Twilight Princess",
+ "versions": [
+  {
+   "header_crc32": "27dd9e7a",
+   "note": "disc version 0 (the build RZDJ01-00)"
+  }
+ ],
+ "encoding": "shift_jis",
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's disc (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness",
+  "Characters are Shift-JIS as the game keeps them: no table. The page's buffer and the chain of pointers to it were found in snaps of three kinds of scene (a cutscene, a talk in a house, free play)",
+  "Played from the name screen through the opening's talk at dusk, the next morning at the hero's house, a talk on the path and the scene at the ranch gate: the route replayed from a state in one run with the script loaded",
+  "What the script said agreed with the rows read off 23 of 23 pictures, over 4 scenes; it said nothing on the 4 screens without text. 7 short of the 30 screens wanted: the next scenes need the hero moved in 3D, which a tool is being made for",
+  "The rows were the script's pages, each held against its picture (furigana left out). 89 harness calls"
+ ],
+ "notes": "Read by the script games/wii/RZDJ01.lua: the message window's page once it has typed out and stands. The load wants the option dolphin_wiimote_default_device=nunchuk (the game asks for a Nunchuk). Not read: furigana, who speaks, a choice's answers and cursor, the menus and the screens before the story."
+}
