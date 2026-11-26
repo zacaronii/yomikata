@@ -928,10 +928,11 @@ class Session:
           no_text=("boolean", "true when the screen shows no text", False))
     def snap(self, name: str, ocr: list | None = None, no_text: bool = False) -> dict:
         machine, name = self._need(), self._name(name)
+        folder = self.roots.scratch / "snaps"
+        self._not_anothers(folder, name, machine.platform)
         base, ram = machine.ram()
         regions = machine.regions()
         self.snaps[name] = Snap(base, machine.frames)
-        folder = self.roots.scratch / "snaps"
         # All but the session's first are written as what differs from it (snapfile.py): a few kilobytes, not
         # all of memory again. Writing over the first makes this one the first; the snaps kept as differing
         # from a file about to be written over (this run's, or an earlier run's under the same name) are
@@ -946,8 +947,8 @@ class Session:
             snapfile.write(folder / f"{name}.{region}.gz", data, other)
         if first is None:
             self.first_snap = (name, ram, regions)
-        meta = {"platform": machine.platform, "base_address": f"0x{base:X}", "frame": machine.frames,
-                "ocr": list(ocr or [])}
+        meta = {"platform": machine.platform, "game": self.game, "base_address": f"0x{base:X}",
+                "frame": machine.frames, "ocr": list(ocr or [])}
         if no_text:
             meta["no_text"] = True
         elif not ocr:
@@ -965,6 +966,22 @@ class Session:
                                     "it: they are whole files now. A name of its own for each snap saves that"}
                    if kept else {}),
                 **({"memory_writes": self.pokes} if self.pokes else {})}
+
+    def _not_anothers(self, folder: Path, name: str, platform: str) -> None:
+        """Refuses a snap's name that another game's snap holds: snaps of every game share one folder, and a
+        route's snaps written over by another game's can't be compared again. A snap from before games were
+        written beside it is known by its console only."""
+        try:
+            held = json.loads((folder / f"{name}.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        if not isinstance(held, dict):
+            return
+        game, console = held.get("game"), held.get("platform")
+        if game and game != self.game or not game and console not in (None, platform):
+            whose = f"{game}'s" if game else f"a {console} game's"
+            raise HarnessError(f"the snap named {name} is {whose}: give this game's snaps a prefix of their own "
+                               "(the start of its name, say), so that no other game's snaps are written over")
 
     @tool("Says what a snap's screen showed, once you have read it off its picture: the lines, or that there is "
           "no text. `compare` holds what a script reads against these. For a route's screens, give them all "

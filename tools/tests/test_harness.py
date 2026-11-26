@@ -471,6 +471,27 @@ def test_run_until_the_script_says_something(session):
     assert session.run_until(5, event="choice")["stopped"] == "limit"
 
 
+def test_a_snap_name_another_games_snap_holds_is_refused(session, tmp_path):
+    """Every game's snaps share one folder: a name another game's snap holds is refused rather than written over,
+    and one from before games were kept beside snaps is told by its console."""
+    folder = tmp_path / "scratch/snaps"
+    session.snap("mine-000")
+    assert json.loads((folder / "mine-000.json").read_text(encoding="utf-8"))["game"] == session.game
+    assert "snap" in session.snap("mine-000")                          # this game's own name again: as before
+    (tmp_path / "games/ngc/Another Made Up (Japan).iso").write_bytes(b"not a game either")
+    other = Session(session.roots, FakeMachine)
+    other.load("ngc/Another Made Up (Japan).iso", "fake_libretro.so", "ngc")
+    with pytest.raises(HarnessError, match="Made Up .*prefix of their own"):
+        other.snap("mine-000")
+    (folder / "old-000.json").write_text(json.dumps({"platform": "ps2", "frame": 1}), encoding="utf-8")
+    with pytest.raises(HarnessError, match="a ps2 game's"):
+        other.snap("old-000")
+    (folder / "old-001.json").write_text(json.dumps({"platform": other.machine.platform, "frame": 1}), encoding="utf-8")
+    assert "snap" in other.snap("old-001")                             # the same console: it can't be told
+    assert "snap" in other.snap("theirs-000")
+    other.close()
+
+
 def test_steps_in_one_call_with_snaps_and_a_sheet(session, tmp_path):
     kind, out, png = session.steps([{"buttons": ["a"], "hold": 3, "wait": 2, "snap": True, "shot": True},
                                     {"until": {"limit": 100, "address": "0x80000100", "size": 2}, "shot": True},
