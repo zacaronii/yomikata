@@ -66,7 +66,7 @@ jobs:
         run: |
           echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | docker run --rm -i --network none --tmpfs /scratch:uid=99,gid=100 "$HARNESS:latest" | grep -q '"script_try"'
           docker run --rm --network none --tmpfs /scratch:uid=99,gid=100 --entrypoint python "$HARNESS:latest" -c "from yomikata.replay import glcontext; c = glcontext.Context(); c.make_framebuffer(640, 480); print(c.version, '|', c.renderer)" | grep llvmpipe
-          docker run --rm --network none --tmpfs /scratch:uid=99,gid=100 --entrypoint python "$HARNESS:latest" -c "import ctypes; ctypes.CDLL('libGL.so.1'); print('libGL.so.1 loads')"
+          docker run --rm --network none --tmpfs /scratch:uid=99,gid=100 --entrypoint python "$HARNESS:latest" -c "import ctypes; ctypes.CDLL('libGL.so.1'); ctypes.CDLL('libgomp.so.1'); print('libGL.so.1 and libgomp.so.1 load')"
       - uses: docker/login-action@v3
         if: github.event_name == 'push'
         with:
