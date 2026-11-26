@@ -1133,7 +1133,9 @@ def test_mother_2_the_message_window_as_it_types_and_scrolls():
     moments = [("◆ネスは",), ("◆ネスは", "\u3000バットを"),                   # typing, then still
                ("◆ネスは", "\u3000バットを", "\u3000てにいれた。"),
                ("\u3000バットを", "\u3000てにいれた。", "◆ママ"),               # scrolled, in another slot
-               (), ("◆ママ",)]
+               (), ("◆ママ",),
+               ("◆ママ", "◆いく？", "\u3000▶はい\u3000いいえ"),                  # a question and its answers
+               ("◆いく？", "◆そう。")]                                         # answered: the answers' row is gone
     with rd.Reader(mb_memory(), platform="sfc", game_id="SHVC-MB", data=data) as r:
         r.load(bundle(ROOT / "games/sfc/SHVC-MB.lua"), "SHVC-MB.lua")
         r.take()
@@ -1144,7 +1146,8 @@ def test_mother_2_the_message_window_as_it_types_and_scrolls():
                 r.read = mb_memory(rows, slot=5 if i == 3 else 2)
                 r.frame(frame)
             said.append([e["text"] for e in r.take("text")])
-        assert said == [[], ["◆ネスは\n\u3000バットを"], ["\u3000てにいれた。"], ["◆ママ"], [], ["◆ママ"]]
+        assert said == [[], ["◆ネスは\n\u3000バットを"], ["\u3000てにいれた。"], ["◆ママ"], [], ["◆ママ"],
+                        ["◆いく？\n\u3000▶はい\u3000いいえ"], ["◆そう。"]]     # the question isn't said a second time
     with rd.Reader(mb_memory(table=bytes(12)), platform="sfc", game_id="SHVC-MB", data=data) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/sfc/SHVC-MB.lua"))

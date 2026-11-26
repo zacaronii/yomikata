@@ -372,6 +372,33 @@ def test_load_with_a_state_starts_the_game_there_in_one_call(session, tmp_path):
     exact.close()
 
 
+def test_a_snap_name_used_twice_leaves_the_snaps_that_differed_from_it_readable(session, tmp_path):
+    """The first snap of a run is whole and the rest are what differs from it. Taking a snap under the first's
+    name again (a prefix used for two stretches of one run) must not cost the others."""
+    from yomikata import snapfile
+    folder = tmp_path / "scratch/snaps"
+    put(session, 0x500, b"one")
+    session.snap("s-1")
+    put(session, 0x500, b"two")
+    assert "written_over" not in session.snap("s-2")
+    two = snapfile.read(folder / "s-2.ram.gz")
+    assert snapfile._head(folder / "s-2.ram.gz")["base"] == "s-1.ram.gz"
+    put(session, 0x500, b"3rd")
+    again = session.snap("s-1")                                        # the name of the one s-2 hangs on
+    assert "whole files now" in again["written_over"]
+    assert snapfile.read(folder / "s-2.ram.gz") == two and snapfile._head(folder / "s-2.ram.gz") is None
+    assert snapfile.read(folder / "s-1.ram.gz")[0x500:0x503] == b"3rd"
+    assert snapfile.read(folder / "s-2.vram.gz") == bytes(range(256))
+    # Another run of the harness, the same name once more: the first run's snaps are still read.
+    later = Session(session.roots, FakeMachine)
+    later.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "ngc")
+    session.snap("s-3")
+    three = snapfile.read(folder / "s-3.ram.gz")
+    assert "written_over" in later.snap("s-1") and snapfile.read(folder / "s-3.ram.gz") == three
+    assert "written_over" not in later.snap("s-9")
+    later.close()
+
+
 def test_mcp_over_lines(session):
     lines = [json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
              json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}), "",
@@ -987,12 +1014,12 @@ def test_a_sessions_later_snaps_are_small_and_read_the_same(session, tmp_path):
     assert _regions(folder / "s-2.ram.gz") == {"vram": bytes(range(256))}
     assert session.changed("s-0", "s-1", unit=2)["places"][0]["address"] == "0x80000012"
     assert session.differs("s-2")["same"] and session.find(text="さようなら", snaps=["s-1"])["found"]["s-1"]
-    # A snap written over the first becomes the first; the others, which needed the old one, are told.
+    # A snap written over the first becomes the first; the others, which needed the old one, were made whole.
+    one = _load(folder / "s-1.ram.gz")
     session.run(10)
     session.snap("s-0")
     assert not gzip.decompress((folder / "s-0.ram.gz").read_bytes()).startswith(b"YKDELTA1")
-    with pytest.raises(snapfile.SnapError):
-        _load(folder / "s-1.ram.gz")
+    assert _load(folder / "s-1.ram.gz") == one
     session.snap("s-3")
     assert _load(folder / "s-3.ram.gz") == bytes(session.machine.memory)
     # Loading a game starts anew: its first snap is whole.

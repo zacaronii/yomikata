@@ -386,8 +386,10 @@ file names, read by everything here that takes snapshots (`run`, `check`, `compa
 some 60 KB for each of the others, where each was 500 KB before; over ten of a Super Famicom game, 31 KB and
 then 1.4 KB.
 
-What follows from it: the later snaps need the first one beside them. Delete or overwrite it and they say so
-instead of reading wrongly. `yomikata expand <files>` rewrites snaps as whole ones, for moving a few elsewhere or
+What follows from it: the later snaps need the first one beside them. Delete it and they say so instead of
+reading wrongly. Taking a snap under a name that others are kept as differing from (the same prefix for two
+stretches of one run, or a name from an earlier run) makes those others whole files first, and the answer
+says so (`written_over`): nothing is lost, only disk. Before this it cost Mother 2 two scenes' snaps. `yomikata expand <files>` rewrites snaps as whole ones, for moving a few elsewhere or
 for a tool that doesn't know the form. Snapshots a reader uploads to an inbox are never kept this way.
 
 ### Waypoints

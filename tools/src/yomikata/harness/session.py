@@ -933,7 +933,10 @@ class Session:
         self.snaps[name] = Snap(base, machine.frames)
         folder = self.roots.scratch / "snaps"
         # All but the session's first are written as what differs from it (snapfile.py): a few kilobytes, not
-        # all of memory again. Writing over the first makes this one the first.
+        # all of memory again. Writing over the first makes this one the first; the snaps kept as differing
+        # from a file about to be written over (this run's, or an earlier run's under the same name) are
+        # made whole first, so that a name used twice costs disk and not the other snaps.
+        kept = sum(snapfile.release(folder / f"{name}.{region}.gz") for region in ("ram", *regions))
         first = self.first_snap if self.first_snap and self.first_snap[0] != name else None
         if first is not None and not (folder / f"{first[0]}.ram.gz").is_file():
             first = None
@@ -958,6 +961,9 @@ class Session:
         if machine.picture() is not None:
             (folder / f"{name}.png").write_bytes(self._png(self._picture()))
         return {"snap": name, "frame": machine.frames, "bytes": len(ram), "regions": sorted(regions),
+                **({"written_over": "a snap of this name was there, and others were kept as what differs from "
+                                    "it: they are whole files now. A name of its own for each snap saves that"}
+                   if kept else {}),
                 **({"memory_writes": self.pokes} if self.pokes else {})}
 
     @tool("Says what a snap's screen showed, once you have read it off its picture: the lines, or that there is "
