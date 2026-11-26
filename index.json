@@ -36,6 +36,13 @@
    "encoding": "shift_jis",
    "status": "partial"
   },
+  "HDR-0152-D1": {
+   "path": "games/dc/HDR-0152-D1.json",
+   "sha256": "a3ad020b75c13f6131643b3b498496406ce42c7752cc61023ccb55c7ebbc2707",
+   "platform": "dc",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "NPJH50127": {
    "path": "games/psp/NPJH50127.json",
    "sha256": "ff7013c8bf55a06aa5839dd104c81428aa594fab5ef722bd2ec1bae2761e07d0",
@@ -844,6 +851,19 @@
    "reads": "speech bubbles, narration, letters and system messages a page at a time, with their furigana, and a choice's answers with its cursor",
    "builds": [
     "G8MJ01-00"
+   ],
+   "needs": [],
+   "data": {}
+  },
+  "HDR-0152-D1": {
+   "path": "scripts/dc/HDR-0152-D1.lua",
+   "sha256": "61aab775e1e507f72a548c045e82eff6ef920a5f8ebfe57b18321ba7122d6bf3",
+   "platform": "dc",
+   "runtime": 1,
+   "title": "サクラ大戦3 ～巴里は燃えているか～ (Sakura Taisen 3: Paris wa Moeteiru ka, Dreamcast)",
+   "reads": "the message window's page once it has typed out",
+   "builds": [
+    "HDR-0152-D1-V1.003"
    ],
    "needs": [],
    "data": {}

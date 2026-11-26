@@ -1,0 +1,24 @@
+{
+ "id": "HDR-0152-D1",
+ "platform": "dc",
+ "title": "サクラ大戦3 ～巴里は燃えているか～",
+ "title_romaji": "Sakura Taisen 3: Paris wa Moeteiru ka",
+ "versions": [
+  {
+   "header_crc32": "501a1a2c",
+   "note": "disc 1 of 3, version V1.003 (the build HDR-0152-D1-V1.003)"
+  }
+ ],
+ "encoding": "shift_jis",
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's first disc on flycast (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. Snaps were studied outside it",
+  "Characters are Shift-JIS as the game keeps them, but for two codes its font draws otherwise (0x81B8 as \"!!\", 0x81AC as \"!?\"), read off the pictures where they stood",
+  "The page and the place its typing has got to were found in snaps taken through one page's typing, then followed frame by frame with a probe script over eight pages",
+  "Played from the opening's end through the narration over the city, the embassy, the runaway car at the exposition and the talk after it: the route replayed from a state in one run with the script loaded",
+  "What the script said agreed with the rows read off 60 of 60 pictures, over 4 scenes; it said nothing on the 2 screens without text",
+  "The rows were the script's pages, each held against its picture. A third screen chosen as one without text showed a choice's answers, which the script doesn't read, and was left out",
+  "68 harness calls in all (by the record), a second play of run 2 among them after the glyphs were found"
+ ],
+ "notes": "Read by the script games/dc/HDR-0152-D1.lua: the message window's page once it has typed out (or a press has shown it whole). The DC's A button is the pad's b on flycast; with no memory card the game asks whether to go on without its system file. Not read: who speaks (a face, not a name), a choice's answers, the menus, the screens before the story, and discs 2 and 3."
+}
