@@ -10,7 +10,7 @@
   },
   "AGB-ASBJ": {
    "path": "games/gba/AGB-ASBJ.json",
-   "sha256": "3f1f14c08ae92670443b08d0beee4d08f3a10064200be232915fbd94476382fb",
+   "sha256": "f0bd4539f34da09a40c60f88f6aae26618da13e1282917eb98d0030af2f6edf6",
    "platform": "gba",
    "encoding": "table",
    "status": "partial"
@@ -749,7 +749,7 @@
    "data": {
     "tbl": {
      "path": "games/gba/AGB-ASBJ.tbl",
-     "sha256": "bce65500f584a3590c098d145ef4624ea2a14ad13c9722945d2d5347ee4bb718"
+     "sha256": "6b429bbd822f523c99234fbf68e0ace11c5bf283e9a2211b9df20220d1f3ca36"
     }
    }
   },

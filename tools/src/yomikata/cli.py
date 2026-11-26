@@ -164,6 +164,26 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dictionary", type=Path, help="fingerprint=character lines already read")
     p.add_argument("--sheet", type=Path, help="write the glyphs the dictionary hasn't got as a PNG, to scratch")
     p.add_argument("--all", action="store_true", help="put every glyph on the sheet, read or not")
+    p = sub.add_parser("rom-font", help="a game's whole font out of its cartridge: where it is (from a picture of the game's text), numbered sheets of its glyphs in code order (scratch), and the rows read off them written into a table, held against what was read in play")
+    p.add_argument("rom", type=Path, help="the cartridge: a file, or a .zip holding it")
+    p.add_argument("--find", type=Path, help="a picture of the game's text (a snap's PNG): look for pieces of it in the cartridge, to learn where the font is and in which form")
+    p.add_argument("--box", help="with --find: X0,Y0,X1,Y1 of the text in the picture (default: all of it)")
+    p.add_argument("--ink", type=int, default=120, help="with --find: a pixel is ink when its brightest channel is above this (default 120: light text on dark; a minus sign for dark on light, e.g. -100)")
+    p.add_argument("--at", help="where the first glyph is in the cartridge (hex)")
+    p.add_argument("--first", default="0", help="the first glyph's code (hex)")
+    p.add_argument("--count", type=int, default=256, help="how many glyphs (default 256)")
+    p.add_argument("--form", default="tiles4", help="tiles4 (four 8x8 tiles of 4 bits a pixel: a 16x16 glyph) or rows1 (rows of a bit a pixel)")
+    p.add_argument("--width", type=int, default=16, help="rows1: pixels a row")
+    p.add_argument("--height", type=int, default=16, help="rows1: rows")
+    p.add_argument("--sheet", type=Path, help="write the glyphs as a numbered PNG, to scratch; blank glyphs take no room in a row's reading")
+    p.add_argument("--columns", type=int, default=16, help="glyphs a row of the sheet (default 16)")
+    p.add_argument("--scale", type=int, default=3, help="enlarge the sheet's glyphs (default 3)")
+    p.add_argument("--json", type=Path, help="write the glyphs for `yomikata glyph-read` (a code to its rows), to scratch")
+    p.add_argument("--read", type=Path, help="the rows read off the sheets (scratch): a line is a code in hex, then the characters from that glyph on, ? for one not read")
+    p.add_argument("--known", type=Path, help="with --read: a table read in play (HEX=character lines) to hold the readings against")
+    p.add_argument("--unit", type=int, default=2, help="table: bytes a code (default 2)")
+    p.add_argument("--big-endian", action="store_true", help="table: codes are high byte first in memory")
+    p.add_argument("--tbl", type=Path, help="with --read: write the table, what was read in play first and unchanged, then the sheet's readings for the other codes")
     p = sub.add_parser("glyph-read", help="a second reader (manga-ocr, from a scratch environment) over a font's glyphs: its readings beside yours, where they differ, and those in a sentence of the game's text")
     p.add_argument("glyphs", type=Path, help="the glyphs as the harness's glyph_pairs writes them: a .json of code to rows")
     p.add_argument("--rows", type=int, required=True, help="rows of a glyph")
@@ -299,6 +319,51 @@ def main(argv: list[str] | None = None) -> int:
               f"{len(unread)} to read" + (f": {args.sheet}" if args.sheet and shown else ""), file=sys.stderr)
         return 0
 
+    if args.cmd == "rom-font":
+        import json as _json
+        import numpy as np
+        from . import font as fonts
+        from . import romfont
+        rom = romfont.cartridge(args.rom)
+        if args.find:
+            from PIL import Image
+            picture = np.asarray(Image.open(args.find).convert("RGB")).astype(int).max(axis=2)
+            ink = picture > args.ink if args.ink >= 0 else picture < -args.ink
+            if args.box:
+                x0, y0, x1, y1 = (int(v) for v in args.box.split(","))
+                ink = ink[y0:y1, x0:x1]
+            for row in romfont.find(rom, ink):
+                print(_json.dumps(row))
+            return 0
+        if not args.at:
+            print("give --at (where the first glyph is), or --find with a picture of the game's text", file=sys.stderr)
+            return 2
+        first = int(args.first, 16)
+        glyphs = romfont.glyphs(rom, int(args.at, 16), first, args.count, args.form, args.width, args.height)
+        blanks = {code for code, pixels in glyphs.items() if not pixels.any()}
+        inked = {code: pixels for code, pixels in glyphs.items() if code not in blanks}
+        if args.sheet:
+            # On the sheet a glyph keeps its code's column, so a row is read against its numbers.
+            fonts.sheet({code: 1 - pixels for code, pixels in inked.items()}, args.columns, args.scale, background=1).save(args.sheet)
+        if args.json:
+            args.json.write_text(_json.dumps({f"{code:X}": romfont.rows_hex(pixels) for code, pixels in inked.items()}),
+                                 encoding="utf-8")
+        print(f"{len(glyphs)} glyphs from 0x{first:X}, {len(blanks)} of them blank", file=sys.stderr)
+        if args.read:
+            try:
+                read = romfont.readings(args.read.read_text(encoding="utf-8"), blanks)
+            except ValueError as e:
+                print(e, file=sys.stderr)
+                return 1
+            known = fonts.known_pairs(args.known.read_text(encoding="utf-8"), args.unit, args.big_endian) if args.known else {}
+            print(_json.dumps(romfont.held(read, known), ensure_ascii=False))
+            if args.tbl:
+                order = "big" if args.big_endian else "little"
+                key = lambda code: code.to_bytes(args.unit, order).hex().upper()                  # noqa: E731
+                lines = [f"{key(code)}={ch}" for code, ch in sorted(read.items()) if code not in known]
+                args.tbl.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                print(f"{len(lines)} codes not read in play written to {args.tbl}", file=sys.stderr)
+        return 0
     if args.cmd == "glyph-read":
         from . import glyphread
         from . import tbl as tables
