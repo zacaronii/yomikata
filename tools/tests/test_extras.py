@@ -66,3 +66,65 @@ def test_a_psp_savestate_fits_and_an_oversized_one_is_refused(tmp_path, monkeypa
     assert r.status_code == 400 and r.json()["detail"] == "state is larger than 1 MB"
     for broken in (b"\x1f\x8bnot gzip", gzip.compress(os.urandom(4096))[:-200]):      # not gzip; cut short
         assert post(broken).json()["detail"] == "state looks gzipped but doesn't decompress"
+
+
+def test_snapshots_of_saturn_pce_cd_dreamcast_and_wii_with_their_region_parts(tmp_path):
+    """The platforms Genkan sends that the inbox refused (saturn, pce-cd, dc, wii) are taken at their main memory,
+    as the harness has it; a platform's region parts (lwram, io, wram) are kept beside the snapshot as
+    <sha1>.<region>.gz, as the harness's snaps keep them; a part too large, or another platform's, is refused
+    with the reason; a part of no known name isn't read."""
+    c = TestClient(create_app("secret", tmp_path / "data"))
+
+    def post(game, platform, base, ram, **parts):
+        meta = {"id": game, "platform": platform, "base_address": base, "ocr": ["こんにちは"]}
+        files = {"ram": ("ram", ram), **{k: (k, v) for k, v in parts.items()}}
+        return c.post("/api/snapshots", data={"meta": json.dumps(meta)}, headers=AUTH, files=files)
+
+    cases = [("GS-9037-D1", "saturn", "0x06000000", 0x100000, {"lwram": os.urandom(0x100000)}),
+             ("PCECD-92261ECE", "pce-cd", "0xD0000", 0x40000, {"wram": os.urandom(0x2000), "vram": os.urandom(0x10000)}),
+             ("HDR-0152-D1", "dc", "0x8C000000", 0x1000000, {}),
+             ("RZDJ01", "wii", "0x80000000", 0x1800000, {}),
+             ("GB-29D07340", "gb", "0xC000", 0x2000, {"io": os.urandom(0x100)})]
+    for game, platform, base, size, parts in cases:
+        ram = os.urandom(4096) + bytes(size - 4096)
+        r = post(game, platform, base, gzip.compress(ram, 1), **{k: gzip.compress(v) for k, v in parts.items()})
+        assert r.status_code == 200, (platform, r.json())
+        assert r.json()["parts"] == sorted(["ram", *parts]), platform
+        folder = tmp_path / "data/snapshots" / platform / game
+        for name, data in parts.items():
+            assert gzip.decompress((folder / f"{r.json()['sha1']}.{name}.gz").read_bytes()) == data, (platform, name)
+    # Too large for the platform: refused, saying the size.
+    r = post("GS-9037-D1", "saturn", "0x06000000", os.urandom(4096), lwram=os.urandom(0x100001))
+    assert r.status_code == 400 and r.json()["detail"] == "lwram is larger than saturn's 1024 KB"
+    r = post("GB-29D07340", "gb", "0xC000", os.urandom(4096), io=os.urandom(0x101))
+    assert r.status_code == 400 and r.json()["detail"] == "io is larger than gb's 256 bytes"
+    # Another platform's region: refused, naming this one's.
+    r = post("PCECD-92261ECE", "pce-cd", "0xD0000", os.urandom(4096), io=os.urandom(0x100))
+    assert r.status_code == 400 and r.json()["detail"] == "io isn't a part of a pce-cd snapshot (its parts beside ram: wram)"
+    r = post("HDR-0152-D1", "dc", "0x8C000000", os.urandom(4096), lwram=os.urandom(16))
+    assert r.status_code == 400 and r.json()["detail"] == "lwram isn't a part of a dc snapshot"
+    # A part of no known name isn't read: the snapshot is kept without it.
+    r = post("RZDJ01", "wii", "0x80000000", os.urandom(4096), mem2=os.urandom(64))
+    assert r.status_code == 200 and r.json()["parts"] == ["ram"]
+    # Outside main memory, or past it: refused as before.
+    assert post("HDR-0152-D1", "dc", "0x8D000000", os.urandom(16)).status_code == 400
+    assert post("PCECD-92261ECE", "pce-cd", "0xD0000", os.urandom(0x40001)).status_code == 400
+    listing = {g["id"]: g for g in c.get("/api/snapshots", headers=AUTH).json()["games"]}
+    assert listing["GS-9037-D1"]["with"]["lwram"] == 1 and listing["GB-29D07340"]["with"]["io"] == 1
+    # Samples for the new platforms, at their main memory.
+    for game, platform, address in (("RZDJ01", "wii", "0x80400000"), ("HDR-0152-D1", "dc", "0x8C400000"),
+                                    ("PCECD-92261ECE", "pce-cd", "0x100100")):
+        r = c.post("/api/samples", json={"id": game, "platform": platform,
+                                         "samples": [{"ocr": "こんにちは", "bytes_hex": "82b182f182c982bf82cd",
+                                                                     "address": address}]},
+                   headers=AUTH)
+        assert r.status_code == 200, (platform, r.json())
+
+
+def test_offline_reads_take_a_snapshots_regions_but_not_its_savestate(tmp_path):
+    """yomikata run's regions beside a snapshot: lwram and the like, not the savestate kept with it."""
+    from yomikata.run import _regions
+    (tmp_path / "s.ram.gz").write_bytes(gzip.compress(bytes(16)))
+    (tmp_path / "s.lwram.gz").write_bytes(gzip.compress(b"low"))
+    (tmp_path / "s.state.gz").write_bytes(gzip.compress(b"whole machine"))
+    assert _regions(tmp_path / "s.ram.gz") == {"lwram": b"low"}
