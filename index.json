@@ -64,6 +64,13 @@
    "encoding": "utf16le",
    "status": "partial"
   },
+  "PCECD-92261ECE": {
+   "path": "games/pce-cd/PCECD-92261ECE.json",
+   "sha256": "7da1758cd37f42daaf09e95708ebd311074a4074a4db562c4095db51ade679ce",
+   "platform": "pce-cd",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "SCPS-10053": {
    "path": "games/ps1/SCPS-10053.json",
    "sha256": "67aeec3c102d4e73afeafdc53982122833b0b56c60d470acbf1b4b3305ef09ee",
@@ -836,6 +843,19 @@
    "reads": "the message window's rows",
    "builds": [
     "e259164dd103d5d0306b8cd7e9dc2be0cb282804"
+   ],
+   "needs": [],
+   "data": {}
+  },
+  "PCECD-92261ECE": {
+   "path": "scripts/pce-cd/PCECD-92261ECE.lua",
+   "sha256": "6d3695f9879184d93233b410db04c934b43b404b5f0d327765be61129c65cda3",
+   "platform": "pce-cd",
+   "runtime": 1,
+   "title": "天外魔境II 卍MARU (Tengai Makyou II: Manji Maru)",
+   "reads": "a message window's page once the game has typed it out and waits for the button",
+   "builds": [
+    "92261ece"
    ],
    "needs": [],
    "data": {}
