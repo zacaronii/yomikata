@@ -3,7 +3,7 @@
  "entries": {
   "AGB-ASBJ": {
    "path": "games/gba/AGB-ASBJ.json",
-   "sha256": "7c5915c97266ddc39a49ee13fea6eb4b6b68644a18be35712895da937217995d",
+   "sha256": "3f1f14c08ae92670443b08d0beee4d08f3a10064200be232915fbd94476382fb",
    "platform": "gba",
    "encoding": "table",
    "status": "partial"
@@ -712,11 +712,11 @@
  "scripts": {
   "AGB-ASBJ": {
    "path": "scripts/gba/AGB-ASBJ.lua",
-   "sha256": "e0e1d0c20d6e2074fa4b124cd54fd40bacc913ea640779352b728948b2789600",
+   "sha256": "e30be0b38cb19114af0f25011394c92bcc6b3710083a1ad7c35273191661ce3c",
    "platform": "gba",
    "runtime": 1,
    "title": "逆転裁判 (Gyakuten Saiban)",
-   "reads": "a message window's page once the game has typed it out and waits, with who speaks",
+   "reads": "a message window's page once the game has typed it out and waits",
    "builds": [
     "0cb3d5b2"
    ],

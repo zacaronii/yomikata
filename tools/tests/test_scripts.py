@@ -2043,8 +2043,8 @@ def test_gyakuten_saiban_a_page_is_said_when_the_script_stands_on_its_wait():
         for frame, at in enumerate(walk, 1):
             r.read = gyakuten_memory(script, at)
             r.frame(frame)
-            said += [(frame, e.get("speaker") or None, e["text"]) for e in r.take("text")]
-        assert said == [(6, "ナルホド", "あい空\n�"), (10, "ナルホド", "いい"), (14, None, "あ")]
+            said += [(frame, e["meta"].get("speaker_number"), e["text"]) for e in r.take("text")]
+        assert said == [(6, 2, "あい空\n\ufffd"), (10, 2, "いい"), (14, 0x63, "あ")]     # who speaks: the number only
     # A host that gives no cartridge to read: the script goes by the CPU's memory alone. Another cartridge: refused.
     with rd.Reader(gyakuten_memory(script, 0, header=None), platform="gba", game_id="AGB-ASBJ", data={"tbl": table}) as r:
         r.load(bundle(ROOT / "games/gba/AGB-ASBJ.lua"), "AGB-ASBJ.lua")

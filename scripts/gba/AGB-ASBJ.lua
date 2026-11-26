@@ -1,5 +1,5 @@
 -- reader: title 逆転裁判 (Gyakuten Saiban)
--- reader: reads a message window's page once the game has typed it out and waits, with who speaks
+-- reader: reads a message window's page once the game has typed it out and waits
 -- reader: version AGB-ASBJ
 -- reader: build 0cb3d5b2
 -- reader: no hooks
@@ -18,12 +18,13 @@
 --   0x01        a new row
 --   0x02, 0x2D  wait for a button, then a new page (after 0x2D the scene changes first)
 --   0x2E        a page that goes on by itself: said once AT has passed it
---   0x0E n      who speaks: n's high byte is a number for the name shown on the window's tab
+--   0x0E n      who speaks: n's high byte is a number for the name on the window's tab (a picture)
 --   0x03 n      a colour; 0x0C n a pause of n frames; 0x0B n the typing's speed
 -- The other commands only have to be stepped over: ARGS has how many words each takes.
 --
 -- Not covered: choices and the court record's texts; a page the player skips before it is whole is still
--- said whole (it is read from the script, not from the screen); names by their numbers are those met so far.
+-- said whole (it is read from the script, not from the screen). Who speaks: the name on the window's tab is a
+-- picture, so only the speaker's number is known, and it is given as it is (meta.speaker_number).
 
 local __loaded, __module = {}, {}
 local function require(name)
@@ -119,9 +120,6 @@ local ARGS = { [0x03] = 1, [0x04] = 1, [0x05] = 2, [0x06] = 1, [0x08] = 2, [0x09
                [0x19] = 2, [0x1A] = 4, [0x1B] = 1, [0x1C] = 1, [0x1D] = 1, [0x1E] = 3, [0x20] = 1, [0x22] = 2,
                [0x23] = 2, [0x25] = 1, [0x26] = 1, [0x27] = 2, [0x28] = 1, [0x29] = 1, [0x2A] = 3, [0x2C] = 1,
                [0x2F] = 2, [0x30] = 1, [0x31] = 2, [0x32] = 2, [0x33] = 5, [0x34] = 1, [0x35] = 2 }
--- A speaker's number -> the name on the window's tab, as read off the screen (those met so far).
-local NAMES = { [0x01] = "？？？", [0x02] = "ナルホド", [0x07] = "チヒロ", [0x08] = "サイバンカン",
-                [0x19] = "ヤハリ" }
 
 -- The build: a table of four of the program's own addresses that the game keeps in the CPU's memory from
 -- its title on. And the cartridge's header (its title and code), where a host gives the cartridge to read.
@@ -232,7 +230,7 @@ reader.on_frame(function()
     local shown = table.concat(out)
     said = ends
     if shown:find("%S") then
-        reader.emit{ text = shown, speaker = speaker and NAMES[speaker] or nil, channel = "dialogue",
+        reader.emit{ text = shown, channel = "dialogue", meta = speaker and { speaker_number = speaker } or nil,
                      id = text.hash(string.format("%08X", ends) .. shown) }
     end
 end)
