@@ -2379,3 +2379,29 @@ def test_an_n64_is_read_at_its_own_addresses_and_in_its_own_byte_order():
     assert machine.write(0x80000302, b"AB") == 2 and machine.write(0x80000307, b"CD") == 2     # across two words
     assert machine.read(0x80000300, 10) == b"\0\0AB\0\0\0C" + b"D\0" and "n64" in BIG_ENDIAN
     assert host[0x300:0x304] == b"BA\0\0" and host[0x304:0x30C] == b"C\0\0\0\0\0\0D"
+
+
+def test_mupen64plus_is_loaded_with_its_renderer_on_the_processor_unless_told_otherwise(tmp_path):
+    """mupen64plus_next is given angrylion (GLideN64 gives black pictures here after a framebuffer effect); an
+    option the call gives wins; another core gets nothing it wasn't given."""
+    from yomikata.harness.session import CORE_OPTIONS
+    for name in ("games/n64", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/n64/Made Up (Japan).z64").write_bytes(b"not a game")
+    for core in ("mupen64plus_next_libretro.so", "fake_libretro.so"):
+        (tmp_path / "cores" / core).write_bytes(b"not a core")
+    seen = []
+
+    def make(core_path, game, platform, system_dir, options):
+        seen.append(dict(options))
+        return FakeMachine(core_path, game, platform, system_dir, options)
+    both = {"mupen64plus-rdp-plugin": "angrylion", "mupen64plus-angrylion-sync": "High"}
+    for core, given, wanted in (("mupen64plus_next_libretro.so", None, both),
+                                ("mupen64plus_next_libretro.so", {"mupen64plus-rdp-plugin": "gliden64"},
+                                 {**both, "mupen64plus-rdp-plugin": "gliden64"}),
+                                ("fake_libretro.so", None, {})):
+        s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), make)
+        s.load("n64/Made Up (Japan).z64", core, "n64", options=given)
+        assert seen[-1] == wanted and s.loaded[3] == wanted
+        s.close()
+    assert CORE_OPTIONS["mupen64plus_next_libretro.so"] == both
