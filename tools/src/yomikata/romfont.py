@@ -95,12 +95,47 @@ def find(rom: bytes, ink: np.ndarray, most: int = 12) -> list[dict]:
                 at = rom.find(needle)
                 if at >= 0 and rom.find(needle, at + 1) < 0:              # once only: a place, not a pattern
                     found.setdefault(name, []).append({"x": x, "y": y, "at": at})
+    for name, places in rows(rom, ink).items():
+        found[name] = places
     out = []
     for name, places in sorted(found.items(), key=lambda kv: -len(kv[1])):
         ats = sorted(p["at"] for p in places)
         out.append({"form": name, "pieces": len(places), "from": f"0x{ats[0]:X}", "to": f"0x{ats[-1]:X}",
                     "some": [{**p, "at": f"0x{p['at']:X}"} for p in places[:most]]})
     return out
+
+
+def rows(rom: bytes, ink: np.ndarray, widths: tuple = (16, 24), most: int = 16) -> dict[str, list]:
+    """Pieces of the picture looked for as a bit a pixel in rows of 16 or 24 bits, at any bit of a row: a glyph
+    narrower than its row and drawn a few pixels into it (Live A Live's 12-pixel kanji in rows of 16) has no
+    8x8 piece that begins on a byte. The cartridge is read as one run of bits; a piece is a place where its eight
+    rows stand a row's width of bits apart. Only `most` of the busiest pieces are looked for: this is slower."""
+    bits = np.unpackbits(np.frombuffer(rom, dtype=np.uint8))
+    if len(bits) < 64:
+        return {}
+    window = np.zeros(len(bits) - 7, dtype=np.uint8)            # the 8 bits from each bit on, as a number
+    for k in range(8):
+        window |= bits[k:len(bits) - 7 + k] << (7 - k)
+    pieces = []
+    for y in range(ink.shape[0] - 7):
+        for x in range(ink.shape[1] - 7):
+            piece = ink[y:y + 8, x:x + 8]
+            if 16 <= int(piece.sum()) <= 40 and len({tuple(r) for r in piece.astype(int).tolist()}) >= 5:
+                pieces.append((x, y, [int("".join("1" if v else "0" for v in r), 2) for r in piece]))
+    step = max(1, len(pieces) // most)
+    found: dict[str, list] = {}
+    for x, y, numbers in pieces[::step][:most]:
+        start = np.flatnonzero(window == numbers[0])
+        for width in widths:
+            here = start[start + 7 * width < len(window)]
+            for k in range(1, 8):
+                here = here[window[here + k * width] == numbers[k]]
+                if not len(here):
+                    break
+            if len(here) == 1:                                   # once only: a place, not a pattern
+                found.setdefault(f"a bit a pixel, rows of {width} bits", []).append(
+                    {"x": x, "y": y, "at": int(here[0]) // 8, "bit": int(here[0]) % 8})
+    return found
 
 
 def readings(text: str, blanks: set[int] = frozenset()) -> dict[int, str]:
