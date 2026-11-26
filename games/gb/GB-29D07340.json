@@ -1,0 +1,28 @@
+{
+ "id": "GB-29D07340",
+ "platform": "gb",
+ "title": "ポケットモンスター 赤",
+ "title_romaji": "Pocket Monsters Aka",
+ "versions": [
+  {
+   "header_crc32": "29d07340",
+   "note": "the Japanese Red cartridge (POKEMON RED, header checksum 0x32)"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/gb/GB-29D07340.tbl"
+ ],
+ "unit": 1,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on mGBA (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
+  "The table: read off the game's own font in the cartridge, found with rom-font --find from one picture (1 bit a pixel, 8x8, glyph n at 0x10801 + 8n; code = n + 0x1D). The offset was found with find_relative on one line in play, and 3 signs outside that font were read in play",
+  "The window was found in the game's copy of the screen's tiles in work RAM, and when a page waits in its arrow; a probe script followed the rows and the arrow frame by frame",
+  "Played from the opening's talk through the rival's naming and the end of the opening, the hero's mother at home, and the professor in the grass and his lab: four stretches, each replayed from a state with the script loaded",
+  "What the script said agreed with the rows read off 45 of 45 pictures, over 4 scenes; it said nothing on the 2 screens without text",
+  "The rows were the script's pages, each held against its picture. In the lab the presses came 300 frames apart, as a reader reading; at 150 one page was said after it had closed (see notes)",
+  "122 harness calls in all (by the record), none failed"
+ ],
+ "notes": "Read by the script games/gb/GB-29D07340.lua: the message window's two rows when the page waits on its arrow, or once they have stood half a second. A page that ends without the arrow and is closed sooner than that is said after it has gone, as the game's copy of the screen keeps it. Not read: who speaks but where the game writes it into the text, menus and other boxes, battles (not looked at). Names chosen in play come out as typed."
+}

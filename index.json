@@ -36,6 +36,13 @@
    "encoding": "shift_jis",
    "status": "partial"
   },
+  "GB-29D07340": {
+   "path": "games/gb/GB-29D07340.json",
+   "sha256": "13fa2b597ba4c9e7fb0b90bcc507e6a92f49e664ab72bab4d7fed452d901d629",
+   "platform": "gb",
+   "encoding": "table",
+   "status": "partial"
+  },
   "HDR-0152-D1": {
    "path": "games/dc/HDR-0152-D1.json",
    "sha256": "a3ad020b75c13f6131643b3b498496406ce42c7752cc61023ccb55c7ebbc2707",
@@ -854,6 +861,24 @@
    ],
    "needs": [],
    "data": {}
+  },
+  "GB-29D07340": {
+   "path": "scripts/gb/GB-29D07340.lua",
+   "sha256": "69c4aa6b27b3651944b93997d70ea601a873a5ec507cb24c23c696b12d691834",
+   "platform": "gb",
+   "runtime": 1,
+   "title": "ポケットモンスター 赤 (Pocket Monsters Aka, Game Boy)",
+   "reads": "the message window's two rows once they have typed out and stand",
+   "builds": [
+    "29d07340"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gb/GB-29D07340.tbl",
+     "sha256": "79476b8b75c9049026e132294bc2cb68fd3117f846476b11c34b1da89557261f"
+    }
+   }
   },
   "HDR-0152-D1": {
    "path": "scripts/dc/HDR-0152-D1.lua",
