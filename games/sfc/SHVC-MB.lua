@@ -41,6 +41,20 @@ local parsed = tbl.parse(source)
 
 local last, since, said = "", 0, {}
 
+--- What the window has gained since `before`. A question's answers are a row of their own under it, with a
+--- cursor; once one is taken that row is gone and the question's row stands where it stood, so the rows
+--- before it are also tried without it: else the question would be said a second time.
+local function gained(before, now)
+    local out = tiles.gained(before, now)
+    if #before > 1 and before[#before]:find("\u{25B6}", 1, true) then
+        local without = tiles.gained({ table.unpack(before, 1, #before - 1) }, now)
+        if #without < #out then
+            out = without
+        end
+    end
+    return out
+end
+
 reader.on_state_loaded(function()
     reader.forget()
     last, since, said = "", 0, {}
@@ -64,7 +78,7 @@ reader.on_frame(function()
     if shown == "" then
         said = {}
     elseif since == STILL then
-        local new = table.concat(tiles.gained(said, lines), "\n")
+        local new = table.concat(gained(said, lines), "\n")
         said = lines
         if new:find("%S") then
             reader.emit{ text = new, id = text.hash(new) }

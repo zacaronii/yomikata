@@ -834,7 +834,7 @@
   },
   "SHVC-MB": {
    "path": "scripts/sfc/SHVC-MB.lua",
-   "sha256": "fbf0207697120722f57af531f15f38b3efde3dc2fe48b1695557533224d93483",
+   "sha256": "4c7658db4d299d15027b2fda4d347daa0d665269b1bc42b248d382787033dce9",
    "platform": "sfc",
    "runtime": 1,
    "title": "MOTHER2 ギーグの逆襲 (Mother 2: Gyiyg no Gyakushuu)",
