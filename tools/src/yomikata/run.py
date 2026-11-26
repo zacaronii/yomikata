@@ -24,7 +24,9 @@ CHANNELS = (*STORY_CHANNELS, "interface")
 PLATFORM_ALIASES = {"ngc": "gc", "psx": "ps1", "snes": "sfc"}
 RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 # Other addresses the same main memory answers at.
-MIRRORS = {"ps1": (0x00000000, 0xA0000000)}
+# The same memory at other addresses: the PS1's past its cache and from 0; the Dreamcast's main 16 MB from
+# 0x0C000000 (its physical address) and past the cache.
+MIRRORS = {"ps1": (0x00000000, 0xA0000000), "dc": (0x0C000000, 0xAC000000)}
 
 
 def _load(path: Path) -> bytes:
