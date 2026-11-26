@@ -1796,6 +1796,29 @@ def test_place_find_and_explore_by_whole_numbers(session):
     assert near["reached"] is True and near["places"] < out["places"] // 2     # it stopped once it was there
 
 
+def test_explore_gives_the_same_map_each_time_and_a_ruler_for_its_columns(session):
+    """Two runs from one state agree, place for place. And the map comes with a ruler: a mark at every fifth
+    column with its number, so that a place isn't read a column's offset out."""
+    machine, plain = session.machine, session.machine._step
+    struct.pack_into(">2H", machine.memory, 0x300, 103, 100)
+
+    def walked(buttons, stick):
+        plain(buttons, stick)
+        x, y = struct.unpack_from(">2H", machine.memory, 0x300)
+        nx = x + ("right" in buttons) - ("left" in buttons)
+        ny = y + ("down" in buttons) - ("up" in buttons)
+        if 97 <= nx <= 112 and 98 <= ny <= 101 and not (nx == 106 and ny < 101):
+            struct.pack_into(">2H", machine.memory, 0x300, nx, ny)
+    machine._step = walked
+    cells = {"x_address": f"0x{BASE + 0x300:08X}", "y_address": f"0x{BASE + 0x302:08X}", "size": 2, "step": 1}
+    first, again = session.explore(**cells), session.explore(**cells)
+    assert first == again and first["columns"] == [97, 112] and first["rows"] == [98, 101]
+    assert first["ruler"] == "   |100 |105 |110"
+    assert first["map"][0] == "#########.######" and first["map"][2][103 - 97] == "@"
+    at = first["ruler"].index("|105")                                      # the wall's column, by the ruler
+    assert first["map"][0][at + 1] == "." and 97 + at + 1 == 106
+
+
 def test_explore_goes_towards_the_place_it_is_asked_to_walk_to(session):
     """An open field and a place 40 cells off: trying evenly outwards would know some thousands of places
     before it got there, more than `most` allows; trying the nearest known place first gets there in a

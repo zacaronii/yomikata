@@ -179,6 +179,9 @@ In the order to try them:
    and a height that doesn't comes first) finds them, and `explore` takes them with `grid`, `whole` and
    their `size`. Xenogears: x at 0x80112AC4 and z at 0x80112ACC, about 32 units a push of 20 frames, cells
    of 16; a house's whole floor was 529 places in 82 seconds, which fits because a kept state is packed.
+   Read a place off an explored map with its `ruler` (a mark at every fifth column, numbered), not by
+   counting characters: on Xenogears a passage was taken for nine columns east of where it was, and a walk
+   "to" it found nothing. The map itself is the same each time from one state.
    With `to`, `explore` stops trying as soon as it is there, and tries the places nearest to it first: a walk
    across a room is a few seconds, and across Mother 2's hill (93 pushes) under a minute, where trying evenly
    ran out of time. A long `step` (16) with four ways covers ground fastest. What it can't see: a door whose

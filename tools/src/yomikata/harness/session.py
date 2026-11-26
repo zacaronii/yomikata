@@ -1950,7 +1950,8 @@ class Session:
           "frames, goes back, and does the same from every place it got to, until nothing new comes or `most` "
           "places are known. For a map walk_to can't cross (ledges, fences, a maze) or one too dark to read. "
           "Gives the places as rows of a map in the game's own numbers (# reached, @ where it stands, D where "
-          "the next push changed the map: a door, stairs), and the game is left where it was. Given `to`, the "
+          "the next push changed the map: a door, stairs) with a `ruler` to hold over it (a mark at every fifth "
+          "column and its number; the first row is `rows`[0]), and the game is left where it was. Given `to`, the "
           "game is then put at that place as it was reached while trying (the pushes go into the record of the "
           "way), or it says that the place wasn't among those reached; the trying ends as soon as the place is "
           "reached, and tries the places nearest to it first, so a walk is quick even far off; the map given is "
@@ -2044,8 +2045,16 @@ class Session:
         xs, ys = [p[0] for p in places], [p[1] for p in places]
         rows = ["".join("@" if (x, y) == origin else "D" if (x, y) in doors else "#" if (x, y) in places else "."
                         for x in range(min(xs), max(xs) + 1)) for y in range(min(ys), max(ys) + 1)]
+        # Which column is which, to hold over the map: a mark at every fifth, and its number written from the
+        # mark on. A place read off the map by counting characters alone is easily a column's offset out.
+        ruler = [" "] * (max(xs) - min(xs) + 1 + 12)      # room for the last mark's number past the map's edge
+        for x in range(min(xs), max(xs) + 1):
+            if x % 5 == 0:
+                for k, ch in enumerate("|" + str(x)):
+                    if x - min(xs) + k < len(ruler) and (k == 0 or ruler[x - min(xs) + k] == " "):
+                        ruler[x - min(xs) + k] = ch
         out = {"x": origin[0], "y": origin[1], "places": len(places), "columns": [min(xs), max(xs)],
-               "rows": [min(ys), max(ys)], "map": rows,
+               "rows": [min(ys), max(ys)], "ruler": "".join(ruler).rstrip(), "map": rows,
                "doors": [{"at": list(p), "push": push} for p, push in sorted(doors.items())][:MAX_ROWS],
                **({"stopped": "time"} if late else {}),
                **({"more": "places beyond these weren't tried: raise most, or give within"}
