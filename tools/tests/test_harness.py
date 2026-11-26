@@ -2112,6 +2112,46 @@ def test_explore_tells_a_step_counted_late_from_a_window_and_presses_nothing(ses
     assert out["places"] > 1 and "still" not in out, out
 
 
+def test_explore_presses_through_the_fights_its_steps_bring(session):
+    """Grass at x 104 starts a fight (a flag at 0x7F2) that holds the pad until a is pressed three times: explore
+    without `fight` can't get past it; with it, each fight is pressed through and the map goes on behind the grass,
+    the fights counted; a walk to a place behind it keeps the fights' presses in the record of the way."""
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+
+    def grassy(buttons, stick):
+        m = machine.memory
+        pressed = "a" in buttons and not m[0x7F4]
+        m[0x7F4] = 1 if "a" in buttons else 0
+        if m[0x7F2]:                                   # in a fight: the pad walks nobody
+            if pressed:
+                m[0x7F3] += 1
+                if m[0x7F3] >= 3:
+                    m[0x7F2], m[0x7F3] = 0, 0
+            plain(set(), stick)
+            return
+        before = struct.unpack_from(">hh", m, 0x30)
+        plain(buttons, stick)
+        x, y = struct.unpack_from(">hh", m, 0x30)
+        if x == 104 and (x, y) != before:              # a step into the grass
+            m[0x7F2] = 1
+    machine._step = grassy
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    box = [96, 78, 112, 82]
+    out = session.explore(step=1, within=box)
+    assert out["columns"] == [96, 104] and "fights" not in out, out                  # held in the grass
+    mode = {"address": f"0x{BASE + 0x7F2:X}", "equals": "1", "wait": 4}
+    out = session.explore(step=1, within=box, fight=mode)
+    assert out["columns"] == [96, 112] and out["fights"] >= 1, out
+    assert all((f["presses"], f["stopped"]) == (3, "mode ended") and f["at"][0] == 104 for f in out["fought"])
+    way = len(session.route["moves"])
+    out = session.explore(step=1, within=box, fight=mode, to=[110, 80], near=0)
+    assert out["reached"] is True and (out["x"], out["y"]) == (110, 80) and machine.memory[0x7F2] == 0, out
+    assert sum(1 for m in session.route["moves"][way:] if isinstance(m, list) and m[1] == ["a"]) == 3
+    with pytest.raises(HarnessError, match="fight"):
+        session.explore(step=1, fight={"address": "0x10"})
+
+
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
     """`yomikata calls --trend`: for each game, the calls, runs and minutes from its first call to the first
     comparison by scenes that met the bar; a comparison's outcome is kept with its call (counts only)."""
