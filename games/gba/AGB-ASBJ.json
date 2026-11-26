@@ -16,7 +16,8 @@
  "status": "partial",
  "sources": [
   "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
-  "The table: the whole font (1,351 characters) read off numbered sheets of the cartridge's glyphs in code order (`yomikata rom-font`). The 276 read in play before, in sentences, all agree with the sheets, and 16 more stood right in 14 pages played after; the other 1,059 were read once, by one reader. No second reader has read it",
+  "The table: the whole font (1,351 characters) read off numbered sheets of the cartridge's glyphs in code order (`yomikata rom-font`). No second reader has read it",
+  "Of those, the 276 read in play before, in sentences, all agree with the sheets, and 16 more stood right in 14 pages played after; the other 1,059 were read once, by one reader",
   "Played from power-on through the first episode's opening. What the script said in play agreed with the rows read off 61 of 61 pictures, over 4 scenes. No screen without text was among them",
   "The same readings built the table, so the comparison checks pages and their order more than it checks the characters"
  ],

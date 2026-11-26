@@ -10,7 +10,7 @@
   },
   "AGB-ASBJ": {
    "path": "games/gba/AGB-ASBJ.json",
-   "sha256": "f0bd4539f34da09a40c60f88f6aae26618da13e1282917eb98d0030af2f6edf6",
+   "sha256": "ac9bc21808950dcd5c852966c2ce9259e0324d59b9dfb6c0df2f09d2cb0d0491",
    "platform": "gba",
    "encoding": "table",
    "status": "partial"
