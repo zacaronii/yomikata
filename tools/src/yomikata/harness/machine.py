@@ -10,7 +10,7 @@ from ..run import MIRRORS, PLATFORM_ALIASES
 
 RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 # Consoles whose memory is big-endian, as a script reads it here.
-BIG_ENDIAN = ("gc", "wii", "saturn")
+BIG_ENDIAN = ("gc", "wii", "saturn", "n64")
 # Where a core's "system RAM" isn't the console's main memory: the stretch of the core's memory map that is,
 # by its start, and others worth having beside it, as regions. mGBA gives the 32 KB in the CPU as system RAM;
 # a Game Boy Advance game's data is in the 256 KB on the board (as a snapshot of one has it, inbox.py).
@@ -27,10 +27,21 @@ JOINED = {"pce-cd": (0xD0000, 0x100000)}
 CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000}
 # A core whose "system RAM" is more than one of the console's stretches, kept as 16-bit words in the host's
 # order: mednafen_saturn gives the Saturn's work RAM so, the low 1 MB (0x00200000) and then the high 1 MB
-# (0x06000000), each pair of bytes swapped. Here they are read at the console's own addresses and in its
-# order (big-endian), the high 1 MB as main memory and the low as the region "lwram". Each entry: the
-# console's address, where it starts in the core's system RAM, its length; the first is main memory.
-WORDS = {"saturn": ((0x06000000, 0x100000, 0x100000, None), (0x00200000, 0, 0x100000, "lwram"))}
+# (0x06000000), each pair of bytes swapped; mupen64plus_next gives the N64's RDRAM (8 MB, 0x80000000 on) as
+# 32-bit words, each one's four bytes reversed. Here they are read at the console's own addresses and in its
+# order (big-endian): the first stretch as main memory, the others as regions ("lwram" on a Saturn). Each
+# entry: the console's address, where it starts in the core's system RAM, its length, its region's name.
+WORDS = {"saturn": ((0x06000000, 0x100000, 0x100000, None), (0x00200000, 0, 0x100000, "lwram")),
+         "n64": ((0x80000000, 0, 0x800000, None),)}
+WORD_SIZE = {"saturn": 2, "n64": 4}
+
+
+def _flip(raw: bytes, size: int) -> bytes:
+    """Each `size`-byte word of `raw` with its bytes reversed (its own inverse)."""
+    out = bytearray(len(raw))
+    for k in range(size):
+        out[k::size] = raw[size - 1 - k::size]
+    return bytes(out)
 
 
 def region_starts(platform: str) -> dict[str, int]:
@@ -40,8 +51,9 @@ def region_starts(platform: str) -> dict[str, int]:
     return out
 
 
-# The Saturn's SH-2 sees the same memory again at 0x20000000 on, past its cache.
-UNCACHED = {"saturn": 0x20000000}
+# The same memory again past the CPU's cache: where those addresses begin, and how far below them the cached
+# ones are. The Saturn's SH-2 at 0x20000000 on; the N64's MIPS at 0xA0000000 (KSEG1) for 0x80000000 (KSEG0).
+UNCACHED = {"saturn": (0x20000000, 0x20000000), "n64": (0xA0000000, 0x20000000)}
 
 
 def stretch(maps: list[tuple[int, int, int]], start: int) -> tuple[int, int, int] | None:
@@ -122,13 +134,12 @@ class Machine:
             offset, left = found
             size = max(0, min(len(data), left))
             if size:
-                first, last = offset & ~1, (offset + size + 1) & ~1      # whole words around the bytes
+                w = WORD_SIZE[self.platform]
+                first, last = offset // w * w, -(-(offset + size) // w) * w   # whole words around the bytes
                 words = bytearray(self._words(first, last - first))
                 words[offset - first:offset - first + size] = data[:size]
-                swapped = bytearray(len(words))
-                swapped[0::2], swapped[1::2] = words[1::2], words[0::2]
                 ptr = self.core.lib.retro_get_memory_data(MEMORY_SYSTEM_RAM)
-                C.memmove(ptr + first, bytes(swapped), len(swapped))
+                C.memmove(ptr + first, _flip(bytes(words), w), len(words))
             return size
         for start, length, ptr in self.core.maps:
             if start <= address < start + length:
@@ -185,26 +196,25 @@ class Machine:
         """Where a console address of a WORDS platform is in the core's system RAM, and how many bytes are
         left from there in its stretch; None outside them."""
         uncached = UNCACHED.get(self.platform)
-        if uncached and address & 0xF0000000 == uncached:
-            address -= uncached
+        if uncached and address & 0xF0000000 == uncached[0]:
+            address -= uncached[1]
         for start, at, length, _ in WORDS[self.platform]:
             if start <= address < start + length:
                 return at + address - start, start + length - address
         return None
 
     def _words(self, offset: int, size: int) -> bytes:
-        """Bytes of the core's system RAM from `offset`, its 16-bit words put back in the console's order."""
+        """Bytes of the core's system RAM from `offset`, its words put back in the console's order."""
         import ctypes as C
         from ..replay.libretro import MEMORY_SYSTEM_RAM
         ptr = self.core.lib.retro_get_memory_data(MEMORY_SYSTEM_RAM)
         length = self.core.lib.retro_get_memory_size(MEMORY_SYSTEM_RAM)
-        first, last = offset & ~1, min(length, (offset + size + 1) & ~1)
+        w = WORD_SIZE[self.platform]
+        first, last = offset // w * w, min(length // w * w, -(-(offset + size) // w) * w)
         if not ptr or first >= last:
             return b""
-        raw = C.string_at(ptr + first, last - first)
-        out = bytearray(len(raw))
-        out[0::2], out[1::2] = raw[1::2], raw[0::2]
-        return bytes(out[offset - first:offset - first + size])
+        out = _flip(C.string_at(ptr + first, last - first), w)
+        return out[offset - first:offset - first + size]
 
     def mirrors(self) -> tuple[int, ...]:
         return MIRRORS.get(self.platform, ())
