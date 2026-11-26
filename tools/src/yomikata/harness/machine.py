@@ -14,6 +14,10 @@ RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 # a Game Boy Advance game's data is in the 256 KB on the board (as a snapshot of one has it, inbox.py).
 MAIN_STRETCH = {"gba": 0x02000000}
 OTHER_STRETCHES = {"gba": {"iwram": 0x03000000}}
+# A Game Boy's cartridge, whole: a core shows only the two banks switched in now, and a game that draws its text
+# straight from the cartridge has switched to others by the time a line stands. The file is given to scripts
+# at this address on, byte for byte (docs/script-api.md).
+CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000}
 
 
 def stretch(maps: list[tuple[int, int, int]], start: int) -> tuple[int, int, int] | None:
@@ -30,6 +34,7 @@ class Machine:
         self.platform = PLATFORM_ALIASES.get(platform, platform)
         self.core = Core(core_path, system_dir, options)
         self.core.load_game(game)
+        self.cartridge = Path(game).read_bytes() if self.platform in CARTRIDGE else b""
         self.frames = 0
         # A core that draws with the card can't be loaded a second time in one process: the second load never
         # comes back (seen with Dolphin).
@@ -55,6 +60,9 @@ class Machine:
         """Bytes at one of the console's addresses without copying all of memory; fewer where memory ends."""
         import ctypes as C
         from ..replay.libretro import MEMORY_SYSTEM_RAM
+        at = address - CARTRIDGE.get(self.platform, 1 << 40)
+        if self.cartridge and 0 <= at < len(self.cartridge):
+            return self.cartridge[at:at + size]
         if self.core.maps:                      # where the core says its memory is; a core may say it at
             data = self.core.read(address, size)        # other addresses than the game uses (PS1: from 0)
             if data:

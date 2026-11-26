@@ -303,7 +303,7 @@ bytes as they lie in memory.
 | `nds` | `0x02000000`, 4 MB | |
 | `gba` | `0x02000000`, 256 KB, and `0x03000000`, 32 KB | |
 | `sfc` | `0x7E0000`, 128 KB | And the cartridge, where the core maps it (below) |
-| `gb`, `gbc` | `0xC000`, 8 KB | |
+| `gb`, `gbc` | `0xC000`, 8 KB | And the cartridge, whole, at `0x01000000` on (below) |
 
 **A Super Famicom cartridge.** Some games never copy their text into work RAM and draw it straight from the
 cartridge, so a script may read the cartridge at the addresses the game itself uses:
@@ -316,6 +316,11 @@ cartridge, so a script may read the cartridge at the addresses the game itself u
   reads nothing. It must not fail: a host may give work RAM alone.
 
 `games/sfc/SFC-A07624CD.lua` is the first to do this.
+
+**A Game Boy cartridge.** A core shows a script only the two banks the game has switched in, and by the time a
+line stands the game may have switched to others. The harness gives the cartridge's file whole at `0x01000000`
+on, byte for byte (bank `n` at `0x01000000 + n x 0x4000`). The same rule holds: a script checks a read there, and
+where it gets nothing says so once and reads nothing.
 
 A host maps these onto what its emulator gives out (a libretro core's memory descriptors, or its system RAM at
 the base above). Other platforms are added here as their first script arrives.

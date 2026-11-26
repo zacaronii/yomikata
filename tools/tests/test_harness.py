@@ -2064,3 +2064,51 @@ def test_find_says_what_to_try_when_a_text_is_nowhere(session):
     out = session.find(text="どこにもないことば")
     assert out["found"] == {} and "advancing" in out["not_found"] and "find_relative" in out["not_found"]
     assert "not_found" not in session.find(text="こんにちは")
+
+
+def test_a_game_boy_cartridge_is_read_whole_at_its_own_address(tmp_path):
+    """A core shows a Game Boy script only the banks switched in now; the harness gives the cartridge's file whole
+    at 0x01000000, and main memory as before."""
+    from yomikata.harness.machine import CARTRIDGE, Machine
+
+    class Core:
+        maps = []
+
+        class lib:
+            @staticmethod
+            def retro_get_memory_data(kind):
+                return None
+
+            @staticmethod
+            def retro_get_memory_size(kind):
+                return 0
+
+    rom = bytes(range(256)) * 0x100                                     # 64 KB: four banks
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core, machine.cartridge = "gbc", Core(), rom
+    assert CARTRIDGE["gbc"] == 0x01000000
+    assert machine.read(0x01000000 + 3 * 0x4000 + 0x10, 4) == bytes([0x10, 0x11, 0x12, 0x13])
+    assert machine.read(0x01000000 + len(rom) - 2, 8) == bytes([0xFE, 0xFF])               # fewer where it ends
+    assert machine.read(0x01000000 + len(rom), 4) == b""
+    machine.platform, machine.cartridge = "gba", b""
+    assert machine.read(0x01000000, 4) == b""
+
+
+def test_identify_a_game_boy_cartridge(tmp_path):
+    """Game Boy cartridges by their header: a Color one with a game code takes it, an older one its header's CRC-32."""
+    import zlib
+    from yomikata.identify import identify
+    def cart(color, code, old_maker):
+        rom = bytearray(0x8000)
+        rom[0x104:0x108] = bytes.fromhex("ceed6666")
+        rom[0x134:0x13F] = b"MADE UP\0\0\0\0"
+        rom[0x13F:0x143] = code
+        rom[0x143] = 0xC0 if color else 0x00
+        rom[0x14B] = old_maker
+        return bytes(rom)
+    (tmp_path / "a.gbc").write_bytes(cart(True, b"ABCJ", 0x33))
+    (tmp_path / "b.gb").write_bytes(cart(False, b"\0\0\0\0", 0x01))
+    a, b = identify(tmp_path / "a.gbc"), identify(tmp_path / "b.gb")
+    assert (a.platform, a.id) == ("gbc", "CGB-ABCJ")
+    assert a.header_crc32 == f"{zlib.crc32(cart(True, b'ABCJ', 0x33)[0x100:0x150]):08x}"
+    assert (b.platform, b.id) == ("gb", f"GB-{b.header_crc32.upper()}")
