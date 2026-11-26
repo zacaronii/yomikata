@@ -1131,6 +1131,19 @@ def test_compare_with_what_the_script_said_in_play(session):
     out = session.compare(snaps=["p-000", "p-001", "p-002"], live=True, show=True)
     assert [r["read"] for r in out["rows"]] == ["こんにちは", "", "さようなら"]
     assert out["script"]["of those, agreeing 80% or more"] == 2 and out["script"]["of those, reading nothing"] == 1
+    # A window that scrolls keeps the row before on screen: given all its rows, a screen is held to those it
+    # gained since the screen before it in its scene. A scene's first screen gained all it shows.
+    session.snap_lines("p-002", ocr=["こんにちは", "　さようなら"])
+    scenes = {"one": ["p-000", "p-002"], "two": ["p-001"]}
+    plain = session.compare(scenes=scenes, live=True, show=True)
+    assert [r["agreement"] for r in plain["rows"]][1] < 0.8
+    out = session.compare(scenes=scenes, live=True, show=True, scrolls=True)
+    assert [r["seen"] for r in out["rows"]] == [["こんにちは"], ["　さようなら"], []]
+    assert out["bar"]["scenes"]["one"] == {"screens": 2, "agreeing": 2}
+    again = session.compare(scenes={"a": ["p-002"], "b": ["p-000", "p-001"]}, live=True, show=True, scrolls=True)
+    assert again["rows"][0]["seen"] == ["こんにちは", "　さようなら"]            # first in its scene: nothing before it
+    with pytest.raises(HarnessError, match="scrolls goes with"):
+        session.compare(snaps=["p-000"], live=True, scrolls=True)
     with pytest.raises(HarnessError, match="no script loaded"):
         session.compare(snaps=["before"], live=True)
 

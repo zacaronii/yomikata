@@ -1,0 +1,24 @@
+{
+ "id": "AGB-A3UJ",
+ "platform": "gba",
+ "title": "MOTHER3",
+ "title_romaji": "Mother 3",
+ "versions": [
+  {
+   "header_crc32": "b44abf0c"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/gba/AGB-A3UJ.tbl"
+ ],
+ "unit": 2,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+  "Kana by a rule (Unicode's order from two starts), which every kana met keeps; the signs in the table read in play: the words of a text the game was showing beside the characters on screen. No second reader has read it, and no font was read",
+  "Played from power-on through the first morning: five scenes. What the script said in play agreed with the rows each screen gained on 30 of 30 pictures (the window has two rows and scrolls). No screen without text was among them",
+  "The opening has no kanji: none is in the table, and the comparison says nothing of them"
+ ],
+ "notes": "Read by the script games/gba/AGB-A3UJ.lua. A talk's whole text is put into a buffer in the board's memory and a word points at the next character to be typed; what the window gains is said each time the typing stops, while a byte says the window is up. Kanji come out as U+FFFD until they are in the table. Not read: who speaks (the tab takes a name from a list by a number not found), menus, fights, signs drawn over the picture. The script needs a host that gives the cartridge's header to read."
+}

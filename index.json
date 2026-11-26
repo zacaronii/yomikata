@@ -1,6 +1,13 @@
 {
  "format": 1,
  "entries": {
+  "AGB-A3UJ": {
+   "path": "games/gba/AGB-A3UJ.json",
+   "sha256": "7754621aa6de6484e178fb49cb958285736672d83c0a2f7c1c82af17ff5cbf3c",
+   "platform": "gba",
+   "encoding": "table",
+   "status": "partial"
+  },
   "AGB-ASBJ": {
    "path": "games/gba/AGB-ASBJ.json",
    "sha256": "3f1f14c08ae92670443b08d0beee4d08f3a10064200be232915fbd94476382fb",
@@ -710,6 +717,24 @@
   }
  },
  "scripts": {
+  "AGB-A3UJ": {
+   "path": "scripts/gba/AGB-A3UJ.lua",
+   "sha256": "4130bc93fbd05a3fa180596230fbaee4105b03f56c669a3d9e8b8a67a2dd9662",
+   "platform": "gba",
+   "runtime": 1,
+   "title": "MOTHER3",
+   "reads": "the message window's text as it is typed, a stretch for each time it stops",
+   "builds": [
+    "b44abf0c"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gba/AGB-A3UJ.tbl",
+     "sha256": "2970ee29018d7317cb4b4073f7437bb8403019d9f0f43e96e7660d0ceb539882"
+    }
+   }
+  },
   "AGB-ASBJ": {
    "path": "scripts/gba/AGB-ASBJ.lua",
    "sha256": "e30be0b38cb19114af0f25011394c92bcc6b3710083a1ad7c35273191661ce3c",

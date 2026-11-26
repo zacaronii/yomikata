@@ -391,6 +391,13 @@ typing: a press that changes the scene instead gives snaps of nothing. When a se
 haven't got, the snaps can be taken once, densely (`every`), and studied outside the harness at no calls:
 they are files in scratch. The whole of that game, from the first load to the bar, was 68 calls.
 
+A window that scrolls keeps earlier rows on screen, and a script that says each line once says only what the
+window gained. Counted from play against a screen's whole window such a script looks half wrong (Mother 2:
+20 of 44) when it is right (43 of 44 by the rows gained). `compare` with `scrolls` does the sum: give each
+screen all its rows with `snap_lines`, as for any other game, and each is held to the rows after those the
+screen before it in its scene left standing. Mother 3 (two rows, scrolling) was checked both ways, by rows
+worked out by hand and by `scrolls` on whole windows, and they agree.
+
 ### Snaps on disk
 
 A snap is written to `snaps/` in scratch as an inbox-style snapshot: `<name>.ram.gz`, a `<name>.<region>.gz`

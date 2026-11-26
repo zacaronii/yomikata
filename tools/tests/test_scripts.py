@@ -2098,3 +2098,49 @@ def test_xenogears_a_message_is_said_when_its_pointer_stands_on_its_end():
     with rd.Reader(xenogears_memory(block, 0, names=bytes(40)), platform="ps1", game_id="SLPS-01160", data={"tbl": table}) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps1/SLPS-01160.lua"))
+
+
+def mother3_memory(words: list[int], at: int, window: int = 1, header: bytes | None = b"MOTHER3\0\0\0\0\0A3UJ"):
+    """What Mother 3's script looks at: the buffer a talk's text is put into, the word that points at the next
+    character to be typed, the byte that says the window is up, and the cartridge's header."""
+    chunks = {0x02019ABC: struct.pack(f"<{len(words)}H", *words) + b"\xff\xff" * 8,
+              0x020196B8: struct.pack("<I", 0x02019ABC + 2 * at), 0x02005C00: bytes([window])}
+    if header is not None:
+        chunks[0x080000A0] = header
+    return sparse(chunks)
+
+
+def test_mother_3_what_the_window_gains_each_time_the_typing_stops():
+    table = "# made up\n5E00=◆\n0200=。\nAC00=　\n".encode()
+    A, I, KA = 0x11B, 0x11D, 0x182                         # あ, い (hiragana from 0x011A) and カ (katakana from 0x0178)
+    # ◆あい。 / 　カ and an unknown sign / a wait and the window cleared / a question with two answers: い　あ
+    words = [0x5E, A, I, 0x02, 0xFF01, 0xAC, KA, 0x77, 0xFF01, 0x5E, 0x03, I, 0x00, 0xFF03, 0xFF00,
+             0xFF06, 2, I, 0xAC, A, 0xFF02, 0xFFFF]
+    stops = [2, 2, 5, 9, 14, 20, 20]                       # where the typing stands, each for a while; twice the same
+    with rd.Reader(mother3_memory(words, 0, window=0), platform="gba", game_id="AGB-A3UJ", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/gba/AGB-A3UJ.lua"), "AGB-A3UJ.lua")
+        said, frame = [], 0
+        for at in stops:
+            for _ in range(16):
+                frame += 1
+                r.read = mother3_memory(words, at)
+                r.frame(frame)
+            said.append([e["text"] for e in r.take("text")])
+        assert said == [["◆あ"], [], ["い。"], ["　カ�"], ["◆い"], ["い　あ"], []]
+        # The window closed: the pointer stays where it was, and nothing is said of it; nor when it opens anew.
+        for at, window in ((20, 0), (20, 0)):
+            for _ in range(16):
+                frame += 1
+                r.read = mother3_memory(words, at, window)
+                r.frame(frame)
+        assert r.take("text") == []
+    # Begun in the middle of a talk (a state is loaded): only the window's two rows, not all the text before.
+    with rd.Reader(mother3_memory(words, 9), platform="gba", game_id="AGB-A3UJ", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/gba/AGB-A3UJ.lua"), "AGB-A3UJ.lua")
+        for frame in range(1, 17):
+            r.frame(frame)
+        assert [e["text"] for e in r.take("text")] == ["◆あい。\n　カ�"]
+    for header in (None, b"SOME OTHER GAME!"):
+        with rd.Reader(mother3_memory(words, 0, header=header), platform="gba", game_id="AGB-A3UJ", data={"tbl": table}) as r:
+            with pytest.raises(rd.ScriptError, match="another build"):
+                r.load(bundle(ROOT / "games/gba/AGB-A3UJ.lua"))

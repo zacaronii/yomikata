@@ -1,0 +1,14 @@
+# MOTHER3 (AGB-A3UJ): the signs and kanji of the game's font by their numbers, as the script has them (16-bit, the
+# low byte first). Kana follow a rule and are not listed (the script has it). Each was read in play: the words of
+# a text the game was showing beside the characters on screen.
+0200=。
+0500=・
+0800=？
+0900=！
+1B00=ー
+3500=「
+3600=」
+5D00=◇
+5E00=◆
+AC00=　
+DD00=Ｂ
