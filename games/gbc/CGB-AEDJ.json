@@ -1,0 +1,27 @@
+{
+ "id": "CGB-AEDJ",
+ "platform": "gbc",
+ "title": "ドラゴンクエストI・II",
+ "title_romaji": "Dragon Quest I & II",
+ "versions": [
+  {
+   "header_crc32": "4fa1dc98"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/gbc/CGB-AEDJ.tbl"
+ ],
+ "unit": 1,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. Snaps and the cartridge were studied outside it",
+  "From Dragon Quest III (games/gbc/CGB-BD3J.lua): the way of reading (the text drawn from the cartridge, a bank and a word in work RAM saying where), kana by the order of the fifty sounds, and the codes for an end, a wait, a row, a space and the voicing marks.",
+  "Found in play here: the bank's and the word's places (0xC806, 0xC80F), a message's start (0xEA), the hero's name (0xF6, and 0xF9 0x00 from 0xC200), and the pauses that turn the narration's pages (0xFC with a long length)",
+  "The table: the signs held from Dragon Quest III's, but its kanji are numbered otherwise in this game (0xE565 and 0xE584 are other kanji here), so every kanji and the two digits were read off this game's screens, the page's codes held against its picture: 44 codes, none taken unseen",
+  "Played in the first game from the naming to the king's talk, and in the second from power-on through the opening's narration to the castle's alarm: each route replayed in one run with the script loaded",
+  "What the script said in play agreed with the rows read off 34 of 34 pictures, over 3 scenes (the king's talk, the narration, the castle). No screen without text was among them",
+  "The same readings built the table, so the comparison checks pages, their turns and order more than the characters"
+ ],
+ "notes": "Read by the script games/gbc/CGB-AEDJ.lua. The text lies in the cartridge as it is; a byte and a word in work RAM say which bank and where. A page is said when that stands just past an end, a wait or a long pause, read from the cartridge whole (the host gives it at 0x01000000). Not read: menus, the yes/no box, fights, who speaks but where the text says it, names other than the hero's. Kanji not met in play come out as U+FFFD."
+}

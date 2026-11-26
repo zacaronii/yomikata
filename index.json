@@ -36,6 +36,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "CGB-AEDJ": {
+   "path": "games/gbc/CGB-AEDJ.json",
+   "sha256": "604022ab148c3d96a5c30bff7ace3b738b3bbe685bd7c9ac42b5c8a5ba26e450",
+   "platform": "gbc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "CGB-BD3J": {
    "path": "games/gbc/CGB-BD3J.json",
    "sha256": "f95d14835ea851cd3dc209ef1a88a21731be9494de0646bdf31bf5fd4b2decdd",
@@ -869,6 +876,24 @@
     "tbl": {
      "path": "games/gba/AGB-ASBJ.tbl",
      "sha256": "6b429bbd822f523c99234fbf68e0ace11c5bf283e9a2211b9df20220d1f3ca36"
+    }
+   }
+  },
+  "CGB-AEDJ": {
+   "path": "scripts/gbc/CGB-AEDJ.lua",
+   "sha256": "bfd675db0d754233c97d3065faf70d43d7e88bcead62b75c4f0f6594ad222439",
+   "platform": "gbc",
+   "runtime": 1,
+   "title": "ドラゴンクエストI・II (Dragon Quest I & II, Game Boy Color)",
+   "reads": "a message window's text from the cartridge, a page for each wait",
+   "builds": [
+    "4fa1dc98"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gbc/CGB-AEDJ.tbl",
+     "sha256": "3c33b2960f48a75e265adb124690cfabfa1e12f71189200aa438ee57cb6112a4"
     }
    }
   },
