@@ -26,13 +26,15 @@
 --
 -- Not covered: who speaks, other menus,
 -- fights, the names of companions (0xF9 with other numbers comes out as U+FFFD); a sign or kanji the table hasn't
--- got comes out as U+FFFD. At one place's entrance the game types pages before any window shows: they are said.
+-- got comes out as U+FFFD. A page the game types while no window shows (a byte says so, at a place's entrance)
+-- is said once one shows, if it still stands; one passed by before that isn't said.
 
 local BANK, AT = 0xC206, 0xC207
 local CART = 0x01000000                 -- the cartridge, whole, where the host gives it
 local NAMES = { [0x40] = { 0xC55A, 4 },  -- a name by its number: where it is, how long at most (it ends at 0 or 0xF0)
                 [0x00] = { 0xC301, 10 } } -- the hero's (four characters); the true name given in the opening
 local STILL = 4                         -- frames AT stands before a page is said
+local HIDDEN = 0xCDBA                   -- byte: 1 while a page may be typed with no window shown (a place's entrance)
 local MOST = 400                        -- bytes of a page looked back through
 local END, END2, WAIT, ROW, ROW2, SPACE, NAME, KANJI = 0xF7, 0xFF, 0xFA, 0xF1, 0xF0, 0xDB, 0xF9, 0xE5
 local ENDS = { [END] = true, [END2] = true, [WAIT] = true }
@@ -166,24 +168,34 @@ local function decode(bytes)
 end
 
 local before, stood, said, warned, offered = nil, 0, nil, false, nil
+local page
 
 reader.on_state_loaded(function()
     reader.forget()
     before, stood, said, offered = nil, 0, nil, nil
 end)
 
-reader.on_frame(function()
-    if mem.u8(BOX_UP) == 1 then
+--- The yes/no box: its answers said once it is up and the question's page has been said.
+local function choices()
+    if mem.u8(BOX_UP) == 1 and stood >= STILL and said == before then
         local answers, cursor = box()
         if answers and answers ~= offered then
             offered = answers
             reader.emit{ text = answers, channel = "choice", id = text.hash("box" .. answers) }
         end
         reader.cursor(answers and cursor or nil)
-    elseif offered then
+    elseif offered and mem.u8(BOX_UP) ~= 1 then
         offered = nil
         reader.cursor(nil)
     end
+end
+
+reader.on_frame(function()
+    page()
+    choices()
+end)
+
+page = function()
     local bank, at = mem.u8(BANK), mem.u16(AT)
     if not bank or not at or at < 0x4000 or at > 0x7FFF or bank == 0 then
         return
@@ -191,8 +203,8 @@ reader.on_frame(function()
     local place = bank * 0x4000 + (at - 0x4000)
     stood = place == before and stood + 1 or 0
     before = place
-    if stood ~= STILL or said == place then
-        return
+    if stood < STILL or said == place or mem.u8(HIDDEN) == 1 then
+        return -- not standing yet, said, or typed while no window shows (said once one does, if it still stands)
     end
     local back = math.min(MOST, place)
     local bytes = mem.read(CART + place - back, back)
@@ -225,4 +237,4 @@ reader.on_frame(function()
     if shown:find("%S") then
         reader.emit{ text = shown, channel = "dialogue", id = text.hash(string.format("%X", place) .. shown) }
     end
-end)
+end

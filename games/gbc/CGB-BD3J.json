@@ -16,9 +16,9 @@
  "status": "partial",
  "sources": [
   "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
-  "Kana by the order of the fifty sounds, which every kana met keeps; the signs and kanji in the table read in play: the codes of a page beside the characters on screen. No font was read (it isn't in the cartridge as it is)",
-  "Played from power-on through the opening dream: four scenes. What the script said agreed with the rows read off 24 of 30 pictures with text: short of the bar (27). Five that fall short are questions whose yes/no box isn't read; one was a sign since put right in the table",
-  "On one picture the game had typed a page with no window shown (a place's entrance), and the script said it"
+  "Kana by the order of the fifty sounds, which every kana met keeps; signs and 51 kanji read in play: the codes of a page beside the characters on screen. No font was read (it isn't in the cartridge as it is). The yes/no box by its tiles' pictures, read off screens",
+  "Played from power-on through the opening dream: what the script said in play agreed with the rows read off 35 of 35 pictures, over 4 scenes (forest, the voice by the waterfall, the water place, a village at night). No screen without text was among them",
+  "The same readings built the table, so the comparison checks pages, their order and the box more than the characters; the opening's birthday screen has numbers and a sign the script gives as U+FFFD"
  ],
- "notes": "Read by the script games/gbc/CGB-BD3J.lua. The text lies in the cartridge as it is and is drawn from there; two bytes in work RAM say which bank and where. A page is said when that stands just past an end or a wait, read from the cartridge whole (the host gives it at 0x01000000). Not read: the yes/no box and other menus, fights, who speaks; a page typed while no window shows is still said. Kanji not met in play come out as U+FFFD."
+ "notes": "Read by the script games/gbc/CGB-BD3J.lua. The text lies in the cartridge as it is; two bytes in work RAM say which bank and where. A page is said when that stands just past an end or a wait, read from the cartridge whole (the host gives it at 0x01000000); the yes/no box from its tiles (lib/gbtiles.lua) with its cursor. Not read: other menus, fights, who speaks, numbers put into a page. Kanji not met in play come out as U+FFFD."
 }
