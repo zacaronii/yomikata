@@ -148,7 +148,7 @@
   },
   "SHVC-MB": {
    "path": "games/sfc/SHVC-MB.json",
-   "sha256": "088cd3dc1931c02c1fbf090d097deecd62ba6c1f9d5750514b953aee69e76e59",
+   "sha256": "832d8ba03d41755d518558e64470454f154cd7976463c7e4896677257e811a69",
    "platform": "sfc",
    "encoding": "table",
    "status": "partial"
