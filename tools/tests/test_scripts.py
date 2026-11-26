@@ -2131,6 +2131,71 @@ def test_dragon_quest_iii_a_page_is_said_when_the_pointer_stands_past_its_end():
         assert r.take("text") == []
 
 
+def test_gbtiles_reads_a_cell_picture_and_dragon_quest_iii_its_yes_no_box():
+    """A Game Boy Color tile map cell read as a picture (bank from its attributes, a flip done) and the box read
+    off made-up tiles: a frame's corners known by their hashes, two answers, the cursor before the first."""
+    import hashlib
+    def fnv(data):
+        h = 0xCBF29CE484222325
+        for b in data:
+            h = ((h ^ b) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+        return f"{h:016X}"
+    def tile(seed):                                      # 16 bytes, two planes a row, of a made-up picture
+        return hashlib.sha256(bytes([seed])).digest()[:16]
+    def picture(raw, flip=False):                        # as lib/gbtiles.lua gives it: rows, 2 bits a pixel
+        out = b""
+        for row in range(8):
+            lo, hi = raw[2 * row], raw[2 * row + 1]
+            value = 0
+            for px in range(8):
+                bit = px if flip else 7 - px
+                value = value << 2 | ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1)
+            out += value.to_bytes(2, "big")
+        return out
+    vram = bytearray(0x4000)
+    # Tiles in bank 1 (0x2000 on), signed numbers from 0x1000: 1, 2 the corners; 3 ▶, 4 あ, 5 い; 6 blank.
+    tiles = {n: tile(n) for n in range(1, 6)}
+    tiles[6] = bytes([0xFF, 0x00] * 8)                   # every pixel the same: a blank cell
+    for n, raw in tiles.items():
+        vram[0x2000 + 0x1000 + 16 * n:0x2000 + 0x1000 + 16 * n + 16] = raw
+    def put(x, y, n, flip=False):
+        vram[0x1C00 + 32 * y + x] = n
+        vram[0x2000 + 0x1C00 + 32 * y + x] = 0x08 | (0x20 if flip else 0)
+    for x in range(26, 32):
+        for y in range(6, 11):
+            put(x, y, 6)
+    put(26, 6, 1)
+    put(31, 10, 2)
+    put(27, 7, 3); put(28, 7, 4); put(29, 7, 5, flip=True)
+    put(28, 9, 5); put(29, 9, 4)
+    names = {3: "▶", 4: "あ", 5: "い"}
+    dictionary = "".join(f"{fnv(picture(tiles[n], n == 5 and False))}={ch}\n" for n, ch in names.items())
+    dictionary += f"{fnv(picture(tiles[5], True))}=い\n"                     # the flipped い is a picture of its own
+    corners = {1: fnv(picture(tiles[1])), 2: fnv(picture(tiles[2]))}
+    script = (ROOT / "games/gbc/CGB-BD3J.lua").read_text(encoding="utf-8")
+    script = script.replace("BEC2F11F82E16D12", corners[1]).replace("0F55CEA9D92A4BBD", corners[2])
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp) / "games/gbc/CGB-BD3J.lua"
+        path.parent.mkdir(parents=True)
+        path.write_text(script, encoding="utf-8")
+        source = bundle_text(script)
+    table = "# made up\n".encode()
+    for up in (0, 1):
+        memory = dq3_memory(bytes(0xC000), 2, 0x4100)
+        read = lambda a, n, up=up, memory=memory: bytes([up]) if a == 0xC219 else memory(a, n)  # noqa: E731
+        with rd.Reader(read, platform="gbc", game_id="CGB-BD3J", regions={"vram": bytes(vram)},
+                       data={"tbl": table, "glyphs": dictionary.encode()}) as r:
+            r.load(source, "CGB-BD3J.lua")
+            r.frame(1)
+            r.frame(2)
+            events = r.take()
+            texts = [(e["channel"], e["text"]) for kind, e in events if kind == "text"]
+            cursors = [e["index"] for kind, e in events if kind == "cursor" and e.get("index") is not None]
+        assert texts == ([("choice", "あい\nいあ")] if up else [])
+        assert cursors == ([0] if up else [])                               # said once, while it stays
+
+
 def xenogears_memory(block: bytes, at: int, scene: bool = False, names: bytes | None = None):
     """What Xenogears' script looks at: the list of names, a block of messages at 0x80110000, and the window's
     pointer into it: the field's fixed window, or the one a scene of the fight's program points at."""

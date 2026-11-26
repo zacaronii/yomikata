@@ -59,12 +59,21 @@ local dictionary = glyphs.open(reader.data("glyphs"))
 -- cursor (a picture the dictionary calls ▶) before the one it is on.
 local BOX_UP = 0xC219
 local BOX_MAP, BOX_ROWS, BOX_LEFT, BOX_RIGHT = 0x1C00, { 7, 8, 9 }, 27, 30
+-- The byte is up for other menus too (a name, a birthday): the box is told by its frame's corners standing
+-- there, known by their pictures' hashes (the top left at 26,6, the bottom right at 31,10).
+local CORNERS = { { 26, 6, "BEC2F11F82E16D12" }, { 31, 10, "0F55CEA9D92A4BBD" } }
 local vram = mem.region("vram")
 
 --- The box's answers as text (a row each) and the cursor's answer from 0; nil when they can't be read.
 local function box()
     if not vram then
         return nil
+    end
+    for _, corner in ipairs(CORNERS) do
+        local picture = gbtiles.cell(vram, BOX_MAP, corner[1], corner[2], true)
+        if not picture or text.hash(picture):upper() ~= corner[3] then
+            return nil
+        end
     end
     local answers, cursor = {}, nil
     for _, row in ipairs(BOX_ROWS) do
@@ -76,10 +85,12 @@ local function box()
             end
             if not blank then
                 local character = dictionary:read(picture, 8, 8, 2)
-                if character == "▶" then
+                if not character then
+                    return nil -- a picture not known: the box is still being drawn, or holds a word not read yet
+                elseif character == "▶" then
                     cursor = #answers
                 else
-                    cells[#cells + 1] = character or "\u{FFFD}"
+                    cells[#cells + 1] = character
                 end
             end
         end

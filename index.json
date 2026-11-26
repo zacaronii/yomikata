@@ -787,7 +787,7 @@
   },
   "CGB-BD3J": {
    "path": "scripts/gbc/CGB-BD3J.lua",
-   "sha256": "babe60339a4ad9145ff967afcce703716cbd53b80fa43c5b91385eb2863c2be7",
+   "sha256": "a00591c0d1da1eb509ae3985a408bceac1a70e93311892e9d4f7111296113c2f",
    "platform": "gbc",
    "runtime": 1,
    "title": "ドラゴンクエストIII そして伝説へ… (Dragon Quest III, Game Boy Color)",
