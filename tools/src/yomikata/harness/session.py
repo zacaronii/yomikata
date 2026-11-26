@@ -823,7 +823,7 @@ class Session:
                                              for places, codes in sets]}
         if bool(text) == bool(lines):
             raise HarnessError("give the line on screen now (text), lines for several snaps, or apart")
-        wanted = lines or {"now": text}
+        wanted = lines or {snap or "now": text}                    # the line on screen now, or in the snap given
         memories, base = [], 0
         for name, line in wanted.items():
             _, base, ram = self._memories(None if name == "now" else [name])[0]

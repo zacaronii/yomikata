@@ -789,6 +789,12 @@ def test_find_relative_a_line_in_codes_of_the_games_own(session):
     assert out["count"] == 1 and out["places"][0]["address"] == "0x80000900"
     assert out["places"][0]["codes"] == {ch: f"{code:04X}" for ch, code in own.items()}
     assert session.find_relative(line, unit=1)["count"] == 0
+    # Given a snap, the line is looked for in it, not in memory now (which no longer holds it).
+    session.snap("held")
+    put(session, 0x900, bytes(2 * len(line)))
+    assert session.find_relative(line, unit=2)["count"] == 0
+    assert session.find_relative(line, unit=2, snap="held")["places"][0]["address"] == "0x80000900"
+    put(session, 0x900, b"".join(struct.pack(">H", own[ch]) for ch in line))
     # With a second cell after each character, as tile windows have.
     put(session, 0xA00, b"".join(struct.pack(">HH", own[ch], 0x7777) for ch in line))
     assert [p["address"] for p in session.find_relative(line, unit=2, stride=2)["places"]] == ["0x80000A00"]
