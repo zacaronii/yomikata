@@ -1,0 +1,21 @@
+{
+  "id": "SLPM-66620",
+  "platform": "ps2",
+  "title": "ひぐらしのなく頃に祭",
+  "title_romaji": "Higurashi no Naku Koro ni Matsuri",
+  "versions": [
+    {
+      "exe": "SLPM_666.20",
+      "exe_sha1": "e530b77cc576166915c2da3434f956eae46b61ee",
+      "note": "A PS2 emulator names this build SLPM-66620-cda67466"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "partial",
+  "sources": [
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+    "Played from power-on: the first chapter's opening, 59 presses over four scenes",
+    "What the script said in play agreed with what each of 48 pictures had gained, over 4 scenes. 11 further screens were played and not read; no screen without text and no choice was among them"
+  ],
+  "notes": "Read by the script games/ps2/SLPM-66620.lua. The story's text is unpacked a page at a time to a fixed place, Shift-JIS with marks as single ASCII letters: k waits for a button, p ends the page, r starts a new row, v with digits, a slash, digits and a full stop names a voice. A word points just past the last mark the game has come to, in a second copy of the page: the script says each part when that word has passed it. Who speaks isn't shown by the game. Choices, menus and the tips aren't read."
+}

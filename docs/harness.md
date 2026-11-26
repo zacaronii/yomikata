@@ -253,6 +253,19 @@ In the order to try them:
    are the game's rows, readings and names. And a name the player gave may be typed from a buffer of its
    own (the pointer leaves the program for it), so play past a naming screen before trusting a script.
 
+17. A page may be in memory whole while the screen shows only its beginning: the game stops at a mark in it
+   for a button and goes on. Reading the page then says too much too early. Look for what says how far the
+   game has come: snap a few presses apart, two of them inside one page, and ask `refs` with `moving` for
+   words that point into the page's stretch. Higurashi Matsuri keeps the page twice, and a word points just
+   past the last mark reached in the copy the game reads; its script says each part of a page when that word
+   has passed it. Two things that cost calls there: I searched for the middle of a line and took where it
+   was found for where the page begins (search for a line's first words, or read the bytes before what
+   `find` gives); and the marks are single ASCII letters, which a Shift-JIS character's second byte can
+   also be, so a page is walked two bytes at a time and never searched for a letter. That game met the bar
+   in 137 calls and 14 runs: `find`, `read` over snaps and with `mixed`, and `refs … moving` were one
+   session of six calls where Kamaitachi no Yoru 2's same finding had been three sessions and two scripts
+   written by hand.
+
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.
 

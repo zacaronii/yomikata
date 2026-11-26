@@ -1866,3 +1866,35 @@ def test_kamaitachi_no_yoru_2_pieces_are_gathered_as_the_program_walks_them_and_
     with rd.Reader(kamaitachi2_memory(program, 0, word=0), platform="ps2", game_id="SLPS-25135") as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps2/SLPS-25135.lua"))
+
+
+def higurashi_memory(page: bytes = b"", reached: int = 0, word: int = 0x0C04B2A8):
+    """What Higurashi Matsuri's script looks at: the build's words, the page shown, the copy of it the game
+    reads from, and the word that points into that copy just past the last mark reached."""
+    return sparse({0x00100018: struct.pack("<I", word), 0x0017041C: struct.pack("<I", 0x0C05B7CC),
+                   0x01E0697C: page + bytes(64), 0x01E01010: page + b"\0" + "まえの。p".encode("cp932") + bytes(32),
+                   0x01E0615C: struct.pack("<I", 0x01E01010 + reached)})
+
+
+def test_higurashi_matsuri_each_part_of_a_page_is_said_when_the_game_has_come_past_its_mark():
+    sj = lambda s: s.encode("cp932")                                       # noqa: E731
+    one = sj("そらは、あおい。") + b"k" + sj("うみも、あおい。") + b"p"                # a wait in the middle of a page
+    two = b"v00/992600001." + sj("「ねこだ。") + b"k" + b"v00/992600002." + sj("ねむい」") + b"p"   # two voiced parts
+    three = sj("とてもながいぎょうは") + b"r" + sj("つぎのぎょうへ。") + b"p"            # a new row inside a part
+    first = len(sj("そらは、あおい。")) + 1
+    voiced = len(b"v00/992600001." + sj("「ねこだ。")) + 1
+    moments = [(b"", 0), (one, first), (one, first), (one, len(one)), (two, voiced), (two, len(two)),
+               (three, len(three)), (three, len(three)), (one, len(one))]            # the last: a page all there at once
+    with rd.Reader(higurashi_memory(), platform="ps2", game_id="SLPM-66620") as r:
+        r.load(bundle(ROOT / "games/ps2/SLPM-66620.lua"), "SLPM-66620.lua")
+        said = []
+        for frame, (page, reached) in enumerate(moments, 1):
+            r.read = higurashi_memory(page, reached)
+            r.frame(frame)
+            said += [(frame, e["text"], e["meta"]["voiced"]) for e in r.take("text")]
+        assert said == [(2, "そらは、あおい。", False), (4, "うみも、あおい。", False), (5, "「ねこだ。", True),
+                        (6, "ねむい」", True), (7, "とてもながいぎょうは\nつぎのぎょうへ。", False),
+                        (9, "そらは、あおい。", False), (9, "うみも、あおい。", False)]
+    with rd.Reader(higurashi_memory(word=0), platform="ps2", game_id="SLPM-66620") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps2/SLPM-66620.lua"))
