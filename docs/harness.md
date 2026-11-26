@@ -373,6 +373,11 @@ the whole numbers that only went up, a little a frame, and then stood. On Live A
 gives two: the count of characters drawn, and beside it the 16-bit pointer into the cartridge's script, which was away for two of the snaps (a row of dots is kept elsewhere) and is
 found all the same. That is three calls where the search by hand had been about a hundred.
 
+`advancing` reads the snaps one at a time and keeps only what the walk needs, so many snaps of a large memory
+are fine: forty of a Dreamcast's 16 MB take about 160 MB, where holding them all took more than the
+harness's container has (it died of it). It takes 400 snaps at most, and refuses, before reading any, a
+memory too big to walk in 1 GB at the `unit` asked: then give `within` a stretch, or a larger `unit`.
+
 When nothing advances it says so (`nothing_advances`): the game may put a window down whole, as tiles, and
 then the thing to find is the window. Give `find_relative` a row as the screen has it, its spaces as plain
 spaces, with `spaces`: true: each space is then a cell, and all of them the same tile, which is a repeat like
@@ -600,10 +605,15 @@ them right, and found ten wrong among the 1,200 read before.
 
 ### The record of calls
 
-Every call of a tool goes into `record/calls.jsonl` in scratch, one line each: when, an id for this run of the
-harness, the game loaded, the tool, its arguments in short (a long text as its start and its length, a list as
-how many it holds), whether it failed, and how long it took. `yomikata calls <scratch>` sums the record by
-game. It is how a script's cost is known: the number of calls from the first to the comparison that met the bar.
+Every call of a tool goes into `record/calls.jsonl` in scratch: when, an id for this run of the harness, the
+game loaded, the tool, its arguments in short (a long text as its start and its length, a list as how many it
+holds), whether it failed, and how long it took. `yomikata calls <scratch>` sums the record by game. It is how a
+script's cost is known: the number of calls from the first to the comparison that met the bar.
+
+A call is written as it begins (`ok` still null) and again with its answer, the two lines sharing a `call` id,
+and read as one. So a call whose process dies in it (out of memory, or a core the harness gives up on) is in
+the record all the same, as a call that failed (`died`), and counts against the budget. A call counts itself
+from its start: `budget`'s own answer includes it.
 
 A comparison by scenes leaves its outcome with its call (whether the bar was met, on how many screens and
 scenes: counts only), and `yomikata calls <scratch> --trend` prints, for each game in the order they were

@@ -42,6 +42,17 @@ WARM_FRAMES = 30                # frames a core runs from power-on before `load`
 CHUNK = 30                      # frames run between two looks at the clock, when nothing is watched
 CALL_SECONDS = 120.0            # how long one call may run the game before it stops and says so
 STORY = ("dialogue", "choice")
+ADVANCING_MOST_SNAPS = 400      # advancing reads each snap in turn; this many is minutes of work
+ADVANCING_MOST_BYTES = 1 << 30  # what advancing may hold at once (the harness's container has 8 GB in all)
+ADVANCING_SLICE = 1 << 20       # numbers whose steps advancing works out at once
+
+
+def advancing_bytes(length: int, unit: int) -> int:
+    """About what advancing holds at once over snaps of `length` bytes: a snap as read and the one before it
+    (gzip's output and its bytes), the first, last and final values, two 16-bit counts and the flags of each
+    number, and one slice's steps in 64 bits with the masks made from them."""
+    numbers = length // unit
+    return 2 * length + 3 * numbers * unit + 2 * numbers * 2 + numbers + ADVANCING_SLICE * 8 * 4
 
 
 class HarnessError(ValueError):
@@ -171,14 +182,19 @@ class Session:
         except OSError:
             pass
 
-    def begin_call(self) -> None:
-        """A call starts now: what runs the game stops by itself `call_seconds` from here."""
+    def begin_call(self, tool: str | None = None, arguments: dict | None = None, game: str | None = None) -> None:
+        """A call starts now: what runs the game stops by itself `call_seconds` from here. Given its tool, the call
+        goes into the record now, before it does anything (record.begin), so that one whose process dies in it
+        (out of memory, a core given up on) is still counted; record_call then writes its answer's line."""
         self.deadline = time.monotonic() + self.call_seconds
+        self._call_id = None
+        if tool is not None:
+            self._calls_begun = getattr(self, "_calls_begun", 0) + 1
+            self._call_id = f"{self.session_id}-{self._calls_begun}"
+            calls_record.begin(self.roots.scratch, self._entry(tool, arguments, game or self.game), self._call_id)
 
-    def record_call(self, tool: str, arguments: dict, ok: bool, seconds: float, outcome: dict | None = None) -> None:
-        """A line for this call in scratch's record (record/calls.jsonl): when, which session and game, the tool
-        and its arguments in short. `yomikata calls` sums them by game. A record that can't be written is no
-        reason for a call to fail."""
+    def _entry(self, tool: str, arguments: dict | None, game: str | None) -> dict:
+        """A record line's common part: when, which session and game, the tool and its arguments in short."""
         def short(value):
             if isinstance(value, str):
                 return value if len(value) <= 48 else f"{value[:32]}… ({len(value)} characters)"
@@ -187,10 +203,20 @@ class Session:
             if isinstance(value, dict):
                 return f"{len(value)} keys"
             return value
-        entry = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "session": self.session_id,
-                 "game": self.game, "tool": tool, "arguments": {str(k): short(v) for k, v in (arguments or {}).items()},
-                 "ok": bool(ok), "seconds": round(seconds, 2), **({"outcome": outcome} if outcome else {})}
-        calls_record.append(self.roots.scratch, entry)
+        return {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "session": self.session_id,
+                "game": game, "tool": tool, "arguments": {str(k): short(v) for k, v in (arguments or {}).items()}}
+
+    def record_call(self, tool: str, arguments: dict, ok: bool, seconds: float, outcome: dict | None = None) -> None:
+        """A line for this call in scratch's record (record/calls.jsonl): when, which session and game, the tool
+        and its arguments in short. `yomikata calls` sums them by game. A record that can't be written is no
+        reason for a call to fail. After begin_call with the tool, it is the call's second line."""
+        entry = {**self._entry(tool, arguments, self.game), "ok": bool(ok), "seconds": round(seconds, 2),
+                 **({"outcome": outcome} if outcome else {})}
+        call, self._call_id = getattr(self, "_call_id", None), None
+        if call is None:
+            calls_record.append(self.roots.scratch, entry)
+        else:
+            calls_record.finish(self.roots.scratch, entry, call)
 
     def calls_so_far(self, game: str | None) -> int:
         """The calls the record has for a game: the same lines `yomikata calls` counts, read from the record
@@ -671,7 +697,7 @@ class Session:
         at, size = int(address, 16), max(0, min(int(size), MAX_READ))
         if snaps:                               # the same stretch in each of several moments, one under the other
             rows = {}
-            for name, base, ram in self._memories(snaps):
+            for name, base, ram in self._each_memory(snaps):
                 rows[name] = ram[max(0, at - base):max(0, at - base) + min(size, 64)].hex()
             return {"address": hex(at), "snaps": rows}
         if region:
@@ -697,6 +723,25 @@ class Session:
                 raise HarnessError(str(e)) from None
             out["text"] = read(data)
         return out
+
+    def _each_memory(self, snaps: list | None):
+        """As _memories, one at a time: each snap is read when its turn comes and let go after, so a tool that
+        looks at each in turn holds one snap's memory, however many it is given. Every name is checked first,
+        so a missing one is refused before any work."""
+        from ..run import _load
+        if not snaps:
+            base, ram = self._need().ram()
+            yield "", base, ram
+            return
+        paths = []
+        for name in snaps:
+            path = self.roots.inside("scratch", f"snaps/{self._name(name)}.ram.gz")
+            if not path.is_file():
+                raise HarnessError(f"no snap called {name}")
+            paths.append((name, path))
+        for name, path in paths:
+            meta = json.loads(path.with_name(f"{name}.json").read_text(encoding="utf-8"))
+            yield name, int(meta["base_address"], 16), _load(path)
 
     def _memories(self, snaps: list | None) -> list[tuple[str, int, bytes]]:
         """What a search looks through: live memory, or the snaps named (this session's, or scratch's)."""
@@ -736,7 +781,7 @@ class Session:
         except search.SearchError as e:
             raise HarnessError(str(e)) from None
         out = {}
-        for name, base, ram in self._memories(snaps):
+        for name, base, ram in self._each_memory(snaps):
             found = {}
             for kind, needle in needles.items():
                 hits = search.places(ram, needle, MAX_HITS)
@@ -771,7 +816,7 @@ class Session:
           snaps=("array", "look in these snaps instead of live memory", False))
     def text_runs(self, least: int = 8, snaps: list | None = None) -> dict:
         out = {}
-        for name, base, ram in self._memories(snaps):
+        for name, base, ram in self._each_memory(snaps):
             out[name] = [{"address": f"0x{base + at:08X}", "encoding": kind, "text": text[:120]}
                          for at, kind, text in search.runs(ram, max(4, int(least)), 40)]
         return {"runs": out[""]} if not snaps else {"runs": out}
@@ -1654,7 +1699,10 @@ class Session:
         if unit not in (1, 2, 4) or len(snaps or ()) < 6:
             raise HarnessError("six snaps or more; unit is 1, 2 or 4")
         names = list(snaps) + list(rest or ())
-        found = self._advancing([(base, ram) for _, base, ram in self._memories(names)], len(snaps), unit, most, within, least)
+        if len(names) > ADVANCING_MOST_SNAPS:
+            raise HarnessError(f"{len(names)} snaps: advancing takes {ADVANCING_MOST_SNAPS} at most. Every "
+                               "second or third frame of the typing is enough (`every`: 2)")
+        found = self._advancing(self._each_memory(names), len(snaps), unit, most, within, least)
         # A console's other memory, kept with each snap as a region (a Game Boy Advance's 32 KB in the CPU,
         # where its games keep their own state): looked through the same way.
         from .machine import region_starts
@@ -1662,7 +1710,8 @@ class Session:
         for region, start in region_starts(getattr(self.machine, "platform", "")).items():
             files = [self.roots.inside("scratch", f"snaps/{self._name(n)}.{region}.gz") for n in names]
             if all(f.is_file() for f in files):
-                found += self._advancing([(start, _load(f)) for f in files], len(snaps), unit, most, within, least)
+                found += self._advancing(((None, start, _load(f)) for f in files), len(snaps), unit, most,
+                                         within, least)
         found.sort(key=lambda place: -place["moved_in"])
         out = {"count": len(found), "snaps": len(snaps), "rest": len(rest or ()), "places": found[:MAX_HITS]}
         if not found:
@@ -1676,37 +1725,69 @@ class Session:
                 "over snaps a window apart for the list's start.")
         return out
 
-    def _advancing(self, memories: list, typed: int, unit: int, most: int, within: list | None, least: int) -> list[dict]:
-        """advancing over one stretch of memory at so many moments: (base, bytes) each, the first `typed` of
-        them while the line types."""
+    def _advancing(self, memories, typed: int, unit: int, most: int, within: list | None, least: int) -> list[dict]:
+        """advancing over one stretch of memory at so many moments: (name, base, bytes) each, the first `typed`
+        of them while the line types. The moments come one at a time and only what the walk needs is kept (the
+        first, last and final values, two counts a number), so the memory it takes doesn't grow with the snaps;
+        the steps are worked out a slice at a time. A stretch too big even for that is refused before any work."""
         import numpy as np
         order = ">" if self.machine is not None and self.machine.platform in BIG_ENDIAN else "<"
-        base = memories[0][0]
-        moments = [np.frombuffer(ram[:len(ram) // unit * unit], dtype=f"{order}u{unit}").astype(np.int64) for _, ram in memories]
-        typing, after = moments[:typed], moments[typed:]
+        kind = np.dtype(f"{order}u{unit}")
         most = max(1, int(most))
-        rose, away, last = (np.zeros(len(typing[0]), dtype=np.int64), np.zeros(len(typing[0]), dtype=np.int64),
-                            typing[0].copy())
-        for now in typing[1:]:
-            # A snap may catch the number away for a moment (the game reading a word kept elsewhere): a snap
-            # that isn't a small rise from the last good one is counted, and the walk goes on from there.
-            step = now - last
-            good = (step >= 0) & (step <= most)
-            rose += good & (step > 0)
-            away += ~good
-            last = np.where(good, now, last)
-        ok = (away <= max(1, len(typing) // 6)) & (typing[-1] == last)      # away a snap or two in a dozen, no more
-        # It moved on most frames: not a flag, not a clock's high part. (`least`: or on so many, for slow typing.)
-        ok &= rose >= (max(1, int(least)) if least else (len(typing) - 1) // 2)
-        for held in after:
-            ok &= held == typing[-1]
+        base = size = lo = hi = None
+        first = last = final = rose = away = ok = None
+        count = 0
+        for at, (_, where, ram) in enumerate(memories):
+            if base is None:
+                need = advancing_bytes(len(ram), unit)
+                if need > ADVANCING_MOST_BYTES:
+                    raise HarnessError(
+                        f"advancing over {len(ram) >> 20} MB a snap would hold about {need >> 20} MB at once, "
+                        f"more than the {ADVANCING_MOST_BYTES >> 20} MB it may: give `within` a stretch of "
+                        "memory, or a larger `unit`")
+                base, size = where, len(ram) // unit
+                if within is not None:
+                    low, high = (int(str(v), 16) for v in within)
+                    lo = max(0, min(size, -(-(low - base) // unit)))        # numbers that start inside
+                    hi = max(lo, min(size, -(-(high - base) // unit)))
+                else:
+                    lo, hi = 0, size
+                first = np.frombuffer(ram, dtype=kind, count=size)[lo:hi].copy()
+                last = first.copy()
+                rose = np.zeros(hi - lo, dtype=np.uint16)
+                away = np.zeros(hi - lo, dtype=np.uint16)
+                count = 1
+                if typed == 1:
+                    final = first
+                continue
+            if where != base or len(ram) // unit != size:
+                raise HarnessError("the snaps don't hold the same stretch of memory: take them all from one "
+                                   "game and one load")
+            now = np.frombuffer(ram, dtype=kind, count=size)[lo:hi]
+            if at < typed:
+                # A snap may catch the number away for a moment (the game reading a word kept elsewhere): a
+                # snap that isn't a small rise from the last good one is counted, and the walk goes on from there.
+                for s in range(0, hi - lo, ADVANCING_SLICE):
+                    e = s + ADVANCING_SLICE
+                    step = now[s:e].astype(np.int64) - last[s:e].astype(np.int64)
+                    good = (step >= 0) & (step <= most)
+                    rose[s:e] += (good & (step > 0)).astype(np.uint16)
+                    away[s:e] += (~good).astype(np.uint16)
+                    last[s:e] = np.where(good, now[s:e], last[s:e])
+                count += 1
+                if at == typed - 1:
+                    final = now.copy()
+                    ok = (away <= max(1, typed // 6)) & (final == last)      # away a snap or two in a dozen
+                    # It moved on most frames: not a flag, not a clock's high part. (`least`: or on so many.)
+                    ok &= rose >= (max(1, int(least)) if least else (typed - 1) // 2)
+            else:
+                ok &= now == final
+        if base is None or count < typed or ok is None:
+            return []
         places = np.nonzero(ok)[0]
-        if within is not None:
-            low, high = (int(str(v), 16) for v in within)
-            places = places[(places * unit + base >= low) & (places * unit + base < high)]
         places = sorted(places, key=lambda i: -int(rose[i]))[:MAX_HITS]
-        return [{"address": f"0x{base + int(i) * unit:08X}", "from": f"0x{int(typing[0][i]):0{2 * unit}X}",
-                 "to": f"0x{int(typing[-1][i]):0{2 * unit}X}", "moved_in": int(rose[i])} for i in places]
+        return [{"address": f"0x{base + (lo + int(i)) * unit:08X}", "from": f"0x{int(first[i]):0{2 * unit}X}",
+                 "to": f"0x{int(final[i]):0{2 * unit}X}", "moved_in": int(rose[i])} for i in places]
 
     @tool("Numbers that go up or down by the same amount from each snap to the next, over snaps taken evenly "
           "apart: a hand going round, a bar filling, a timer. What press_at wants to watch. Read as 32-bit "
@@ -2473,7 +2554,7 @@ class Session:
             found = pointing(*self._need().ram())
             return {"count": len(found), "refs": [{"at": f"0x{at:08X}", "points_at": f"0x{to:08X}"}
                                                   for at, to in list(found.items())[:MAX_HITS]]}
-        each = {name: pointing(base, ram) for name, base, ram in self._memories(snaps)}
+        each = {name: pointing(base, ram) for name, base, ram in self._each_memory(snaps)}
         rows = {}
         for name, found in each.items():
             for at, to in found.items():

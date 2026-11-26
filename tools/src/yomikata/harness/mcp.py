@@ -40,7 +40,7 @@ def call(session: Session, name: str, arguments: dict) -> dict:
     refusal = session.over_budget(ahead or session.game) if name != "budget" else None
     if refusal:
         return {"content": [{"type": "text", "text": refusal}], "isError": True}
-    session.begin_call()
+    session.begin_call(name, arguments, ahead)
     began = time.monotonic()
     answer = _call(known[name][2], arguments)
     session.record_call(name, arguments, not answer.get("isError"), time.monotonic() - began, _outcome(name, answer))
