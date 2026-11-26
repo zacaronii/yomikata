@@ -55,6 +55,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in, or only those that point there in all and move (`moving`) |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
 | `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way; stops where the map changes, since the numbers start anew there. `near` for numbers finer than a step |
+| `steady` | Numbers that go up or down by the same amount from each snap to the next: a hand going round, a bar filling, a timer. What `press_at` watches |
 | `press_at` | Presses a button when a number in memory comes to a value, several in turn: a press in time (a ring's hand over its mark, a bar that fills). With `tries`, lists of values are tried from this moment, the game put back after each, and what the game held afterwards is given for each |
 | `place_find` | Where a game of three dimensions keeps the character's place: floats that stand while the pad is let go, move with a push and come back with the push the other way, grouped three on end |
 | `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read |
@@ -267,17 +268,25 @@ A game may ask for presses in time to win a fight, and no script is checked on a
 `press_at` makes them through the pad, from a number the game keeps: nothing is written.
 
 1. Find the number. Start the thing that asks for the presses and let it run without pressing, with a snap
-   every few frames (`steps` with `wait` and `snap`). What rises or falls by the same amount from snap to
-   snap is the hand or the bar: on Shadow Hearts' ring, a float in degrees (0x012AFB24), found by a pass
-   over seven snaps written by hand; a search for such numbers isn't a tool yet.
+   every few frames (`steps` with `wait` and `snap`), and ask `steady` for what goes up or down by the same
+   amount from snap to snap: the hand or the bar is among the first it gives. On Shadow Hearts' ring it is
+   a float in degrees. It is on the heap: 0x012AFB24 in one fight and 0x00E6B4F4 in the next, so `steady`
+   is asked again in each fight (one call) until what points at the ring is known.
 2. Find the values, by what the game does after a press. `press_at` with `tries`, one value in each, and
-   the number itself read some frames later: on that ring the hand goes on after a press in time and stands
+   the number itself read some frames later (`wrap` for one that goes round): on that ring the hand goes on after a press in time and stands
    after one that wasn't, so 21 tries in one call showed the first mark (45 to 120 degrees). Then the
    second with the first fixed (`tries` of two values each: 175 to 235), and so on.
 3. Where the last press ends the thing either way, nothing in the number says whether it was in time: look
    at the picture after pressing for good. Four runs found the third mark there.
 4. `press_at` with `at` then makes the presses for good: three on that ring, the ring broken as the game
    shows for a full success, where pressing blindly had missed.
+
+A number that goes round (an angle) may start past its mark: give `wrap` (360), and a value behind where the
+number is now is waited for the next time round. Without it such a value is taken as already passed.
+
+A fight has turns, and a press made while the other side moves is lost. On that game every other try at an
+attack found no ring turning (`pressed` false, at once): harmless, and twice as many tries as attacks got
+through its first two fights. What says "the menu is up" would make it exact, and wasn't looked for.
 
 Marks belong to what they were found on (a weapon, a level of the game): find them again when the game
 changes what it asks.
