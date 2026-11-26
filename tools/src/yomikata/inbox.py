@@ -35,7 +35,8 @@ from .identify import identify
 
 log = logging.getLogger(__name__)
 ID_RE = re.compile(r"^[A-Z0-9][A-Z0-9-]{3,19}$")
-PLATFORMS = {"ps1", "ps2", "psp", "nds", "3ds", "gc", "saturn", "sfc", "fc", "fds", "gba", "gb", "gbc", "n64", "md"}
+PLATFORMS = {"ps1", "ps2", "psp", "nds", "3ds", "gc", "wii", "saturn", "dc", "pce-cd", "sfc", "fc", "fds", "gba", "gb",
+             "gbc", "n64", "md"}
 # What a reader may call a platform, where it isn't the catalog's name (Genkan and RomM say ngc for the GameCube).
 PLATFORM_ALIASES = {"ngc": "gc"}
 # RomM-style library folders for each catalog platform (only these are identified)
@@ -69,6 +70,12 @@ RAM = {
     "gbc": [(0xC000, 0xE000)],                  # as the game sees it: the bank switched in at 0xD000
     "nds": [(0x02000000, 0x02400000)],
     "gc": [(0x80000000, 0x81800000), (0xC0000000, 0xC1800000)],        # MEM1, and the same 24 MB uncached
+    "wii": [(0x80000000, 0x81800000), (0xC0000000, 0xC1800000)],       # MEM1, as the GameCube's
+    # The high 1 MB of work RAM, and the same past the cache. (The low 1 MB is the part `lwram`, below.)
+    "saturn": [(0x06000000, 0x06100000), (0x26000000, 0x26100000)],
+    "dc": [(0x8C000000, 0x8D000000), (0x0C000000, 0x0D000000), (0xAC000000, 0xAD000000)],   # 16 MB, two mirrors
+    # The Super System Card's 192 KB and the CD's own 64 KB after it, read as one (the console's 8 KB: `wram`).
+    "pce-cd": [(0x0D0000, 0x110000)],
 }
 
 
@@ -77,14 +84,22 @@ EXTRA_PARTS = {"state": 64 * 1024 * 1024,      # the emulator's savestate (holds
                                                # PPSSPP's is 40 MB: the 32 MB of RAM and the rest of the machine)
                "vram": 2 * 1024 * 1024,        # video memory, when the core gives it out
                "screen": 4 * 1024 * 1024}      # the frame on screen (PNG)
+# Memory a platform keeps beside main memory, as the harness's snaps keep it (`<name>.<region>.gz`, read at its
+# console address by `yomikata run` and the harness): sent as a part of that name, at most this many bytes.
+REGION_PARTS = {"saturn": {"lwram": 0x100000},          # the low 1 MB of work RAM (0x00200000)
+                "gb": {"io": 0x100}, "gbc": {"io": 0x100},  # the I/O registers and high RAM (0xFF00-0xFFFF)
+                "pce-cd": {"wram": 0x2000}}             # the console's own 8 KB (0x1F0000)
+REGION_NAMES = sorted({name for parts in REGION_PARTS.values() for name in parts})
 # The largest RAM snapshot accepted per platform (main RAM size), and how many are kept per game.
 SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000, "sfc": 0x20000, "gba": 0x40000,
-                "gb": 0x2000, "gbc": 0x2000, "nds": 0x400000, "gc": 0x1800000}
+                "gb": 0x2000, "gbc": 0x2000, "nds": 0x400000, "gc": 0x1800000, "wii": 0x1800000,
+                "saturn": 0x100000, "dc": 0x1000000, "pce-cd": 0x40000}
 # Video memory is smaller than the general limit on most consoles; a part larger than the console has is refused.
 # (A core may hand out a Game Boy game the Color's 16 KB: the cap is the larger.)
-VRAM_MAX = {"ps1": 0x100000, "sfc": 0x10000, "gba": 0x18000, "gb": 0x4000, "gbc": 0x4000, "nds": 0xA4000}
+VRAM_MAX = {"ps1": 0x100000, "sfc": 0x10000, "gba": 0x18000, "gb": 0x4000, "gbc": 0x4000, "nds": 0xA4000,
+            "pce-cd": 0x10000}
 # A savestate holds the whole machine. Dolphin's is 92-93 MB (17 MB gzipped): the GameCube's cap is its own.
-STATE_MAX = {"gc": 128 * 1024 * 1024}
+STATE_MAX = {"gc": 128 * 1024 * 1024, "wii": 128 * 1024 * 1024}
 VRAM_FORMAT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
 SNAPSHOTS_PER_GAME = 40
 
@@ -332,8 +347,21 @@ class Inbox:
     def add_snapshot(self, meta: dict, ram: bytes, extras: dict[str, bytes] | None = None) -> dict:
         m = clean_snapshot_meta(meta)
         kept = {}
+        regions = REGION_PARTS.get(m["platform"], {})
         for name, data in (extras or {}).items():
-            if name not in EXTRA_PARTS or not data:
+            if not data:
+                continue
+            if name in REGION_NAMES and name not in EXTRA_PARTS:
+                if name not in regions:
+                    raise ValueError(f"{name} isn't a part of a {m['platform']} snapshot"
+                                     + (f" (its parts beside ram: {', '.join(sorted(regions))})" if regions else ""))
+                raw = gunzip(data, regions[name], name)
+                if len(raw) > regions[name]:
+                    raise ValueError(f"{name} is larger than {m['platform']}'s "
+                                     + (f"{regions[name] // 1024} KB" if regions[name] >= 1024 else f"{regions[name]} bytes"))
+                kept[name] = raw
+                continue
+            if name not in EXTRA_PARTS:
                 continue
             limit = {"vram": min(EXTRA_PARTS[name], VRAM_MAX.get(m["platform"], EXTRA_PARTS[name])),
                      "state": STATE_MAX.get(m["platform"], EXTRA_PARTS[name])}.get(name, EXTRA_PARTS[name])
@@ -385,7 +413,9 @@ class Inbox:
                                 "lines": sum(len(m["ocr"]) for m in metas),
                                 "no_text": sum(1 for m in metas if m.get("no_text")),
                                 "ocr_unavailable": sum(1 for m in metas if m.get("ocr_unavailable")),
-                                "with": {p: sum(1 for m in metas if p in m.get("parts", [])) for p in EXTRA_PARTS},
+                                "with": {p: sum(1 for m in metas if p in m.get("parts", []))
+                                         for p in [*EXTRA_PARTS, *REGION_NAMES]
+                                         if p in EXTRA_PARTS or any(p in m.get("parts", []) for m in metas)},
                                 "last_upload": max(m["received_at"] for m in metas)})
         return out
 
@@ -506,7 +536,7 @@ def create_app(token: str, data: Path, library_root: Path | None = None, scratch
         except ValueError:
             raise HTTPException(400, "meta must be JSON") from None
         extras = {}
-        for name in EXTRA_PARTS:
+        for name in [*EXTRA_PARTS, *REGION_NAMES]:
             part = form.get(name)
             if part is not None and not isinstance(part, str):
                 extras[name] = await part.read()

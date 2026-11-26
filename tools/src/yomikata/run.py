@@ -67,7 +67,7 @@ def _regions(snapshot: Path) -> dict[str, bytes]:
     out = {}
     for path in sorted(snapshot.parent.glob(f"{stem}.*.gz")):
         region = path.name[len(stem) + 1:-len(".gz")]
-        if region != "ram" and "." not in region:
+        if region not in ("ram", "state") and "." not in region:        # not a savestate kept beside it
             out[region] = _load(path)
     return out
 
