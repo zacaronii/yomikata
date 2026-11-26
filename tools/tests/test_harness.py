@@ -1702,3 +1702,20 @@ def test_steady_finds_what_goes_by_the_same_amount_from_snap_to_snap(session):
     assert [(p["address"], p["step"]) for p in found["places"]] == [(f"0x{BASE + 0x368:08X}", -15.0)]
     with pytest.raises(HarnessError):
         session.steady(names[:2])
+
+
+def test_find_says_when_what_it_found_is_the_middle_of_a_line(session):
+    """A search for words from inside a line finds them, and says how much text stands before and where it
+    begins: where a line was found isn't where its buffer starts."""
+    from yomikata.harness import search
+    line = "そらはあおく、うみはひろい。".encode("cp932")
+    session.machine.memory[0x400:0x400 + len(line) + 2] = b"\x07" + line + b"\x00"
+    start = BASE + 0x401
+    whole = session.find(text="そらはあおく")["found"]
+    assert whole["shift_jis"] == [f"0x{start:08X}"] and "mid_line" not in whole
+    inside = session.find(text="うみはひろい")["found"]
+    assert inside["shift_jis"] == [f"0x{start + 14:08X}"]
+    assert inside["mid_line"] == {f"0x{start + 14:08X}": {"characters_before": 7, "text_from": f"0x{start:08X}"}}
+    data = bytes(session.machine.memory)
+    assert search.text_before(data, 0x401) == 0 and search.text_before(data, 0x401 + 14) == 7
+    assert search.text_before(data, 0x401 + 14, "utf8") == 0

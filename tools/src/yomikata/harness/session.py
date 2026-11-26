@@ -670,6 +670,13 @@ class Session:
                 hits = search.places(ram, needle, MAX_HITS)
                 if hits:
                     found[kind] = [f"0x{base + at:08X}" for at in hits]
+                    # A hit with text standing right before it is the middle of a line: where the line
+                    # begins is said, so that it isn't taken for a buffer's start.
+                    before = {at: search.text_before(ram, at, kind) for at in hits[:16]}
+                    middle = {f"0x{base + at:08X}": {"characters_before": n, "text_from": f"0x{base + at - 2 * n:08X}"}
+                              for at, n in before.items() if n}
+                    if middle:
+                        found.setdefault("mid_line", {}).update(middle)
             for part, its in parts.items():
                 for kind, needle in its.items():
                     hits = search.places(ram, needle, 8)
