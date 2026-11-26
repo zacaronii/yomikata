@@ -699,6 +699,21 @@ in the host's order, and only once the game has run a frame) and the save memory
 at the console's addresses, 0x80000000 on and 0xA0000000 past the cache, big-endian (script-api.md). It
 needs the harness image with `libGL.so.1` (#170).
 
+**Its renderer.** The harness loads mupen64plus_next with `mupen64plus-rdp-plugin` set to `angrylion` unless `load`
+is given another: GLideN64, the core's own choice, draws with OpenGL and here (Mesa, no window) gives a black
+picture on many frames once a game has used the framebuffer for an effect, until the core is loaded again. On
+Doubutsu no Mori that began at its name keyboard (whose background GLideN64 drew garbled): 19 of 50 pages snapped
+from power-on had black pictures, though their memory was right; loaded from a state, every frame was drawn; with
+angrylion, which draws on the processor, none of the 54 was black. Copying each frame GLideN64 presents aside at
+once didn't help: the frames it presents are black. angrylion gives the picture at 640x240, and its timing is
+not GLideN64's, so a route's frames found with one aren't the other's.
+
+**Buttons.** On this core the N64's A is the pad's `b` (the pad's `a` isn't it), Start is `start`, and the stick
+is the pad's left stick (`stick` in `steps`); the other buttons weren't needed and aren't checked. A game's keyboard may be a dial rather than a grid: Doubutsu no Mori's
+name and village keyboards choose a row of kana with the stick, and the N64's A (`b`) puts the kana the stick
+points at; Start ends the name. Holding the stick up and pressing `b` gave a kana each time, which was enough to
+get past both.
+
 ### Does a core repeat itself?
 
 Everything found by replaying rests on the same steps reaching the same moment. `repeat` checks it: it does

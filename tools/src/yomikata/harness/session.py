@@ -29,6 +29,11 @@ NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "select", "up", "down", "left", "right")
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
+# Options a core is loaded with unless the call gives its own. mupen64plus_next draws with GLideN64 unless told
+# otherwise, and here (Mesa, no window) GLideN64 gives a black picture on many frames once a game has used the
+# framebuffer for an effect, until the core is loaded again (Doubutsu no Mori after its name keyboard: 19 of 50
+# pages). angrylion, its renderer on the processor, draws every frame. It gives the picture at 640x240.
+CORE_OPTIONS = {"mupen64plus_next_libretro.so": {"mupen64plus-rdp-plugin": "angrylion"}}
 MAX_POKE = 256                  # bytes in one write
 WARM_FRAMES = 30                # frames a core runs from power-on before `load` takes it to a state
 CHUNK = 30                      # frames run between two looks at the clock, when nothing is watched
@@ -418,6 +423,7 @@ class Session:
         self._close_reader()
         self.machine, self.snaps, self.pokes, self.first_snap = None, {}, 0, None
         platform = PLATFORM_ALIASES.get(platform, platform)         # ngc is the catalog's gc
+        options = {**CORE_OPTIONS.get(Path(core).name, {}), **(options or {})}
         self.machine = self.make_machine(core_path, self._unpacked(game_path), platform,
                                          self.roots.system or self.roots.scratch / "system",
                                          {str(k): str(v) for k, v in (options or {}).items()})
