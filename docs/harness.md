@@ -477,6 +477,28 @@ glyph enlarged eight times with a white margin. It agreed with two readings in t
 its own mistakes at thirteen pixels, but the list of disagreements, each read in a sentence, held the wrong
 readings: a reading it agrees with has been read two ways, and one it doesn't goes to the read-through.
 
+A font that lies in the cartridge as it is, with a code a glyph's number in it, is read whole and once, not a
+kanji at a time in play: `yomikata rom-font`. It costs no call of the harness (it reads the game's file):
+
+```sh
+yomikata rom-font game.zip --find snaps/a-line.png --box 50,118,140,136     # where, and in which form
+yomikata rom-font game.zip --at 0x1D312C --first 80 --count 256 --sheet /scratch/work/font/0080.png
+yomikata rom-font game.zip --at 0x1D312C --first 80 --count 1352 \
+    --read rows.txt --known games/gba/AGB-ASBJ.tbl --tbl new.tbl                # the rows read, held against play
+```
+
+`--find` cuts 8x8 pieces out of a picture of the game's text and looks for each in the cartridge as tiles of
+4 bits in any colour and as a bit a pixel; a font shows as pieces found once each, near each other. It gives
+the neighbourhood, not the start: draw a stretch as a sheet, and move `--at` until a known character stands
+whole and at its code (Gyakuten Saiban's glyphs begin 12 bytes off a tile's edge; a glyph drawn at every
+4-byte offset shows which is right). Then a sheet for every 256 codes, each read a row a line (`rows.txt`: the
+row's first code and its characters, `?` for one not read; a blank glyph takes no character). `--read` holds
+the rows against the table read in play: every code both have, how many agree, those that don't, and any
+character given to two glyphs. That is the check there is without a second reader: the same glyph read
+twice, once in a sentence and once alone. Gyakuten Saiban: 1,351 characters from six sheets, no harness
+calls; the 276 read in play all agree; the other 1,075 are read once. A font packed in the cartridge, or one
+whose codes aren't glyph numbers, wants its own way in (`yomikata font` from video memory, `glyphs`).
+
 The order of reading a font, then:
 
 1. your own reading of each glyph, off a sheet (`yomikata glyphs`, or the harness's `glyph_pairs` for a font

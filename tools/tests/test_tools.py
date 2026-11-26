@@ -507,3 +507,53 @@ def test_an_entrys_wii_controller_is_one_of_three(tmp_path):
         assert problems(fine) == [], fine
     for bad in ("Classic", "wiimote", "", 1, None, ["classic"]):
         assert any("wii_controller" in p for p in problems(bad)), bad
+
+
+def test_rom_font_finds_draws_and_reads_a_cartridges_font(tmp_path, capsys):
+    """A made-up cartridge with a font of 16x16 glyphs as four 4-bit tiles each: found from a picture of two of
+    its glyphs, drawn on a numbered sheet, and rows read off the sheet held against a table read in play."""
+    import numpy as np
+    from PIL import Image
+    from yomikata import cli, romfont
+    rng = np.random.default_rng(7)
+    shapes = (rng.random((40, 16, 16)) < 0.35).astype(np.uint8)
+    shapes[5] = 0                                                         # a blank glyph in the font
+    def packed(shape):                                                    # top left, top right, bottom left, bottom right
+        out = b""
+        for row, column in ((0, 0), (0, 1), (1, 0), (1, 1)):
+            tile = shape[8 * row:8 * row + 8, 8 * column:8 * column + 8] * 3
+            out += bytes(int(tile[r, k]) | int(tile[r, k + 1]) << 4 for r in range(8) for k in range(0, 8, 2))
+        return out
+    rom = bytes(rng.integers(0, 256, 0x1000, dtype=np.uint8)) + bytes(12) + b"".join(packed(s) for s in shapes) + bytes(64)
+    (tmp_path / "game.gba").write_bytes(rom)
+    assert romfont.size("tiles4") == 128 and romfont.size("rows1", 12, 10) == 20
+    glyphs = romfont.glyphs(rom, 0x100C, 0x80, 40)
+    assert all((glyphs[0x80 + n] == shapes[n]).all() for n in range(40)) and romfont.glyphs(rom, len(rom) - 100, 0, 3) == {}
+    assert (romfont.glyph(bytes([0b10100000, 0b01000000] * 2), "rows1", 12, 2)[0][:3] == [1, 0, 1]).all()
+    # Found from a picture: two glyphs side by side as the game would draw them, light on dark.
+    picture = np.zeros((24, 48, 3), dtype=np.uint8)
+    picture[4:20, 4:20][shapes[7] == 1] = 255
+    picture[4:20, 24:40][shapes[9] == 1] = 255
+    Image.fromarray(picture).save(tmp_path / "text.png")
+    assert cli.main(["rom-font", str(tmp_path / "game.gba"), "--find", str(tmp_path / "text.png")]) == 0
+    best = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert best["form"] == "tiles of 4 bits, colour 3" and 0x100C + 7 * 128 <= int(best["from"], 16) <= int(best["to"], 16) < 0x100C + 10 * 128
+    # A sheet and the glyphs for the second reader; then rows read off the sheet. The blank glyph takes no
+    # character in a row; ? is one not read; what was read in play is kept and held against the sheet.
+    assert cli.main(["rom-font", str(tmp_path / "game.gba"), "--at", "0x100C", "--first", "80", "--count", "40",
+                     "--sheet", str(tmp_path / "sheet.png"), "--json", str(tmp_path / "glyphs.json")]) == 0
+    assert Image.open(tmp_path / "sheet.png").size[0] > 16 * 16 * 3 and len(json.loads((tmp_path / "glyphs.json").read_text())) == 39
+    assert json.loads((tmp_path / "glyphs.json").read_text())["87"] == romfont.rows_hex(shapes[7])
+    (tmp_path / "rows.txt").write_text("# made up\n80 あいうえお かきく\n89 け?こ\n", encoding="utf-8")
+    (tmp_path / "play.tbl").write_text("8100=い\n8700=ぎ\n9900=ん\n", encoding="utf-8")
+    capsys.readouterr()
+    assert cli.main(["rom-font", str(tmp_path / "game.gba"), "--at", "0x100C", "--first", "80", "--count", "40",
+                     "--read", str(tmp_path / "rows.txt"), "--known", str(tmp_path / "play.tbl"), "--tbl", str(tmp_path / "new.tbl")]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert (out["read"], out["also read in play"], out["agreeing"]) == (10, 2, 1)
+    assert out["differ"] == [{"code": "87", "sheet": "き", "play": "ぎ"}]              # 85 is blank: か is 86, き 87
+    assert (tmp_path / "new.tbl").read_text(encoding="utf-8").splitlines()[:3] == ["8000=あ", "8200=う", "8300=え"]
+    assert "8B00=こ" in (tmp_path / "new.tbl").read_text(encoding="utf-8") and "8A00" not in (tmp_path / "new.tbl").read_text(encoding="utf-8")
+    with pytest.raises(ValueError, match="read twice"):
+        romfont.readings("80 あ\n80 い")
+    assert romfont.held({1: "あ", 2: "あ"}, {})["one character for two glyphs"] == {"あ": ["1", "2"]}

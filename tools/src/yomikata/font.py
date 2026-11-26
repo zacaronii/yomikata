@@ -70,9 +70,10 @@ def blank(glyph: np.ndarray) -> bool:
     return len(np.unique(glyph)) == 1
 
 
-def sheet(glyphs: dict[int, np.ndarray], columns: int = 16, scale: int = 4):
+def sheet(glyphs: dict[int, np.ndarray], columns: int = 16, scale: int = 4, background: int | None = None):
     """The glyphs in rows of `columns` with their codes in hex: the row's first code at the left, the last digit
-    above each column. The most common colour is white (the background), the others dark greys."""
+    above each column. The most common colour is white (the background), the others dark greys; or say which
+    value the background is, where glyphs that aren't a font (what lies past its end) would outvote it."""
     from PIL import Image, ImageDraw
     codes = sorted(glyphs)
     if not codes:
@@ -80,7 +81,7 @@ def sheet(glyphs: dict[int, np.ndarray], columns: int = 16, scale: int = 4):
     h, w = glyphs[codes[0]].shape
     top = max(int(g.max()) for g in glyphs.values()) or 1
     values, counts = np.unique(np.concatenate([g.ravel() for g in glyphs.values()]), return_counts=True)
-    background = int(values[np.argmax(counts)])
+    background = int(values[np.argmax(counts)]) if background is None else background
     cw, ch, left, gap = w * scale + 6, h * scale + 16, 56, 14
     place = {r: n for n, r in enumerate(sorted({c // columns for c in codes}))}     # rows with nothing in them
     rows = len(place)                                                              # (lower halves) take no room
