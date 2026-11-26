@@ -1,0 +1,49 @@
+# ドラゴンクエストI・II (Dragon Quest I & II, Game Boy Color, CGB-AEDJ): the signs and kanji of its text, by code as
+# the script has them (a byte, or 0xE5 and a byte for a kanji). Kana follow the order of the fifty sounds and are
+# not listed (the script has them). Each code here was read off this game's screens, the page's codes held against
+# its picture. Dragon Quest III's table (games/gbc/CGB-BD3J.tbl) gave the signs and a few kanji that held; its
+# kanji are numbered otherwise (0xE565 and 0xE584 there are other kanji here), so none is taken from it unseen.
+00=０
+01=１
+57=っ
+58=ゃ
+59=ゅ
+94=＊
+95=「
+97=？
+98=！
+99=…
+9A=。
+9C=ー
+E500=王
+E501=子
+E502=女
+E505=大
+E506=中
+E509=年
+E50A=月
+E50B=日
+E50E=入
+E518=世
+E520=申
+E52B=平
+E52C=和
+E52D=手
+E52F=来
+E531=出
+E532=光
+E538=々
+E543=伝
+E548=何
+E55B=代
+E565=供
+E56A=立
+E56E=玉
+E577=姫
+E57B=神
+E58E=治
+E59A=封
+E5A5=界
+E5B1=宝
+E5BA=性
+E5BB=攻
