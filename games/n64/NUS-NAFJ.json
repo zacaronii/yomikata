@@ -19,7 +19,10 @@
   "The harness alone, from the game's cartridge (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness",
   "The table: 100 codes, each read in play, the codes of a page beside what the screen showed; the kana's codes keep the order of the fifty sounds in stretches. Digits and signs are ASCII. No font was read",
   "Played from power-on through the opening on the stage, the train (with a telephone call) and the arrival at the station: the route replayed from power-on in one run with the script loaded",
-  "What the script said agreed with the rows read off 31 of 31 pictures, over 4 scenes; it said nothing on the 4 screens without text. 19 more pages were snapped, but their pictures came out black and weren't compared",
+  "What the script said agreed with the rows read off 50 of 50 pictures, over 4 scenes (the stage, the train, a telephone call, the station); it said nothing on the 4 screens without text",
+  "First measured with the core's own renderer (GLideN64): 31 of 31, 19 more pictures black. The core is now loaded with angrylion at thread sync High (harness.md), and the same route was measured again",
+  "In that measurement every picture was drawn. The rows were the script's pages, each held against its picture",
+  "88 harness calls in all: 63 to the first bar, 25 for finding the black pictures' cause and measuring again",
   "The same readings built the table, so the comparison checks pages and their order more than the characters"
  ],
  "notes": "Read by the script games/n64/NUS-NAFJ.lua: a speech bubble's page once it has typed out and waits (or puts a choice or the keyboard up, or ends the message). Not read: who speaks, a choice's answers and cursor, the name and letter screens. Codes not met in play come out as U+FFFD."
