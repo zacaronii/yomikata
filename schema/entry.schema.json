@@ -121,6 +121,10 @@
                                        "description": "The device model the step was found on (a product's name, nothing of its owner)."}}
       }
     },
+    "wii_controller": {
+      "description": "Which Wii controller the game is played with, for a player app that sets one up: the Wiimote with the Nunchuk (also right for Wiimote-only games), the Classic Controller, or the Wiimote held sideways.",
+      "enum": ["nunchuk", "classic", "sideways"]
+    },
     "sources": {"type": "array", "items": {"type": "string", "maxLength": 300}},
     "notes": {"type": "string", "maxLength": 600}
   },

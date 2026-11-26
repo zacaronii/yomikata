@@ -489,3 +489,21 @@ def test_an_entrys_tuning_is_a_step_for_each_core(tmp_path):
                 {"pcsx2": {"step": "fast", "measured_on": 3}}, {"pcsx2": {"step": "fast", "by": "someone"}},
                 {"PCSX2 core": {"step": "fast"}}, ["pcsx2"]):
         assert any("tuning" in p for p in problems(bad)), bad
+
+
+def test_an_entrys_wii_controller_is_one_of_three(tmp_path):
+    """`wii_controller`: the Wii controller a game is played with: nunchuk, classic or sideways, nothing else."""
+    root = tmp_path / "cat"
+    shutil.copytree(REPO / "schema", root / "schema")
+    (root / "games" / "wii").mkdir(parents=True)
+    (root / "tables").mkdir()
+    good = {"id": "RABCDE", "platform": "wii", "title": "テスト", "encoding": "unknown", "status": "auto"}
+    path = root / "games/wii/RABCDE.json"
+
+    def problems(controller):
+        path.write_text(json.dumps({**good, "wii_controller": controller}))
+        return [str(p) for p in catalog.validate(root)]
+    for fine in ("nunchuk", "classic", "sideways"):
+        assert problems(fine) == [], fine
+    for bad in ("Classic", "wiimote", "", 1, None, ["classic"]):
+        assert any("wii_controller" in p for p in problems(bad)), bad

@@ -56,10 +56,18 @@ or a CRC-32 of the header (cartridges). A client that finds no match should warn
 | `status` | `verified` (confirmed in play), `auto` (built by tools, passed validation), `partial` (known gaps) |
 | `coverage` | `{chars_in_table, chars_seen_in_script}` |
 | `tuning` | `{"<libretro core id>": {"step", "measured_on"?}}`: the step a player app should start this game at in that core (see Tuning) |
+| `wii_controller` | `"nunchuk"`, `"classic"` or `"sideways"`: the Wii controller the game is played with (see Wii controller) |
 | `sources` | Where it came from, with credit |
 | `notes` | Short; no script text |
 
 An entry that only says `"encoding": "shift_jis"` is still useful: readers can skip guessing.
+
+## Wii controller
+
+`wii_controller`, like `tuning`, has nothing to do with text. A Wii game is played with the Wiimote and Nunchuk
+(`"nunchuk"`, which also plays a game that wants the Wiimote alone), the Classic Controller (`"classic"`), or the
+Wiimote held sideways (`"sideways"`). A player app that maps a pad onto a Wii controller sets that one up for the
+game; without the field it takes `"nunchuk"`. Only Wii entries use it.
 
 ## Tuning
 
