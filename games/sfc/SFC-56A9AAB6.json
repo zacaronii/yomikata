@@ -1,0 +1,24 @@
+{
+  "id": "SFC-56A9AAB6",
+  "platform": "sfc",
+  "title": "真・女神転生",
+  "title_romaji": "Shin Megami Tensei",
+  "versions": [
+    {
+      "header_crc32": "56a9aab6"
+    }
+  ],
+  "encoding": "table",
+  "tables": [
+    "tables/sfc/SFC-56A9AAB6.tbl"
+  ],
+  "unit": 2,
+  "status": "partial",
+  "sources": [
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+    "The kana, digits and capitals by their order in the font, held against the screen; the few signs and small kana read in play. No kanji has come up: the opening is written in kana",
+    "Played from power-on: the dream (the gate, three namings, the pool) and the waking in the room, to the message on the computer",
+    "What the script said in play agreed with the lines read off 40 of 40 pictures of message windows, over 5 scenes; on 3 of them a question's first answer is shown and not said. Naming grids and status screens were left out as menus"
+  ],
+  "notes": "Read by the script games/sfc/SFC-56A9AAB6.lua. Text goes to the screen a row at a time through a list of writes the game keeps in work RAM, with voiced kana's marks as a second write one row above: the script says each row as it is written. A speaker's name is a row of its own. For its build it reads the cartridge's header in the first bank (LoROM), so it needs a host that gives that; whether the device's player does hasn't been checked. Menus, fights and the map aren't read as such, though their rows come out too."
+}
