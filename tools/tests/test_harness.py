@@ -1740,6 +1740,29 @@ def test_place_find_and_explore_by_whole_numbers(session):
     assert near["reached"] is True and near["places"] < out["places"] // 2     # it stopped once it was there
 
 
+def test_explore_goes_towards_the_place_it_is_asked_to_walk_to(session):
+    """An open field and a place 40 cells off: trying evenly outwards would know some thousands of places
+    before it got there, more than `most` allows; trying the nearest known place first gets there in a
+    few dozen, and round a wall that stands in the straight way."""
+    machine, plain = session.machine, session.machine._step
+    struct.pack_into(">2H", machine.memory, 0x300, 100, 100)
+
+    def walked(buttons, stick):
+        plain(buttons, stick)
+        x, y = struct.unpack_from(">2H", machine.memory, 0x300)
+        nx = x + ("right" in buttons) - ("left" in buttons)
+        ny = y + ("down" in buttons) - ("up" in buttons)
+        if not (nx == 120 and 90 <= ny <= 110) and 20 <= nx <= 200 and 20 <= ny <= 200:     # a wall across the way
+            struct.pack_into(">2H", machine.memory, 0x300, nx, ny)
+    machine._step = walked
+    cells = {"x_address": f"0x{BASE + 0x300:08X}", "y_address": f"0x{BASE + 0x302:08X}", "size": 2, "step": 1}
+    out = session.explore(**cells, most=400, to=[140, 100], near=0)
+    assert out["reached"] is True and (out["x"], out["y"]) == (140, 100)
+    assert out["places"] < 400 and out["pushes"] >= 40 + 2 * 11                # round the wall's end, not through it
+    struct.pack_into(">2H", machine.memory, 0x300, 100, 100)
+    assert session.explore(**cells, most=400)["places"] == 400                 # evenly, the field is more than that
+
+
 def test_press_at_presses_when_a_number_comes_to_a_value_and_tries_find_which(session):
     """A hand that goes round, and a mark from 120 to 150: a press with the hand over it scores, any other
     stops the hand. `tries` finds the mark by what the game does after each press; `at` then presses for good."""
