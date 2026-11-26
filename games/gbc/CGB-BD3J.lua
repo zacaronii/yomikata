@@ -21,7 +21,10 @@
 --   0xF7 and 0xFF the end of a message, 0xFA a wait, 0xF0 and 0xF1 a new row, 0xDB a space; 0xF9 n a name kept
 --   in work RAM (0x40 the hero's, 0x00 the true name given in the opening), 0xFC n; the signs and kanji by the table
 --
--- Not covered: who speaks, the yes/no box after a question (its words aren't in the text) and other menus,
+-- The yes/no box after a question is read off its tiles (lib/gbtiles.lua) through a dictionary of their pictures
+-- beside this script, with its cursor; it is at one place on the screen. Needs the host's `vram` for that.
+--
+-- Not covered: who speaks, other menus,
 -- fights, the names of companions (0xF9 with other numbers comes out as U+FFFD); a sign or kanji the table hasn't
 -- got comes out as U+FFFD. At one place's entrance the game types pages before any window shows: they are said.
 
@@ -42,11 +45,52 @@ if mem.read(0x0134, 16) ~= "GBDQ3\0\0\0\0\0\0BD3J\xC0" then
 end
 
 local tbl = require("lib.tbl")
+local glyphs = require("lib.glyphs")
+local gbtiles = require("lib.gbtiles")
 local source = reader.data("tbl")
 if not source then
     error("CGB-BD3J.tbl is missing: the game's table of characters", 0)
 end
 local characters = tbl.parse(source).chars
+local dictionary = glyphs.open(reader.data("glyphs"))
+
+-- The yes/no box after a question: its words aren't in the text, the game draws them from tiles of their own.
+-- A byte says it is up; it stands at one place of the tile map at 0x1C00, its answers on these rows, with the
+-- cursor (a picture the dictionary calls ▶) before the one it is on.
+local BOX_UP = 0xC219
+local BOX_MAP, BOX_ROWS, BOX_LEFT, BOX_RIGHT = 0x1C00, { 7, 8, 9 }, 27, 30
+local vram = mem.region("vram")
+
+--- The box's answers as text (a row each) and the cursor's answer from 0; nil when they can't be read.
+local function box()
+    if not vram then
+        return nil
+    end
+    local answers, cursor = {}, nil
+    for _, row in ipairs(BOX_ROWS) do
+        local cells = {}
+        for x = BOX_LEFT, BOX_RIGHT do
+            local picture, blank = gbtiles.cell(vram, BOX_MAP, x, row, true)
+            if not picture then
+                return nil
+            end
+            if not blank then
+                local character = dictionary:read(picture, 8, 8, 2)
+                if character == "▶" then
+                    cursor = #answers
+                else
+                    cells[#cells + 1] = character or "\u{FFFD}"
+                end
+            end
+        end
+        if #cells > 0 then
+            answers[#answers + 1] = table.concat(cells)
+        elseif cursor == #answers then
+            cursor = nil -- a cursor on a row of nothing isn't on an answer
+        end
+    end
+    return #answers > 0 and table.concat(answers, "\n") or nil, cursor
+end
 
 local function nth(list, n) -- the nth character (from 0) of a UTF-8 string, or nil
     local from = utf8.offset(list, n + 1)
@@ -110,14 +154,25 @@ local function decode(bytes)
     return shown
 end
 
-local before, stood, said, warned = nil, 0, nil, false
+local before, stood, said, warned, offered = nil, 0, nil, false, nil
 
 reader.on_state_loaded(function()
     reader.forget()
-    before, stood, said = nil, 0, nil
+    before, stood, said, offered = nil, 0, nil, nil
 end)
 
 reader.on_frame(function()
+    if mem.u8(BOX_UP) == 1 then
+        local answers, cursor = box()
+        if answers and answers ~= offered then
+            offered = answers
+            reader.emit{ text = answers, channel = "choice", id = text.hash("box" .. answers) }
+        end
+        reader.cursor(answers and cursor or nil)
+    elseif offered then
+        offered = nil
+        reader.cursor(nil)
+    end
     local bank, at = mem.u8(BANK), mem.u16(AT)
     if not bank or not at or at < 0x4000 or at > 0x7FFF or bank == 0 then
         return
