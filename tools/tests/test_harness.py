@@ -1761,3 +1761,39 @@ def test_a_cores_memory_map_is_read_with_its_select_and_disconnect():
     assert locate(hirom, 0xC00000) == (0, 0) and locate(hirom, 0xD0B355) == (0, 0x10B355)
     assert locate(hirom, 0xF00000) == (0, 0x100000)                       # 3 MB wraps past its end
     assert locate([{"start": 0x100, "len": 0x10}], 0x110) is None
+
+
+def test_advancing_finds_the_pointer_that_walks_while_a_line_types(session):
+    """A pointer that goes up a code or two a frame while a line types and stands afterwards; a frame counter
+    that never stands; a flag; a number that goes down. Only the first is given."""
+    machine, plain = session.machine, session.machine._step
+    state = {"at": 0xB355, "typed": 0}
+
+    def typing(buttons, stick):
+        plain(buttons, stick)
+        if state["typed"] < 9:
+            state["at"] += 2 if state["typed"] in (3, 6) else 1         # a kanji is two codes
+            state["typed"] += 1
+        struct.pack_into(">H", machine.memory, 0x380, 0x02E1 if state["typed"] == 5 and not state.get("been") else state["at"])
+        state["been"] = state.get("been") or state["typed"] == 5      # away for one frame, at a word kept elsewhere
+        struct.pack_into(">H", machine.memory, 0x384, 0x4000 - machine.frames)   # goes down
+        struct.pack_into(">H", machine.memory, 0x388, machine.frames & 1)        # a flag
+    machine._step = typing
+    names = []
+    for i in range(14):
+        session.run(1)
+        session.snap(f"ty-{i:02d}")
+        names.append(f"ty-{i:02d}")
+    span = [f"0x{BASE + 0x300:08X}", f"0x{BASE + 0x400:08X}"]
+    found = session.advancing(names[:9], rest=names[9:], within=span)
+    assert [(p["address"], p["from"], p["to"]) for p in found["places"]] == [(f"0x{BASE + 0x380:08X}", "0xB356", "0xB360")]
+    assert session.advancing(names[:9], within=span)["count"] == 1                    # without the rest: still only it
+    assert session.advancing(names[:9], rest=names[9:], most=1, within=span)["count"] == 0   # a step of two is too much
+    with pytest.raises(HarnessError):
+        session.advancing(names[:3])
+
+
+def test_find_says_what_to_try_when_a_text_is_nowhere(session):
+    out = session.find(text="どこにもないことば")
+    assert out["found"] == {} and "advancing" in out["not_found"] and "find_relative" in out["not_found"]
+    assert "not_found" not in session.find(text="こんにちは")

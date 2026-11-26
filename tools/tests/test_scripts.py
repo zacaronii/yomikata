@@ -1928,3 +1928,46 @@ def test_fate_stay_night_what_the_page_gains_is_said_once_it_stands():
     with rd.Reader(fate_memory(word=0), platform="ps2", game_id="SLPM-66513") as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps2/SLPM-66513.lua"))
+
+
+def live_a_live_memory(script: bytes, at: int, drawn: int = 0, cartridge: bool = True, check: bytes | None = None):
+    """What Live A Live's script looks at: the table the game writes into work RAM as it starts, the bank and
+    the place in the cartridge's script it has got to, the count of characters drawn, and the cartridge."""
+    table = check or bytes.fromhex("110129012f0135013b01500162017701")
+    low = bytearray(0x200)
+    low[0x1C3] = 0xD0
+    low[0x1C6:0x1C8] = struct.pack("<H", at)
+    low[0x1D0:0x1D2] = struct.pack("<H", drawn)
+    return sparse({0x7E0000: bytes(low), 0x7F7618: table, **({0xD0B000: script + bytes(64)} if cartridge else {})})
+
+
+def test_live_a_live_what_the_pointer_passed_in_the_cartridge_is_said_when_it_stands():
+    # Made-up script: a speech opened by 0x5B, kana by rule (hiragana from 0xB1, katakana 0x50 lower), a kanji
+    # of two bytes from the table and one that isn't in it, a new row, a wait; then a second text.
+    table = "# made up\n5B=「\n0F=。\n1F28=空\n".encode()
+    first = bytes([0x5B, 0xBF, 0xD7, 0xCA, 0x01, 0x20, 0x1F, 0x28, 0x1F, 0x29, 0x61, 0x62, 0x0F])   # 「そらは / 空?アイ。
+    second = bytes([0xB1, 0xB2, 0x41, 0x31, 0x02])                                                    # あいＡ１ and a wait
+    script = first + second
+    walk = [(0xB000, 0)] * 2 + [(0xB000 + i, i) for i in range(1, len(first) + 1)] + [(0xB000 + len(first), len(first))] * 5
+    walk += [(0xB000 + len(first) + i, i) for i in range(1, len(second) + 1)] + [(0xB000 + len(script), len(second))] * 5
+    with rd.Reader(live_a_live_memory(script, 0xB000), platform="sfc", game_id="SFC-A07624CD", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/sfc/SFC-A07624CD.lua"), "SFC-A07624CD.lua")
+        said = []
+        for frame, (at, drawn) in enumerate(walk, 1):
+            r.read = live_a_live_memory(script, at, drawn)
+            r.frame(frame)
+            said += [e["text"] for e in r.take("text")]
+        assert said == ["「そらは\n空�アイ。", "あいＡ１"]
+    # A host that gives work RAM only: the script loads, says why it reads nothing, and reads nothing.
+    with rd.Reader(live_a_live_memory(script, 0xB000, cartridge=False), platform="sfc", game_id="SFC-A07624CD", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/sfc/SFC-A07624CD.lua"), "SFC-A07624CD.lua")
+        events = []
+        for frame, (at, drawn) in enumerate(walk, 1):
+            r.read = live_a_live_memory(script, at, drawn, cartridge=False)
+            r.frame(frame)
+            events += r.take()
+        assert not [e for kind, e in events if kind == "text"]
+        assert any(kind == "log" and "no cartridge" in e["message"] for kind, e in events)
+    with rd.Reader(live_a_live_memory(script, 0xB000, check=bytes(16)), platform="sfc", game_id="SFC-A07624CD", data={"tbl": table}) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/sfc/SFC-A07624CD.lua"))

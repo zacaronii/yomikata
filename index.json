@@ -118,6 +118,13 @@
    "encoding": "unknown",
    "status": "auto"
   },
+  "SFC-A07624CD": {
+   "path": "games/sfc/SFC-A07624CD.json",
+   "sha256": "44e81011342b9ceef8773fdd4f676b18fa9cc51462ab4fb7a4e502cc0d332bb8",
+   "platform": "sfc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "SFC-F061BF93": {
    "path": "games/sfc/SFC-F061BF93.json",
    "sha256": "302faad6cd45241d1015ee25522c52f5c046b7174f33f0159a28a67e567f9339",
@@ -743,6 +750,24 @@
     "tbl": {
      "path": "games/ps1/SCPS-10088.tbl",
      "sha256": "9a1c5d1a4494476b3830dad58a462efc5bda762d7503fd17f07e9ae04eb6e67c"
+    }
+   }
+  },
+  "SFC-A07624CD": {
+   "path": "scripts/sfc/SFC-A07624CD.lua",
+   "sha256": "2585e97b0f00615cdca29cfed0a4c794078014811c67919c42852186675007a4",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "ライブ・ア・ライブ (Live A Live)",
+   "reads": "a message window's text as the game draws it, a text for each wait",
+   "builds": [
+    "a07624cd"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/sfc/SFC-A07624CD.tbl",
+     "sha256": "f9dba8521860901bb66e538846ee58b92e391218c4fc41f1d5f4d0b35778ddc9"
     }
    }
   },

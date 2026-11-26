@@ -55,6 +55,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in, or only those that point there in all and move (`moving`) |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
 | `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way; stops where the map changes, since the numbers start anew there. `near` for numbers finer than a step |
+| `advancing` | Whole numbers that only go up, a little a frame, over snaps taken while a line types, and stand afterwards: a pointer walking through a script, a count of characters drawn. For a game whose text no search finds |
 | `steady` | Numbers that go up or down by the same amount from each snap to the next: a hand going round, a bar filling, a timer. What `press_at` watches |
 | `press_at` | Presses a button when a number in memory comes to a value, several in turn: a press in time (a ring's hand over its mark, a bar that fills). With `tries`, lists of values are tried from this moment, the game put back after each, and what the game held afterwards is given for each |
 | `place_find` | Where a game of three dimensions keeps the character's place: floats that stand while the pad is let go, move with a push and come back with the push the other way, grouped three on end |
@@ -282,6 +283,20 @@ In the order to try them:
    at once. `refs … moving` found nothing there and wasn't needed, and `find`'s `mid_line` said "1
    character before" for every hit, a mark's last byte taken for text: it now wants two characters.
 
+19. A cartridge game may never copy its text into work RAM: it draws each character from the script in the
+   cartridge. Every search of memory then comes back empty, in any encoding and by any pattern, and `follows`
+   finds no place that holds the character being drawn. What there is, is a pointer: snap every frame while
+   a line types (`steps` with `every`), and ask `changed` for what takes a new value on each of those frames
+   and stands afterwards (a pattern of different letters, then the same letter). Live A Live's is 16 bits
+   at 0x7E01C6 with a count of characters beside it, and the bank a few bytes before; `read` at that
+   address in the cartridge (0xD0…) showed the line, and the script reads it there. The codes were then a
+   matter of a rule and a table: the font's kana stand in video memory in code order (`vram_picture`), a
+   debug copy of the script printed every code it had no character for, and the kanji were read off three
+   sheets of windows beside those codes. 77 kanji and a dozen signs took two sessions of sheets, 11 calls;
+   Ryuu ga Gotoku 2's 602 glyphs, each a picture to be hashed, had taken some 150 calls of its 540.
+   A script that reads the cartridge needs a host that gives it: it must say so and read nothing where
+   the read comes back empty, never fail.
+
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.
 
@@ -319,6 +334,16 @@ through its first two fights. What says "the menu is up" would make it exact, an
 
 Marks belong to what they were found on (a weapon, a level of the game): find them again when the game
 changes what it asks.
+
+### No text in memory at all
+
+When `find` gives nothing for a line just read off the screen it says so (`not_found`) with what to try.
+`find_relative` is next. If that is empty too, don't search further: the game may keep no line and draw from
+its cartridge or from a script it never copies. Snap every frame of one line's typing (`steps` with `wait`,
+`every`: 1 and `snap`), and ask `advancing` with those snaps and one or two from after as `rest`. It gives
+the whole numbers that only went up, a little a frame, and then stood. On Live A Live's fourteen snaps it
+gives two: the count of characters drawn, and beside it the 16-bit pointer into the cartridge's script, which was away for two of the snaps (a row of dots is kept elsewhere) and is
+found all the same. That is three calls where the search by hand had been about a hundred.
 
 ### Snaps on disk
 
