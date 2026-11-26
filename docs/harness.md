@@ -692,6 +692,13 @@ the counters that go up as a page types are the sprite list's, and its font was 
 the disc). yabasanshiro doesn't load in the tools image or the harness image: it wants `libGL.so.1`, which
 neither has.
 
+### N64
+
+mupen64plus_next describes no memory map; of the libretro memories it gives the RDRAM (8 MB, as 32-bit words
+in the host's order, and only once the game has run a frame) and the save memory. The harness reads the RDRAM
+at the console's addresses, 0x80000000 on and 0xA0000000 past the cache, big-endian (script-api.md). It
+needs the harness image with `libGL.so.1` (#170).
+
 ### Does a core repeat itself?
 
 Everything found by replaying rests on the same steps reaching the same moment. `repeat` checks it: it does

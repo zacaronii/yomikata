@@ -2343,3 +2343,39 @@ def test_identify_an_n64_cartridge_in_each_byte_order_and_zipped(tmp_path):
     (tmp_path / "b.z64").write_bytes(bytes(head))
     r = identify(tmp_path / "b.z64")
     assert r.id == f"N64-{zlib.crc32(bytes(head[:0x40])):08X}" and r.build == r.id + "-01"
+
+
+def test_an_n64_is_read_at_its_own_addresses_and_in_its_own_byte_order():
+    """mupen64plus_next gives the N64's RDRAM as 32-bit words in the host's order. Read here at 0x80000000 on
+    (and past the cache, 0xA0000000 on), big-endian; it is main memory; a write lands in its words."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine, BIG_ENDIAN
+    console = bytearray(0x1000)
+    console[0x300:0x320] = bytes.fromhex("00000001" "00000000" "b0000000" "00000000" "00000000" "00000000" "00400000" "00000000")
+    host = bytearray(len(console))
+    for k in range(4):
+        host[k::4] = console[3 - k::4]                                     # each word's bytes reversed
+    block = (C.c_char * len(host)).from_buffer(host)
+
+    class Lib:
+        def retro_get_memory_data(self, which):
+            return C.addressof(block) if which == 2 else None
+
+        def retro_get_memory_size(self, which):
+            return len(host) if which == 2 else 0
+
+    class Core:
+        maps, lib = [], Lib()
+
+        def video_ram(self):
+            return None
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core, machine.cartridge = "n64", Core(), b""
+    assert machine.read(0x80000308, 4) == bytes.fromhex("b0000000") == machine.read(0xA0000308, 4)
+    assert machine.read(0x80000318, 4) == bytes.fromhex("00400000") and machine.read(0x80000303, 3) == b"\x01\0\0"
+    assert machine.read(0x80000FFE, 8) == b"\0\0" and machine.read(0x00000300, 4) == b""
+    base, ram = machine.ram()
+    assert base == 0x80000000 and len(ram) == 0x1000 and ram[0x308] == 0xB0 and machine.regions() == {}
+    assert machine.write(0x80000302, b"AB") == 2 and machine.write(0x80000307, b"CD") == 2     # across two words
+    assert machine.read(0x80000300, 10) == b"\0\0AB\0\0\0C" + b"D\0" and "n64" in BIG_ENDIAN
+    assert host[0x300:0x304] == b"BA\0\0" and host[0x304:0x30C] == b"C\0\0\0\0\0\0D"
