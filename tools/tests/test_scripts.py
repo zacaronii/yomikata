@@ -1898,3 +1898,33 @@ def test_higurashi_matsuri_each_part_of_a_page_is_said_when_the_game_has_come_pa
     with rd.Reader(higurashi_memory(word=0), platform="ps2", game_id="SLPM-66620") as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/ps2/SLPM-66620.lua"))
+
+
+def fate_memory(page: str = "", word: int = 0x0C09342E):
+    """What Fate/stay night's script looks at: the build's words, and the page so far as one string."""
+    return sparse({0x00100060: struct.pack("<I", word), 0x001C6290: struct.pack("<I", 0x0C07170C),
+                   0x002BC7D8: page.encode("cp932") + bytes(64)})
+
+
+def test_fate_stay_night_what_the_page_gains_is_said_once_it_stands():
+    head = "%ch[ff,ff,ff,0,0,0]%s0.9%i0"
+    one = "%s0.818%n%s0.9" + head + "　そらは、あおい。"
+    two = one + "%s0.9%n" + head + "　うみは%nひろい。"                          # a press adds a line, of two rows
+    three = two + "%s0.9%n" + head + "「%l3,0ねこが%[鳴%:な%]く」"                # a dash, and a word with its reading
+    fresh = head + "　つぎのぺーじ。"                                            # a new page begins the string anew
+    typing = fresh + "%s0.9%n" + head + "　まだ"                                  # caught half written: not said
+    whole = typing + "つづく。"
+    moments = [""] + [one] * 4 + [two] * 4 + [three] * 4 + [fresh] * 4 + [typing] * 2 + [whole] * 4
+    with rd.Reader(fate_memory(), platform="ps2", game_id="SLPM-66513") as r:
+        r.load(bundle(ROOT / "games/ps2/SLPM-66513.lua"), "SLPM-66513.lua")
+        said = []
+        for frame, page in enumerate(moments, 1):
+            r.read = fate_memory(page)
+            r.frame(frame)
+            said += [(frame, e["text"], e.get("ruby") or []) for e in r.take("text")]
+        assert said == [(5, "　そらは、あおい。", []), (9, "　うみは\nひろい。", []),
+                        (13, "「―――ねこが鳴く」", [[7, 1, "な"]]), (17, "　つぎのぺーじ。", []),
+                        (23, "　まだつづく。", [])]
+    with rd.Reader(fate_memory(word=0), platform="ps2", game_id="SLPM-66513") as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps2/SLPM-66513.lua"))

@@ -1,0 +1,21 @@
+{
+  "id": "SLPM-66513",
+  "platform": "ps2",
+  "title": "Fate/stay night [Réalta Nua]",
+  "title_romaji": "Fate/stay night: Realta Nua",
+  "versions": [
+    {
+      "exe": "SLPM_665.13",
+      "exe_sha1": "c6a81a7b46be35637bb924fbb252e50973e55119",
+      "note": "A PS2 emulator names this build SLPM-66513-f6c5993b"
+    }
+  ],
+  "encoding": "shift_jis",
+  "status": "partial",
+  "sources": [
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+    "Played from power-on: the prologue's opening, 60 presses over three scenes",
+    "What the script said in play agreed with what each of 36 pictures had gained, over 3 scenes. 16 further screens were played and not read; no screen without text and no choice was among them; furigana were seen on one text"
+  ],
+  "notes": "Read by the script games/ps2/SLPM-66513.lua. What is on the page is kept as one Shift-JIS string made ready for drawing, with marks that begin with a percent sign (colour, size, indent, new row, a dash's length, a word with its reading). A press adds to its end and a new page begins it anew: the script says what the string gained once it stands still. The game shows no speaker's name. Choices, menus and the backlog aren't read."
+}
