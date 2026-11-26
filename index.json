@@ -29,6 +29,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "G8MJ01": {
+   "path": "games/gc/G8MJ01.json",
+   "sha256": "0a0b5ced378fa1085a750324ae1bea4e26c36a3558566f5faad6802ba3dab3db",
+   "platform": "gc",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "NPJH50127": {
    "path": "games/psp/NPJH50127.json",
    "sha256": "ff7013c8bf55a06aa5839dd104c81428aa594fab5ef722bd2ec1bae2761e07d0",

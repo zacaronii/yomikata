@@ -162,8 +162,33 @@ def _cart_name(path: Path) -> str:
     return path.name
 
 
+GC_MAGIC, WII_MAGIC = bytes.fromhex("c2339f3d"), bytes.fromhex("5d1c9ea3")
+
+
+def identify_nintendo_disc(head: bytes) -> Release | None:
+    """A GameCube or Wii disc by its header's first 0x80 bytes: the id (6 characters), the disc's version at 0x07,
+    the magic at 0x1C (GameCube) or 0x18 (Wii). The build is the id and the version as two hex digits
+    (G8MJ01-00); header_crc32 the CRC-32 of those 0x80 bytes. None when they aren't a disc header."""
+    if len(head) < 0x80:
+        return None
+    platform = "gc" if head[0x1C:0x20] == GC_MAGIC else "wii" if head[0x18:0x1C] == WII_MAGIC else None
+    code = head[:6].decode("ascii", "replace")
+    if not platform or not re.fullmatch(r"[A-Z0-9]{6}", code):
+        return None
+    return Release(platform, code, header_crc32=f"{zlib.crc32(head[:0x80]):08x}", build=f"{code}-{head[7]:02X}")
+
+
 def identify(path: Path, scratch: Path | None = None) -> Release:
     path = Path(path)
+    if path.suffix.lower() in (".rvz", ".wia", ".gcm", ".iso"):
+        with open(path, "rb") as f:
+            head = f.read(0xD8)
+        # A compressed image (RVZ, WIA) keeps a copy of the disc header's first 0x80 bytes at 0x58.
+        found = identify_nintendo_disc(head[0x58:0xD8] if head[:3] in (b"RVZ", b"WIA") else head[:0x80])
+        if found:
+            return found
+        if path.suffix.lower() in (".rvz", ".wia", ".gcm"):
+            raise DiscError("not a GameCube or Wii disc image")
     if path.suffix.lower() in (".chd", ".cue", ".bin", ".iso", ".img"):
         return identify_disc(path, scratch)
     if _cart_name(path).lower().endswith(SFC_SUFFIXES):
