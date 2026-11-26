@@ -55,6 +55,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `refs` | Words that point at an address or just past it, in the console's byte order; over several snaps, which moments each points there in, or only those that point there in all and move (`moving`) |
 | `cursor_find`, `cursor_to` | Where the game keeps a cursor the pad moves, found by moving it; and the cursor moved to a place in those numbers, a frame at a time until it is there |
 | `walk_to` | Walks a character on a map to a place in the game's own numbers, one way at a time, the other way round when something is in the way; stops where the map changes, since the numbers start anew there. `near` for numbers finer than a step |
+| `advancing` | Whole numbers that only go up, a little a frame, over snaps taken while a line types, and stand afterwards: a pointer walking through a script, a count of characters drawn. For a game whose text no search finds |
 | `steady` | Numbers that go up or down by the same amount from each snap to the next: a hand going round, a bar filling, a timer. What `press_at` watches |
 | `press_at` | Presses a button when a number in memory comes to a value, several in turn: a press in time (a ring's hand over its mark, a bar that fills). With `tries`, lists of values are tried from this moment, the game put back after each, and what the game held afterwards is given for each |
 | `place_find` | Where a game of three dimensions keeps the character's place: floats that stand while the pad is let go, move with a push and come back with the push the other way, grouped three on end |
@@ -319,6 +320,16 @@ through its first two fights. What says "the menu is up" would make it exact, an
 
 Marks belong to what they were found on (a weapon, a level of the game): find them again when the game
 changes what it asks.
+
+### No text in memory at all
+
+When `find` gives nothing for a line just read off the screen it says so (`not_found`) with what to try.
+`find_relative` is next. If that is empty too, don't search further: the game may keep no line and draw from
+its cartridge or from a script it never copies. Snap every frame of one line's typing (`steps` with `wait`,
+`every`: 1 and `snap`), and ask `advancing` with those snaps and one or two from after as `rest`. It gives
+the whole numbers that only went up, a little a frame, and then stood. On Live A Live's fourteen snaps it
+gives two: the count of characters drawn, and beside it the 16-bit pointer into the cartridge's script, which was away for two of the snaps (a row of dots is kept elsewhere) and is
+found all the same. That is three calls where the search by hand had been about a hundred.
 
 ### Snaps on disk
 

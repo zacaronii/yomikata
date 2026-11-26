@@ -683,6 +683,13 @@ class Session:
                     if hits and kind not in found:
                         found.setdefault("pieces", {}).setdefault(kind, {})[part] = [f"0x{base + at:08X}" for at in hits]
             out[name] = found
+        if text and not any(out.values()):
+            # Nothing anywhere: say what that usually means and what to try, so that it isn't searched for again.
+            return {"found": out[""] if not snaps else out,
+                    "not_found": "not in memory in these encodings. Next: find_relative (codes of the game's own). "
+                                 "If that finds nothing either, the game may keep no line at all and draw from "
+                                 "its cartridge or its script: snap each frame of a line's typing and ask "
+                                 "`advancing` for the pointer."}
         return {"found": out[""]} if not snaps else {"found": out}
 
     @tool("The stretches of memory that read as Japanese, longest first, with where each is and in which "
@@ -1522,6 +1529,51 @@ class Session:
             machine.load_state(start)
             machine.frames, self.route, self.reader = frames, json.loads(way), reader
         return {"tried": len(rows), "rows": rows, "frames": machine.frames}
+
+    @tool("Whole numbers that only ever go up over snaps taken a frame apart while a line types, by a little at "
+          "a time, and stand still in snaps taken after: a pointer walking through a script, a count of "
+          "characters drawn. For a game whose text no search finds: it may draw from its cartridge, or from "
+          "a script it never copies, and then such a pointer is all that says what is on screen. Read what "
+          "it points at (`read` with `mixed`, in the cartridge too) to see the line.",
+          snaps=("array", "snaps in order through the typing (`steps` with `every`: 1), six or more", True),
+          rest=("array", "snaps from after the typing, where it must hold what it held at the last of `snaps`", False),
+          unit=("integer", "bytes of the number: 2 (default), 1 or 4", False),
+          most=("integer", "the most it may go up from one snap to the next (default 4: a character is one "
+                           "or two codes, and a mark or two may come between)", False),
+          within=("array", "look only between two addresses, hex", False))
+    def advancing(self, snaps: list, rest: list | None = None, unit: int = 2, most: int = 4,
+                  within: list | None = None) -> dict:
+        import numpy as np
+        if unit not in (1, 2, 4) or len(snaps or ()) < 6:
+            raise HarnessError("six snaps or more; unit is 1, 2 or 4")
+        order = ">" if self.machine is not None and self.machine.platform in ("gc", "wii") else "<"
+        moments, base = [], 0
+        for _, base, ram in self._memories(list(snaps) + list(rest or ())):
+            moments.append(np.frombuffer(ram[:len(ram) // unit * unit], dtype=f"{order}u{unit}").astype(np.int64))
+        typing, after = moments[:len(snaps)], moments[len(snaps):]
+        most = max(1, int(most))
+        rose, away, last = (np.zeros(len(typing[0]), dtype=np.int64), np.zeros(len(typing[0]), dtype=np.int64),
+                            typing[0].copy())
+        for now in typing[1:]:
+            # A snap may catch the number away for a moment (the game reading a word kept elsewhere): a snap
+            # that isn't a small rise from the last good one is counted, and the walk goes on from there.
+            step = now - last
+            good = (step >= 0) & (step <= most)
+            rose += good & (step > 0)
+            away += ~good
+            last = np.where(good, now, last)
+        ok = (away <= max(1, len(typing) // 6)) & (typing[-1] == last)      # away a snap or two in a dozen, no more
+        ok &= rose >= (len(typing) - 1) // 2                # it moved on most frames: not a flag, not a clock's high part
+        for held in after:
+            ok &= held == typing[-1]
+        places = np.nonzero(ok)[0]
+        if within is not None:
+            low, high = (int(str(v), 16) for v in within)
+            places = places[(places * unit + base >= low) & (places * unit + base < high)]
+        places = sorted(places, key=lambda i: -int(rose[i]))[:MAX_HITS]
+        return {"count": len(places), "snaps": len(typing), "rest": len(after),
+                "places": [{"address": f"0x{base + int(i) * unit:08X}", "from": f"0x{int(typing[0][i]):0{2 * unit}X}",
+                            "to": f"0x{int(typing[-1][i]):0{2 * unit}X}", "moved_in": int(rose[i])} for i in places]}
 
     @tool("Numbers that go up or down by the same amount from each snap to the next, over snaps taken evenly "
           "apart: a hand going round, a bar filling, a timer. What press_at wants to watch. Read as 32-bit "
