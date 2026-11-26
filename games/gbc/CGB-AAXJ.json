@@ -1,0 +1,26 @@
+{
+ "id": "CGB-AAXJ",
+ "platform": "gbc",
+ "title": "ポケットモンスター 銀",
+ "title_romaji": "Pocket Monsters Gin",
+ "versions": [
+  {
+   "header_crc32": "dc152f29",
+   "note": "the Japanese Silver cartridge (POKEMON_SLVAAXJ, header checksum 0x27)"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/gbc/CGB-AAXJ.tbl"
+ ],
+ "unit": 1,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on mGBA (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridges and snaps were studied outside it",
+  "From its sister cartridge Pocket Monsters Kin (games/gbc/CGB-AAUJ.lua): the script and table whole but for the header check. This cartridge's font is Kin's byte for byte, found offline",
+  "Played by Kin's own moves from power-on, replayed here from the states that kept them: the opening's talk to the naming, the hero's mother at home, the professor's lab and a first wild fight (another wild one than Kin's there, played with the presses advance_through made)",
+  "What the script said agreed with the rows read off 53 of 53 pictures, over 4 scenes; 9 pages said inside a press have no picture. No screen without text was among them",
+  "The rows were the script's pages, each held against its picture; the window scrolls a row up between pages, so the comparison held each screen to the rows it gained (compare's scrolls)"
+ ],
+ "notes": "Read by the script games/gbc/CGB-AAXJ.lua, Kin's: the message window's two rows while its frame shows, when the page waits on its arrow or has stood half a second; and a page closed before that, when it closes. Not read: who speaks but where the game writes it into the text, menus and other boxes (a fight's commands, a choice), the screens before the story. Names chosen in play come out as typed."
+}
