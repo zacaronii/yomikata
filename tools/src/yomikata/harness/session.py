@@ -528,25 +528,30 @@ class Session:
     @tool("Presses a pattern of buttons over and over while a place in memory says the game is in some mode (a "
           "fight, a menu), to get through it: stops when the mode ends, when a watched place changes (the text's "
           "pointer: a story page has begun), at `most` presses, or when the call's time is up. When the picture "
-          "hasn't changed for `stuck` presses (a menu that takes no button), it presses `back` up to three times, "
-          "then stops and says so. Says the presses, why it stopped, and the mode's place's value.",
+          "hasn't changed for `stuck` presses (a menu that takes no button; a blinking cursor or arrow doesn't count "
+          "as a change), it presses `back` up to three times, then stops and says so. Says the presses, why it "
+          "stopped, and the mode's place's value.",
           address=("string", "the mode's place in memory, hex: pressing goes on while it holds `equals` (or, with "
                              "`differs`, while it doesn't hold that)", True),
           size=("integer", "its bytes: 1, 2 or 4 (default 1)", False),
           equals=("string", "the value while in the mode (0x… or decimal)", False),
           differs=("string", "or the value the mode ends at: pressing goes on while it differs", False),
-          buttons=("array", "the buttons of one press (default a)", False),
+          buttons=("array", "the buttons of one press (default a); or a list of presses, each a list of buttons, "
+                            "pressed in turn and again from the start ([[\"b\"], [\"up\"], [\"a\"]])", False),
+          first=("array", "presses made once before the others, as `buttons`' list form (to set a menu's cursor)", False),
           hold=("integer", "frames a press is held (default 6)", False),
           wait=("integer", "frames after a press (default 30)", False),
           watch=("string", "a place whose change stops it at once, hex (a text pointer)", False),
           watch_size=("integer", "its bytes: 1, 2, 3 or 4 (default 1)", False),
           most=("integer", f"presses at most (default 300, at most {MAX_FRAMES // 8})", False),
           stuck=("integer", "presses with no change in the picture that count as stuck (default 8; 0: no check)", False),
+          still_share=("number", "the share of the picture's pixels that may change in a press that still counts "
+                                 "as no change, against the picture a press back or two (default 0.01)", False),
           back=("array", "the buttons that back out of a stuck menu (default b)", False))
     def advance_through(self, address: str, size: int = 1, equals: str = "", differs: str = "",
                         buttons: list | None = None, hold: int = 6, wait: int = 30, watch: str = "",
-                        watch_size: int = 1, most: int = 300, stuck: int = 8, back: list | None = None) -> dict:
-        import hashlib
+                        watch_size: int = 1, most: int = 300, stuck: int = 8, back: list | None = None,
+                        first: list | None = None, still_share: float = 0.01) -> dict:
         import numpy as np
         machine = self._need()
         if size not in (1, 2, 4) or watch_size not in (1, 2, 3, 4):
@@ -555,7 +560,21 @@ class Session:
             raise HarnessError("give equals (the mode's value) or differs (the value it ends at), one of them")
         at = int(address, 16)
         want = int(str(equals or differs), 0)
-        held = self._buttons(buttons if buttons is not None else ["a"])
+        def presses_of(value, default):
+            """A list of presses (each a set of buttons) from one press's buttons or a list of presses."""
+            value = default if value is None else value
+            if not isinstance(value, list):
+                raise HarnessError("buttons and first are lists")
+            if value and all(isinstance(v, list) for v in value):
+                return [self._buttons(v) for v in value]
+            if any(isinstance(v, list) for v in value):
+                raise HarnessError("buttons is one press's buttons, or a list of presses: not both")
+            return [self._buttons(value)] if value else []
+        pattern = presses_of(buttons, ["a"])
+        if not pattern:
+            raise HarnessError("buttons: at least one press")
+        opening = presses_of(first, [])
+        share = max(0.0, float(still_share))
         backing = self._buttons(back if back is not None else ["b"])
         hold, wait = max(1, int(hold)), max(0, int(wait))
         most = max(1, min(int(most), MAX_FRAMES // 8))
@@ -572,7 +591,15 @@ class Session:
 
         def picture():
             frame = machine.picture()
-            return None if frame is None else hashlib.sha1(np.ascontiguousarray(frame).tobytes()).digest()
+            return None if frame is None else np.array(frame, copy=True)
+
+        def same(a, b) -> bool:
+            """Whether two pictures differ in no more than `share` of their pixels (a cursor blinking doesn't
+            make a menu move)."""
+            if a is None or b is None or a.shape != b.shape:
+                return False
+            changed = (a != b).any(axis=-1) if a.ndim == 3 else (a != b)
+            return float(changed.mean()) <= share
 
         def press(keys) -> str | None:
             _, why = self._advance(hold, keys, (0.0, 0.0), events)
@@ -581,8 +608,17 @@ class Session:
             _, why = self._advance(wait, set(), (0.0, 0.0), events)
             return why
 
-        first, presses, backs, still, last = seen(), 0, 0, 0, picture()
         stopped = None
+        for keys in opening:                      # once, before the rest: set a cursor, back out of a list
+            if not mode():
+                stopped = "mode ended"
+                break
+            why = press(keys)
+            if why:
+                stopped = why
+                break
+        first, presses, backs, still = seen(), 0, 0, 0
+        last = earlier = picture()
         while stopped is None:
             if not mode():
                 stopped = "mode ended"
@@ -590,7 +626,7 @@ class Session:
             if presses >= most:
                 stopped = "most"
                 break
-            why = press(held)
+            why = press(pattern[presses % len(pattern)])
             presses += 1
             if why:
                 stopped = why
@@ -599,8 +635,9 @@ class Session:
                 stopped = "watched changed"
                 break
             now = picture()
-            still = still + 1 if now is not None and now == last else 0
-            last = now
+            # Still: the same as a press back, or as two back (a two-phase blink comes round again).
+            still = still + 1 if same(now, last) or same(now, earlier) else 0
+            earlier, last = last, now
             if stuck and still >= stuck:
                 if backs >= 3:
                     stopped = "stuck"

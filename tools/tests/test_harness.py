@@ -815,6 +815,60 @@ def test_advance_through_presses_through_a_fight_and_backs_out_of_a_stuck_menu(t
         s.advance_through(flag)
     s.close()
 
+
+class CursorBattles(Battles):
+    """Battles with a command cursor (0x52: 0 to fight, 1 the items): a fights only from the first command, and
+    from the second opens an empty list (0x51) whose cursor blinks, 4 pixels of 3072 every 8 frames; b closes
+    it; up moves the command cursor, round from the top to the bottom."""
+    hits = 4
+
+    def run(self, frames, buttons, stick):
+        new = set(buttons) - self.was
+        m = self.memory
+        if "up" in new and not m[0x51]:
+            m[0x52] = (m[0x52] - 1) % 2
+        if "a" in new and not m[0x51] and m[0x52] == 1 and m[0x50]:
+            m[0x51] = 1                                                 # the empty list: a does nothing in it
+            self.was = set(buttons)
+            FakeMachine.run(self, frames, buttons, stick)
+            return
+        super().run(frames, buttons, stick)
+
+    def picture(self):
+        frame = super().picture()
+        if self.memory[0x51] and (self.frames // 8) % 2:
+            frame[10:12, 10:12, 2] = 255                               # the list's cursor, blinking
+        return frame
+
+
+def test_advance_through_takes_a_blinking_cursor_for_still_and_presses_a_sequence(tmp_path):
+    """A list whose cursor blinks is still all the same (a two-phase blink, few pixels): it is backed out of, and
+    with `back` that can't close it, reported stuck. A `first` sequence sets the command cursor, after which a
+    fights; `buttons` as a list of presses goes round in turn."""
+    for name in ("games/sfc", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/sfc/Made Up (Japan).sfc").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), CursorBattles)
+    s.load("sfc/Made Up (Japan).sfc", "fake_libretro.so", "sfc")
+    flag = f"0x{BASE + 0x50:X}"
+    m = s.machine.memory
+    m[0x52] = 1                                                         # the cursor left on the items
+    out = s.advance_through(flag, equals="1", wait=12, stuck=3, back=["x"], most=40)
+    assert out["stopped"] == "stuck" and out["backs"] == 3, out          # blinking, and x can't close it
+    m[0x51], m[0x52], s.machine.presses = 0, 1, 0
+    out = s.advance_through(flag, equals="1", wait=12, stuck=3, most=40)
+    assert out["stopped"] == "stuck" and out["backs"] == 3, out          # b closes it, a opens it again: a loop
+    m[0x51], m[0x52], s.machine.presses = 0, 1, 0
+    out = s.advance_through(flag, equals="1", wait=12, first=[["up"]], stuck=3)
+    assert (out["stopped"], out["presses"], out["backs"]) == ("mode ended", 4, 0), out
+    m[0x50], m[0x52], s.machine.presses = 1, 1, 0                     # a list of presses: b, up, a, a, ...
+    out = s.advance_through(flag, equals="1", wait=12, buttons=[["b"], ["up"], ["a"], ["a"], ["a"], ["a"]], stuck=0)
+    assert out["stopped"] == "mode ended" and out["presses"] == 6, out
+    with pytest.raises(HarnessError, match="not both"):
+        s.advance_through(flag, equals="1", buttons=["a", ["b"]])
+    s.close()
+
 def test_a_cores_end_unloads_the_game_then_ends_the_core_once():
     from yomikata.replay.libretro import Core
     did = []
