@@ -2405,3 +2405,54 @@ def test_mupen64plus_is_loaded_with_its_renderer_on_the_processor_unless_told_ot
         assert seen[-1] == wanted and s.loaded[3] == wanted
         s.close()
     assert CORE_OPTIONS["mupen64plus_next_libretro.so"] == both
+
+
+class Walker(FakeMachine):
+    """A character on the ground at x, z (big-endian floats at 0x1000 and 0x1008 past BASE): the stick moves it
+    through a camera turned by `angle`, which turns a little each frame the character walks; x stops at `wall`."""
+    angle, turn, speed, wall = 0.6, 0.002, 3.0, None
+
+    def __init__(self, *a):
+        super().__init__(*a)
+        self.x, self.z = 100.0, -50.0
+        self.memory.extend(bytes(0x2000))
+
+    def run(self, frames, buttons, stick):
+        import math
+        for _ in range(frames):
+            sx, sy = stick
+            if sx or sy:
+                c, s = math.cos(self.angle), math.sin(self.angle)
+                self.x += self.speed * (c * sx - s * sy)
+                self.z += self.speed * (s * sx + c * sy)
+                if self.wall is not None:
+                    self.x = min(self.x, self.wall)
+                self.angle += self.turn
+        super().run(frames, buttons, stick)
+        struct.pack_into(">ff", self.memory, 0x1000, self.x, 0.0)
+        struct.pack_into(">f", self.memory, 0x1008, self.z)
+
+
+def test_walk_3d_learns_the_camera_follows_it_turning_and_stops_at_a_wall(tmp_path):
+    """walk_3d learns which way the stick moves the place (the camera turned), steers there, follows the camera
+    as it turns, and stops, saying so, when a push no longer brings it nearer."""
+    for name in ("games/wii", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/wii/Made Up (Japan).iso").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), Walker)
+    s.load("wii/Made Up (Japan).iso", "fake_libretro.so", "wii")
+    xa, za = f"0x{BASE + 0x1000:X}", f"0x{BASE + 0x1008:X}"
+    s.machine.run(1, set(), (0.0, 0.0))
+    assert s.walk_3d(xa, za)["at"] == [100.0, -50.0]
+    out = s.walk_3d(xa, za, x=400.0, z=250.0)
+    assert out["reached"] and abs(s.machine.x - 400) <= 12 and abs(s.machine.z - 250) <= 12, out
+    assert s.machine.angle > 0.7                                          # the camera turned on the way
+    s.machine.wall = 450.0
+    out = s.walk_3d(xa, za, x=900.0, z=250.0)
+    assert not out["reached"] and "nearer" in out["stopped"] and s.machine.x == 450.0, out
+    with pytest.raises(HarnessError):
+        s.walk_3d("0xZZ", za, x=1.0, z=1.0)
+    still = s.walk_3d(f"0x{BASE + 0x1004:X}", za, x=1.0, z=1.0)           # the height: a push moves only z
+    assert not still["reached"] and "one line" in still["stopped"], still
+    s.close()
