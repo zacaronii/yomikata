@@ -862,24 +862,50 @@ class Session:
                 **({"memory_writes": self.pokes} if self.pokes else {})}
 
     @tool("Says what a snap's screen showed, once you have read it off its picture: the lines, or that there is "
-          "no text. `compare` holds what a script reads against these.",
-          name=("string", "the snap's name", True),
+          "no text. `compare` holds what a script reads against these. For a route's screens, give them all "
+          "at once with `screens`: one call for a sheet's worth or a whole route, where it was one a screen.",
+          name=("string", "the snap's name", False),
           ocr=("array", "the lines on screen", False),
-          no_text=("boolean", "true when the screen shows no text", False))
-    def snap_lines(self, name: str, ocr: list | None = None, no_text: bool = False) -> dict:
-        path = self.roots.inside("scratch", f"snaps/{self._name(name)}.json")
-        if not path.is_file():
+          no_text=("boolean", "true when the screen shows no text", False),
+          screens=("object", "or many snaps at once: each snap's name to its lines (a list), or to false or "
+                             "an empty list for a screen that shows no text. Nothing is written unless "
+                             "every one of them is a snap", False))
+    def snap_lines(self, name: str = "", ocr: list | None = None, no_text: bool = False,
+                   screens: dict | None = None) -> dict:
+        if screens is not None:
+            if name or ocr or no_text or not isinstance(screens, dict) or not screens:
+                raise HarnessError("give screens alone: a snap's name to its lines, or to false for no text")
+            wanted = {}
+            for snap, lines in screens.items():
+                if lines is not False and not isinstance(lines, list):
+                    raise HarnessError(f"{snap}: its lines as a list, or false for a screen without text")
+                path = self.roots.inside("scratch", f"snaps/{self._name(snap)}.json")
+                if not path.is_file():
+                    raise HarnessError(f"no snap called {snap}")
+                wanted[snap] = (path, [str(line) for line in lines or []])
+            for path, lines in wanted.values():
+                self._lines(path, lines)
+            return {"snaps": len(wanted), "with_text": sum(1 for _, lines in wanted.values() if lines),
+                    "no_text": sum(1 for _, lines in wanted.values() if not lines)}
+        path = self.roots.inside("scratch", f"snaps/{self._name(name)}.json") if name else None
+        if path is None or not path.is_file():
             raise HarnessError(f"no snap called {name}")
         if bool(ocr) == bool(no_text):
             raise HarnessError("give the lines, or no_text: true")
+        lines = [str(line) for line in ocr or []]
+        self._lines(path, lines)
+        return {"snap": name, "lines": len(lines), "no_text": bool(no_text)}
+
+    @staticmethod
+    def _lines(path: Path, lines: list[str]) -> None:
+        """What a snap's screen showed goes into the file beside it: its lines, or that it has none."""
         meta = json.loads(path.read_text(encoding="utf-8"))
         for key in ("ocr_unavailable", "no_text"):
             meta.pop(key, None)
-        meta["ocr"] = [str(line) for line in ocr or []]
-        if no_text:
+        meta["ocr"] = lines
+        if not lines:
             meta["no_text"] = True
         path.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
-        return {"snap": name, "lines": len(meta["ocr"]), "no_text": bool(no_text)}
 
     @tool("The pictures of several snaps as one sheet, each under its name: many moments for one look.",
           snaps=("array", "snaps' names, in this session or written to scratch before", True),

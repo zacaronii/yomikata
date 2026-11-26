@@ -1720,3 +1720,25 @@ def test_find_says_when_what_it_found_is_the_middle_of_a_line(session):
     assert search.text_before(data, 0x401) == 0 and search.text_before(data, 0x401 + 14) == 7
     assert search.text_before(data, 0x401 + 14, "utf8") == 0
     assert "mid_line" not in session.find(text="らはあおく")["found"]       # one character before: it may be a mark's last byte
+
+
+def test_snap_lines_takes_a_routes_screens_in_one_call(session, tmp_path):
+    """`screens`: each snap's name to its lines, or to false (or no lines) for a screen without text. One call
+    writes them all, as a call for each would; a name that is no snap, and nothing is written."""
+    for name in ("r-0", "r-1", "r-2"):
+        session.run(3)
+        session.snap(name)
+    meta = lambda name: json.loads((tmp_path / f"scratch/snaps/{name}.json").read_text(encoding="utf-8"))      # noqa: E731
+    out = session.snap_lines(screens={"r-0": ["こんにちは", "さようなら"], "r-1": False, "r-2": []})
+    assert out == {"snaps": 3, "with_text": 1, "no_text": 2}
+    assert meta("r-0")["ocr"] == ["こんにちは", "さようなら"] and "no_text" not in meta("r-0")
+    assert meta("r-1")["no_text"] is True and meta("r-1")["ocr"] == [] and meta("r-2")["no_text"] is True
+    one = session.snap_lines("r-1", ocr=["またあした"])                       # the old way gives the same file
+    assert one == {"snap": "r-1", "lines": 1, "no_text": False} and "no_text" not in meta("r-1")
+    with pytest.raises(HarnessError, match="no snap called nowhere"):
+        session.snap_lines(screens={"r-0": ["べつの"], "nowhere": ["x"]})
+    assert meta("r-0")["ocr"] == ["こんにちは", "さようなら"]                   # nothing of that call was written
+    for bad in ({"screens": {}}, {"screens": {"r-0": "こんにちは"}}, {"screens": {"r-0": ["x"]}, "name": "r-0"},
+                {"screens": {"r-0": ["x"]}, "no_text": True}, {}):
+        with pytest.raises(HarnessError):
+            session.snap_lines(**bad)
