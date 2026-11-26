@@ -133,6 +133,14 @@ def test_a_cartridge_core_gets_the_file(tmp_path):
         core.lib = FakeLib(need_fullpath)
         core.load_game(game)
         assert core.lib.got == want
+    # A core that won't load says why when its OpenGL context couldn't be made (Dolphin without Mesa's EGL).
+    class Refusing(FakeLib):
+        def retro_load_game(self, info):
+            return False
+    core = Core.__new__(Core)
+    core.lib, core.gl_error = Refusing(True), "EGL has no display to offer"
+    with pytest.raises(RuntimeError, match="couldn't load .*asked for OpenGL, and EGL has no display"):
+        core.load_game(game)
 
 
 def test_a_snap_keeps_video_memory_when_the_core_gives_it(tmp_path):

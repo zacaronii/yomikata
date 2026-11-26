@@ -230,7 +230,8 @@ class Core:
             self._game = C.create_string_buffer(path.read_bytes())      # kept: a core may go on reading it
             info.data, info.size = C.cast(self._game, C.c_void_p), len(self._game) - 1
         if not self.lib.retro_load_game(C.byref(info)):
-            raise RuntimeError(f"the core couldn't load {path}")
+            why = getattr(self, "gl_error", None)       # a core that draws with the card and was given no context
+            raise RuntimeError(f"the core couldn't load {path}" + (f": it asked for OpenGL, and {why}" if why else ""))
         av = SystemAvInfo()
         self.lib.retro_get_system_av_info(C.byref(av))
         self.fps = av.fps
