@@ -2118,3 +2118,36 @@ def test_identify_a_game_boy_cartridge(tmp_path):
     assert (a.platform, a.id) == ("gbc", "CGB-ABCJ")
     assert a.header_crc32 == f"{zlib.crc32(cart(True, b'ABCJ', 0x33)[0x100:0x150]):08x}"
     assert (b.platform, b.id) == ("gb", f"GB-{b.header_crc32.upper()}")
+
+
+def test_a_pc_engine_cd_is_read_from_its_data_track_and_named_by_its_boot_block(tmp_path):
+    """A PC Engine CD keeps an audio track first, all tracks in one file: the data track is read from the cue's
+    INDEX 01 on, and the disc is named by its boot block (the data track's second sector) when it has no file
+    system. Its main memory in the harness is the card's RAM and the CD's, one after the other."""
+    import zlib
+    from yomikata.disc import open_data_track
+    from yomikata.identify import identify
+    from yomikata.harness.machine import Machine
+    sync = b"\x00" + b"\xff" * 10 + b"\x00"
+    audio = bytes(2352 * 150)
+    boot = bytearray(2048)
+    boot[0x20:0x20 + 24] = b"PC Engine CD-ROM SYSTEM\x00"
+    data = [b"\x82\xa0" * 1024, bytes(boot), bytes(2048)]
+    track = b"".join(sync + bytes([0, 2, n, 1]) + sector + bytes(288) for n, sector in enumerate(data))
+    (tmp_path / "disc.bin").write_bytes(audio + track)
+    (tmp_path / "disc.cue").write_text('FILE "disc.bin" BINARY\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n'
+                                       '  TRACK 02 MODE1/2352\n    INDEX 00 00:01:00\n    INDEX 01 00:02:00\n')
+    with open_data_track(tmp_path / "disc.cue") as img:
+        assert img.sector(0) == data[0] and img.sector(1) == bytes(boot)
+    release = identify(tmp_path / "disc.cue")
+    assert (release.platform, release.header_crc32) == ("pce-cd", f"{zlib.crc32(bytes(boot)):08x}")
+    assert release.id == f"PCECD-{release.header_crc32.upper()}"
+    import ctypes as C
+    card, cd = (C.c_char * 0x30000)(*([7] * 0x30000)), (C.c_char * 0x10000)(*([9] * 0x10000))
+    class Core:
+        maps = [(0x1F0000, 0x2000, C.addressof((C.c_char * 0x2000)())), (0xD0000, 0x30000, C.addressof(card)),
+                (0x100000, 0x10000, C.addressof(cd))]
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core = "pce-cd", Core()
+    base, ram = machine.ram()
+    assert base == 0xD0000 and len(ram) == 0x40000 and ram[0x2FFFF] == 7 and ram[0x30000] == 9

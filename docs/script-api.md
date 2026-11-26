@@ -304,6 +304,7 @@ bytes as they lie in memory.
 | `gba` | `0x02000000`, 256 KB, and `0x03000000`, 32 KB | |
 | `sfc` | `0x7E0000`, 128 KB | And the cartridge, where the core maps it (below) |
 | `gb`, `gbc` | `0xC000`, 8 KB | And the cartridge, whole, at `0x01000000` on (below) |
+| `pce-cd` | `0xD0000`, 256 KB: the Super System Card's RAM, then the CD's own (from `0x100000`) | The console's 8 KB at `0x1F0000` too (the region `ram` in a snap). Not `0x0E0000`-`0x0EFFFF`: below |
 
 **A Super Famicom cartridge.** Some games never copy their text into work RAM and draw it straight from the
 cartridge, so a script may read the cartridge at the addresses the game itself uses:
@@ -316,6 +317,12 @@ cartridge, so a script may read the cartridge at the addresses the game itself u
   reads nothing. It must not fail: a host may give work RAM alone.
 
 `games/sfc/SFC-A07624CD.lua` is the first to do this.
+
+**A PC Engine CD's card RAM.** Beetle PCE's map gives the Super System Card's 192 KB with the select bits
+`0xFFFD0000`, which by the libretro rule match `0x0D0000`-`0x0DFFFF` and `0x0F0000`-`0x0FFFFF` (its first and third
+64 KB, each at its own place) and not `0x0E0000`-`0x0EFFFF`: a script reading there gets nothing, in the harness
+as on a host that follows the map. A snap's main memory and the searches over it have all 256 KB, the middle
+64 KB too (the harness reads the card's RAM whole for them): what is found there can't be read by a script yet.
 
 **A Game Boy cartridge.** A core shows a script only the two banks the game has switched in, and by the time a
 line stands the game may have switched to others. The harness gives the cartridge's file whole at `0x01000000`

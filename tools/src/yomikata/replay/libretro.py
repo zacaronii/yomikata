@@ -16,6 +16,10 @@ ENV_GET_OVERSCAN, ENV_GET_CAN_DUPE, ENV_SET_PIXEL_FORMAT = 2, 3, 10
 ENV_GET_SYSTEM_DIRECTORY, ENV_GET_VARIABLE, ENV_GET_VARIABLE_UPDATE = 9, 15, 17
 ENV_GET_SAVE_DIRECTORY = 31
 ENV_SET_VARIABLES = 16
+ENV_GET_LOG_INTERFACE = 27
+# A core's log function: printf-like, (level, format, ...). The arguments after the format aren't read: the
+# format alone is kept, which says what the core was doing.
+LOG_CB = C.CFUNCTYPE(None, C.c_int, C.c_char_p)
 ENV_SET_HW_RENDER, ENV_SET_MEMORY_MAPS, ENV_GET_PREFERRED_HW_RENDER = 14, 36, 56
 HW_OPENGL, HW_OPENGL_CORE = 1, 3
 HW_FRAME = C.c_void_p(-1).value                 # the frame is in the framebuffer, not in memory
@@ -117,8 +121,11 @@ class Core:
         self.frame: tuple[bytes, int, int, int] | None = None
         self.pixel_format = 0
         self.fps = 60.0
+        self.log: list[str] = []                             # what the core has logged (formats only), the last 200
+        self._defaults: dict[bytes, bytes] = {}             # each option's default, as the core declared it
         self._cbs = [ENV_CB(self._env), VIDEO_CB(self._video), AUDIO_CB(lambda l, r: None),
-                     AUDIO_BATCH_CB(lambda d, n: n), POLL_CB(lambda: None), STATE_CB(self._input)]
+                     AUDIO_BATCH_CB(lambda d, n: n), POLL_CB(lambda: None), STATE_CB(self._input),
+                     LOG_CB(self._log)]
         L = self.lib
         L.retro_set_environment(self._cbs[0])
         L.retro_set_video_refresh(self._cbs[1])
@@ -150,14 +157,22 @@ class Core:
             var, i = C.cast(data, C.POINTER(Variable)), 0
             while var[i].key:
                 self.variables[var[i].key.decode(errors="replace")] = (var[i].value or b"").decode(errors="replace")
+                # "What it is; first|second|...": the first value is the default, as a frontend takes it.
+                self._defaults[var[i].key] = (var[i].value or b"").split(b";", 1)[-1].strip().split(b"|")[0]
                 i += 1
             return True
         if cmd == ENV_GET_VARIABLE:
+            # An option not given is answered with the core's own default: some cores (mednafen's) don't
+            # check that an answer came, and crash without one.
             var = C.cast(data, C.POINTER(Variable))
-            val = self.options.get(var[0].key)
+            val = self.options.get(var[0].key, self._defaults.get(var[0].key))
             if val is None:
                 return False
             var[0].value = val
+            return True
+        if cmd == ENV_GET_LOG_INTERFACE:
+            # A log function to call: some cores call it without checking they were given one.
+            C.cast(data, C.POINTER(C.c_void_p))[0] = C.cast(self._cbs[6], C.c_void_p).value
             return True
         if cmd == ENV_GET_VARIABLE_UPDATE:
             C.cast(data, C.POINTER(C.c_bool))[0] = False
@@ -178,6 +193,9 @@ class Core:
                                 for d in (m.descriptors[i] for i in range(m.num)) if d.ptr and d.len]
             return True
         return False
+
+    def _log(self, level, fmt):
+        self.log = (self.log + [(fmt or b"").decode(errors="replace").strip()])[-200:]
 
     def _hw_render(self, asked) -> bool:
         """A core asks for a context to draw with: OpenGL is given where there is a driver, nothing else."""

@@ -13,7 +13,11 @@ RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 # by its start, and others worth having beside it, as regions. mGBA gives the 32 KB in the CPU as system RAM;
 # a Game Boy Advance game's data is in the 256 KB on the board (as a snapshot of one has it, inbox.py).
 MAIN_STRETCH = {"gba": 0x02000000}
-OTHER_STRETCHES = {"gba": {"iwram": 0x03000000}}
+OTHER_STRETCHES = {"gba": {"iwram": 0x03000000}, "pce-cd": {"ram": 0x1F0000}}
+# Main memory made of stretches that follow one another: a PC Engine CD's Super System Card RAM (192 KB at
+# 0xD0000) runs on into the CD's own RAM (64 KB at 0x100000), where a CD game keeps what it loads. Read whole
+# here; a script reads through the core's map, which leaves out the card's middle 64 KB (docs/script-api.md).
+JOINED = {"pce-cd": (0xD0000, 0x100000)}
 # A Game Boy's cartridge, whole: a core shows only the two banks switched in now, and a game that draws its text
 # straight from the cartridge has switched to others by the time a line stands. The file is given to scripts
 # at this address on, byte for byte (docs/script-api.md).
@@ -53,6 +57,9 @@ class Machine:
         main = stretch(self.core.maps, MAIN_STRETCH[self.platform]) if self.platform in MAIN_STRETCH else None
         if main:
             return main[0], C.string_at(main[2], main[1])
+        parts = [stretch(self.core.maps, start) for start in JOINED.get(self.platform, ())]
+        if parts and all(parts) and all(a[0] + a[1] == b[0] for a, b in zip(parts, parts[1:])):
+            return parts[0][0], b"".join(C.string_at(p[2], p[1]) for p in parts)
         base = self.core.ram_base()
         return (RAM_BASES.get(self.platform, 0) if base is None else base), self.core.ram()
 
