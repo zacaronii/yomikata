@@ -15,7 +15,8 @@ RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 MAIN_STRETCH = {"gba": 0x02000000}
 OTHER_STRETCHES = {"gba": {"iwram": 0x03000000}, "pce-cd": {"ram": 0x1F0000}}
 # Main memory made of stretches that follow one another: a PC Engine CD's Super System Card RAM (192 KB at
-# 0xD0000) runs on into the CD's own RAM (64 KB at 0x100000), where a CD game keeps what it loads.
+# 0xD0000) runs on into the CD's own RAM (64 KB at 0x100000), where a CD game keeps what it loads. Read whole
+# here; a script reads through the core's map, which leaves out the card's middle 64 KB (docs/script-api.md).
 JOINED = {"pce-cd": (0xD0000, 0x100000)}
 # A Game Boy's cartridge, whole: a core shows only the two banks switched in now, and a game that draws its text
 # straight from the cartridge has switched to others by the time a line stands. The file is given to scripts
