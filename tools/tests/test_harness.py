@@ -600,6 +600,22 @@ def test_a_core_that_ends_is_not_left(session):
     assert ended == [1] and left == [] and session.machine is None
 
 
+def test_a_machine_counts_the_frames_it_runs_and_its_close_ends_the_core():
+    """The real Machine (not the tests' fake): run counts frames, close ends its core."""
+    from yomikata.harness.machine import Machine
+    did = []
+
+    class Core:
+        def run(self, frames, buttons, stick): did.append(("run", frames))
+        def close(self): did.append("close")
+    machine = Machine.__new__(Machine)
+    machine.core, machine.frames = Core(), 0
+    machine.run(5, set(), (0.0, 0.0))
+    machine.run(7, set(), (0.0, 0.0))
+    assert machine.frames == 12
+    machine.close()
+    assert did == [("run", 5), ("run", 7), "close"] and machine.frames == 12
+
 def test_a_cores_end_unloads_the_game_then_ends_the_core_once():
     from yomikata.replay.libretro import Core
     did = []
