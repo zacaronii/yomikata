@@ -23,8 +23,12 @@ class DiscError(ValueError):
 class Image:
     """A data track as 2048-byte logical sectors."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, start: int = 0):
+        """`start`: the sector the data track begins at in the file (a disc whose first track is audio, its
+        tracks in one file: a PC Engine CD)."""
         self.f = open(path, "rb")
+        self.start = start
+        self.f.seek(start * 2352)
         head = self.f.read(16)
         if head[:12] == SYNC:
             self.raw, mode = True, head[15]
@@ -37,7 +41,7 @@ class Image:
 
     def sector(self, lba: int) -> bytes:
         size = 2352 if self.raw else 2048
-        self.f.seek(lba * size + self.offset)
+        self.f.seek((self.start + lba) * size + self.offset)
         data = self.f.read(2048)
         if len(data) != 2048:
             raise DiscError(f"sector {lba} is past the end of the image")
@@ -131,11 +135,28 @@ def first_data_track(cue: Path) -> Path:
     raise DiscError(f"{cue.name} has no data track")
 
 
+def data_track_start(cue: Path) -> tuple[Path, int]:
+    """The file of the cue's first data track, and the sector its INDEX 01 is at within that file: 0 for a PS1
+    disc, more where audio tracks come first in the same file."""
+    current = None
+    data = False
+    for line in cue.read_text(errors="replace").splitlines():
+        m = re.match(r'\s*FILE\s+"(.+)"', line)
+        if m:
+            current = cue.parent / m.group(1)
+        if re.match(r"\s*TRACK\s+\d+\s+", line):
+            data = bool(re.match(r"\s*TRACK\s+\d+\s+(MODE1|MODE2)", line))
+        m = re.match(r"\s*INDEX\s+01\s+(\d+):(\d+):(\d+)", line)
+        if m and data and current:
+            return current, (int(m.group(1)) * 60 + int(m.group(2))) * 75 + int(m.group(3))
+    raise DiscError(f"{cue.name} has no data track")
+
+
 @contextmanager
 def open_data_track(path: Path, scratch: Path | None = None, chdman: str = "chdman"):
     """The image's data track, extracting a CHD to a temporary folder first (deleted afterwards)."""
     path = Path(path)
-    tmp = None
+    tmp, start = None, 0
     try:
         if path.suffix.lower() == ".chd":
             tmp = Path(tempfile.mkdtemp(prefix="yomikata-", dir=scratch))
@@ -143,16 +164,16 @@ def open_data_track(path: Path, scratch: Path | None = None, chdman: str = "chdm
             if "CD-ROM" in info or "CHCD" in info or "CHT2" in info:
                 subprocess.run([chdman, "extractcd", "-i", str(path), "-o", str(tmp / "disc.cue"),
                                 "-ob", str(tmp / "disc.bin")], capture_output=True, check=True)
-                track = tmp / "disc.bin"
+                track, start = data_track_start(tmp / "disc.cue")
             else:
                 subprocess.run([chdman, "extractdvd", "-i", str(path), "-o", str(tmp / "disc.iso")],
                                capture_output=True, check=True)
                 track = tmp / "disc.iso"
         elif path.suffix.lower() == ".cue":
-            track = first_data_track(path)
+            track, start = data_track_start(path)
         else:
             track = path
-        img = Image(track)
+        img = Image(track, start)
         try:
             yield img
         finally:

@@ -304,6 +304,7 @@ bytes as they lie in memory.
 | `gba` | `0x02000000`, 256 KB, and `0x03000000`, 32 KB | |
 | `sfc` | `0x7E0000`, 128 KB | And the cartridge, where the core maps it (below) |
 | `gb`, `gbc` | `0xC000`, 8 KB | And the cartridge, whole, at `0x01000000` on (below) |
+| `pce-cd` | `0xD0000`, 256 KB: the Super System Card's RAM, then the CD's own (from `0x100000`) | The console's 8 KB at `0x1F0000` too (the region `ram` in a snap) |
 
 **A Super Famicom cartridge.** Some games never copy their text into work RAM and draw it straight from the
 cartridge, so a script may read the cartridge at the addresses the game itself uses:

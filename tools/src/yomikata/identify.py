@@ -45,8 +45,17 @@ def ps2_crc(program: bytes) -> str:
     return f"{crc:08x}"
 
 
+PCE_CD = b"PC Engine CD-ROM SYSTEM\0"
+
+
 def identify_disc(path: Path, scratch: Path | None = None) -> Release:
     with open_data_track(path, scratch) as img:
+        boot = img.sector(1) if img.raw else b""
+        if boot[0x20:0x20 + len(PCE_CD)] == PCE_CD:
+            # A PC Engine CD: no file system and no product code; its boot block (the data track's second
+            # sector: the system's name, the makers, the program's name) names it, by its CRC-32.
+            crc = f"{zlib.crc32(boot):08x}"
+            return Release("pce-cd", f"PCECD-{crc.upper()}", header_crc32=crc)
         iso = ISO9660(img)
         cnf = iso.find("SYSTEM.CNF")
         if cnf:
