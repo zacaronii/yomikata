@@ -282,6 +282,20 @@ In the order to try them:
    at once. `refs … moving` found nothing there and wasn't needed, and `find`'s `mid_line` said "1
    character before" for every hit, a mark's last byte taken for text: it now wants two characters.
 
+19. A cartridge game may never copy its text into work RAM: it draws each character from the script in the
+   cartridge. Every search of memory then comes back empty, in any encoding and by any pattern, and `follows`
+   finds no place that holds the character being drawn. What there is, is a pointer: snap every frame while
+   a line types (`steps` with `every`), and ask `changed` for what takes a new value on each of those frames
+   and stands afterwards (a pattern of different letters, then the same letter). Live A Live's is 16 bits
+   at 0x7E01C6 with a count of characters beside it, and the bank a few bytes before; `read` at that
+   address in the cartridge (0xD0…) showed the line, and the script reads it there. The codes were then a
+   matter of a rule and a table: the font's kana stand in video memory in code order (`vram_picture`), a
+   debug copy of the script printed every code it had no character for, and the kanji were read off three
+   sheets of windows beside those codes. 77 kanji and a dozen signs took two sessions of sheets, 11 calls;
+   Ryuu ga Gotoku 2's 602 glyphs, each a picture to be hashed, had taken some 150 calls of its 540.
+   A script that reads the cartridge needs a host that gives it: it must say so and read nothing where
+   the read comes back empty, never fail.
+
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.
 

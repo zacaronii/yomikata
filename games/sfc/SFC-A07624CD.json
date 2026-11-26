@@ -1,0 +1,24 @@
+{
+  "id": "SFC-A07624CD",
+  "platform": "sfc",
+  "title": "ライブ・ア・ライブ",
+  "title_romaji": "Live A Live",
+  "versions": [
+    {
+      "header_crc32": "a07624cd"
+    }
+  ],
+  "encoding": "table",
+  "tables": [
+    "tables/sfc/SFC-A07624CD.tbl"
+  ],
+  "unit": 1,
+  "status": "partial",
+  "sources": [
+    "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+    "The kana by their order in the font, held against the screen; the signs and kanji read in play: the codes the script passed, and the characters that came up in the sentence on screen. No second reader has read the font",
+    "Played from power-on: the openings of three chapters (SF, Bakumatsu, Near Future)",
+    "What the script said in play agreed with the lines read off 54 of 54 pictures, over 4 scenes. No screen without text was among them; a question's answers come out as rows of its text"
+  ],
+  "notes": "Read by the script games/sfc/SFC-A07624CD.lua. The game keeps no message in work RAM: it draws from the script in the cartridge, and a pointer says where it has got to. So the script reads the cartridge (0xC00000 on) and needs a host that gives it. One byte a character but for kanji (two, from 0x1A to 0x1F); kana by rule, the rest by the table, which has the 77 kanji met in three chapters' openings: others come out as U+FFFD. Who speaks, menus and fights aren't read."
+}
