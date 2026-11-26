@@ -559,6 +559,42 @@ def test_rom_font_finds_draws_and_reads_a_cartridges_font(tmp_path, capsys):
     assert romfont.held({1: "あ", 2: "あ"}, {})["one character for two glyphs"] == {"あ": ["1", "2"]}
 
 
+def test_rom_font_on_a_disc_with_codes_of_one_byte_and_two(tmp_path, capsys):
+    """A made-up PlayStation-like disc: a raw track (2352-byte sectors, mode 1) with a font of 16x11 glyphs a bit a
+    pixel lying across sectors, codes one byte below F8 and two from F800 on (as Xenogears has them). The font is
+    found on the disc from a memory snap that holds it, drawn, read and written as a table with codes of both
+    lengths."""
+    import numpy as np
+    from yomikata import cli, romfont
+    assert [romfont.code_of(i, 0xF8) for i in (0x41, 0xF7, 0xF8, 0x1F7, 0x1F8)] == [0x41, 0xF7, 0xF800, 0xF8FF, 0xF900]
+    assert all(romfont.index_of(romfont.code_of(i, 0xF8), 0xF8) == i for i in range(0x300))
+    assert romfont.code_of(0x200) == 0x200 and romfont.index_of(0xF900) == 0xF900
+    rng = np.random.default_rng(5)
+    count = 0xF8 + 40
+    font = bytes(rng.integers(0, 256, count * 22, dtype=np.uint8))
+    data = bytes(rng.integers(0, 256, 3000, dtype=np.uint8)) + font + bytes(500)
+    sectors = [data[i:i + 2048].ljust(2048, b"\0") for i in range(0, len(data), 2048)]
+    sync = b"\x00" + b"\xff" * 10 + b"\x00"
+    track = b"".join(sync + bytes([0, 2, n, 1]) + sector + bytes(288) for n, sector in enumerate(sectors))
+    (tmp_path / "disc.bin").write_bytes(track)
+    assert romfont.cartridge(tmp_path / "disc.bin")[:len(data)] == data
+    memory = bytes(0x100) + font + bytes(0x100)
+    (tmp_path / "snap.ram").write_bytes(memory)
+    assert cli.main(["rom-font", str(tmp_path / "disc.bin"), "--locate", f"{tmp_path / 'snap.ram'}@0x100"]) == 0
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert rows[-1]["start"] == "0xBB8" and rows[-1]["sector"] == "1+952"           # 3000 = 2048 + 952
+    glyphs = romfont.glyphs(romfont.cartridge(tmp_path / "disc.bin"), 3000 + 0xF8 * 22, 0xF800, 3, "rows1", 16, 11, 0xF8)
+    assert sorted(glyphs) == [0xF800, 0xF801, 0xF802]
+    (tmp_path / "rows.txt").write_text("F6 あい?え\n", encoding="utf-8")
+    (tmp_path / "play.tbl").write_text("F6=あ\nF900=ん\n", encoding="utf-8")
+    assert cli.main(["rom-font", str(tmp_path / "disc.bin"), "--at", "0xBB8", "--first", "0", "--count", str(count),
+                     "--lead", "F8", "--form", "rows1", "--width", "16", "--height", "11", "--read", str(tmp_path / "rows.txt"),
+                     "--known", str(tmp_path / "play.tbl"), "--tbl", str(tmp_path / "new.tbl")]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert (out["read"], out["also read in play"], out["agreeing"]) == (3, 1, 1)
+    assert (tmp_path / "new.tbl").read_text(encoding="utf-8").splitlines() == ["F7=い", "F801=え"]
+
+
 def test_rom_font_finds_glyphs_drawn_a_few_bits_into_rows_of_16(tmp_path, capsys):
     """Glyphs 12 pixels wide in rows of 16 bits (two bytes a row, 12 rows a glyph), each drawn three pixels into
     its row, as Live A Live keeps its kanji: no 8x8 piece of a picture begins on a byte, and the rows are found

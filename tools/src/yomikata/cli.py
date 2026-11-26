@@ -184,6 +184,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--unit", type=int, default=2, help="table: bytes a code (default 2)")
     p.add_argument("--big-endian", action="store_true", help="table: codes are high byte first in memory")
     p.add_argument("--tbl", type=Path, help="with --read: write the table, what was read in play first and unchanged, then the sheet's readings for the other codes")
+    p.add_argument("--lead", help="codes below this (hex) are one byte, and the glyphs after them two: the lead byte, then a byte (Xenogears: F8). Codes are then the game's own on the sheet, in --first, --read and the table")
+    p.add_argument("--locate", help="FILE@HEX: where stretches of a memory snap from HEX on lie in the cartridge or disc (a font found in memory with --find, then on the disc)")
     p = sub.add_parser("glyph-read", help="a second reader (manga-ocr, from a scratch environment) over a font's glyphs: its readings beside yours, where they differ, and those in a sentence of the game's text")
     p.add_argument("glyphs", type=Path, help="the glyphs as the harness's glyph_pairs writes them: a .json of code to rows")
     p.add_argument("--rows", type=int, required=True, help="rows of a glyph")
@@ -325,6 +327,12 @@ def main(argv: list[str] | None = None) -> int:
         from . import font as fonts
         from . import romfont
         rom = romfont.cartridge(args.rom)
+        lead = int(args.lead, 16) if args.lead else None
+        if args.locate:
+            name, _, at = args.locate.rpartition("@")
+            for row in romfont.locate(rom, Path(name).read_bytes(), int(at, 16)):
+                print(_json.dumps(row))
+            return 0
         if args.find:
             from PIL import Image
             picture = np.asarray(Image.open(args.find).convert("RGB")).astype(int).max(axis=2)
@@ -339,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:
             print("give --at (where the first glyph is), or --find with a picture of the game's text", file=sys.stderr)
             return 2
         first = int(args.first, 16)
-        glyphs = romfont.glyphs(rom, int(args.at, 16), first, args.count, args.form, args.width, args.height)
+        glyphs = romfont.glyphs(rom, int(args.at, 16), first, args.count, args.form, args.width, args.height, lead)
         blanks = {code for code, pixels in glyphs.items() if not pixels.any()}
         inked = {code: pixels for code, pixels in glyphs.items() if code not in blanks}
         if args.sheet:
@@ -351,15 +359,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{len(glyphs)} glyphs from 0x{first:X}, {len(blanks)} of them blank", file=sys.stderr)
         if args.read:
             try:
-                read = romfont.readings(args.read.read_text(encoding="utf-8"), blanks)
+                read = romfont.readings(args.read.read_text(encoding="utf-8"), blanks, lead)
             except ValueError as e:
                 print(e, file=sys.stderr)
                 return 1
-            known = fonts.known_pairs(args.known.read_text(encoding="utf-8"), args.unit, args.big_endian) if args.known else {}
+            text = args.known.read_text(encoding="utf-8") if args.known else ""
+            if lead is None:
+                known = fonts.known_pairs(text, args.unit, args.big_endian)
+            else:                                   # a byte, or the lead byte and one more, as the text has them
+                known = {**fonts.known_pairs(text, 1), **fonts.known_pairs(text, 2, True)}
             print(_json.dumps(romfont.held(read, known), ensure_ascii=False))
             if args.tbl:
-                order = "big" if args.big_endian else "little"
-                key = lambda code: code.to_bytes(args.unit, order).hex().upper()                  # noqa: E731
+                order = "big" if args.big_endian or lead is not None else "little"
+                key = lambda code: code.to_bytes(1 if lead is not None and code < lead else args.unit,  # noqa: E731
+                                                 order).hex().upper()
                 lines = [f"{key(code)}={ch}" for code, ch in sorted(read.items()) if code not in known]
                 args.tbl.write_text("\n".join(lines) + "\n", encoding="utf-8")
                 print(f"{len(lines)} codes not read in play written to {args.tbl}", file=sys.stderr)

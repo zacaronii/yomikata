@@ -26,12 +26,61 @@ FORMS = ("tiles4", "rows1")
 
 
 def cartridge(path: Path) -> bytes:
-    """A cartridge's bytes: the file, or the largest file of a .zip."""
+    """A cartridge's bytes: the file, or the largest file of a .zip. A disc (.chd, .cue, .iso, or a raw track)
+    is its data track's sectors end to end, 2048 bytes each, so a place on it is sector x 2048 + offset."""
     path = Path(path)
     if path.suffix.lower() == ".zip":
         with zipfile.ZipFile(path) as z:
             return z.read(max(z.infolist(), key=lambda i: i.file_size))
+    if path.suffix.lower() in (".chd", ".cue", ".iso") or _raw_track(path):
+        from . import disc
+        with disc.open_data_track(path) as img:
+            size = 2352 if img.raw else 2048
+            img.f.seek(0, 2)
+            return b"".join(img.sector(lba) for lba in range(img.f.tell() // size))
     return path.read_bytes()
+
+
+def _raw_track(path: Path) -> bool:
+    with open(path, "rb") as f:
+        return f.read(12) == b"\x00" + b"\xff" * 10 + b"\x00"
+
+
+def code_of(index: int, lead: int | None = None) -> int:
+    """A glyph's code from its number in the font. With `lead`, codes below it are one byte and the glyphs
+    after them two: the lead byte, then a byte (Xenogears: 00 to F7, then F800, F801, ... FEFF)."""
+    if lead is None or index < lead:
+        return index
+    return (lead + (index - lead) // 256) << 8 | (index - lead) % 256
+
+
+def index_of(code: int, lead: int | None = None) -> int:
+    """A code's glyph number in the font: code_of turned round."""
+    if lead is None or code < lead:
+        return code
+    return lead + ((code >> 8) - lead) * 256 + (code & 0xFF)
+
+
+def locate(image: bytes, memory: bytes, at: int, probes: int = 4, size: int = 64, apart: int = 0x400) -> list[dict]:
+    """Where stretches of a memory snap, from `at` on, lie in a cartridge or disc: a font found in memory (a
+    PlayStation game loads its font from its disc as it is) and then on the disc can be read whole from it."""
+    out = []
+    for k in range(probes):
+        piece = memory[at + k * apart:at + k * apart + size]
+        if len(piece) < size or piece.count(piece[:1]) == size:
+            continue
+        where = image.find(piece)
+        again = image.find(piece, where + 1) if where >= 0 else -1
+        out.append({"memory": f"0x{at + k * apart:X}", "at": f"0x{where:X}" if where >= 0 else None,
+                    "sector": f"{where // 2048}+{where % 2048}" if where >= 0 else None, "once": where >= 0 and again < 0,
+                    "so the start is at": f"0x{where - k * apart:X}" if where >= 0 else None})
+    starts = [row["so the start is at"] for row in out if row["once"]]
+    if starts:
+        best = max(set(starts), key=starts.count)
+        start = int(best, 16)
+        out.append({"start": best, "sector": f"{start // 2048}+{start % 2048}", "found once and agreeing": starts.count(best),
+                    "of": len(out)})
+    return out
 
 
 def size(form: str, width: int = 16, height: int = 16) -> int:
@@ -57,14 +106,15 @@ def glyph(data: bytes, form: str, width: int = 16, height: int = 16) -> np.ndarr
 
 
 def glyphs(rom: bytes, at: int, first: int, count: int, form: str = "tiles4", width: int = 16,
-           height: int = 16) -> dict[int, np.ndarray]:
-    """code -> pixels for `count` glyphs from `at`, the first of them the code `first`. Stops at the cartridge's end."""
-    each, out = size(form, width, height), {}
+           height: int = 16, lead: int | None = None) -> dict[int, np.ndarray]:
+    """code -> pixels for `count` glyphs from `at`, the first of them the code `first` (codes as code_of numbers
+    them, with `lead`). Stops at the cartridge's end."""
+    each, out, start = size(form, width, height), {}, index_of(first, lead)
     for n in range(count):
         data = rom[at + n * each:at + (n + 1) * each]
         if len(data) < each:
             break
-        out[first + n] = glyph(data, form, width, height)
+        out[code_of(start + n, lead)] = glyph(data, form, width, height)
     return out
 
 
@@ -110,9 +160,9 @@ def rows(rom: bytes, ink: np.ndarray, widths: tuple = (16, 24), most: int = 16) 
     narrower than its row and drawn a few pixels into it (Live A Live's 12-pixel kanji in rows of 16) has no
     8x8 piece that begins on a byte. The cartridge is read as one run of bits; a piece is a place where its eight
     rows stand a row's width of bits apart. Only `most` of the busiest pieces are looked for: this is slower."""
-    bits = np.unpackbits(np.frombuffer(rom, dtype=np.uint8))
-    if len(bits) < 64:
+    if len(rom) > 64 << 20 or len(rom) < 8:      # a disc: look in a memory snap first, then --locate it
         return {}
+    bits = np.unpackbits(np.frombuffer(rom, dtype=np.uint8))
     window = np.zeros(len(bits) - 7, dtype=np.uint8)            # the 8 bits from each bit on, as a number
     for k in range(8):
         window |= bits[k:len(bits) - 7 + k] << (7 - k)
@@ -138,7 +188,7 @@ def rows(rom: bytes, ink: np.ndarray, widths: tuple = (16, 24), most: int = 16) 
     return found
 
 
-def readings(text: str, blanks: set[int] = frozenset()) -> dict[int, str]:
+def readings(text: str, blanks: set[int] = frozenset(), lead: int | None = None) -> dict[int, str]:
     """code -> character from rows read off a sheet: a line is a code in hex (the row's first glyph, or wherever
     the reading starts) and then the characters as they stand, one for each glyph that isn't blank; `?` for one
     not read. Spaces between characters don't count; a line beginning with # is a note."""
@@ -151,12 +201,12 @@ def readings(text: str, blanks: set[int] = frozenset()) -> dict[int, str]:
         code = int(head, 16)
         for ch in "".join(rest.split()):
             while code in blanks:
-                code += 1
+                code = code_of(index_of(code, lead) + 1, lead)
             if ch != "?":
                 if code in out and out[code] != ch:
                     raise ValueError(f"{code:X} is read twice: {out[code]} and {ch}")
                 out[code] = ch
-            code += 1
+            code = code_of(index_of(code, lead) + 1, lead)
     return out
 
 
