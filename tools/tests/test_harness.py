@@ -2456,3 +2456,33 @@ def test_walk_3d_learns_the_camera_follows_it_turning_and_stops_at_a_wall(tmp_pa
     still = s.walk_3d(f"0x{BASE + 0x1004:X}", za, x=1.0, z=1.0)           # the height: a push moves only z
     assert not still["reached"] and "one line" in still["stopped"], still
     s.close()
+
+
+def test_a_dreamcast_is_read_at_0x8c000000_and_its_mirrors():
+    """flycast gives the Dreamcast's 16 MB of main memory and no map of it: read at 0x8C000000, and the same at
+    0x0C000000 and 0xAC000000, as the console has it (little-endian, no swapping); main memory starts there."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine
+    host = bytearray(0x1000)
+    host[0x10:0x18] = b"SEGA KAT"
+    block = (C.c_char * len(host)).from_buffer(host)
+
+    class Lib:
+        def retro_get_memory_data(self, which):
+            return C.addressof(block) if which == 2 else None
+
+        def retro_get_memory_size(self, which):
+            return len(host) if which == 2 else 0
+
+    class Core:
+        maps, lib = [], Lib()
+
+        def ram_base(self):
+            return None
+
+        def ram(self):
+            return bytes(host)
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core, machine.cartridge = "dc", Core(), b""
+    assert machine.read(0x8C000010, 8) == machine.read(0x0C000010, 8) == machine.read(0xAC000010, 8) == b"SEGA KAT"
+    assert machine.ram()[0] == 0x8C000000 and machine.read(0x8D000000, 4) == b""
