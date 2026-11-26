@@ -1816,7 +1816,8 @@ class Session:
           "it points at (`read` with `mixed`, in the cartridge too) to see the line.",
           snaps=("array", "snaps in order through the typing (`steps` with `every`: 1), six or more", True),
           rest=("array", "snaps from after the typing, where it must hold what it held at the last of `snaps`", False),
-          unit=("integer", "bytes of the number: 2 (default), 1 or 4", False),
+          unit=("integer", "bytes of the number: 2 (default), 1 or 4. A number may start at any address: "
+                           "every offset is looked at, not only those a multiple of the unit", False),
           most=("integer", "the most it may go up from one snap to the next (default 4: a character is one "
                            "or two codes, and a mark or two may come between)", False),
           within=("array", "look only between two addresses, hex", False),
@@ -1830,7 +1831,11 @@ class Session:
         if len(names) > ADVANCING_MOST_SNAPS:
             raise HarnessError(f"{len(names)} snaps: advancing takes {ADVANCING_MOST_SNAPS} at most. Every "
                                "second or third frame of the typing is enough (`every`: 2)")
-        found = self._advancing(self._each_memory(names), len(snaps), unit, most, within, least)
+        # A number may start at any address (a Game Boy keeps words at odd ones), so the snaps are read once for
+        # each offset into the unit: a pointer at an odd address isn't missed.
+        found = []
+        for shift in range(unit):
+            found += self._advancing(self._each_memory(names), len(snaps), unit, most, within, least, shift)
         # A console's other memory, kept with each snap as a region (a Game Boy Advance's 32 KB in the CPU,
         # where its games keep their own state): looked through the same way.
         from .machine import region_starts
@@ -1838,8 +1843,9 @@ class Session:
         for region, start in region_starts(getattr(self.machine, "platform", "")).items():
             files = [self.roots.inside("scratch", f"snaps/{self._name(n)}.{region}.gz") for n in names]
             if all(f.is_file() for f in files):
-                found += self._advancing(((None, start, _load(f)) for f in files), len(snaps), unit, most,
-                                         within, least)
+                for shift in range(unit):
+                    found += self._advancing(((None, start, _load(f)) for f in files), len(snaps), unit, most,
+                                             within, least, shift)
         found.sort(key=lambda place: -place["moved_in"])
         out = {"count": len(found), "snaps": len(snaps), "rest": len(rest or ()), "places": found[:MAX_HITS]}
         if not found:
@@ -1853,9 +1859,10 @@ class Session:
                 "over snaps a window apart for the list's start.")
         return out
 
-    def _advancing(self, memories, typed: int, unit: int, most: int, within: list | None, least: int) -> list[dict]:
+    def _advancing(self, memories, typed: int, unit: int, most: int, within: list | None, least: int,
+                   shift: int = 0) -> list[dict]:
         """advancing over one stretch of memory at so many moments: (name, base, bytes) each, the first `typed`
-        of them while the line types. The moments come one at a time and only what the walk needs is kept (the
+        of them while the line types, the numbers taken from `shift` bytes in. The moments come one at a time and only what the walk needs is kept (the
         first, last and final values, two counts a number), so the memory it takes doesn't grow with the snaps;
         the steps are worked out a slice at a time. A stretch too big even for that is refused before any work."""
         import numpy as np
@@ -1866,6 +1873,8 @@ class Session:
         first = last = final = rose = away = ok = None
         count = 0
         for at, (_, where, ram) in enumerate(memories):
+            if shift:
+                where, ram = where + shift, memoryview(ram)[shift:]
             if base is None:
                 need = advancing_bytes(len(ram), unit)
                 if need > ADVANCING_MOST_BYTES:
@@ -2307,10 +2316,13 @@ class Session:
                             "without floats, where a push moves the number by many)", False),
           grid=("number", "for a place kept as numbers with a point (place_find): read both as 32-bit floats and "
                           "count in cells of this many of the game's units, so that places a hair apart are "
-                          "one. About what one push moves the character is best", False))
+                          "one. About what one push moves the character is best", False),
+          close=("string", "a button that closes a window (a, b): pressed first, and the press kept, when no push "
+                           "moves the character from where it stands (a message open takes the pad). Without "
+                           "it such a start is only said (`still`)", False))
     def explore(self, x_address: str = "", y_address: str = "", size: int = 2, step: int = 8, most: int = 400,
                 to: list | None = None, near: int = 1, jump: int = 8, within: list | None = None,
-                grid: float = 0.0, diagonals: bool = False, whole: bool = False) -> dict:
+                grid: float = 0.0, diagonals: bool = False, whole: bool = False, close: str = "") -> dict:
         machine = self._need()
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
         step, most, jump = max(1, min(int(step), 60)), max(2, min(int(most), 1500)), max(2, int(jump))
@@ -2340,15 +2352,42 @@ class Session:
         origin = now()
         if None in origin:
             raise HarnessError("the place can't be read")
+        import zlib
+        ways = ("up", "down", "left", "right") + (("up+left", "up+right", "down+left", "down+right") if diagonals else ())
+
+        def stuck():
+            """Whether no push moves the character from here: a window open (a message, a talk) takes the pad."""
+            here = machine.save_state()
+            try:
+                for push in ways:
+                    machine.load_state(here)
+                    machine.run(step, set(push.split("+")), (0.0, 0.0))
+                    if now() != origin:
+                        return False
+                return True
+            finally:
+                machine.load_state(here)
+        closed = 0
+        if close:
+            # The window is closed with the button, and the press goes into the record of the way: from here
+            # on the game is where it was after the press, not before it.
+            while closed < 3 and stuck():
+                held = {close}
+                machine.run(6, held, (0.0, 0.0))
+                self._moved(6, held, (0.0, 0.0))
+                machine.run(30, set(), (0.0, 0.0))
+                self._moved(30, set(), (0.0, 0.0))
+                closed += 1
+                origin = now()
+                if None in origin:
+                    raise HarnessError("the place can't be read")
         # Tried without the script and off the record of the way: the game is put back afterwards, so nothing
         # of the trying happened as far as a state or a waypoint knows.
         # A state is kept packed: a console's memory is mostly the same bytes over and over, and a house of
         # several rooms is more places than would fit unpacked.
-        import zlib
         start, frames = machine.save_state(), machine.frames
         places = {origin: (zlib.compress(start, 1), None, None)}    # a place: the state there, where it was reached from, the push
         doors, queue, held, late = {}, [origin], len(places[origin][0]), False
-        ways = ("up", "down", "left", "right") + (("up+left", "up+right", "down+left", "down+right") if diagonals else ())
         near, found = max(0, int(near)), False             # with `to`, the trying ends once the place is reached
         while queue and not late and not found:
             # Towards a place asked for, the nearest known place is tried next (and so on round what is in
@@ -2393,6 +2432,11 @@ class Session:
                "rows": [min(ys), max(ys)], "ruler": "".join(ruler).rstrip(), "map": rows,
                "doors": [{"at": list(p), "push": push} for p, push in sorted(doors.items())][:MAX_ROWS],
                **({"stopped": "time"} if late else {}),
+               **({"closed": closed} if closed else {}),
+               **({"still": "no push moved the character from where it stands: a window open (a message, a "
+                            "talk) may be taking the pad; give `close` the button that closes it, or check the "
+                            "place's address with a push of your own"}
+                  if len(places) == 1 and not doors and not late else {}),
                **({"more": "places beyond these weren't tried: raise most, or give within"}
                   if not late and len(places) >= most else {})}
         if to is None:
