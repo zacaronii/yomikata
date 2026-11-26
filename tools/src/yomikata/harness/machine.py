@@ -13,7 +13,8 @@ RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 # by its start, and others worth having beside it, as regions. mGBA gives the 32 KB in the CPU as system RAM;
 # a Game Boy Advance game's data is in the 256 KB on the board (as a snapshot of one has it, inbox.py).
 MAIN_STRETCH = {"gba": 0x02000000}
-OTHER_STRETCHES = {"gba": {"iwram": 0x03000000}, "pce-cd": {"ram": 0x1F0000}}
+# A region's name is the file a snap keeps it in beside the main memory's (<snap>.ram.gz), so none is "ram".
+OTHER_STRETCHES = {"gba": {"iwram": 0x03000000}, "pce-cd": {"wram": 0x1F0000}}
 # Main memory made of stretches that follow one another: a PC Engine CD's Super System Card RAM (192 KB at
 # 0xD0000) runs on into the CD's own RAM (64 KB at 0x100000), where a CD game keeps what it loads. Read whole
 # here; a script reads through the core's map, which leaves out the card's middle 64 KB (docs/script-api.md).
