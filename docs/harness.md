@@ -172,6 +172,13 @@ In the order to try them:
    and look at the picture before believing a small map. And an explored map is of no use where walking
    brings fights at random: there one long push at a time, with presses between to get through a fight,
    went through four carriages in two sessions.
+   A console without floats keeps the place as whole numbers, many units to a step, and with the camera
+   turned every push moves both, which `cursor_find` can't follow. `place_find` with `kind` s32 (or s16, the
+   default on PlayStation and Super Famicom; leaping numbers are left out, and a group of two that move
+   and a height that doesn't comes first) finds them, and `explore` takes them with `grid`, `whole` and
+   their `size`. Xenogears: x at 0x80112AC4 and z at 0x80112ACC, about 32 units a push of 20 frames, cells
+   of 16; a house's whole floor was 529 places in 82 seconds, which fits because a kept state is packed.
+   With `to`, `explore` stops trying as soon as it is there: a walk across a room is a few seconds.
    A game may keep two sets of numbers for everything that walks: where each is on the map, and where each
    is drawn on screen. Chrono Trigger does (the map's at 0x7E1800 across and 0x7E1880 down, a word for each
    of 32 things, 16 to a pixel; the screen's at 0x7E0A00 and 0x7E0A80), and `cursor_find` gave the screen's,

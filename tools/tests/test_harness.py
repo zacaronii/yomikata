@@ -1650,6 +1650,37 @@ def test_place_find_and_explore_by_numbers_with_a_point(session):
     assert session.explore(**{**cells, "step": 1}, within=[-10, -10, 10, 10], diagonals=True)["places"] == 11
 
 
+def test_place_find_and_explore_by_whole_numbers(session):
+    """A console without floats: the place is three whole numbers, many units a frame, the camera turned.
+    place_find with a kind gives them and leaves out a number that leaps; explore counts them in cells of
+    `grid` with `whole`, and with `to` stops trying once it is there."""
+    machine, plain = session.machine, session.machine._step
+    struct.pack_into(">3i", machine.memory, 0x300, 160, 0, -640)
+
+    def walked(buttons, stick):
+        plain(buttons, stick)
+        x, height, z = struct.unpack_from(">3i", machine.memory, 0x300)
+        dx = 6 * (("right" in buttons) - ("left" in buttons)) - 6 * (("down" in buttons) - ("up" in buttons))
+        dz = 6 * (("right" in buttons) - ("left" in buttons)) + 6 * (("down" in buttons) - ("up" in buttons))
+        if not (x + dx > 480 and z + dz < 0):                              # a wall at x = 480, open from z = 0 on
+            x, z = x + dx, z + dz
+        struct.pack_into(">3i", machine.memory, 0x300, x, height, z)
+        struct.pack_into(">i", machine.memory, 0x340, 40000 * (("right" in buttons) - ("left" in buttons)))   # leaps
+    machine._step = walked
+    found = session.place_find(frames=6, kind="s32")
+    assert [g["places"][0]["address"] for g in found["groups"]] == [f"0x{BASE + 0x300:08X}"]
+    assert [p["right"] for p in found["groups"][0]["places"]] == [36.0, 0.0, 36.0] and "numbers_that_followed" in found
+    with pytest.raises(HarnessError, match="kind"):
+        session.place_find(kind="u8")
+    struct.pack_into(">3i", machine.memory, 0x300, 160, 0, -640)
+    cells = {"x_address": f"0x{BASE + 0x300:08X}", "y_address": f"0x{BASE + 0x308:08X}", "size": 4, "grid": 16,
+             "whole": True, "step": 2, "most": 400}
+    out = session.explore(**cells, within=[0, -60, 60, 20])
+    assert (out["x"], out["y"]) == (10, -40) and out["places"] > 50
+    near = session.explore(**cells, within=[0, -60, 60, 20], to=[12, -38], near=1)
+    assert near["reached"] is True and near["places"] < out["places"] // 2     # it stopped once it was there
+
+
 def test_press_at_presses_when_a_number_comes_to_a_value_and_tries_find_which(session):
     """A hand that goes round, and a mark from 120 to 150: a press with the hand over it scores, any other
     stops the hand. `tries` finds the mark by what the game does after each press; `at` then presses for good."""
