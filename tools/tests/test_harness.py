@@ -2211,10 +2211,11 @@ def test_identify_saturn_dreamcast_and_hucard_and_a_gamecube_id_of_letters_and_d
     assert identify_nintendo_disc(bytes(head)) is None
 
 
-def test_a_plan_played_outside_the_harness_is_a_call_in_the_record_and_keeps_to_the_budget(tmp_path):
-    """`yomikata play`: a run of a plan is one line in the record (offline_play, with its frames), counted
-    against the game's budget like any call; a game whose budget is spent isn't run; a plan can't set a budget
-    or measure a script."""
+def test_a_plan_played_outside_the_harness_is_its_calls_in_the_record_and_keeps_to_the_budget(tmp_path):
+    """`yomikata play`: each call of a plan is a line in the record (offline_play, with the tool it was and the
+    frames), counted against the game's budget like the same call in the harness, and a run is one run; a plan
+    whose calls don't fit in what is left of the budget isn't run at all; a plan can't set a budget or measure
+    a script."""
     from yomikata.harness import play
     from yomikata.calls import summary
     for name in ("games/ngc", "cores", "inbox", "scratch/record"):
@@ -2224,29 +2225,33 @@ def test_a_plan_played_outside_the_harness_is_a_call_in_the_record_and_keeps_to_
     game = "ngc/Made Up (Japan).iso"
     load = ["load", {"game": game, "core": "fake_libretro.so", "platform": "ngc"}]
     plan = [load, ["steps", {"steps": [{"buttons": ["a"], "hold": 4, "wait": 30, "times": 2, "snap": True}]}]]
-    (tmp_path / "scratch/record/budgets.json").write_text(json.dumps({game: 3}))
+    (tmp_path / "scratch/record/budgets.json").write_text(json.dumps({game: 5}))
+    record_file = tmp_path / "scratch/record/calls.jsonl"
     roots = lambda: Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch")  # noqa: E731
     said = []
     s = Session(roots(), FakeMachine)
-    entry = play.run(s, plan, tmp_path / "out", say=said.append)
+    lines = play.run(s, plan, tmp_path / "out", say=said.append)
     s.close()
-    assert entry["tool"] == "offline_play" and entry["ok"] and entry["outcome"]["frames"] == 68
-    assert entry["arguments"] == {"calls": 2, "tools": "load, steps"} and len(said) == 2
-    lines = (tmp_path / "scratch/record/calls.jsonl").read_text().splitlines()
-    assert [json.loads(line)["tool"] for line in lines] == ["offline_play"]
-    s = Session(roots(), FakeMachine)                                       # 1 of 3: more runs are allowed
-    for bad in ([["budget", {"calls": 9}]], [["compare", {"source": "-- x"}]]):    # refused, the load before it counted
+    assert [e["arguments"] for e in lines] == [{"tool": "load", "call": 0}, {"tool": "steps", "call": 1}]
+    assert all(e["tool"] == "offline_play" and e["ok"] for e in lines) and lines[-1]["outcome"]["frames"] == 68
+    assert len(said) == 2 and len(record_file.read_text().splitlines()) == 2
+    s = Session(roots(), FakeMachine)
+    for bad in ([["budget", {"calls": 9}]], [["compare", {"source": "-- x"}]]):     # refused before anything runs
         with pytest.raises(HarnessError, match="isn't for a plan"):
             play.run(s, [load] + bad, say=said.append)
-    s.close()
-    rows = summary(tmp_path / "scratch/record/calls.jsonl")
-    assert rows[0]["calls"] == 3 and rows[0]["tools"] == {"offline_play": 3} and rows[0]["sessions"] == 2
-    s = Session(roots(), FakeMachine)                                       # 3 of 3: spent, nothing is run
-    with pytest.raises(HarnessError, match="spent"):
-        play.run(s, plan, say=said.append)
-    assert s.machine is None and len((tmp_path / "scratch/record/calls.jsonl").read_text().splitlines()) == 3
     with pytest.raises(HarnessError, match="begins with a load"):
         play.run(s, plan[1:], say=said.append)
+    assert s.machine is None and len(record_file.read_text().splitlines()) == 2
+    with pytest.raises(HarnessError, match="don't fit"):                               # 2 used + 4 > 5
+        play.run(s, plan + plan[1:] * 2, say=said.append)
+    assert s.machine is None and len(record_file.read_text().splitlines()) == 2
+    assert len(play.run(s, plan + plan[1:], say=said.append)) == 3                       # 2 + 3 = 5: fits
+    s.close()
+    rows = summary(record_file)
+    assert rows[0]["calls"] == 5 and rows[0]["tools"] == {"offline_play": 5} and rows[0]["sessions"] == 2
+    s = Session(roots(), FakeMachine)                                                     # spent: nothing runs
+    with pytest.raises(HarnessError, match="don't fit"):
+        play.run(s, plan[:1], say=said.append)
     s.close()
 
 

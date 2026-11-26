@@ -229,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--call-seconds", type=float, default=120.0,
                    help="how long one call may run the game before it stops and says so (default 120); a call "
                         "that hasn't come back a minute after that ends the harness")
-    p = sub.add_parser("play", help="run a plan of the harness's tools on a game without an agent, for playing it outside an MCP session; a run is a call in scratch's record (offline_play) and counts against the game's budget (docs/harness.md)")
+    p = sub.add_parser("play", help="run a plan of the harness's tools on a game without an agent, for playing it outside an MCP session; each of its calls is a call in scratch's record (offline_play) and counts against the game's budget (docs/harness.md)")
     p.add_argument("plan", type=Path, help="a JSON list of [tool, arguments] as the harness takes them, the first a load")
     p.add_argument("--games", type=Path, default=Path("/games"), help="the library's game folders (read)")
     p.add_argument("--cores", type=Path, default=Path("/cores"), help="libretro cores (read)")
@@ -263,14 +263,15 @@ def main(argv: list[str] | None = None) -> int:
         session = Session(Roots(args.games, args.cores, args.inbox, args.scratch, args.system), Machine)
         session.call_seconds = max(1.0, args.call_seconds)
         try:
-            entry = play.run(session, json.loads(args.plan.read_text(encoding="utf-8")), args.out)
+            lines = play.run(session, json.loads(args.plan.read_text(encoding="utf-8")), args.out)
         except HarnessError as e:
             print(str(e), file=sys.stderr)
             return 1
         finally:
             session.close()
-        print(json.dumps({"record": entry}, ensure_ascii=False))
-        return 0 if entry["ok"] else 1
+        print(json.dumps({"recorded": len(lines), "frames": lines[-1]["outcome"]["frames"] if lines else 0},
+                         ensure_ascii=False))
+        return 0 if lines and all(e["ok"] for e in lines) else 1
 
     if args.cmd == "calls":
         from .calls import summary
