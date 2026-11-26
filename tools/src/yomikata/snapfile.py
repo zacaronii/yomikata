@@ -79,3 +79,36 @@ def expand(path: Path) -> bool:
         return False
     path.write_bytes(gzip.compress(read(path), 1))
     return True
+
+
+def _head(path: Path) -> dict | None:
+    """What a snapshot kept as a difference says of itself, or None for a whole one. Reads only its start."""
+    try:
+        with gzip.open(path, "rb") as f:
+            start = f.read(len(MAGIC) + 512)
+    except (OSError, EOFError):
+        return None
+    if not start.startswith(MAGIC):
+        return None
+    try:
+        return json.loads(start[len(MAGIC):].partition(b"\n")[0])
+    except ValueError:
+        return None
+
+
+def release(path: Path) -> int:
+    """Before a whole snapshot is written over: every snapshot beside it kept as what differs from it is
+    rewritten whole, so that it can still be read afterwards. Says how many were. Nothing to do when the file
+    isn't there or is itself kept as a difference (nothing can be kept as differing from such a one)."""
+    path = Path(path)
+    if not path.is_file() or _head(path) is not None:
+        return 0
+    done = 0
+    for other in sorted(path.parent.glob("*" + "".join(path.suffixes[-2:]))):
+        head = None if other == path else _head(other)
+        if head and Path(str(head.get("base"))).name == path.name:
+            try:
+                done += expand(other)
+            except SnapError:
+                pass                             # already unreadable: its base changed before this
+    return done
