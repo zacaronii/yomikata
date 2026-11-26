@@ -14,6 +14,11 @@ An entry is keyed by **release**, not title: the id the hardware or emulator rep
 | 3DS | `CTR-P-AXXJ` | product code in the NCCH header (0x150) |
 | Super Famicom | `SHVC-AXXJ`, else `SFC-1A2B3C4D` | game code in the cartridge header where there is one, else the header's CRC-32 (see below) |
 | GBA | `AGB-AXXJ` | game code in the cartridge header (0xAC), with `AGB-` before it; the build is the CRC-32 of the header's first 192 bytes (0x00–0xBF), 8 lowercase hex digits |
+| Game Boy, Game Boy Color | `CGB-AXXJ` / `DMG-AXXJ`, else `GBC-1A2B3C4D` / `GB-1A2B3C4D` | the 4-character game code at 0x13F when the old maker byte (0x14B) is 0x33, with the console's prefix (Color when bit 7 of 0x143 is set), else the header's CRC-32; the build is the CRC-32 of the header (0x100–0x14F) |
+| PC Engine HuCard | `PCE-1A2B3C4D` | the CRC-32 of the ROM, without a 512-byte copier header (a size that leaves 512 when divided by 8192), 8 upper-case hex digits; `header_crc32` the same in lower case |
+| PC Engine CD | `PCECD-1A2B3C4D` | the CRC-32 of the data track's second sector (2048 bytes: the boot block, "PC Engine CD-ROM SYSTEM" at 0x20), the data track being the cue's first MODE1/MODE2 track from its INDEX 01 |
+| Saturn | `GS-9037`, `GS-9037-D1` | the product number in the system ID (the data track's first sector, "SEGA SEGASATURN " at 0x00): 10 bytes at 0x20, spaces trimmed; for a disc of a set (device information at 0x38 reading `CD-n/m`, m above 1), `-D` and n after it, since the discs of a set share the number. The build is the id, `-` and the version (6 bytes at 0x2A: `GS-9037-D1-V1.005`); `header_crc32` the CRC-32 of the sector's first 0x100 bytes |
+| Dreamcast | `HDR-0152-D1` | the same from IP.BIN (the first data track's first sector, "SEGA SEGAKATANA " at 0x00): the product number at 0x40, the version at 0x4A, the disc as `GD-ROMn/m` in 0x20–0x2F |
 
 `yomikata identify <image>` prints all of this for CHD, cue/bin and ISO images, DS/3DS card images and Super
 Famicom images (`.sfc`, `.smc`, `.swc`, `.fig`, also inside a zip).

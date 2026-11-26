@@ -2165,3 +2165,40 @@ def test_identify_a_gamecube_disc_plain_and_compressed(tmp_path):
         release = identify(tmp_path / name)
         assert (release.platform, release.id, release.build) == ("gc", "GABJ01", "GABJ01-02")
         assert release.header_crc32 == f"{zlib.crc32(bytes(head)):08x}"
+
+
+def test_identify_saturn_dreamcast_and_hucard_and_a_gamecube_id_of_letters_and_digits_only(tmp_path):
+    """Saturn and Dreamcast discs by the header at their first data sector (a disc of a set gets -D and its number);
+    a HuCard by its ROM's CRC-32 without a copier header; a GameCube header whose id isn't letters and digits gives
+    no id."""
+    import zlib
+    from yomikata.identify import identify, identify_nintendo_disc
+    sync = b"\x00" + b"\xff" * 10 + b"\x00"
+    def raw_track(sectors):
+        return b"".join(sync + bytes([0, 2, n, 1]) + s.ljust(2048, b"\0") + bytes(288) for n, s in enumerate(sectors))
+    saturn = bytearray(0x100)
+    saturn[:16], saturn[0x20:0x30], saturn[0x38:0x40] = b"SEGA SEGASATURN ", b"GS-9037   V1.005", b"CD-2/2  "
+    (tmp_path / "s.bin").write_bytes(raw_track([bytes(saturn), bytes(2048)]))
+    (tmp_path / "s.cue").write_text('FILE "s.bin" BINARY\n  TRACK 01 MODE1/2352\n    INDEX 01 00:00:00\n')
+    r = identify(tmp_path / "s.cue")
+    assert (r.platform, r.id, r.build, r.header_crc32) == ("saturn", "GS-9037-D2", "GS-9037-D2-V1.005", f"{zlib.crc32(bytes(saturn)):08x}")
+    saturn[0x38:0x40] = b"CD-1/1  "
+    (tmp_path / "s.bin").write_bytes(raw_track([bytes(saturn), bytes(2048)]))
+    assert identify(tmp_path / "s.cue").id == "GS-9037"
+    dc = bytearray(0x100)
+    dc[:16], dc[0x20:0x30], dc[0x40:0x50] = b"SEGA SEGAKATANA ", b"055A GD-ROM1/3  ", b"HDR-0152  V1.003"
+    (tmp_path / "track01.bin").write_bytes(raw_track([bytes(dc), bytes(2048)]))
+    (tmp_path / "d.gdi").write_text("1\n1 0 4 2352 track01.bin 0\n")
+    r = identify(tmp_path / "d.gdi")
+    assert (r.platform, r.id, r.build) == ("dc", "HDR-0152-D1", "HDR-0152-D1-V1.003")
+    rom = bytes(range(256)) * 32                                         # 8 KB
+    (tmp_path / "a.pce").write_bytes(rom)
+    (tmp_path / "b.pce").write_bytes(bytes(512) + rom)
+    for name in ("a.pce", "b.pce"):
+        r = identify(tmp_path / name)
+        assert (r.platform, r.id) == ("pce", f"PCE-{zlib.crc32(rom):08X}")
+    head = bytearray(0x80)
+    head[:6], head[0x1C:0x20] = b"GAB J1", bytes.fromhex("c2339f3d")
+    assert identify_nintendo_disc(bytes(head)) is None
+    head[:6] = b"gabj01"
+    assert identify_nintendo_disc(bytes(head)) is None
