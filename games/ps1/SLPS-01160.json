@@ -23,8 +23,10 @@
   "sources": [
     "The harness alone, from the game's disc (docs/first-script.md): no reader's snapshots, no memory written",
     "The table: the whole font read off sheets drawn from the disc (rom-font --lead F8), once, by one reader: 1,776 codes. The 256 read in play agree; kanji in JIS order keep it (yomikata sorted); 8 more stood right in messages decoded from snaps. No second reader",
-    "Played from power-on: the opening's narration, the first scene, the hero's room, a talk with the housemaid and the scene inside it. What the script said in play agreed with the rows read off 25 of 25 pictures, over 5 scenes: 5 short of the 30 screens wanted",
-    "The same readings built the table, so the comparison checks messages, their pages and who speaks more than the characters. No screen without text was among them"
+    "Played from power-on through the opening's narration, the first scene and the hero's room, down the stairs to the ground floor, and a talk with a villager there: the route replayed from power-on in one run with the script loaded",
+    "What the script said agreed with the rows read off 33 of 33 pictures, over 4 scenes (the narration, the fight, the hero's room, downstairs); it said nothing on the 4 screens without text",
+    "The ground-floor villager's 17 pages came after the table was made from the font, so they check its characters as well as the messages; the narration's and the first scene's pages were read in play before and helped build it",
+    "This second measurement took 58 harness calls (the first, to 25 of 25 screens, took 516), with no play outside the harness"
   ],
   "notes": "Read by the script games/ps1/SLPS-01160.lua: a window's pointer walks through a message as it types, and each page of it is said once the pointer stands on the page's end, with who speaks from the message's first row. The table has the whole font, 1,777 codes; 8 glyphs not settled come out as U+FFFD. Not checked: the second disc (SLPS-01161), several windows at once, choices, fights, menus. A state loaded after a window has closed says its last page again.",
   "tables": [
