@@ -14,9 +14,13 @@
 -- 0xE5 is ゛ and 0xE4 ゜. Katakana ヘ and リ share hiragana へ and り's glyphs and codes: one among katakana is
 -- given as katakana.
 --
--- The window's two rows are said when the prompt's arrow (PROMPT, at row 16, column 18) shows that the page
--- waits for the button, or, for a page that ends without it, once they have stood the same for STILL frames;
--- each pair is said once. A row scrolling up stands a moment with no arrow, shorter than STILL, and isn't said.
+-- The copy keeps a window's rows after the game has stopped showing it, so the rows count only while the
+-- window shows: the game draws it as the LCD's window layer, on (LCDC, 0xFF40, bits 7 and 5) and on the screen
+-- (WY, 0xFF4A, below 0x90; the game moves it to 0x90 to hide it). While it shows, its two rows are said when
+-- the prompt's arrow (PROMPT, at row 16, column 18) shows that the page waits for the button, or, for a page
+-- that ends without it, once they have stood the same for STILL frames; and when it is hidden, the rows it
+-- showed are said if they had stood a moment (typed out; a character types every 3 frames). Each pair is said
+-- once. A row scrolling up stands a moment with no arrow, shorter than STILL, and isn't said.
 --
 -- Not covered: who speaks (the game doesn't show it), menus and other boxes (a choice, the start menu), the
 -- screens before the story, and battles' text has not been looked at.
@@ -115,6 +119,8 @@ local CORNER_TOP, CORNER_BOTTOM = 0x79, 0x7D -- the frame's left corners
 local DAKUTEN, HANDAKUTEN = 0xE5, 0xE4
 local STILL = 30 -- frames rows with no arrow stand before they are said (a row scrolling up stands about 26)
 local PROMPT, ARROW = 0xC3A0 + 20 * 16 + 18, 0xEE -- the arrow that says a page waits
+local LCDC, WY = 0xFF40, 0xFF4A -- the LCD's control and the window's row: whether the window shows
+local TYPED = 4 -- frames rows stand before a window hidden is taken to have shown them whole
 
 -- The build: the cartridge's header, from its title to its checksum.
 if mem.read(0x0134, 26) ~= "POKEMON RED\0\0\0\0\0" .. "01\x03\x03\x04\x03\x00\x33\x00\x32" then
@@ -183,7 +189,28 @@ reader.on_state_loaded(function()
     said, last, stood = nil, nil, 0
 end)
 
+local function say(page)
+    said = page
+    reader.emit{ text = page, channel = "dialogue", id = text.hash(page) }
+end
+
+local function shown()
+    local control, row = mem.u8(LCDC), mem.u8(WY)
+    if not control or not row then
+        return true -- a host without the registers: as before them
+    end
+    return control & 0xA0 == 0xA0 and row < 0x90
+end
+
 reader.on_frame(function()
+    if not shown() then
+        -- Hidden now: the rows it showed last, if they were typed out and not said yet.
+        if last and last ~= "" and last ~= said and stood >= TYPED then
+            say(last)
+        end
+        last, stood = nil, 0
+        return
+    end
     if mem.u8(SCREEN + WIDTH * TOP) ~= CORNER_TOP or mem.u8(SCREEN + WIDTH * BOTTOM) ~= CORNER_BOTTOM then
         last, stood = nil, 0
         return
@@ -202,6 +229,5 @@ reader.on_frame(function()
     if page == "" or (stood < STILL and not waits) or page == said then
         return
     end
-    said = page
-    reader.emit{ text = page, channel = "dialogue", id = text.hash(page) }
+    say(page)
 end)
