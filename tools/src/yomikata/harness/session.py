@@ -1633,15 +1633,22 @@ class Session:
           "right, left, down and up, and gives the floats that stood while it stood, moved with a push and "
           "came back with the push the other way, grouped where they lie three on end (a place is kept as "
           "x, y, z; the one of the three that doesn't move is the height). The camera may be turned, so a push "
-          "right may move both of the other two. Give two of a group's addresses to explore with `grid`.",
+          "right may move both of the other two. Give two of a group's addresses to explore with `grid`. "
+          "A console without floats (PlayStation, Super Famicom) keeps a place as whole numbers: `kind` s16 "
+          "or s32 looks for those the same way, and explore then wants `whole` with `grid` and the `size`.",
           frames=("integer", "frames each way (default 20)", False),
           stick=("boolean", "move with the left stick instead of the pad's arrows", False),
-          least=("number", "how far a push must move a number to count (default 1.0)", False))
-    def place_find(self, frames: int = 20, stick: bool = False, least: float = 1.0) -> dict:
+          least=("number", "how far a push must move a number to count (default 1.0)", False),
+          kind=("string", "float, s16 or s32 (default: s16 on ps1 and sfc, float elsewhere)", False))
+    def place_find(self, frames: int = 20, stick: bool = False, least: float = 1.0, kind: str = "") -> dict:
         import numpy as np
         machine = self._need()
         frames, events, least = max(2, min(int(frames), 120)), [], max(1e-6, float(least))
-        kind = ">f4" if machine.platform in ("gc", "wii") else "<f4"
+        kind = kind or ("s16" if machine.platform in ("ps1", "sfc") else "float")
+        if kind not in ("float", "s16", "s32"):
+            raise HarnessError("kind is float, s16 or s32")
+        unit = 2 if kind == "s16" else 4
+        kind = (">" if machine.platform in ("gc", "wii") else "<") + {"float": "f4", "s16": "i2", "s32": "i4"}[kind]
 
         def after(direction):
             held = set() if stick or direction is None else {direction}
@@ -1650,32 +1657,40 @@ class Session:
             self._advance(frames, held, where, events)
             self._advance(4, set(), (0.0, 0.0), events)
             base, ram = machine.ram()
-            return base, np.frombuffer(ram[:len(ram) // 4 * 4], dtype=kind).astype(np.float64)
+            return base, np.frombuffer(ram[:len(ram) // unit * unit], dtype=kind).astype(np.float64)
         base, still = after(None)
         _, s0 = after(None)
         r, l, d, u = (after(way)[1] for way in ("right", "left", "down", "up"))
         with np.errstate(invalid="ignore", over="ignore"):
             sane = np.isfinite(s0) & np.isfinite(r) & np.isfinite(l) & np.isfinite(d) & np.isfinite(u) \
                 & (np.abs(s0) < 1e6) & (np.abs(r) < 1e6) & (np.abs(d) < 1e6) & (still == s0)
+            if kind[1] != "f":
+                # A whole number that leaps isn't a place: a walk is a few units a frame at most.
+                sane &= (np.abs(r - s0) <= 64 * frames) & (np.abs(d - l) <= 64 * frames) & (np.abs(u - s0) <= 64 * frames)
             # A push moved it, and the push the other way took it back at least half the way.
             across = (np.abs(r - s0) >= least) & (np.abs(l - s0) <= 0.5 * np.abs(r - s0) + least)
             along = (np.abs(d - l) >= least) & (np.abs(u - l) <= 0.5 * np.abs(d - l) + least)
             moved = np.nonzero(sane & (across | along))[0]
-        show = lambda i: {"address": f"0x{base + 4 * int(i):08X}", "value": round(float(s0[i]), 3),       # noqa: E731
+        show = lambda i: {"address": f"0x{base + unit * int(i):08X}", "value": round(float(s0[i]), 3),    # noqa: E731
                           "right": round(float(r[i] - s0[i]), 3), "down": round(float(d[i] - l[i]), 3)}
         chosen, groups = set(int(i) for i in moved), []
+        # x, y, z on end: two of the three moved. Whole numbers of two bytes may lie a word apart instead.
+        shapes = [(first, apart) for apart in ((1,) if unit == 4 else (1, 2)) for first in (-2, -1, 0)]
         for i in sorted(chosen):
-            for first in (i - 2, i - 1, i):                 # x, y, z on end: two of the three moved
-                three = [first, first + 1, first + 2]
-                if first >= 0 and first + 2 < len(s0) and sum(1 for k in three if k in chosen) >= 2 \
+            for back, apart in shapes:
+                first = i + back * apart
+                three = [first, first + apart, first + 2 * apart]
+                if first >= 0 and three[2] < len(s0) and sum(1 for k in three if k in chosen) >= 2 \
                         and not any(abs(g["at"] - three[0]) < 3 for g in groups) and all(bool(sane[k]) for k in three):
                     groups.append({"at": three[0], "places": [show(k) for k in three],
                                    "moved": round(float(sum(abs(r[k] - s0[k]) + abs(d[k] - l[k]) for k in three)), 3)})
                     break
-        groups.sort(key=lambda g: -g["moved"])
+        # A place is two numbers that both pushes moved and a height that neither did: such a group first.
+        flat = lambda g: sorted(bool(q["right"] or q["down"]) for q in g["places"]) == [False, True, True]   # noqa: E731
+        groups.sort(key=lambda g: (not flat(g), -g["moved"]))
         if not groups and not len(moved):
             raise HarnessError("no number followed the moves: does the pad move the character here?")
-        return {"frames": frames, "floats_that_followed": int(len(moved)),
+        return {"frames": frames, "floats_that_followed" if kind[1] == "f" else "numbers_that_followed": int(len(moved)),
                 "groups": [{"places": g["places"]} for g in groups[:12]],
                 "alone": [show(i) for i in moved[:12]] if not groups else [], "frame": machine.frames}
 
@@ -1832,7 +1847,8 @@ class Session:
           "Gives the places as rows of a map in the game's own numbers (# reached, @ where it stands, D where "
           "the next push changed the map: a door, stairs), and the game is left where it was. Given `to`, the "
           "game is then put at that place as it was reached while trying (the pushes go into the record of the "
-          "way), or it says that the place wasn't among those reached.",
+          "way), or it says that the place wasn't among those reached; the trying ends as soon as the place is "
+          "reached, so a walk to somewhere near is quick and the map given is only what was tried till then.",
           x_address=("string", "where the game keeps the place across, hex (default: as cursor_find found)", False),
           y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
           step=("integer", "frames a push is held (default 8): about one of the game's numbers a push is best", False),
@@ -1844,12 +1860,14 @@ class Session:
           diagonals=("boolean", "push the four slanting ways too: for a passage that runs aslant of the pad's "
                                 "ways and is narrower than a push (a camera turned, as in most games of three "
                                 "dimensions)", False),
+          whole=("boolean", "with grid: the place is whole numbers of `size` bytes, not floats (a console "
+                            "without floats, where a push moves the number by many)", False),
           grid=("number", "for a place kept as numbers with a point (place_find): read both as 32-bit floats and "
                           "count in cells of this many of the game's units, so that places a hair apart are "
                           "one. About what one push moves the character is best", False))
     def explore(self, x_address: str = "", y_address: str = "", size: int = 2, step: int = 8, most: int = 400,
                 to: list | None = None, near: int = 1, jump: int = 8, within: list | None = None,
-                grid: float = 0.0, diagonals: bool = False) -> dict:
+                grid: float = 0.0, diagonals: bool = False, whole: bool = False) -> dict:
         machine = self._need()
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
         step, most, jump = max(1, min(int(step), 60)), max(2, min(int(most), 1500)), max(2, int(jump))
@@ -1860,7 +1878,13 @@ class Session:
         if grid < 0:
             raise HarnessError("grid is how many of the game's units make a cell: above 0")
 
+        def signed(value):
+            return value - (1 << 8 * size) if value is not None and size > 1 and value >> (8 * size - 1) else value
+
         def now():
+            if grid and whole:
+                values = [signed(self._cell(at, size)) for at in (at_x, at_y)]
+                return tuple(None if v is None else round(v / grid) for v in values)
             if grid:
                 import math
                 order = ">f" if machine.platform in ("gc", "wii") else "<f"
@@ -1869,26 +1893,27 @@ class Session:
                     return None, None
                 values = [struct.unpack(order, b)[0] for b in raw]
                 return tuple(round(v / grid) if math.isfinite(v) and abs(v) < 1e9 else None for v in values)
-
-            def signed(value):
-                return value - (1 << 8 * size) if value is not None and size > 1 and value >> (8 * size - 1) else value
             return signed(self._cell(at_x, size)), signed(self._cell(at_y, size))
         origin = now()
         if None in origin:
             raise HarnessError("the place can't be read")
         # Tried without the script and off the record of the way: the game is put back afterwards, so nothing
         # of the trying happened as far as a state or a waypoint knows.
+        # A state is kept packed: a console's memory is mostly the same bytes over and over, and a house of
+        # several rooms is more places than would fit unpacked.
+        import zlib
         start, frames = machine.save_state(), machine.frames
-        places = {origin: (start, None, None)}             # a place: the state there, where it was reached from, the push
-        doors, queue, held, late = {}, [origin], len(start), False
+        places = {origin: (zlib.compress(start, 1), None, None)}    # a place: the state there, where it was reached from, the push
+        doors, queue, held, late = {}, [origin], len(places[origin][0]), False
         ways = ("up", "down", "left", "right") + (("up+left", "up+right", "down+left", "down+right") if diagonals else ())
-        while queue and not late:
+        near, found = max(0, int(near)), False             # with `to`, the trying ends once the place is reached
+        while queue and not late and not found:
             here = queue.pop(0)
             for push in ways:
                 if self._late():
                     late = True
                     break
-                machine.load_state(places[here][0])
+                machine.load_state(zlib.decompress(places[here][0]))
                 machine.run(step, set(push.split("+")), (0.0, 0.0))
                 there = now()
                 if None in there or there == here:
@@ -1898,9 +1923,12 @@ class Session:
                     continue
                 inside = within is None or (within[0] <= there[0] <= within[2] and within[1] <= there[1] <= within[3])
                 if there not in places and inside and len(places) < most and held < 1 << 30:
-                    places[there] = (machine.save_state(), here, push)
+                    places[there] = (zlib.compress(machine.save_state(), 1), here, push)
                     held += len(places[there][0])
                     queue.append(there)
+                    if to is not None and abs(there[0] - to[0]) <= near and abs(there[1] - to[1]) <= near:
+                        found = True
+                        break
         machine.load_state(start)
         machine.frames = frames
         xs, ys = [p[0] for p in places], [p[1] for p in places]
@@ -1914,7 +1942,6 @@ class Session:
                   if not late and len(places) >= most else {})}
         if to is None:
             return out
-        near = max(0, int(near))
         fits = [p for p in places if abs(p[0] - to[0]) <= near and abs(p[1] - to[1]) <= near]
         if not fits:
             return {**out, "reached": False, "why": "the place isn't among those it got to"}
@@ -1926,7 +1953,7 @@ class Session:
         # The game is taken as it stood at that place while trying, and the pushes that led there go into the
         # record of the way. Playing them again from here may end elsewhere: a core need not go on from a
         # loaded state exactly as it would have run through it, and each place was reached from a loaded one.
-        machine.load_state(places[goal][0])
+        machine.load_state(zlib.decompress(places[goal][0]))
         machine.frames = frames + step * len(pushes)
         for push in reversed(pushes):
             self._moved(step, set(push.split("+")), (0.0, 0.0))
