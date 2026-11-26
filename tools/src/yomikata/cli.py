@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -254,7 +255,11 @@ def main(argv: list[str] | None = None) -> int:
         session.call_seconds = max(1.0, args.call_seconds)
         session.allow_poke = args.allow_poke
         mcp.serve(session)
-        return 0
+        # The core has ended (or been left): leave without the process's own teardown, which some cores'
+        # libraries never come back from (flycast's kept the harness until its timeout).
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)
 
     if args.cmd == "play":
         from .harness import play
@@ -262,16 +267,21 @@ def main(argv: list[str] | None = None) -> int:
         from .harness.session import HarnessError, Roots, Session
         session = Session(Roots(args.games, args.cores, args.inbox, args.scratch, args.system), Machine)
         session.call_seconds = max(1.0, args.call_seconds)
+        from .harness.mcp import finish
         try:
             lines = play.run(session, json.loads(args.plan.read_text(encoding="utf-8")), args.out)
         except HarnessError as e:
             print(str(e), file=sys.stderr)
-            return 1
+            lines = None
         finally:
-            session.close()
-        print(json.dumps({"recorded": len(lines), "frames": lines[-1]["outcome"]["frames"] if lines else 0},
-                         ensure_ascii=False))
-        return 0 if lines and all(e["ok"] for e in lines) else 1
+            finish(session)
+        if lines is not None:
+            print(json.dumps({"recorded": len(lines), "frames": lines[-1]["outcome"]["frames"] if lines else 0},
+                             ensure_ascii=False))
+        sys.stdout.flush()
+        sys.stderr.flush()
+        # As the harness: no teardown of the process, which some cores' libraries never come back from.
+        os._exit(0 if lines and all(e["ok"] for e in lines) else 1)
 
     if args.cmd == "calls":
         from .calls import summary

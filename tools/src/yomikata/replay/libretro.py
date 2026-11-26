@@ -257,6 +257,21 @@ class Core:
         if getattr(self, "hw", None) is not None:
             self.gl.make_framebuffer(max(av.max_width, av.base_width, 640), max(av.max_height, av.base_height, 480))
             self.hw.context_reset()
+        self._loaded = True
+
+    def close(self) -> None:
+        """Unloads the game and ends the core, as a frontend does on quitting; once. A core may not come back
+        from this (flycast's doesn't always): the harness waits for it only a little (harness/mcp.py)."""
+        if getattr(self, "_closed", False):
+            return
+        self._closed = True
+        if getattr(self, "_loaded", False):
+            if self.hw is not None and self.hw.context_destroy:
+                self.hw.context_destroy()
+            self.lib.retro_unload_game()
+        self.lib.retro_deinit()
+        if self.gl is not None:
+            self.gl.close()
 
     def state_size(self) -> int:
         return int(self.lib.retro_serialize_size())

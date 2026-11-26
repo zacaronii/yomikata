@@ -678,6 +678,11 @@ A core that hangs inside one frame can't be stopped that way. A call that hasn't
 time is answered with an error that says so, and the harness ends: its container goes, states and snaps in
 scratch stay. Start it again and load a state.
 
+When the calls are over (the input ends) the game is unloaded and the core ended, as a frontend does. A core
+that doesn't come back from that within 5 seconds is left: the harness says so on standard error and leaves
+anyway, after putting what it wrote (the record, states, snaps) on the disk. flycast's end kept the harness
+until its timeout before this. `yomikata play` ends the same way.
+
 ## Running it
 
 ```sh

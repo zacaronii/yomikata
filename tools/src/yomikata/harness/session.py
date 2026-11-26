@@ -2974,8 +2974,11 @@ class Session:
         return ("image", self._png(image, scale))
 
     def close(self) -> None:
+        """Closes the script's reader and ends the core. A core's end may never come back: see mcp.finish."""
         self._close_reader()
-        self.machine = None
+        machine, self.machine = self.machine, None
+        if machine is not None and hasattr(machine, "close"):
+            machine.close()
 
 
 class _NoReader:
