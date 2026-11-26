@@ -393,17 +393,17 @@
   },
   "SLPS-01160": {
    "path": "games/ps1/SLPS-01160.json",
-   "sha256": "99a5cf4969558f1bbf11a8b9049220321067e19ca7bc66d2ec43608a24f5b929",
+   "sha256": "a4982e3d703ce518bf0e578fa6891ee50a506e24f00544b71518d615b5c2e581",
    "platform": "ps1",
-   "encoding": "unknown",
-   "status": "auto"
+   "encoding": "table",
+   "status": "partial"
   },
   "SLPS-01161": {
    "path": "games/ps1/SLPS-01160.json",
-   "sha256": "99a5cf4969558f1bbf11a8b9049220321067e19ca7bc66d2ec43608a24f5b929",
+   "sha256": "a4982e3d703ce518bf0e578fa6891ee50a506e24f00544b71518d615b5c2e581",
    "platform": "ps1",
-   "encoding": "unknown",
-   "status": "auto",
+   "encoding": "table",
+   "status": "partial",
    "alias_of": "SLPS-01160"
   },
   "SLPS-01880": {
@@ -1182,6 +1182,24 @@
    ],
    "needs": [],
    "data": {}
+  },
+  "SLPS-01160": {
+   "path": "scripts/ps1/SLPS-01160.lua",
+   "sha256": "a2bbe37c31f426f09c7108283ddd99e789c14a6b9e27f26620b12b04599b3b5b",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "ゼノギアス (Xenogears)",
+   "reads": "a message window's text once the game has typed it out, with who speaks",
+   "builds": [
+    "3f9633f80213427f55894cda9fc8c3346ecf31b4"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/ps1/SLPS-01160.tbl",
+     "sha256": "811626b96b2afa334c1c98fb451142c0dbf943ffc478437bdf1f55ac58db106b"
+    }
+   }
   },
   "SLPS-02000": {
    "path": "scripts/ps1/SLPS-02000.lua",
