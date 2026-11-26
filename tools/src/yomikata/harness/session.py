@@ -530,7 +530,8 @@ class Session:
           "pointer: a story page has begun), at `most` presses, or when the call's time is up. When the picture "
           "hasn't changed for `stuck` presses (a menu that takes no button; a blinking cursor or arrow doesn't count "
           "as a change), it presses `back` up to three times, then stops and says so. Says the presses, why it "
-          "stopped, and the mode's place's value.",
+          "stopped, and the mode's place's value. A mode that doesn't hold when it starts (and doesn't begin "
+          "within `begin` frames) is said to have never begun.",
           address=("string", "the mode's place in memory, hex: pressing goes on while it holds `equals` (or, with "
                              "`differs`, while it doesn't hold that)", True),
           size=("integer", "its bytes: 1, 2 or 4 (default 1)", False),
@@ -547,11 +548,13 @@ class Session:
           stuck=("integer", "presses with no change in the picture that count as stuck (default 8; 0: no check)", False),
           still_share=("number", "the share of the picture's pixels that may change in a press that still counts "
                                  "as no change, against the picture a press back or two (default 0.01)", False),
-          back=("array", "the buttons that back out of a stuck menu (default b)", False))
+          back=("array", "the buttons that back out of a stuck menu (default b)", False),
+          begin=("integer", "frames to wait, pressing nothing, for the mode to begin (a fight's opening plays "
+                            "before the game sets its flag); default 0", False))
     def advance_through(self, address: str, size: int = 1, equals: str = "", differs: str = "",
                         buttons: list | None = None, hold: int = 6, wait: int = 30, watch: str = "",
                         watch_size: int = 1, most: int = 300, stuck: int = 8, back: list | None = None,
-                        first: list | None = None, still_share: float = 0.01) -> dict:
+                        first: list | None = None, still_share: float = 0.01, begin: int = 0) -> dict:
         import numpy as np
         machine = self._need()
         if size not in (1, 2, 4) or watch_size not in (1, 2, 3, 4):
@@ -609,7 +612,16 @@ class Session:
             return why
 
         stopped = None
-        for keys in opening:                      # once, before the rest: set a cursor, back out of a list
+        # The mode may begin a little later (a fight's opening plays before its flag is set): wait for it,
+        # pressing nothing. One that doesn't hold by then never began, which isn't the same as one that ended.
+        begin = max(0, min(int(begin), MAX_FRAMES))
+        if begin and not mode():
+            _, why = self._advance(begin, set(), (0.0, 0.0), events, watch=lambda: "began" if mode() else None)
+            if why == "time":
+                stopped = "time"
+        if stopped is None and not mode():
+            stopped = "never began"
+        for keys in opening if stopped is None else ():   # once, before the rest: set a cursor, back out of a list
             if not mode():
                 stopped = "mode ended"
                 break
@@ -802,7 +814,7 @@ class Session:
 
     @tool("Bytes of the game's memory, as hex.",
           address=("string", "the game's own address, hex, e.g. 0x80123400", True),
-          size=("integer", f"how many bytes (at most {MAX_READ})", True),
+          size=("integer", f"how many bytes (at most {MAX_READ}: a larger size is cut, and said)", True),
           region=("string", "a named region to read by offset instead, e.g. vram", False),
           table=("string", "also read the bytes as text in the game's codes: a table's text (HEX=character lines)", False),
           rules=("array", "and/or by rules, worded as code_rule gives them: \"code = 0xA420 - JIS\", "
@@ -822,19 +834,23 @@ class Session:
     def read(self, address: str, size: int, region: str = "", table: str = "", rules: list | None = None,
              unit: int = 2, big_endian: bool = True, mask: str = "", snaps: list | None = None,
              mixed: str = "", marks: dict | None = None) -> dict:
-        at, size = int(address, 16), max(0, min(int(size), MAX_READ))
+        at, asked = int(address, 16), int(size)
+        size = max(0, min(asked, MAX_READ))
+        # A size past the most is cut, and said: the rest wasn't read, not empty.
+        cut = {"cut": f"{asked} bytes asked, {MAX_READ} read (the most a read gives): read on from "
+                      f"{hex(at + MAX_READ)}"} if asked > MAX_READ else {}
         if snaps:                               # the same stretch in each of several moments, one under the other
             rows = {}
             for name, base, ram in self._each_memory(snaps):
                 rows[name] = ram[max(0, at - base):max(0, at - base) + min(size, 64)].hex()
-            return {"address": hex(at), "snaps": rows}
+            return {"address": hex(at), "snaps": rows, **cut}
         if region:
             data = self._need().regions().get(region)
             if data is None:
                 raise HarnessError(f"the core gives out no {region}")
-            return {"offset": hex(at), "hex": data[at:at + size].hex()}
+            return {"offset": hex(at), "hex": data[at:at + size].hex(), **cut}
         data = self._read(at, size)
-        out = {"address": hex(at), "hex": data.hex()}
+        out = {"address": hex(at), "hex": data.hex(), **cut}
         if mixed:
             try:
                 where = {int(str(v), 16) - at: str(k) for k, v in (marks or {}).items()}
@@ -2317,9 +2333,9 @@ class Session:
           grid=("number", "for a place kept as numbers with a point (place_find): read both as 32-bit floats and "
                           "count in cells of this many of the game's units, so that places a hair apart are "
                           "one. About what one push moves the character is best", False),
-          close=("string", "a button that closes a window (a, b): pressed first, and the press kept, when no push "
-                           "moves the character from where it stands (a message open takes the pad). Without "
-                           "it such a start is only said (`still`)", False))
+          close=("string", "a button that closes a window (a, b): pressed once first, and the press kept, when "
+                           "no push moves the character from where it stands, not even a longer one (a message "
+                           "open takes the pad). Without it such a start is only said (`still`)", False))
     def explore(self, x_address: str = "", y_address: str = "", size: int = 2, step: int = 8, most: int = 400,
                 to: list | None = None, near: int = 1, jump: int = 8, within: list | None = None,
                 grid: float = 0.0, diagonals: bool = False, whole: bool = False, close: str = "") -> dict:
@@ -2355,29 +2371,33 @@ class Session:
         import zlib
         ways = ("up", "down", "left", "right") + (("up+left", "up+right", "down+left", "down+right") if diagonals else ())
 
-        def stuck():
-            """Whether no push moves the character from here: a window open (a message, a talk) takes the pad."""
+        def moves(frames: int) -> bool:
+            """Whether a push of so many frames, any way, moves the character from here; the game is put back."""
             here = machine.save_state()
             try:
                 for push in ways:
                     machine.load_state(here)
-                    machine.run(step, set(push.split("+")), (0.0, 0.0))
+                    machine.run(frames, set(push.split("+")), (0.0, 0.0))
                     if now() != origin:
-                        return False
-                return True
+                        return True
+                return False
             finally:
                 machine.load_state(here)
-        closed = 0
-        if close:
-            # The window is closed with the button, and the press goes into the record of the way: from here
-            # on the game is where it was after the press, not before it.
-            while closed < 3 and stuck():
+        # A game may count a step only when it is over, later than a short push ends: a push of `long` frames
+        # tells that from a window that takes the pad, before anything is pressed to close one.
+        long = min(60, max(2 * step, step + 16))
+        closed, late_count = 0, None
+        if close and not moves(step):
+            late_count = moves(long)
+            if not late_count:
+                # The window is closed with the button, once, and the press goes into the record of the way:
+                # from here on the game is where it was after the press, not before it.
                 held = {close}
                 machine.run(6, held, (0.0, 0.0))
                 self._moved(6, held, (0.0, 0.0))
                 machine.run(30, set(), (0.0, 0.0))
                 self._moved(30, set(), (0.0, 0.0))
-                closed += 1
+                closed = 1
                 origin = now()
                 if None in origin:
                     raise HarnessError("the place can't be read")
@@ -2417,6 +2437,16 @@ class Session:
                         break
         machine.load_state(start)
         machine.frames = frames
+
+        def still() -> str:
+            """Why no push moved the character: the game counts a step later than a push of `step` ends, or a
+            window takes the pad (or the address isn't the place's)."""
+            if late_count if late_count is not None else moves(long):
+                return (f"no push of {step} frames moved the character, but one of {long} did: the game counts a "
+                        f"step only once it is over; give step {long}")
+            return (f"no push moved the character from where it stands, not even one of {long} frames: a window "
+                    "open (a message, a talk) may be taking the pad; give `close` the button that closes it, or "
+                    "check the place's address with a push of your own")
         xs, ys = [p[0] for p in places], [p[1] for p in places]
         rows = ["".join("@" if (x, y) == origin else "D" if (x, y) in doors else "#" if (x, y) in places else "."
                         for x in range(min(xs), max(xs) + 1)) for y in range(min(ys), max(ys) + 1)]
@@ -2433,10 +2463,7 @@ class Session:
                "doors": [{"at": list(p), "push": push} for p, push in sorted(doors.items())][:MAX_ROWS],
                **({"stopped": "time"} if late else {}),
                **({"closed": closed} if closed else {}),
-               **({"still": "no push moved the character from where it stands: a window open (a message, a "
-                            "talk) may be taking the pad; give `close` the button that closes it, or check the "
-                            "place's address with a push of your own"}
-                  if len(places) == 1 and not doors and not late else {}),
+               **({"still": still()} if len(places) == 1 and not doors and not late else {}),
                **({"more": "places beyond these weren't tried: raise most, or give within"}
                   if not late and len(places) >= most else {})}
         if to is None:

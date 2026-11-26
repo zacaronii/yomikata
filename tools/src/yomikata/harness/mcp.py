@@ -55,13 +55,17 @@ def call(session: Session, name: str, arguments: dict) -> dict:
 
 def _outcome(name: str, answer: dict) -> dict | None:
     """What of a call's result the record keeps: for a comparison by scenes, whether the bar was met and on
-    how many screens and scenes (counts only). It is what `yomikata calls --trend` reads a script's cost up to."""
-    if name != "compare" or answer.get("isError"):
+    how many screens and scenes (counts only), what `yomikata calls --trend` reads a script's cost up to; for
+    advance_through, its presses, backs and why it stopped, so that a fight's numbers outlast the output."""
+    if name not in ("compare", "advance_through") or answer.get("isError"):
         return None
     try:
-        bar = json.loads(answer["content"][0]["text"]).get("bar")
+        result = json.loads(answer["content"][0]["text"])
+        bar = result.get("bar")
     except (KeyError, IndexError, TypeError, ValueError, AttributeError):
         return None
+    if name == "advance_through":
+        return {k: result.get(k) for k in ("presses", "backs", "stopped")}
     if not isinstance(bar, dict):
         return None
     return {"bar": bool(bar.get("met")), "screens": bar.get("screens with text"), "scenes": len(bar.get("scenes") or {})}

@@ -816,6 +816,42 @@ def test_advance_through_presses_through_a_fight_and_backs_out_of_a_stuck_menu(t
     s.close()
 
 
+class LateBattles(Battles):
+    """Battles whose flag (0x50) is set only once the fight's opening has played, at frame `opens`."""
+    opens = 0
+
+    def run(self, frames, buttons, stick):
+        super().run(frames, buttons, stick)
+        if self.opens and self.frames >= self.opens:
+            self.memory[0x50], self.opens = 1, 0
+
+
+def test_advance_through_waits_for_a_mode_to_begin_and_says_when_it_never_did(tmp_path):
+    """A fight whose flag is set after its opening: without `begin` nothing is pressed and it never began (not
+    "mode ended"); with `begin` it waits, pressing nothing, then fights through. A flag that doesn't come in
+    time never began either. The outcome goes into the record of calls, through the MCP call."""
+    from yomikata.harness import mcp
+    for name in ("games/sfc", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/sfc/Made Up (Japan).sfc").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), LateBattles)
+    s.load("sfc/Made Up (Japan).sfc", "fake_libretro.so", "sfc")
+    flag, m = f"0x{BASE + 0x50:X}", s.machine.memory
+    m[0x50], s.machine.opens, s.machine.presses = 0, s.machine.frames + 90, 0
+    out = s.advance_through(flag, equals="1", wait=10)
+    assert (out["stopped"], out["presses"]) == ("never began", 0), out
+    out = s.advance_through(flag, equals="1", wait=10, begin=40)                       # not yet by then
+    assert (out["stopped"], out["presses"]) == ("never began", 0), out
+    answer = mcp.call(s, "advance_through", {"address": flag, "equals": "1", "wait": 10, "begin": 200})
+    out = json.loads(answer["content"][0]["text"])
+    assert (out["stopped"], out["presses"], out["value"]) == ("mode ended", 6, "0x0"), out
+    record = [json.loads(line) for line in (tmp_path / "scratch/record/calls.jsonl").read_text().splitlines()]
+    done = [e for e in record if e["tool"] == "advance_through" and not e.get("begun")]
+    assert done[-1]["outcome"] == {"presses": 6, "backs": 0, "stopped": "mode ended"}
+    s.close()
+
+
 class CursorBattles(Battles):
     """Battles with a command cursor (0x52: 0 to fight, 1 the items): a fights only from the first command, and
     from the second opens an empty list (0x51) whose cursor blinks, 4 pixels of 3072 every 8 frames; b closes
@@ -2044,6 +2080,38 @@ def test_explore_says_when_a_window_takes_the_pad_and_closes_it_with_close(sessi
     assert "closed" not in again and again["places"] == out["places"]
 
 
+def test_explore_tells_a_step_counted_late_from_a_window_and_presses_nothing(session):
+    """A game that counts a step only once it is over, 26 frames after the press (Pocket Monsters Gin), and has
+    no window open: pushes of 16 frames see nothing move, a longer trial push does, so `close` presses nothing
+    and `still` says which step to give; with that step the map is found."""
+    machine, plain = session.machine, session.machine._step
+    ways = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}
+
+    def walking(buttons, stick):
+        m = machine.memory
+        if m[0x700]:                                  # a step under way: the place changes when it is over
+            m[0x700] -= 1
+            if not m[0x700]:
+                x, y = struct.unpack_from(">hh", m, 0x30)
+                dx, dy = list(ways.values())[m[0x701]]
+                struct.pack_into(">hh", m, 0x30, x + dx, y + dy)
+        else:
+            for k, way in enumerate(ways):
+                if way in buttons:
+                    m[0x700], m[0x701] = 26, k
+                    break
+        plain(set(buttons) & {"a", "b"}, stick)
+    machine._step = walking
+    struct.pack_into(">hh", machine.memory, 0x30, 10, 10)
+    at = dict(x_address=f"0x{BASE + 0x30:X}", y_address=f"0x{BASE + 0x32:X}", size=2)
+    before, frames, way = machine.save_state(), machine.frames, json.dumps(session.route)
+    out = session.explore(step=16, close="a", within=[8, 8, 12, 12], **at)
+    assert out["places"] == 1 and "closed" not in out and "give step 32" in out["still"], out
+    assert (machine.save_state(), machine.frames, json.dumps(session.route)) == (before, frames, way)   # nothing pressed
+    out = session.explore(step=32, within=[8, 8, 12, 12], **at)
+    assert out["places"] > 1 and "still" not in out, out
+
+
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
     """`yomikata calls --trend`: for each game, the calls, runs and minutes from its first call to the first
     comparison by scenes that met the bar; a comparison's outcome is kept with its call (counts only)."""
@@ -2446,6 +2514,12 @@ def test_advancing_looks_in_a_consoles_other_memory_and_takes_slow_typing(sessio
     found = session.advancing(names[:12], rest=names[12:], unit=4, least=2)
     assert [(p["address"], p["from"], p["to"]) for p in found["places"]] == [("0x03000074", "0x02012400", "0x02012404")]
     assert "least" in session.advancing(names[:12], rest=names[12:], unit=4)["nothing_advances"]
+
+
+def test_read_says_when_it_cut_a_size_past_the_most(session):
+    out = session.read(f"0x{BASE:X}", 5000)
+    assert len(bytes.fromhex(out["hex"])) == 4096 and "5000 bytes asked, 4096 read" in out["cut"]
+    assert "cut" not in session.read(f"0x{BASE:X}", 16)
 
 
 def test_find_says_what_to_try_when_a_text_is_nowhere(session):
