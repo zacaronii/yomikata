@@ -116,8 +116,46 @@ def _cart_bytes(path: Path, n: int, offset: int = 0) -> bytes:
         return f.read(n)
 
 
+N64_FIRST = bytes.fromhex("80371240")                                  # a cartridge's first word, big-endian
+
+
+def n64_big_endian(data: bytes) -> bytes | None:
+    """An N64 cartridge's bytes in its own order (big-endian, as a .z64 keeps them), from any of the three
+    orders dumps come in: .z64 as it is, .v64 with each 16-bit word's bytes swapped, .n64 with each 32-bit
+    word's reversed. None when the first word isn't a cartridge's."""
+    n = len(data) // 4 * 4
+    if data[:4] == N64_FIRST:
+        return data[:n]
+    if data[:4] == bytes.fromhex("37804012"):
+        out = bytearray(n)
+        out[0::2], out[1::2] = data[1:n:2], data[0:n:2]
+        return bytes(out)
+    if data[:4] == bytes.fromhex("40123780"):
+        out = bytearray(n)
+        for k in range(4):
+            out[k::4] = data[3 - k:n:4]
+        return bytes(out)
+    return None
+
+
+def identify_n64(head: bytes) -> Release | None:
+    """An N64 cartridge, by its header (the first 0x40 bytes, in the cartridge's own order): the 4-character game
+    code at 0x3B (a kind, two letters, a region: NAFJ) with "NUS-" before it, else the header's CRC-32; the build
+    is the id, "-" and the version at 0x3F as two hex digits; header_crc32 the CRC-32 of the 0x40 bytes."""
+    head = n64_big_endian(head[:0x40])
+    if head is None or len(head) < 0x40:
+        return None
+    crc = f"{zlib.crc32(head):08x}"
+    code = head[0x3B:0x3F].decode("ascii", "replace")
+    ident = f"NUS-{code}" if re.fullmatch(r"[A-Z0-9]{4}", code) else f"N64-{crc.upper()}"
+    return Release("n64", ident, header_crc32=crc, build=f"{ident}-{head[0x3F]:02X}")
+
+
 def identify_cart(path: Path) -> Release:
     head = _cart_bytes(path, 0x200)
+    n64 = identify_n64(head)
+    if n64:
+        return n64
     if head[0x100:0x104] == b"NCSD":                                    # 3DS card image
         ncch = _cart_bytes(path, 0x200, struct.unpack("<I", head[0x120:0x124])[0] * 0x200)
         code = ncch[0x150:0x160].split(b"\0")[0].decode("ascii")
@@ -131,7 +169,7 @@ def identify_cart(path: Path) -> Release:
         return Release("nds", code, header_crc32=f"{zlib.crc32(head[:0x160]):08x}")
     if head[0x104:0x108] == GB_LOGO:
         return identify_gb(head)
-    raise DiscError("not a Game Boy, Game Boy Advance, DS or 3DS card image")
+    raise DiscError("not a Game Boy, Game Boy Advance, N64, DS or 3DS card image")
 
 
 GB_LOGO = bytes.fromhex("ceed6666")                                     # the start of the logo every cartridge shows

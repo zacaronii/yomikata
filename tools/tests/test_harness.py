@@ -2315,3 +2315,31 @@ def test_a_saturn_is_read_at_its_own_addresses_and_in_its_own_byte_order():
     assert region_starts("saturn") == {"lwram": 0x00200000} and "saturn" in BIG_ENDIAN
     assert machine.write(0x06000C03, b"!?") == 2                           # across two words
     assert machine.read(0x06000C00, 6) == b"SEG!?S" and host[0x100C02:0x100C06] == b"!GS?"
+
+
+def test_identify_an_n64_cartridge_in_each_byte_order_and_zipped(tmp_path):
+    """An N64 cartridge by its header in its own order, whether the dump is .z64, .v64 (16-bit words swapped) or
+    .n64 (32-bit words reversed), and inside a zip; a header without a game code is named by its CRC-32."""
+    import zipfile
+    import zlib
+    from yomikata.identify import identify
+    head = bytearray(0x1000)
+    head[:4], head[0x20:0x34] = bytes.fromhex("80371240"), b"MADE UP GAME        "
+    head[0x3B:0x3F], head[0x3F] = b"NXXJ", 1
+    crc = f"{zlib.crc32(bytes(head[:0x40])):08x}"
+    v64, n64 = bytearray(len(head)), bytearray(len(head))
+    v64[0::2], v64[1::2] = head[1::2], head[0::2]
+    for k in range(4):
+        n64[k::4] = head[3 - k::4]
+    (tmp_path / "a.z64").write_bytes(bytes(head))
+    (tmp_path / "a.v64").write_bytes(bytes(v64))
+    (tmp_path / "a.n64").write_bytes(bytes(n64))
+    with zipfile.ZipFile(tmp_path / "a.zip", "w") as z:
+        z.writestr("Made Up (Japan).z64", bytes(head))
+    for name in ("a.z64", "a.v64", "a.n64", "a.zip"):
+        r = identify(tmp_path / name)
+        assert (r.platform, r.id, r.build, r.header_crc32) == ("n64", "NUS-NXXJ", "NUS-NXXJ-01", crc), name
+    head[0x3B:0x3F] = b"\0\0\0\0"
+    (tmp_path / "b.z64").write_bytes(bytes(head))
+    r = identify(tmp_path / "b.z64")
+    assert r.id == f"N64-{zlib.crc32(bytes(head[:0x40])):08X}" and r.build == r.id + "-01"
