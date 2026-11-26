@@ -1,0 +1,24 @@
+{
+ "id": "AGB-AFEJ",
+ "platform": "gba",
+ "title": "ファイアーエムブレム 封印の剣",
+ "title_romaji": "Fire Emblem: Fuuin no Tsurugi",
+ "versions": [
+  {
+   "header_crc32": "fdaac108",
+   "note": "the cartridge FIREEMBLEM6, AFEJ01"
+  }
+ ],
+ "encoding": "shift_jis",
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on mGBA (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. Snaps were studied outside it",
+  "The messages lie compressed in the cartridge; `find` found a caption on screen as Shift-JIS in work RAM, where the message shown is unpacked whole with the game's codes between",
+  "The pointer to the character being typed was found among the words pointing into that buffer, and a probe script followed it at each page's wait",
+  "Played from the map's narration through the bandits' talk, the talk in the castle and the talk at the camp: the route replayed from a state in one run with the script loaded",
+  "What the script said agreed with the rows read off 40 of 40 pictures, over 4 scenes; it said nothing on the 2 screens without text",
+  "The rows were the script's pages, each held against its picture. The window and the bubbles scroll a row up between pages (4 of the 40 screens kept the row before), so the comparison held each screen to the rows it gained (compare's scrolls)",
+  "49 harness calls in all (by the record), none failed: 46 to the bar, 3 to check the final build check on the same route (the same 40 pages at the same frames)"
+ ],
+ "notes": "Read by the script games/gba/AGB-AFEJ.lua: each page of the message window or speech bubble once it has typed out (or a press has shown it whole), the text since the page before. Not read: who speaks (a face, not a name), the menus and the map's windows, a choice's answers, the opening's narration that scrolls over the title."
+}
