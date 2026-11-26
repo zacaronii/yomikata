@@ -43,6 +43,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "CGB-AAXJ": {
+   "path": "games/gbc/CGB-AAXJ.json",
+   "sha256": "7bb0bdc05dcd949c7687449f2b767363fdfdf3e55ce9c3b4a59295d08b03c9ce",
+   "platform": "gbc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "CGB-AEDJ": {
    "path": "games/gbc/CGB-AEDJ.json",
    "sha256": "604022ab148c3d96a5c30bff7ace3b738b3bbe685bd7c9ac42b5c8a5ba26e450",
@@ -901,6 +908,24 @@
     "tbl": {
      "path": "games/gbc/CGB-AAUJ.tbl",
      "sha256": "986430b079ad654ebcc11f2c9d2201471316bbf718248329e7338eea5a528e37"
+    }
+   }
+  },
+  "CGB-AAXJ": {
+   "path": "scripts/gbc/CGB-AAXJ.lua",
+   "sha256": "44a1d0daeefe9b6aaa4747ea83c275d291ec66c0f8923e899a5e35066d60d237",
+   "platform": "gbc",
+   "runtime": 1,
+   "title": "ポケットモンスター 銀 (Pocket Monsters Gin, Game Boy Color)",
+   "reads": "the message window's two rows once they have typed out and stand",
+   "builds": [
+    "dc152f29"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gbc/CGB-AAXJ.tbl",
+     "sha256": "f104fcc42138ccc8263b679bd3ad4d730528bae9d9e5e67b5584682e4f2800d4"
     }
    }
   },
