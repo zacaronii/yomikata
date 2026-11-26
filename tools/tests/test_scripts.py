@@ -2091,6 +2091,131 @@ def test_gyakuten_saiban_2_pages_choices_and_the_commands_of_its_own():
             r.load(bundle(ROOT / "games/gba/AGB-A3GJ.lua"))
 
 
+def dq3_memory(cartridge: bytes, bank: int, at: int, title: bytes = b"GBDQ3\0\0\0\0\0\0BD3J\xc0"):
+    """What Dragon Quest III (Game Boy Color) looks at: the pointer into the cartridge (its bank and the address
+    in it), the hero's name in work RAM, the header where the core shows bank 0, and the cartridge whole."""
+    chunks = {0x0134: title, 0xC206: bytes([bank]) + at.to_bytes(2, "little"), 0xC55A: bytes([0x24, 0x25, 0, 0]),
+              0xC301: bytes([0x26] * 3) + b"\xf0", 0x01000000: cartridge}
+    return sparse(chunks)
+
+
+def test_dragon_quest_iii_a_page_is_said_when_the_pointer_stands_past_its_end():
+    table = "# made up\n94=＊\n95=「\n9A=。\nE530=空\n".encode()
+    # Bank 2 of a made-up cartridge: the end of a message before, then ＊「 the hero's name, a kanji, a space, a
+    # row, a katakana and a voiced kana, a wait; then the true name and 。, ended.
+    text = bytes([0xF7, 0xF0, 0x94, 0x95, 0xF9, 0x40, 0xE5, 0x30, 0xDB, 0x24, 0xF1, 0x5B, 0xA7, 0xFA,
+                  0xF9, 0x00, 0x9A, 0xF7])
+    cartridge = bytearray(0xC000)
+    cartridge[0x8100:0x8100 + len(text)] = text
+    first_end, second_end = 0x4100 + 14, 0x4100 + len(text)
+    walk = [0x4103, 0x4105, 0x4100 + 11] * 1 + [0x4100 + 11] * 6 + [first_end] * 6 + [first_end + 2] + [second_end] * 6
+    with rd.Reader(dq3_memory(bytes(cartridge), 2, 0x4100), platform="gbc", game_id="CGB-BD3J", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/gbc/CGB-BD3J.lua"), "CGB-BD3J.lua")
+        said = []
+        for frame, at in enumerate(walk, 1):
+            r.read = dq3_memory(bytes(cartridge), 2, at)
+            r.frame(frame)
+            said += [e["text"] for e in r.take("text")]
+        # Standing at the row's end says nothing; the page past its wait is said once, the last past its end.
+        assert said == ["＊「あい空\u3000あ\nアが", "ううう。"]
+    with rd.Reader(dq3_memory(bytes(cartridge), 2, 0x4100, title=b"SOME OTHER GAME!"), platform="gbc",
+                   game_id="CGB-BD3J", data={"tbl": table}) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/gbc/CGB-BD3J.lua"))
+    # A host that gives no cartridge: the script says so once and reads nothing.
+    no_cart = lambda address, size: b"" if address >= 0x01000000 else dq3_memory(bytes(cartridge), 2, first_end)(address, size)  # noqa: E731
+    with rd.Reader(no_cart, platform="gbc", game_id="CGB-BD3J", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/gbc/CGB-BD3J.lua"), "CGB-BD3J.lua")
+        for frame in range(1, 10):
+            r.frame(frame)
+        assert r.take("text") == []
+
+
+def test_dragon_quest_iii_holds_a_page_typed_while_no_window_shows():
+    """At a place's entrance the game may type a page with no window shown (a byte says so): it isn't said then,
+    and is said once the window shows, if the page still stands."""
+    table = "# made up\n9A=。\n".encode()
+    cartridge = bytearray(0xC000)
+    cartridge[0x8100:0x8104] = bytes([0xF7, 0x24, 0x9A, 0xFA])
+    base = dq3_memory(bytes(cartridge), 2, 0x4104)
+    with rd.Reader(base, platform="gbc", game_id="CGB-BD3J", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/gbc/CGB-BD3J.lua"), "CGB-BD3J.lua")
+        said = []
+        for frame in range(1, 15):
+            hidden = frame < 9
+            r.read = lambda a, n, hidden=hidden: (bytes([1 if hidden else 0]) if a == 0xCDBA else base(a, n))  # noqa: E731
+            r.frame(frame)
+            said += [(frame, e["text"]) for e in r.take("text")]
+        assert said == [(9, "あ。")]
+
+
+def test_gbtiles_reads_a_cell_picture_and_dragon_quest_iii_its_yes_no_box():
+    """A Game Boy Color tile map cell read as a picture (bank from its attributes, a flip done) and the box read
+    off made-up tiles: a frame's corners known by their hashes, two answers, the cursor before the first."""
+    import hashlib
+    def fnv(data):
+        h = 0xCBF29CE484222325
+        for b in data:
+            h = ((h ^ b) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+        return f"{h:016X}"
+    def tile(seed):                                      # 16 bytes, two planes a row, of a made-up picture
+        return hashlib.sha256(bytes([seed])).digest()[:16]
+    def picture(raw, flip=False):                        # as lib/gbtiles.lua gives it: rows, 2 bits a pixel
+        out = b""
+        for row in range(8):
+            lo, hi = raw[2 * row], raw[2 * row + 1]
+            value = 0
+            for px in range(8):
+                bit = px if flip else 7 - px
+                value = value << 2 | ((hi >> bit) & 1) << 1 | ((lo >> bit) & 1)
+            out += value.to_bytes(2, "big")
+        return out
+    vram = bytearray(0x4000)
+    # Tiles in bank 1 (0x2000 on), signed numbers from 0x1000: 1, 2 the corners; 3 ▶, 4 あ, 5 い; 6 blank.
+    tiles = {n: tile(n) for n in range(1, 6)}
+    tiles[6] = bytes([0xFF, 0x00] * 8)                   # every pixel the same: a blank cell
+    for n, raw in tiles.items():
+        vram[0x2000 + 0x1000 + 16 * n:0x2000 + 0x1000 + 16 * n + 16] = raw
+    def put(x, y, n, flip=False):
+        vram[0x1C00 + 32 * y + x] = n
+        vram[0x2000 + 0x1C00 + 32 * y + x] = 0x08 | (0x20 if flip else 0)
+    for x in range(26, 32):
+        for y in range(6, 11):
+            put(x, y, 6)
+    put(26, 6, 1)
+    put(31, 10, 2)
+    put(27, 7, 3); put(28, 7, 4); put(29, 7, 5, flip=True)
+    put(28, 9, 5); put(29, 9, 4)
+    names = {3: "▶", 4: "あ", 5: "い"}
+    dictionary = "".join(f"{fnv(picture(tiles[n], n == 5 and False))}={ch}\n" for n, ch in names.items())
+    dictionary += f"{fnv(picture(tiles[5], True))}=い\n"                     # the flipped い is a picture of its own
+    corners = {1: fnv(picture(tiles[1])), 2: fnv(picture(tiles[2]))}
+    script = (ROOT / "games/gbc/CGB-BD3J.lua").read_text(encoding="utf-8")
+    script = script.replace("BEC2F11F82E16D12", corners[1]).replace("0F55CEA9D92A4BBD", corners[2])
+    import tempfile, pathlib
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp) / "games/gbc/CGB-BD3J.lua"
+        path.parent.mkdir(parents=True)
+        path.write_text(script, encoding="utf-8")
+        source = bundle_text(script)
+    table = "# made up\n".encode()
+    cartridge = bytearray(0xC000)
+    cartridge[0x8100:0x8104] = bytes([0xF7, 0x24, 0x97, 0xFA])            # a question's page, standing on its wait
+    for up in (0, 1):
+        memory = dq3_memory(bytes(cartridge), 2, 0x4104)
+        read = lambda a, n, up=up, memory=memory: bytes([up]) if a == 0xC219 else memory(a, n)  # noqa: E731
+        with rd.Reader(read, platform="gbc", game_id="CGB-BD3J", regions={"vram": bytes(vram)},
+                       data={"tbl": table, "glyphs": dictionary.encode()}) as r:
+            r.load(source, "CGB-BD3J.lua")
+            for frame in range(1, 8):                    # the page is said once it has stood, the box after it
+                r.frame(frame)
+            events = r.take()
+            texts = [(e["channel"], e["text"]) for kind, e in events if kind == "text" and e["channel"] == "choice"]
+            cursors = [e["index"] for kind, e in events if kind == "cursor" and e.get("index") is not None]
+        assert texts == ([("choice", "あい\nいあ")] if up else [])
+        assert cursors == ([0] if up else [])                               # said once, while it stays
+
+
 def xenogears_memory(block: bytes, at: int, scene: bool = False, names: bytes | None = None):
     """What Xenogears' script looks at: the list of names, a block of messages at 0x80110000, and the window's
     pointer into it: the field's fixed window, or the one a scene of the fight's program points at."""

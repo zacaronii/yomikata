@@ -58,7 +58,9 @@ out is said when it is whole, not letter by letter. A choice's answers go out wi
 cursor with `reader.cursor`.
 
 `lib/` has what earlier games needed: `tbl` (a table and its decoding), `inplace` (a script read where it
-lies), `tiles` (a window kept as tiles, and what a scrolling window gained), `markup`.
+lies), `tiles` (a window kept as tiles, and what a scrolling window gained), `markup`, `glyphs` (pictures of
+characters by a dictionary), `gbtiles` (a Game Boy tile map's cell as a picture, for a menu or box drawn from tiles
+of its own: Dragon Quest III's yes/no box).
 
 ## 6. Check it
 
