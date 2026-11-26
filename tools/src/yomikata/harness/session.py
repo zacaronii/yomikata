@@ -32,8 +32,11 @@ MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
 # Options a core is loaded with unless the call gives its own. mupen64plus_next draws with GLideN64 unless told
 # otherwise, and here (Mesa, no window) GLideN64 gives a black picture on many frames once a game has used the
 # framebuffer for an effect, until the core is loaded again (Doubutsu no Mori after its name keyboard: 19 of 50
-# pages). angrylion, its renderer on the processor, draws every frame. It gives the picture at 640x240.
-CORE_OPTIONS = {"mupen64plus_next_libretro.so": {"mupen64plus-rdp-plugin": "angrylion"}}
+# pages). angrylion, its renderer on the processor, draws every frame. It gives the picture at 640x240. Its
+# thread sync left Low, the picture falls some frames behind memory (a page snapped as it stands shows half
+# typed); High keeps it with the frame.
+CORE_OPTIONS = {"mupen64plus_next_libretro.so": {"mupen64plus-rdp-plugin": "angrylion",
+                                                 "mupen64plus-angrylion-sync": "High"}}
 MAX_POKE = 256                  # bytes in one write
 WARM_FRAMES = 30                # frames a core runs from power-on before `load` takes it to a state
 CHUNK = 30                      # frames run between two looks at the clock, when nothing is watched

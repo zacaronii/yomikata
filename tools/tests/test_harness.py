@@ -2395,12 +2395,13 @@ def test_mupen64plus_is_loaded_with_its_renderer_on_the_processor_unless_told_ot
     def make(core_path, game, platform, system_dir, options):
         seen.append(dict(options))
         return FakeMachine(core_path, game, platform, system_dir, options)
-    for core, given, wanted in (("mupen64plus_next_libretro.so", None, {"mupen64plus-rdp-plugin": "angrylion"}),
+    both = {"mupen64plus-rdp-plugin": "angrylion", "mupen64plus-angrylion-sync": "High"}
+    for core, given, wanted in (("mupen64plus_next_libretro.so", None, both),
                                 ("mupen64plus_next_libretro.so", {"mupen64plus-rdp-plugin": "gliden64"},
-                                 {"mupen64plus-rdp-plugin": "gliden64"}),
+                                 {**both, "mupen64plus-rdp-plugin": "gliden64"}),
                                 ("fake_libretro.so", None, {})):
         s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), make)
         s.load("n64/Made Up (Japan).z64", core, "n64", options=given)
         assert seen[-1] == wanted and s.loaded[3] == wanted
         s.close()
-    assert CORE_OPTIONS["mupen64plus_next_libretro.so"] == {"mupen64plus-rdp-plugin": "angrylion"}
+    assert CORE_OPTIONS["mupen64plus_next_libretro.so"] == both
