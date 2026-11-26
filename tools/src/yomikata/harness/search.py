@@ -605,3 +605,22 @@ def mixed(data: bytes, encoding: str = "shift_jis", marks: dict[int, str] | None
         out.append(chr(b) if 0x20 <= b < 0x7F else f"<{b:02X}>")
         i += 1
     return "".join(out)
+
+
+def text_before(data: bytes, at: int, encoding: str = "shift_jis", most: int = 200) -> int:
+    """How many two-byte characters of Japanese text stand directly before `at`: more than none means that
+    what was found there is the middle of a line, not its beginning. Shift-JIS and EUC-JP only (0 otherwise)."""
+    codec = {"shift_jis": "cp932", "euc_jp": "euc_jp"}.get(encoding)
+    if codec is None:
+        return 0
+    count = 0
+    while count < most and at >= 2:
+        try:
+            ch = data[at - 2:at].decode(codec)
+        except UnicodeDecodeError:
+            break
+        if len(ch) != 1 or not ("\u3000" <= ch <= "\u30ff" or "\u4e00" <= ch <= "\u9fff" or "\uff01" <= ch <= "\uff9f"
+                                or ch in "…―‥「」『』（）"):
+            break
+        count, at = count + 1, at - 2
+    return count
