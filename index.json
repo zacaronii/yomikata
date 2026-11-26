@@ -80,7 +80,7 @@
   },
   "RZDJ01": {
    "path": "games/wii/RZDJ01.json",
-   "sha256": "51ec9ed2034d030e830c526671b5629813b921fdd173fcea122ca6a84b632f39",
+   "sha256": "313aadc1fb6d3c067af38fee136337ba7dc4199363afc1b823663fa089d3f796",
    "platform": "wii",
    "encoding": "shift_jis",
    "status": "partial"
