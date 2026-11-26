@@ -15,8 +15,11 @@
   "The harness alone, from the game's disc (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness",
   "Characters are Shift-JIS as the game keeps them: no table. The page's buffer and the chain of pointers to it were found in snaps of three kinds of scene (a cutscene, a talk in a house, free play)",
   "Played from the name screen through the opening's talk at dusk, the next morning at the hero's house, a talk on the path and the scene at the ranch gate: the route replayed from a state in one run with the script loaded",
-  "What the script said agreed with the rows read off 23 of 23 pictures, over 4 scenes; it said nothing on the 4 screens without text. 7 short of the 30 screens wanted: the next scenes need the hero moved in 3D, which a tool is being made for",
-  "The rows were the script's pages, each held against its picture (furigana left out). 89 harness calls"
+  "A second pass walked the hero back to the gate with walk_3d, where a talk begins, and replayed that talk from a state",
+  "What the script said agreed with the rows read off 25 of 25 pictures, over 5 scenes; it said nothing on the 6 screens without text. 5 short of the 30 screens with text wanted",
+  "The rows were the script's pages, each held against its picture (furigana left out). 89 harness calls in the first pass, 114 in the second",
+  "walk_3d walked the hero with a pair of floats that place_find found, until a talk began",
+  "But the pair is a copy the game writes at such moments, not the place as it moves, and no live pair was found. Beyond the gate the hero was moved by stick pushes judged from pictures; the path to the next scene wasn't found within the calls spent"
  ],
- "notes": "Read by the script games/wii/RZDJ01.lua: the message window's page once it has typed out and stands. The load wants the option dolphin_wiimote_default_device=nunchuk (the game asks for a Nunchuk). Not read: furigana, who speaks, a choice's answers and cursor, the menus and the screens before the story."
+ "notes": "Read by the script games/wii/RZDJ01.lua: the message window's page once it has typed out and stands. The load wants the option dolphin_wiimote_default_device=nunchuk (the game asks for a Nunchuk). A page shown again in a later talk, with nothing between, isn't said again. Not read: furigana, who speaks, a choice's answers and cursor, the menus and the screens before the story."
 }
