@@ -1,0 +1,24 @@
+{
+ "id": "AGB-ASBJ",
+ "platform": "gba",
+ "title": "逆転裁判",
+ "title_romaji": "Gyakuten Saiban",
+ "versions": [
+  {
+   "header_crc32": "0cb3d5b2"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/gba/AGB-ASBJ.tbl"
+ ],
+ "unit": 2,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+  "The table: the words of pages the game was showing, beside the characters read off the screen; kana not met are filled in by the order every kana met keeps. No second reader has read it, and no font was read",
+  "Played from power-on through the first episode's opening. What the script said in play agreed with the rows read off 61 of 61 pictures, over 4 scenes. No screen without text was among them",
+  "The same readings built the table, so the comparison checks pages, their order and who speaks more than it checks the characters"
+ ],
+ "notes": "Read by the script games/gba/AGB-ASBJ.lua. A scene's script lies unpacked in the 256 KB on the board; a word in the CPU's 32 KB says where it has got to. A page is said when that stands on a wait. The table has 277 characters: other kanji come out as U+FFFD. Speakers' names are the four met. Not looked at: choices, the court record, cross-examination, saved games. The id AGB-ASBJ is the cartridge's code with the console's prefix."
+}

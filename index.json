@@ -1,6 +1,13 @@
 {
  "format": 1,
  "entries": {
+  "AGB-ASBJ": {
+   "path": "games/gba/AGB-ASBJ.json",
+   "sha256": "7c5915c97266ddc39a49ee13fea6eb4b6b68644a18be35712895da937217995d",
+   "platform": "gba",
+   "encoding": "table",
+   "status": "partial"
+  },
   "NPJH50127": {
    "path": "games/psp/NPJH50127.json",
    "sha256": "ff7013c8bf55a06aa5839dd104c81428aa594fab5ef722bd2ec1bae2761e07d0",
@@ -703,6 +710,24 @@
   }
  },
  "scripts": {
+  "AGB-ASBJ": {
+   "path": "scripts/gba/AGB-ASBJ.lua",
+   "sha256": "e0e1d0c20d6e2074fa4b124cd54fd40bacc913ea640779352b728948b2789600",
+   "platform": "gba",
+   "runtime": 1,
+   "title": "逆転裁判 (Gyakuten Saiban)",
+   "reads": "a message window's page once the game has typed it out and waits, with who speaks",
+   "builds": [
+    "0cb3d5b2"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gba/AGB-ASBJ.tbl",
+     "sha256": "bce65500f584a3590c098d145ef4624ea2a14ad13c9722945d2d5347ee4bb718"
+    }
+   }
+  },
   "G8MJ01": {
    "path": "scripts/gc/G8MJ01.lua",
    "sha256": "a73c619b404340eccad4bd1a87170c4f682d75fc31ff98053df61b18a525a199",

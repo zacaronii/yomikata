@@ -2012,3 +2012,42 @@ def test_shin_megami_tensei_a_row_is_said_when_it_is_written_with_its_voiced_mar
     with rd.Reader(smt_memory(header=False), platform="sfc", game_id="SFC-56A9AAB6", data={"tbl": table}) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/sfc/SFC-56A9AAB6.lua"))
+
+
+def gyakuten_memory(script: bytes, at: int, header: bytes | None = b"GYAKUTEN_SAIASBJ"):
+    """What Gyakuten Saiban's script looks at: a section of the game's script in the board's memory, the two
+    words in the CPU's memory that say where it has got to and where the section begins, and the cartridge's
+    header where a host gives it."""
+    chunks = {0x02010000: script + bytes(8), 0x03003A74: struct.pack("<II", at, 0x02010000) if at else bytes(8),
+              0x030053C0: bytes.fromhex("a9160108191701083917010855170108")}
+    if header is not None:
+        chunks[0x080000A0] = header
+    return sparse(chunks)
+
+
+def test_gyakuten_saiban_a_page_is_said_when_the_script_stands_on_its_wait():
+    table = "# made up\nC000=あ\nC100=い\n1001=空\n7F01=　\n".encode()
+    W = lambda *words: struct.pack(f"<{len(words)}H", *words)
+    # Who speaks (2), a colour, あい空, a pause, a new row, an unknown character, a wait; then a page that goes on
+    # by itself; then one by a speaker the script has no name for, ended by the other wait.
+    first = W(0x0E, 0x0200, 0x03, 3, 0x17F, 0xC0, 0xC1, 0x110, 0x0C, 30, 0x01, 0x1FF, 0x02)
+    second = W(0x06, 0x6901, 0xC1, 0xC1, 0x2E)
+    third = W(0x12, 0x101, 1, 0x1F, 0x0E, 0x6300, 0xC0, 0x2D)
+    script = first + second + third
+    base, a, b, c = 0x02010000, len(first) - 2, len(first) + len(second) - 2, len(script) - 2
+    walk = [0, base + 8, base + 12, base + a, base + a, base + a, base + a,          # typing, then standing on the wait
+            base + a + 4, base + b, base + b + 2, base + b + 10, base + c, base + c, base + c, base + c]
+    with rd.Reader(gyakuten_memory(script, 0), platform="gba", game_id="AGB-ASBJ", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/gba/AGB-ASBJ.lua"), "AGB-ASBJ.lua")
+        said = []
+        for frame, at in enumerate(walk, 1):
+            r.read = gyakuten_memory(script, at)
+            r.frame(frame)
+            said += [(frame, e.get("speaker") or None, e["text"]) for e in r.take("text")]
+        assert said == [(6, "ナルホド", "あい空\n�"), (10, "ナルホド", "いい"), (14, None, "あ")]
+    # A host that gives no cartridge to read: the script goes by the CPU's memory alone. Another cartridge: refused.
+    with rd.Reader(gyakuten_memory(script, 0, header=None), platform="gba", game_id="AGB-ASBJ", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/gba/AGB-ASBJ.lua"), "AGB-ASBJ.lua")
+    with rd.Reader(gyakuten_memory(script, 0, header=b"SOME OTHER GAME!"), platform="gba", game_id="AGB-ASBJ", data={"tbl": table}) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/gba/AGB-ASBJ.lua"))
