@@ -21,6 +21,7 @@ from pathlib import Path
 from .. import reader as rd
 from .. import snapfile
 from ..run import MIRRORS, PLATFORM_ALIASES
+from . import record as calls_record
 from . import search
 
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
@@ -180,43 +181,23 @@ class Session:
         entry = {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "session": self.session_id,
                  "game": self.game, "tool": tool, "arguments": {str(k): short(v) for k, v in (arguments or {}).items()},
                  "ok": bool(ok), "seconds": round(seconds, 2), **({"outcome": outcome} if outcome else {})}
-        try:
-            folder = self.roots.scratch / "record"
-            folder.mkdir(parents=True, exist_ok=True)
-            with (folder / "calls.jsonl").open("a", encoding="utf-8") as record:
-                record.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        except OSError:
-            pass
+        calls_record.append(self.roots.scratch, entry)
 
     def calls_so_far(self, game: str | None) -> int:
         """The calls the record has for a game: the same lines `yomikata calls` counts, read from the record
         itself each time it has grown by other than this session's own last line."""
-        record = self.roots.scratch / "record" / "calls.jsonl"
         try:
-            size = record.stat().st_size
+            size = calls_record.path(self.roots.scratch).stat().st_size
         except OSError:
             return 0
         counted = getattr(self, "_counted", None)
         if counted is None or counted[0] != size:
-            counts: dict = {}
-            for line in record.read_text(encoding="utf-8").splitlines():
-                try:
-                    entry = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(entry, dict) and "tool" in entry:
-                    counts[entry.get("game")] = counts.get(entry.get("game"), 0) + 1
-            self._counted = counted = (size, counts)
+            self._counted = counted = calls_record.counts(self.roots.scratch)
         return counted[1].get(game, 0)
 
     def budget_of(self, game: str | None) -> int | None:
         """The most calls a game may have in the record (scratch record/budgets.json), or None: no budget."""
-        try:
-            budgets = json.loads((self.roots.scratch / "record" / "budgets.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None
-        limit = budgets.get(game) if isinstance(budgets, dict) and game else None
-        return limit if isinstance(limit, int) and not isinstance(limit, bool) else None
+        return calls_record.budget_of(self.roots.scratch, game)
 
     def over_budget(self, game: str | None) -> str | None:
         """Why no further call is taken for this game, or None."""

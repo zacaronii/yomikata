@@ -612,6 +612,18 @@ nothing more for that game and says so. A refused call isn't in the record. Set 
 to what was agreed, and raise it only when whoever set it has said so. Two games went past theirs before
 this: Shadow Hearts (284 calls for about 150) and Xenogears (420 for 300), both by counting runs.
 
+**Playing outside the harness is playing.** A game run anywhere but the harness, to explore it or find a
+route, is part of what its script cost, and goes into the same record. `yomikata play <plan.json>` runs the
+harness's own tools from a plan, with nobody at the other end: a JSON list of `[tool, arguments]` as the
+harness takes them, the first a `load`, e.g. a `steps` of a few hundred presses with snaps and pictures. What
+the tools answer is printed a line each, and their pictures go into `--out`. A run is one call in the record
+(`offline_play`, with how many calls it made and the frames it ran), and counts against the game's budget:
+a game whose budget is spent isn't run. A plan can't set a budget, nor `compare`: those stay the harness's.
+Run it in the harness's container, as the harness's user, with the same mounts (the record is appended a line
+at a time with one write, so a harness and a play writing at once never mix their lines). Tengai Makyou II's
+route was found by 59 runs of a core outside the harness before this existed (about 600,000 frames); its
+entry counts them beside its calls, by hand.
+
 ### Writing memory
 
 Off unless the harness is started with `--allow-poke`; then there is one more tool, `poke`: bytes at an address
