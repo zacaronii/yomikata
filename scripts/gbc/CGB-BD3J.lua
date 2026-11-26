@@ -21,7 +21,10 @@
 --   0xF7 and 0xFF the end of a message, 0xFA a wait, 0xF0 and 0xF1 a new row, 0xDB a space; 0xF9 n a name kept
 --   in work RAM (0x40 the hero's, 0x00 the true name given in the opening), 0xFC n; the signs and kanji by the table
 --
--- Not covered: who speaks, the yes/no box after a question (its words aren't in the text) and other menus,
+-- The yes/no box after a question is read off its tiles (lib/gbtiles.lua) through a dictionary of their pictures
+-- beside this script, with its cursor; it is at one place on the screen. Needs the host's `vram` for that.
+--
+-- Not covered: who speaks, other menus,
 -- fights, the names of companions (0xF9 with other numbers comes out as U+FFFD); a sign or kanji the table hasn't
 -- got comes out as U+FFFD. At one place's entrance the game types pages before any window shows: they are said.
 
@@ -110,6 +113,125 @@ end
 
 return tbl
 end
+__module["lib.glyphs"] = function()
+-- A dictionary of glyph pictures (docs/script-api.md, "Files"): for a game that brings its characters as
+-- pictures and numbers them anew in every scene, so that a code says nothing. A picture is known by
+-- text.hash of its bytes, and the file `<id>.glyphs` beside the script says which character each hash is.
+--
+-- A picture the file hasn't got is logged once, as
+--     glyph <HASH> <width>x<height>x<bits> <the picture's bytes in hex>
+-- which is all `yomikata unread` needs to draw it for reading (docs/harness.md, "A game's own font"). For
+-- that the bytes hashed are the picture's rows from the top, each a whole number of bytes, a pixel `bits`
+-- bits, the leftmost in a byte's high bits. A game that keeps its pictures otherwise has them repacked by
+-- its script first.
+--
+-- A glyph is read surest in its sentence. So a script may also say which pictures made up a row of text
+-- that had one without a reading, and that is logged once too, as
+--     glyph-line <HASH> <HASH> _ =<characters> <HASH> …
+-- a hash for each picture in order, "_" for a space, and "=" before characters the script knows by code:
+-- `yomikata unread` then draws the row whole.
+
+local glyphs = {}
+
+--- Reads a dictionary's text (the file a script asks reader.data for): a picture's hash -> its character.
+function glyphs.parse(source)
+    local known = {}
+    for line in (source or ""):gmatch("[^\r\n]+") do
+        local hash, character = line:match("^(%x+)=(.+)$")
+        if hash then
+            known[hash:upper()] = character
+        end
+    end
+    return known
+end
+
+--- A dictionary to ask: `dictionary:read(picture, width, height, bits)` gives the picture's character, or nil
+--- (and logs the picture, the first time it is asked for), and its hash.
+function glyphs.open(source)
+    local dictionary = { known = glyphs.parse(source), logged = {} }
+
+    function dictionary:read(picture, width, height, bits)
+        local hash = text.hash(picture):upper()
+        local character = self.known[hash]
+        if not character and not self.logged[hash] then
+            self.logged[hash] = true
+            reader.log(string.format("glyph %s %dx%dx%d %s", hash, width, height, bits,
+                (picture:gsub(".", function(c)
+                    return string.format("%02x", c:byte())
+                end))))
+        end
+        return character, hash
+    end
+
+    --- A row of text the script has read, as the hashes `read` gave for its pictures in order; false for a
+    --- space, and for what the script knows by code, not by picture, the characters themselves (without
+    --- spaces). Logged once, if the dictionary lacks one of the pictures.
+    function dictionary:line(hashes)
+        local marks, lacking = {}, false
+        for i, hash in ipairs(hashes) do
+            if hash and not hash:find("^%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then
+                marks[i] = "=" .. hash
+            else
+                marks[i] = hash or "_"
+                lacking = lacking or (hash and not self.known[hash])
+            end
+        end
+        local row = table.concat(marks, " ")
+        if lacking and not self.logged[row] then
+            self.logged[row] = true
+            reader.log("glyph-line " .. row)
+        end
+    end
+
+    return dictionary
+end
+
+return glyphs
+end
+__module["lib.gbtiles"] = function()
+-- A Game Boy's (or Game Boy Color's) picture as its tile maps lay it out, read from video memory (the script's
+-- `vram` region: bank 0 from 0x0000, a Color's bank 1 from 0x2000): what a script reads where a game draws a
+-- menu or a box from tiles and no text of it is anywhere else. A cell's picture comes out in the form
+-- lib/glyphs.lua hashes, so that a dictionary says which character it is.
+
+local gbtiles = {}
+
+--- The picture of the cell at column `x`, row `y` (from 0, 32 a row) of the tile map at `map` (0x1800 or
+--- 0x1C00 in video memory): its 8 rows from the top, 2 bits a pixel, the leftmost pixel in a byte's high bits
+--- (16 bytes), with the cell's flips done. `signed` for a game whose tile numbers count from 0x1000 as signed
+--- bytes (0x8800 addressing), else from 0. On a Game Boy Color the cell's attributes (at map + 0x2000) choose
+--- the tile's bank. Nil when the region can't be read there. The second result is true for a blank cell: every
+--- pixel the same.
+function gbtiles.cell(vram, map, x, y, signed)
+    local at = map + y * 32 + x
+    local number, attributes = vram.u8(at), vram.u8(0x2000 + at) or 0
+    if not number then
+        return nil
+    end
+    local index = signed and (number < 128 and number or number - 256) or number
+    local bytes = vram.read(0x2000 * ((attributes >> 3) & 1) + (signed and 0x1000 or 0) + 16 * index, 16)
+    if not bytes or #bytes < 16 then
+        return nil
+    end
+    local rows, blank, first = {}, true, nil
+    for row = 0, 7 do
+        local source = (attributes & 0x40 ~= 0) and 7 - row or row  -- flipped top to bottom
+        local low, high = bytes:byte(2 * source + 1), bytes:byte(2 * source + 2)
+        local value = 0
+        for px = 0, 7 do
+            local bit = (attributes & 0x20 ~= 0) and px or 7 - px      -- flipped left to right
+            local pixel = (((high >> bit) & 1) << 1) | ((low >> bit) & 1)
+            first = first or pixel
+            blank = blank and pixel == first
+            value = value << 2 | pixel
+        end
+        rows[#rows + 1] = string.char(value >> 8, value & 0xFF)
+    end
+    return table.concat(rows), blank
+end
+
+return gbtiles
+end
 local BANK, AT = 0xC206, 0xC207
 local CART = 0x01000000                 -- the cartridge, whole, where the host gives it
 local NAMES = { [0x40] = { 0xC55A, 4 },  -- a name by its number: where it is, how long at most (it ends at 0 or 0xF0)
@@ -127,11 +249,52 @@ if mem.read(0x0134, 16) ~= "GBDQ3\0\0\0\0\0\0BD3J\xC0" then
 end
 
 local tbl = require("lib.tbl")
+local glyphs = require("lib.glyphs")
+local gbtiles = require("lib.gbtiles")
 local source = reader.data("tbl")
 if not source then
     error("CGB-BD3J.tbl is missing: the game's table of characters", 0)
 end
 local characters = tbl.parse(source).chars
+local dictionary = glyphs.open(reader.data("glyphs"))
+
+-- The yes/no box after a question: its words aren't in the text, the game draws them from tiles of their own.
+-- A byte says it is up; it stands at one place of the tile map at 0x1C00, its answers on these rows, with the
+-- cursor (a picture the dictionary calls ▶) before the one it is on.
+local BOX_UP = 0xC219
+local BOX_MAP, BOX_ROWS, BOX_LEFT, BOX_RIGHT = 0x1C00, { 7, 8, 9 }, 27, 30
+local vram = mem.region("vram")
+
+--- The box's answers as text (a row each) and the cursor's answer from 0; nil when they can't be read.
+local function box()
+    if not vram then
+        return nil
+    end
+    local answers, cursor = {}, nil
+    for _, row in ipairs(BOX_ROWS) do
+        local cells = {}
+        for x = BOX_LEFT, BOX_RIGHT do
+            local picture, blank = gbtiles.cell(vram, BOX_MAP, x, row, true)
+            if not picture then
+                return nil
+            end
+            if not blank then
+                local character = dictionary:read(picture, 8, 8, 2)
+                if character == "▶" then
+                    cursor = #answers
+                else
+                    cells[#cells + 1] = character or "\u{FFFD}"
+                end
+            end
+        end
+        if #cells > 0 then
+            answers[#answers + 1] = table.concat(cells)
+        elseif cursor == #answers then
+            cursor = nil -- a cursor on a row of nothing isn't on an answer
+        end
+    end
+    return #answers > 0 and table.concat(answers, "\n") or nil, cursor
+end
 
 local function nth(list, n) -- the nth character (from 0) of a UTF-8 string, or nil
     local from = utf8.offset(list, n + 1)
@@ -195,14 +358,25 @@ local function decode(bytes)
     return shown
 end
 
-local before, stood, said, warned = nil, 0, nil, false
+local before, stood, said, warned, offered = nil, 0, nil, false, nil
 
 reader.on_state_loaded(function()
     reader.forget()
-    before, stood, said = nil, 0, nil
+    before, stood, said, offered = nil, 0, nil, nil
 end)
 
 reader.on_frame(function()
+    if mem.u8(BOX_UP) == 1 then
+        local answers, cursor = box()
+        if answers and answers ~= offered then
+            offered = answers
+            reader.emit{ text = answers, channel = "choice", id = text.hash("box" .. answers) }
+        end
+        reader.cursor(answers and cursor or nil)
+    elseif offered then
+        offered = nil
+        reader.cursor(nil)
+    end
     local bank, at = mem.u8(BANK), mem.u16(AT)
     if not bank or not at or at < 0x4000 or at > 0x7FFF or bank == 0 then
         return
