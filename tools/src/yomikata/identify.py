@@ -89,10 +89,14 @@ def identify_cart(path: Path) -> Release:
         ncch = _cart_bytes(path, 0x200, struct.unpack("<I", head[0x120:0x124])[0] * 0x200)
         code = ncch[0x150:0x160].split(b"\0")[0].decode("ascii")
         return Release("3ds", code, header_crc32=f"{zlib.crc32(ncch):08x}")
+    # Game Boy Advance: a fixed byte at 0xB2, the 4-character game code before it. The header is 192 bytes.
+    code = head[0xAC:0xB0].decode("ascii", "replace")
+    if head[0xB2:0xB3] == b"\x96" and re.fullmatch(r"[A-Z0-9]{4}", code):
+        return Release("gba", f"AGB-{code}", header_crc32=f"{zlib.crc32(head[:0xC0]):08x}")
     code = head[0x0C:0x10].decode("ascii", "replace")
     if re.fullmatch(r"[A-Z0-9]{4}", code):                               # DS: the 4-character game code
         return Release("nds", code, header_crc32=f"{zlib.crc32(head[:0x160]):08x}")
-    raise DiscError("not a DS or 3DS card image")
+    raise DiscError("not a Game Boy Advance, DS or 3DS card image")
 
 
 SFC_SUFFIXES = (".sfc", ".smc", ".swc", ".fig")

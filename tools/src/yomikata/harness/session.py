@@ -1638,17 +1638,44 @@ class Session:
           unit=("integer", "bytes of the number: 2 (default), 1 or 4", False),
           most=("integer", "the most it may go up from one snap to the next (default 4: a character is one "
                            "or two codes, and a mark or two may come between)", False),
-          within=("array", "look only between two addresses, hex", False))
+          within=("array", "look only between two addresses, hex", False),
+          least=("integer", "the fewest snaps it must have moved in (default: half of them). 3 or so for a game "
+                            "that types a character every few frames, or whose pointer the snaps caught seldom", False))
     def advancing(self, snaps: list, rest: list | None = None, unit: int = 2, most: int = 4,
-                  within: list | None = None) -> dict:
-        import numpy as np
+                  within: list | None = None, least: int = 0) -> dict:
         if unit not in (1, 2, 4) or len(snaps or ()) < 6:
             raise HarnessError("six snaps or more; unit is 1, 2 or 4")
+        names = list(snaps) + list(rest or ())
+        found = self._advancing([(base, ram) for _, base, ram in self._memories(names)], len(snaps), unit, most, within, least)
+        # A console's other memory, kept with each snap as a region (a Game Boy Advance's 32 KB in the CPU,
+        # where its games keep their own state): looked through the same way.
+        from .machine import OTHER_STRETCHES
+        from ..run import _load
+        for region, start in OTHER_STRETCHES.get(getattr(self.machine, "platform", ""), {}).items():
+            files = [self.roots.inside("scratch", f"snaps/{self._name(n)}.{region}.gz") for n in names]
+            if all(f.is_file() for f in files):
+                found += self._advancing([(start, _load(f)) for f in files], len(snaps), unit, most, within, least)
+        found.sort(key=lambda place: -place["moved_in"])
+        out = {"count": len(found), "snaps": len(snaps), "rest": len(rest or ()), "places": found[:MAX_HITS]}
+        if not found:
+            out["nothing_advances"] = (
+                "No number walks while this line types. If the snaps do span the typing (and unit 1 and 4 give "
+                "nothing either; and `least` 3, for a game that types a character every few frames), the game "
+                "doesn't walk a script: it may put a window down whole, as tiles. Look "
+                "for the window itself: find_relative with a row as the screen has it, its spaces as plain spaces, "
+                "and spaces: true (unit 2 as well); a place that fits is the tile map or the list of writes it "
+                "is filled from. Then `read` the words before the row for where and how many, and `changed` "
+                "over snaps a window apart for the list's start.")
+        return out
+
+    def _advancing(self, memories: list, typed: int, unit: int, most: int, within: list | None, least: int) -> list[dict]:
+        """advancing over one stretch of memory at so many moments: (base, bytes) each, the first `typed` of
+        them while the line types."""
+        import numpy as np
         order = ">" if self.machine is not None and self.machine.platform in ("gc", "wii") else "<"
-        moments, base = [], 0
-        for _, base, ram in self._memories(list(snaps) + list(rest or ())):
-            moments.append(np.frombuffer(ram[:len(ram) // unit * unit], dtype=f"{order}u{unit}").astype(np.int64))
-        typing, after = moments[:len(snaps)], moments[len(snaps):]
+        base = memories[0][0]
+        moments = [np.frombuffer(ram[:len(ram) // unit * unit], dtype=f"{order}u{unit}").astype(np.int64) for _, ram in memories]
+        typing, after = moments[:typed], moments[typed:]
         most = max(1, int(most))
         rose, away, last = (np.zeros(len(typing[0]), dtype=np.int64), np.zeros(len(typing[0]), dtype=np.int64),
                             typing[0].copy())
@@ -1661,7 +1688,8 @@ class Session:
             away += ~good
             last = np.where(good, now, last)
         ok = (away <= max(1, len(typing) // 6)) & (typing[-1] == last)      # away a snap or two in a dozen, no more
-        ok &= rose >= (len(typing) - 1) // 2                # it moved on most frames: not a flag, not a clock's high part
+        # It moved on most frames: not a flag, not a clock's high part. (`least`: or on so many, for slow typing.)
+        ok &= rose >= (max(1, int(least)) if least else (len(typing) - 1) // 2)
         for held in after:
             ok &= held == typing[-1]
         places = np.nonzero(ok)[0]
@@ -1669,18 +1697,8 @@ class Session:
             low, high = (int(str(v), 16) for v in within)
             places = places[(places * unit + base >= low) & (places * unit + base < high)]
         places = sorted(places, key=lambda i: -int(rose[i]))[:MAX_HITS]
-        out = {"count": len(places), "snaps": len(typing), "rest": len(after),
-               "places": [{"address": f"0x{base + int(i) * unit:08X}", "from": f"0x{int(typing[0][i]):0{2 * unit}X}",
-                           "to": f"0x{int(typing[-1][i]):0{2 * unit}X}", "moved_in": int(rose[i])} for i in places]}
-        if not places:
-            out["nothing_advances"] = (
-                "No number walks while this line types. If the snaps do span the typing (and unit 1 and 4 give "
-                "nothing either), the game doesn't walk a script: it may put a window down whole, as tiles. Look "
-                "for the window itself: find_relative with a row as the screen has it, its spaces as plain spaces, "
-                "and spaces: true (unit 2 as well); a place that fits is the tile map or the list of writes it "
-                "is filled from. Then `read` the words before the row for where and how many, and `changed` "
-                "over snaps a window apart for the list's start.")
-        return out
+        return [{"address": f"0x{base + int(i) * unit:08X}", "from": f"0x{int(typing[0][i]):0{2 * unit}X}",
+                 "to": f"0x{int(typing[-1][i]):0{2 * unit}X}", "moved_in": int(rose[i])} for i in places]
 
     @tool("Numbers that go up or down by the same amount from each snap to the next, over snaps taken evenly "
           "apart: a hand going round, a bar filling, a timer. What press_at wants to watch. Read as 32-bit "

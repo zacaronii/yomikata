@@ -376,6 +376,18 @@ any other. A place that fits is the tile map, or the list of writes it is filled
 row with one kana twice and two spaces, refused before as too little, gives the list and the map and nothing
 else but the same two a byte off. Without `spaces` a row that finds nothing, or is too little, is tried with them.
 
+A console may have more memory than its main one, and a game may keep its own state there. A Game Boy
+Advance has 256 KB on the board (main memory here: what `find`, `find_relative` and the rest look through,
+and what a snap's `.ram.gz` is) and 32 KB in the CPU, which each snap keeps beside it as the region `iwram`.
+`advancing` looks through such a region too. Gyakuten Saiban: `find_relative` gave the script's text in board
+memory by the order of its kana (16-bit codes), nothing in board memory changed while a line typed, and the
+word that walks the script is in the CPU's memory (0x03003A74). It moves once for each character and the
+game types one every few frames, so over snaps two frames apart it had moved in a few only: `least` 3 finds
+such a one, where the default wants it to have moved in half the snaps. Make sure the snaps are of a line
+typing: a press that changes the scene instead gives snaps of nothing. When a search needs a rule the tools
+haven't got, the snaps can be taken once, densely (`every`), and studied outside the harness at no calls:
+they are files in scratch. The whole of that game, from the first load to the bar, was 68 calls.
+
 ### Snaps on disk
 
 A snap is written to `snaps/` in scratch as an inbox-style snapshot: `<name>.ram.gz`, a `<name>.<region>.gz`

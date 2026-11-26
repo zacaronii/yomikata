@@ -399,6 +399,29 @@ def test_a_snap_name_used_twice_leaves_the_snaps_that_differed_from_it_readable(
     later.close()
 
 
+def test_a_game_boy_advances_main_memory_is_the_256_kb_on_the_board():
+    """mGBA calls the 32 KB in the CPU its system RAM. The harness takes the board's 256 KB from the core's
+    memory map as main memory, and gives the 32 KB beside it as a region."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine, stretch
+    board, cpu = C.create_string_buffer(b"board" + bytes(0x40000 - 5), 0x40000), C.create_string_buffer(b"cpu" + bytes(0x8000 - 3), 0x8000)
+    maps = [(0x03000000, 0x8000, C.addressof(cpu)), (0x02000000, 0x40000, C.addressof(board)), (0x08000000, 0, 0)]
+    assert stretch(maps, 0x02000000)[1] == 0x40000 and stretch(maps, 0x08000000) is None and stretch(maps, 0x04000000) is None
+
+    class Core:
+        def video_ram(self): return b""
+        def ram(self): return bytes(cpu)
+        def ram_base(self): return None
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core = "gba", Core()
+    machine.core.maps = maps
+    base, ram = machine.ram()
+    assert base == 0x02000000 and len(ram) == 0x40000 and ram[:5] == b"board"
+    assert machine.regions()["iwram"][:3] == b"cpu" and len(machine.regions()["iwram"]) == 0x8000
+    machine.core.maps = []                                             # a core that describes nothing: as before
+    assert machine.ram() == (0x02000000, bytes(cpu)) and machine.regions() == {}
+
+
 def test_mcp_over_lines(session):
     lines = [json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
              json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}), "",
@@ -913,6 +936,12 @@ def test_identify_says_what_it_can(session, tmp_path):
     (tmp_path / "games/snes/Made Up (Japan).sfc").write_bytes(bytes(rom))
     out = session.identify("snes/Made Up (Japan).sfc")
     assert out["platform"] == "sfc" and len(out["header_crc32"]) == 8 and out["id"]
+    cart = bytearray(0x200)                                         # a Game Boy Advance cartridge's header
+    cart[0xA0:0xAC], cart[0xAC:0xB0], cart[0xB2] = b"MADE UP GAME", b"AZZJ", 0x96
+    (tmp_path / "games/gba").mkdir()
+    (tmp_path / "games/gba/Made Up (Japan).gba").write_bytes(bytes(cart))
+    out = session.identify("gba/Made Up (Japan).gba")
+    assert (out["platform"], out["id"]) == ("gba", "AGB-AZZJ") and len(out["header_crc32"]) == 8
     with pytest.raises(HarnessError, match="couldn't be identified"):
         session.identify()                                          # the loaded "game" is six bytes of nothing
     with pytest.raises(HarnessError):
@@ -1952,6 +1981,26 @@ def test_advancing_finds_the_pointer_that_walks_while_a_line_types(session):
     assert none["count"] == 0 and "spaces: true" in none["nothing_advances"]          # and it says where to look instead
     with pytest.raises(HarnessError):
         session.advancing(names[:3])
+
+
+def test_advancing_looks_in_a_consoles_other_memory_and_takes_slow_typing(session, monkeypatch):
+    """A pointer kept outside main memory (a Game Boy Advance's 32 KB in the CPU, a region of each snap) that
+    moves once in four snaps: found there with `least`, and not without it."""
+    from yomikata.harness import machine as machines
+    monkeypatch.setitem(machines.OTHER_STRETCHES, session.machine.platform, {"iwram": 0x03000000})
+    other = bytearray(0x100)
+    monkeypatch.setattr(session.machine, "regions", lambda: {"iwram": bytes(other)})
+    names = []
+    for i in range(16):
+        struct.pack_into(">I", other, 0x74, 0x02012400 + 2 * (min(i, 11) // 4))   # a word of the script every fourth snap, then it stands
+        struct.pack_into(">I", other, 0x80, 1000 + 3 * i)                     # a clock
+        session.run(1)
+        session.snap(f"sl-{i:02d}")
+        names.append(f"sl-{i:02d}")
+    assert session.advancing(names[:12], rest=names[12:], unit=4)["count"] == 0
+    found = session.advancing(names[:12], rest=names[12:], unit=4, least=2)
+    assert [(p["address"], p["from"], p["to"]) for p in found["places"]] == [("0x03000074", "0x02012400", "0x02012404")]
+    assert "least" in session.advancing(names[:12], rest=names[12:], unit=4)["nothing_advances"]
 
 
 def test_find_says_what_to_try_when_a_text_is_nowhere(session):

@@ -9,6 +9,16 @@ from ..layout import RAM_BASE
 from ..run import MIRRORS, PLATFORM_ALIASES
 
 RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
+# Where a core's "system RAM" isn't the console's main memory: the stretch of the core's memory map that is,
+# by its start, and others worth having beside it, as regions. mGBA gives the 32 KB in the CPU as system RAM;
+# a Game Boy Advance game's data is in the 256 KB on the board (as a snapshot of one has it, inbox.py).
+MAIN_STRETCH = {"gba": 0x02000000}
+OTHER_STRETCHES = {"gba": {"iwram": 0x03000000}}
+
+
+def stretch(maps: list[tuple[int, int, int]], start: int) -> tuple[int, int, int] | None:
+    """The stretch of a core's memory map that begins at `start`: (start, length, pointer), or None."""
+    return next((m for m in maps if m[0] == start and m[1]), None)
 WARM_UP = 300
 
 
@@ -34,6 +44,10 @@ class Machine:
 
     def ram(self) -> tuple[int, bytes]:
         """Main memory: the address of its first byte, and its bytes."""
+        import ctypes as C
+        main = stretch(self.core.maps, MAIN_STRETCH[self.platform]) if self.platform in MAIN_STRETCH else None
+        if main:
+            return main[0], C.string_at(main[2], main[1])
         base = self.core.ram_base()
         return (RAM_BASES.get(self.platform, 0) if base is None else base), self.core.ram()
 
@@ -86,7 +100,13 @@ class Machine:
         video = self.core.video_ram()
         if not video and self.platform == "ps1":
             video = self._ps1_video()
-        return {"vram": video} if video else {}
+        out = {"vram": video} if video else {}
+        import ctypes as C
+        for name, start in OTHER_STRETCHES.get(self.platform, {}).items():
+            other = stretch(self.core.maps, start)
+            if other:
+                out[name] = C.string_at(other[2], other[1])
+        return out
 
     def _ps1_video(self) -> bytes | None:
         """A PlayStation core gives out no video memory, but its savestate holds it (vram.py): 1024x512 16-bit
