@@ -7,7 +7,7 @@
   "required": ["id", "platform", "title", "encoding", "status"],
   "properties": {
     "id": {
-      "description": "The release's id (PS1/PS2 serial SLPS-01234, PSP DISC_ID ULJM06119, DS game code AXXJ, 3DS product code CTR-P-XXXJ, GameCube GXXJ01, Super Famicom SHVC-XXXX or SFC-1A2B3C4D). The file is games/<platform>/<id>.json.",
+      "description": "The release's id (PS1/PS2 serial SLPS-01234, PSP DISC_ID ULJM06119, DS game code AXXJ, 3DS product code CTR-P-XXXJ, GameCube GXXJ01, Wii RXXJ01, GBA AGB-AXXJ, Super Famicom SHVC-XXXX or SFC-1A2B3C4D). The file is games/<platform>/<id>.json.",
       "type": "string", "pattern": "^[A-Z0-9][A-Z0-9-]{3,19}$"
     },
     "aliases": {
