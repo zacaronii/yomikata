@@ -15,6 +15,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "AGB-AFEJ": {
+   "path": "games/gba/AGB-AFEJ.json",
+   "sha256": "f003bcbbc3a87965ec8807feef51b3870d9e2ef445f2abf62be9e151e7a3b5cc",
+   "platform": "gba",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "AGB-ASBJ": {
    "path": "games/gba/AGB-ASBJ.json",
    "sha256": "ac9bc21808950dcd5c852966c2ce9259e0324d59b9dfb6c0df2f09d2cb0d0491",
@@ -808,6 +815,19 @@
      "sha256": "2970ee29018d7317cb4b4073f7437bb8403019d9f0f43e96e7660d0ceb539882"
     }
    }
+  },
+  "AGB-AFEJ": {
+   "path": "scripts/gba/AGB-AFEJ.lua",
+   "sha256": "8d4cb2ecc96c2c530a8dd6ea5b05069179ab2686fb77f49df029d0cd5ab02d78",
+   "platform": "gba",
+   "runtime": 1,
+   "title": "ファイアーエムブレム 封印の剣 (Fire Emblem: Fuuin no Tsurugi, Game Boy Advance)",
+   "reads": "the message window's or speech bubble's page once it has typed out",
+   "builds": [
+    "fdaac108"
+   ],
+   "needs": [],
+   "data": {}
   },
   "AGB-ASBJ": {
    "path": "scripts/gba/AGB-ASBJ.lua",
