@@ -1807,6 +1807,125 @@ class Session:
                 "groups": [{"places": g["places"]} for g in groups[:12]],
                 "alone": [show(i) for i in moved[:12]] if not groups else [], "frame": machine.frames}
 
+    @tool("Walks the character of a game of three dimensions to a place on the ground, with the left stick, "
+          "correcting as it goes (walk_to is the same for a map of whole numbers and the arrows). Give the two of place_find's floats that the pushes move (its group's first and "
+          "third, often: x and z; the height is the one that stood). It pushes the stick right, then down, to "
+          "learn which way each moves the two numbers (the camera may be turned, so a push moves both), then "
+          "pushes toward the place a few frames at a time, learning the way again from its own last pushes as "
+          "it goes (a camera that turns behind the character is followed). It stops when the character is "
+          "near enough, when a push no longer moves it (a wall, a fence, a talk that has begun), or at the "
+          "limit, and says which, with where it got to. Without x and z, only says where the character is.",
+          x_address=("string", "where the game keeps the first of the two, hex", True),
+          z_address=("string", "and the second, hex", True),
+          x=("number", "where to, in the first", False), z=("number", "where to, in the second", False),
+          near=("number", "how near is near enough, in the game's units (default: what a 4-frame push "
+                          "moves the character)", False),
+          push=("integer", "frames of each push toward the place (default 8)", False),
+          limit=("integer", "at most this many frames (default 1200)", False))
+    def walk_3d(self, x_address: str, z_address: str, x: float | None = None, z: float | None = None,
+                near: float = 0.0, push: int = 8, limit: int = 1200) -> dict:
+        import math
+        import struct
+        machine = self._need()
+        order = ">f" if machine.platform in BIG_ENDIAN else "<f"
+        try:
+            ax, az = int(str(x_address), 16), int(str(z_address), 16)
+        except ValueError:
+            raise HarnessError("x_address and z_address are hex addresses, as place_find gives them") from None
+
+        def where():
+            bx, bz = machine.read(ax, 4), machine.read(az, 4)
+            if len(bx) < 4 or len(bz) < 4:
+                raise HarnessError("the addresses can't be read")
+            px, pz = struct.unpack(order, bx)[0], struct.unpack(order, bz)[0]
+            if not (math.isfinite(px) and math.isfinite(pz)):
+                raise HarnessError("the addresses don't hold numbers with a point")
+            return px, pz
+        events, ran = [], 0
+        start = where()
+        if x is None or z is None:
+            return {"at": [round(start[0], 3), round(start[1], 3)], "frame": machine.frames}
+        push, limit = max(2, min(int(push), 60)), max(push, min(int(limit), MAX_FRAMES))
+        target = (float(x), float(z))
+
+        def stick(s, frames):
+            nonlocal ran
+            before = where()
+            done, why = self._advance(frames, set(), s, events)
+            ran += done
+            after = where()
+            return (after[0] - before[0], after[1] - before[1]), why
+        # The way each stick axis moves the two numbers, per frame: two pushes to learn it.
+        learn = max(4, push)
+        seen = []                                           # (stick, move per frame) of the pushes made
+        for s in ((1.0, 0.0), (0.0, 1.0)):
+            move, why = stick(s, learn)
+            if why == "time":
+                return {"reached": False, "stopped": "time", "at": list(map(lambda v: round(v, 3), where())),
+                        "frames": ran}
+            seen.append((s, (move[0] / learn, move[1] / learn)))
+        speed = max(math.hypot(*m) for _, m in seen)
+        if speed < 1e-9:
+            return {"reached": False, "stopped": "the stick doesn't move the two numbers: are they the place, and "
+                                                 "can the character move now?", "at": list(where()), "frames": ran}
+        near = float(near) if near and near > 0 else 4 * speed
+
+        def way():
+            """The 2x2 that takes a stick to a move per frame, fitted to the last pushes (least squares)."""
+            rows = seen[-6:]
+            sxx = sum(s[0] * s[0] for s, _ in rows); sxy = sum(s[0] * s[1] for s, _ in rows)
+            syy = sum(s[1] * s[1] for s, _ in rows)
+            det = sxx * syy - sxy * sxy
+            if abs(det) < 1e-9:
+                return None
+            out = []
+            for k in (0, 1):                                # each of the two numbers
+                bx = sum(s[0] * m[k] for s, m in rows); by = sum(s[1] * m[k] for s, m in rows)
+                out.append(((syy * bx - sxy * by) / det, (sxx * by - sxy * bx) / det))
+            return out                                      # move[k] = out[k][0] * sx + out[k][1] * sy
+        best, stuck, why = math.inf, 0, None
+        while ran < limit:
+            px, pz = where()
+            gap = (target[0] - px, target[1] - pz)
+            dist = math.hypot(*gap)
+            if dist <= near:
+                return {"reached": True, "at": [round(px, 3), round(pz, 3)], "frames": ran,
+                        "events": len(events)}
+            m = way()
+            if m is None:
+                why = "the pushes don't tell the way apart"
+                break
+            det = m[0][0] * m[1][1] - m[0][1] * m[1][0]
+            if abs(det) < 1e-12:
+                why = "the stick moves the two numbers along one line only: they aren't a place on the ground"
+                break
+            # The stick that would get there: its length is the frames it takes at full tilt. Pushed at full
+            # tilt toward the place, a whole push, or fewer frames when it is nearer than that.
+            sx = (m[1][1] * gap[0] - m[0][1] * gap[1]) / det
+            sy = (-m[1][0] * gap[0] + m[0][0] * gap[1]) / det
+            length = math.hypot(sx, sy)
+            if not length:
+                why = "no way toward the place"
+                break
+            frames = push if length > push else max(2, int(round(length)))
+            sx, sy = sx / length, sy / length
+            move, why = stick((sx, sy), frames)
+            if why:
+                break
+            # Learnt from only when it moved: a push against a wall says nothing of the way, and would turn it.
+            if math.hypot(*move) >= 0.25 * speed * frames:
+                seen.append(((sx, sy), (move[0] / frames, move[1] / frames)))
+            if dist < best - 0.25 * speed * frames:
+                best, stuck = dist, 0
+            else:
+                stuck += 1
+                if stuck >= 6:
+                    why = "it stopped getting nearer: something is in the way, or a talk has begun"
+                    break
+        px, pz = where()
+        return {"reached": math.hypot(target[0] - px, target[1] - pz) <= near, "stopped": why or "limit",
+                "at": [round(px, 3), round(pz, 3)], "frames": ran, "events": len(events)}
+
     @tool("Moves the cursor to a place, in the game's own numbers for it (cursor_find says where they are kept "
           "and how far a few frames move it; the picture says what the numbers mean): holds the pad a frame "
           "at a time until the cursor is there, or as near as it gets, letting go between pushes when it is "

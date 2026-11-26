@@ -60,6 +60,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `steady` | Numbers that go up or down by the same amount from each snap to the next: a hand going round, a bar filling, a timer. What `press_at` watches |
 | `press_at` | Presses a button when a number in memory comes to a value, several in turn: a press in time (a ring's hand over its mark, a bar that fills). With `tries`, lists of values are tried from this moment, the game put back after each, and what the game held afterwards is given for each |
 | `place_find` | Where a game of three dimensions keeps the character's place: floats that stand while the pad is let go, move with a push and come back with the push the other way, grouped three on end |
+| `walk_3d` | Walks the character of a game of three dimensions to a place on the ground with the left stick: learns from two pushes which way the stick moves the two numbers `place_find` gave (the camera may be turned), pushes toward the place, learning again from its own pushes as the camera turns, and stops when near, when a push no longer brings it nearer (a wall, a talk begun), or at the limit |
 | `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read |
 | `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to`. Takes where the game draws the character, for a picture that doesn't keep it in the middle |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
@@ -420,6 +421,16 @@ game's can't be compared again. (Gyakuten Saiban 2's route, prefixes `ra` and `r
 Gotoku 2's that way.) A snap from before the game was written beside it is told by its console only. In
 `steps` the refusal comes at the first such snap, with the game played up to it: give each game's snaps a
 prefix of their own from the start (`g2-`, `m3-`).
+
+### Walking in three dimensions
+
+In a game of three dimensions the stick moves the character the way the camera faces, and the camera turns, so
+pushes chosen by eye run into walls or set off a scene again. `place_find` with `stick` gives the floats that
+followed the pushes, three on end: the two that moved are the place on the ground, the one that stood is the
+height (several copies of one place are usual: the character, the camera's target). `walk_3d` takes the two
+and a place in them: two pushes teach it which way the stick moves them, and it steers there, refitting the way
+from its last pushes as the camera turns, and leaving out pushes that didn't move (a wall). It stops and says so
+when it gets no nearer. A talk or a scene that begins on the way stops it too; the script's events are counted.
 
 ### Waypoints
 
