@@ -302,8 +302,20 @@ bytes as they lie in memory.
 | `wii` | `0x80000000`, 24 MB, and `0x90000000`, 64 MB | Big-endian |
 | `nds` | `0x02000000`, 4 MB | |
 | `gba` | `0x02000000`, 256 KB, and `0x03000000`, 32 KB | |
-| `sfc` | `0x7E0000`, 128 KB | |
+| `sfc` | `0x7E0000`, 128 KB | And the cartridge, where the core maps it (below) |
 | `gb`, `gbc` | `0xC000`, 8 KB | |
+
+**A Super Famicom cartridge.** Some games never copy their text into work RAM and draw it straight from the
+cartridge, so a script may read the cartridge at the addresses the game itself uses:
+
+- a HiROM cartridge at `0xC00000` on, byte for byte (bank `0xC0` is the file's first 64 KB). Read it through
+  these linear addresses, not through its mirrors (`0x40`-`0x7D`, and `0x8000`-`0xFFFF` of banks `0x00`-`0x3F`),
+  which a host may not give truly;
+- a LoROM cartridge isn't dependable yet: a script shouldn't rely on reading one;
+- a script that needs the cartridge checks a read, and where it gets nothing says so once in the log and
+  reads nothing. It must not fail: a host may give work RAM alone.
+
+`games/sfc/SFC-A07624CD.lua` is the first to do this.
 
 A host maps these onto what its emulator gives out (a libretro core's memory descriptors, or its system RAM at
 the base above). Other platforms are added here as their first script arrives.
