@@ -29,14 +29,27 @@ def describe(session: Session) -> list[dict]:
 
 def call(session: Session, name: str, arguments: dict) -> dict:
     """A tool's result as MCP content. What goes wrong comes back as an error result, for the agent to read.
-    Every call of a tool the harness has goes into scratch's record of calls."""
+    Every call of a tool the harness has goes into scratch's record of calls, and its answer ends with the
+    count of the game's calls so far."""
     known = tools(session)
     if name not in known:
         return {"content": [{"type": "text", "text": f"no such tool: {name}"}], "isError": True}
+    # A game with a budget takes no call past it (`budget` itself aside, which says the count and raises it).
+    # A refused call ran nothing and isn't in the record.
+    ahead = arguments.get("game") if name in ("load", "budget") and isinstance(arguments.get("game"), str) else None
+    refusal = session.over_budget(ahead or session.game) if name != "budget" else None
+    if refusal:
+        return {"content": [{"type": "text", "text": refusal}], "isError": True}
     session.begin_call()
     began = time.monotonic()
     answer = _call(known[name][2], arguments)
     session.record_call(name, arguments, not answer.get("isError"), time.monotonic() - began, _outcome(name, answer))
+    game = session.game or ahead
+    if game:
+        # The count after this call, from the record: so that it is before the eyes at every step.
+        limit, used = session.budget_of(game), session.calls_so_far(game)
+        count = {"calls_so_far": used, **({"budget": limit, "left": max(0, limit - used)} if limit is not None else {})}
+        answer["content"].append({"type": "text", "text": json.dumps(count)})
     return answer
 
 
