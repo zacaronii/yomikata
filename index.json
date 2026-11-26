@@ -8,6 +8,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "AGB-A3JJ": {
+   "path": "games/gba/AGB-A3JJ.json",
+   "sha256": "497c019213045f966758d292016211b921580514749084f091d44ec61d2174a9",
+   "platform": "gba",
+   "encoding": "table",
+   "status": "partial"
+  },
   "AGB-A3UJ": {
    "path": "games/gba/AGB-A3UJ.json",
    "sha256": "7754621aa6de6484e178fb49cb958285736672d83c0a2f7c1c82af17ff5cbf3c",
@@ -795,6 +802,24 @@
     "tbl": {
      "path": "games/gba/AGB-A3GJ.tbl",
      "sha256": "dc2cff9a5d29f4cae0836ce6194295c9521f64ce059a953fa652c03a591a754b"
+    }
+   }
+  },
+  "AGB-A3JJ": {
+   "path": "scripts/gba/AGB-A3JJ.lua",
+   "sha256": "0d150d2d8483efd785bfbfc3358805ccf25b55202c6c9abab7342860fecd6138",
+   "platform": "gba",
+   "runtime": 1,
+   "title": "逆転裁判3 (Gyakuten Saiban 3)",
+   "reads": "a message window's page once the game has typed it out and waits",
+   "builds": [
+    "c9e987ae"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gba/AGB-A3JJ.tbl",
+     "sha256": "3654d8003e6c41c92d6739e80a4e4710ae80516b400a7759f18b0f11cf764856"
     }
    }
   },

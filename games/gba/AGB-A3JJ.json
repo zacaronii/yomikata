@@ -1,0 +1,28 @@
+{
+ "id": "AGB-A3JJ",
+ "platform": "gba",
+ "title": "逆転裁判3",
+ "title_romaji": "Gyakuten Saiban 3",
+ "versions": [
+  {
+   "header_crc32": "c9e987ae"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/gba/AGB-A3JJ.tbl"
+ ],
+ "unit": 2,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridges and snaps were studied outside it",
+  "The script is Gyakuten Saiban 2's (games/gba/AGB-A3GJ.lua) at this game's addresses, found offline in snaps: the word that walks the script, the section's start, the build's words",
+  "Five commands take lengths of their own here (0x06 one word more than in the second game; 0x47, 0x48, 0x5D, 0x69 new), read off the first case's script where the words after them fall back into step",
+  "The table: the whole font, 1,536 characters. 1,324 glyphs are bit for bit a glyph of Gyakuten Saiban 2's font (1,230) or Gyakuten Saiban's (94) and take that reading; 212 were read here off sheets, once, by one reader",
+  "Played from the first case's start through the lobby before the trial, the defender's monologue and the trial's opening: the route replayed from a state in one run with the script loaded",
+  "What the script said agreed with the rows read off 45 of 45 pictures, over 3 scenes (33, 5 and 7 screens); it said nothing on the 1 screen without text",
+  "The rows were the script's pages, each held against its picture. Left out: the opening's dream, whose pages go on by themselves and are said as they pass, and one page said on the frame of a press",
+  "44 harness calls in all (by the record), none failed"
+ ],
+ "notes": "Read by the script games/gba/AGB-A3JJ.lua, Gyakuten Saiban 2's with this game's places and table. A page is said when the word walking the script stands on a wait or a choice. Who speaks: the speaker's number only. Not looked at: answers of a choice kept elsewhere, the cursor, the court record, cross-examination, saved games. Pages that go on by themselves (the opening's dream) weren't compared."
+}
