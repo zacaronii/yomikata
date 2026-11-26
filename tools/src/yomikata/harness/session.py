@@ -1929,7 +1929,8 @@ class Session:
           "the next push changed the map: a door, stairs), and the game is left where it was. Given `to`, the "
           "game is then put at that place as it was reached while trying (the pushes go into the record of the "
           "way), or it says that the place wasn't among those reached; the trying ends as soon as the place is "
-          "reached, so a walk to somewhere near is quick and the map given is only what was tried till then.",
+          "reached, and tries the places nearest to it first, so a walk is quick even far off; the map given is "
+          "only what was tried till then.",
           x_address=("string", "where the game keeps the place across, hex (default: as cursor_find found)", False),
           y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
           step=("integer", "frames a push is held (default 8): about one of the game's numbers a push is best", False),
@@ -1989,6 +1990,10 @@ class Session:
         ways = ("up", "down", "left", "right") + (("up+left", "up+right", "down+left", "down+right") if diagonals else ())
         near, found = max(0, int(near)), False             # with `to`, the trying ends once the place is reached
         while queue and not late and not found:
+            # Towards a place asked for, the nearest known place is tried next (and so on round what is in
+            # the way); with none, the places in the order they were found, so the map grows evenly.
+            if to is not None:
+                queue.sort(key=lambda p: abs(p[0] - to[0]) + abs(p[1] - to[1]))
             here = queue.pop(0)
             for push in ways:
                 if self._late():

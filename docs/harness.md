@@ -179,7 +179,11 @@ In the order to try them:
    and a height that doesn't comes first) finds them, and `explore` takes them with `grid`, `whole` and
    their `size`. Xenogears: x at 0x80112AC4 and z at 0x80112ACC, about 32 units a push of 20 frames, cells
    of 16; a house's whole floor was 529 places in 82 seconds, which fits because a kept state is packed.
-   With `to`, `explore` stops trying as soon as it is there: a walk across a room is a few seconds.
+   With `to`, `explore` stops trying as soon as it is there, and tries the places nearest to it first: a walk
+   across a room is a few seconds, and across Mother 2's hill (93 pushes) under a minute, where trying evenly
+   ran out of time. A long `step` (16) with four ways covers ground fastest. What it can't see: a door whose
+   change of map takes longer than a push (that game's house doors), and a way that leads away from the place
+   before it leads to it costs the whole map first: walk such a way in legs.
    A game may keep two sets of numbers for everything that walks: where each is on the map, and where each
    is drawn on screen. Chrono Trigger does (the map's at 0x7E1800 across and 0x7E1880 down, a word for each
    of 32 things, 16 to a pixel; the screen's at 0x7E0A00 and 0x7E0A80), and `cursor_find` gave the screen's,
