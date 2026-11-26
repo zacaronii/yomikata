@@ -516,6 +516,11 @@ narrower than its row and drawn a few pixels into it has no piece that begins on
 also looked for a bit at a time in rows of 16 and 24 bits (`rows of 16 bits`, with the `bit` each begins at).
 Live A Live's kanji are so: 16x12, `--form rows1 --width 16 --height 12`, found only this way.
 
+The Super Famicom keeps tiles as planes: `--find` also looks for its 8x8 tiles of 2 and 4 bits a pixel in any
+one colour (`Super Famicom tiles of 2 bits, colour 1`), and for 12-pixel glyphs of a bit a pixel whose rows are
+packed with nothing between them (`packed rows of 12 bits`). Draw them with `--form snes2` or `snes4` (a
+glyph's 8x8 tiles in reading order: `--width 16 --height 16` is four) and `--form bits1 --width 12 --height 12`.
+
 A disc is read as its data track's sectors end to end (a .chd, .cue or .iso, or a raw track), so a place on it is
 sector x 2048 + offset. Look for the font in a memory snap first (`rom-font snap.ram --find picture.png`: a
 PlayStation game loads its font into memory as the disc has it), then `--locate snap.ram@ADDRESS` says where

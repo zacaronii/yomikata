@@ -21,6 +21,11 @@ def _option(text: str) -> tuple[str, str]:
     return key, value
 
 
+def romfont_forms() -> tuple:
+    from .romfont import FORMS
+    return FORMS
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="yomikata", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -173,9 +178,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--at", help="where the first glyph is in the cartridge (hex)")
     p.add_argument("--first", default="0", help="the first glyph's code (hex)")
     p.add_argument("--count", type=int, default=256, help="how many glyphs (default 256)")
-    p.add_argument("--form", default="tiles4", help="tiles4 (four 8x8 tiles of 4 bits a pixel: a 16x16 glyph) or rows1 (rows of a bit a pixel)")
-    p.add_argument("--width", type=int, default=16, help="rows1: pixels a row")
-    p.add_argument("--height", type=int, default=16, help="rows1: rows")
+    p.add_argument("--form", default="tiles4", choices=romfont_forms(), help="tiles4 (four 8x8 tiles of 4 bits a pixel: a 16x16 glyph), rows1 (rows of a bit a pixel, each in whole bytes), bits1 (a bit a pixel, rows packed: 12-pixel rows), snes2 or snes4 (Super Famicom tiles of 2 or 4 bits a pixel, a glyph's tiles in reading order)")
+    p.add_argument("--width", type=int, default=16, help="rows1, bits1, snes2, snes4: pixels a row")
+    p.add_argument("--height", type=int, default=16, help="rows1, bits1, snes2, snes4: rows")
     p.add_argument("--sheet", type=Path, help="write the glyphs as a numbered PNG, to scratch; blank glyphs take no room in a row's reading")
     p.add_argument("--columns", type=int, default=16, help="glyphs a row of the sheet (default 16)")
     p.add_argument("--scale", type=int, default=3, help="enlarge the sheet's glyphs (default 3)")

@@ -22,7 +22,14 @@ import numpy as np
 # How a glyph lies in the cartridge. tiles4: four 8x8 tiles of 4 bits a pixel (the low nibble the left pixel),
 # top left, top right, bottom left, bottom right: 128 bytes, a 16x16 glyph (Game Boy Advance).
 # rows1: rows of a bit a pixel, the high bit left, `width` pixels in whole bytes, `height` rows.
-FORMS = ("tiles4", "rows1")
+# bits1: a bit a pixel, the high bit left, the rows packed one after another with no byte left over between
+# them (12-pixel rows: three bytes for two rows); a glyph begins on a byte.
+# snes2, snes4: the Super Famicom's 8x8 tiles of 2 and 4 bits a pixel, planar: a tile is its rows, each the
+# first plane's byte then the second's (16 bytes); with 4 bits, the third and fourth planes' 16 bytes follow.
+# A glyph of `width` x `height` pixels is its tiles in reading order (16x16: top left, top right, bottom left,
+# bottom right).
+FORMS = ("tiles4", "rows1", "bits1", "snes2", "snes4")
+TILE_BYTES = {"snes2": 16, "snes4": 32}
 
 
 def cartridge(path: Path) -> bytes:
@@ -89,7 +96,23 @@ def size(form: str, width: int = 16, height: int = 16) -> int:
         return 128
     if form == "rows1":
         return (width + 7) // 8 * height
+    if form == "bits1":
+        return (width * height + 7) // 8
+    if form in TILE_BYTES:
+        return TILE_BYTES[form] * ((width + 7) // 8) * ((height + 7) // 8)
     raise ValueError(f"form is one of {', '.join(FORMS)}")
+
+
+def snes_tile(data: bytes, bits: int) -> np.ndarray:
+    """One 8x8 Super Famicom tile's colour numbers: planes 0 and 1 interleaved a row at a time, then (4 bits)
+    planes 2 and 3 the same."""
+    raw = np.frombuffer(data, dtype=np.uint8)
+    out = np.zeros((8, 8), dtype=np.uint8)
+    for plane in range(bits):
+        half, which = divmod(plane, 2)
+        rows = raw[16 * half + which:16 * half + 16:2]
+        out |= (np.unpackbits(rows).reshape(8, 8) << plane).astype(np.uint8)
+    return out
 
 
 def glyph(data: bytes, form: str, width: int = 16, height: int = 16) -> np.ndarray:
@@ -102,6 +125,15 @@ def glyph(data: bytes, form: str, width: int = 16, height: int = 16) -> np.ndarr
             tile[0::2], tile[1::2] = raw[32 * i:32 * i + 32] & 15, raw[32 * i:32 * i + 32] >> 4
             out[8 * row:8 * row + 8, 8 * column:8 * column + 8] = tile.reshape(8, 8) != 0
         return out
+    if form == "bits1":
+        return np.unpackbits(raw)[:width * height].reshape(height, width)
+    if form in TILE_BYTES:
+        each, across = TILE_BYTES[form], (width + 7) // 8
+        out = np.zeros(((height + 7) // 8 * 8, across * 8), dtype=np.uint8)
+        for n in range(len(raw) // each):
+            row, column = divmod(n, across)
+            out[8 * row:8 * row + 8, 8 * column:8 * column + 8] = snes_tile(data[n * each:(n + 1) * each], each // 8) != 0
+        return out[:height, :width]
     return np.unpackbits(raw).reshape(height, -1)[:, :width]
 
 
@@ -141,11 +173,20 @@ def find(rom: bytes, ink: np.ndarray, most: int = 12) -> list[dict]:
                 packed = bytes((colour if row[k] else 0) | ((colour if row[k + 1] else 0) << 4)
                                for row in piece for k in range(0, 8, 2))
                 forms.append((f"tiles of 4 bits, colour {colour}", packed))
+            for colour in range(1, 16):                  # the Super Famicom's planar tiles, ink in one colour
+                planes = [np.packbits((piece != 0) & bool(colour >> p & 1), axis=1).ravel() for p in range(4)]
+                low = bytes(b for r in range(8) for b in (planes[0][r], planes[1][r]))
+                if colour < 4:
+                    forms.append((f"Super Famicom tiles of 2 bits, colour {colour}", low))
+                high = bytes(b for r in range(8) for b in (planes[2][r], planes[3][r]))
+                forms.append((f"Super Famicom tiles of 4 bits, colour {colour}", low + high))
             for name, needle in forms:
                 at = rom.find(needle)
                 if at >= 0 and rom.find(needle, at + 1) < 0:              # once only: a place, not a pattern
                     found.setdefault(name, []).append({"x": x, "y": y, "at": at})
     for name, places in rows(rom, ink).items():
+        found[name] = places
+    for name, places in rows(rom, ink, widths=(12,), packed=True).items():
         found[name] = places
     out = []
     for name, places in sorted(found.items(), key=lambda kv: -len(kv[1])):
@@ -155,11 +196,12 @@ def find(rom: bytes, ink: np.ndarray, most: int = 12) -> list[dict]:
     return out
 
 
-def rows(rom: bytes, ink: np.ndarray, widths: tuple = (16, 24), most: int = 16) -> dict[str, list]:
+def rows(rom: bytes, ink: np.ndarray, widths: tuple = (16, 24), most: int = 16, packed: bool = False) -> dict[str, list]:
     """Pieces of the picture looked for as a bit a pixel in rows of 16 or 24 bits, at any bit of a row: a glyph
     narrower than its row and drawn a few pixels into it (Live A Live's 12-pixel kanji in rows of 16) has no
     8x8 piece that begins on a byte. The cartridge is read as one run of bits; a piece is a place where its eight
-    rows stand a row's width of bits apart. Only `most` of the busiest pieces are looked for: this is slower."""
+    rows stand a row's width of bits apart. Only `most` of the busiest pieces are looked for: this is slower.
+    `packed`: the rows are the glyph's own width, with nothing between them (bits1)."""
     if len(rom) > 64 << 20 or len(rom) < 8:      # a disc: look in a memory snap first, then --locate it
         return {}
     bits = np.unpackbits(np.frombuffer(rom, dtype=np.uint8))
@@ -183,7 +225,8 @@ def rows(rom: bytes, ink: np.ndarray, widths: tuple = (16, 24), most: int = 16) 
                 if not len(here):
                     break
             if len(here) == 1:                                   # once only: a place, not a pattern
-                found.setdefault(f"a bit a pixel, rows of {width} bits", []).append(
+                name = f"a bit a pixel, packed rows of {width} bits" if packed else f"a bit a pixel, rows of {width} bits"
+                found.setdefault(name, []).append(
                     {"x": x, "y": y, "at": int(here[0]) // 8, "bit": int(here[0]) % 8})
     return found
 
