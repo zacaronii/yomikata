@@ -103,6 +103,42 @@ def handle(session: Session, message: dict) -> dict | None:
 
 
 GRACE = 60.0       # seconds past a call's own time before the harness gives it up
+CLOSING = 5.0      # seconds the core is given to end when the calls are over
+
+
+def finish(session: Session, leave=os._exit, wait: float = CLOSING, log: IO[str] | None = None) -> bool:
+    """Ends the session when the calls are over: the core is unloaded and ended on this thread while a watch
+    waits `wait` seconds. A core that doesn't come back from that (flycast's sometimes doesn't) can't be stopped
+    from here, so then the watch says so and leaves the process. Either way what was written to scratch (the
+    record's lines, states, snaps) is put on the disk first: each record line went out in one write already, so
+    none is ever cut short. True when the core ended in time."""
+    done = threading.Event()
+
+    def watch() -> None:
+        if done.wait(wait):
+            return
+        print(f"the core didn't end within {wait:g} seconds of the last call; leaving without it "
+              "(the record, states and snaps are on disk)", file=log or sys.stderr, flush=True)
+        _sync()
+        leave(0)
+
+    threading.Thread(target=watch, daemon=True).start()
+    try:
+        session.close()
+    finally:
+        done.set()
+        _sync()
+    return True
+
+
+def _sync() -> None:
+    """Everything written to the disk: the record, states, snaps."""
+    try:
+        sys.stdout.flush()
+    except (OSError, ValueError):
+        pass
+    if hasattr(os, "sync"):
+        os.sync()
 
 
 class Watch:
@@ -134,9 +170,10 @@ class Watch:
 
 
 def serve(session: Session, read: IO[str] = sys.stdin, write: IO[str] = sys.stdout, give_up: float | None = None,
-          leave=os._exit, tick: float = 1.0) -> None:
+          leave=os._exit, tick: float = 1.0, closing: float = CLOSING) -> None:
     """Answers each line. `give_up` is how long one call may take in all before the harness ends (default: the
-    session's own limit and a grace); 0 turns that off."""
+    session's own limit and a grace); 0 turns that off. When the lines end the core is given `closing` seconds
+    to end (finish)."""
     lock = threading.Lock()
     seconds = session.call_seconds + GRACE if give_up is None else give_up
     watch = Watch(write, lock, seconds, leave, tick) if seconds > 0 else None
@@ -159,4 +196,4 @@ def serve(session: Session, read: IO[str] = sys.stdin, write: IO[str] = sys.stdo
                 if watch is None or answer.get("id") not in watch.gave_up:
                     write.write(json.dumps(answer, ensure_ascii=False) + "\n")
                     write.flush()
-    session.close()
+    finish(session, leave, closing)

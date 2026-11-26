@@ -560,6 +560,66 @@ def test_a_call_that_never_comes_back_is_given_up(session):
     assert answers[0]["result"]["isError"] and "didn't come back" in answers[0]["result"]["content"][0]["text"]
 
 
+
+def test_a_core_that_never_ends_is_left_when_the_calls_are_over_and_the_record_is_whole(session, tmp_path, capsys):
+    """At the end of the lines the core is ended; one that doesn't come back from that (flycast's) is waited
+    for only `closing` seconds, then the harness leaves, saying so, with every call's line in the record."""
+    import threading
+    import time
+    release, left = threading.Event(), []
+    session.machine.close = lambda: release.wait(30)                 # a deinit that hangs
+    lines = [json.dumps({"jsonrpc": "2.0", "id": i, "method": "tools/call",
+                         "params": {"name": "run", "arguments": {"frames": 5}}}) for i in (1, 2, 3)]
+    out = io.StringIO()
+    try:
+        server = threading.Thread(target=mcp.serve, args=(session, io.StringIO("\n".join(lines) + "\n"), out),
+                                  kwargs={"give_up": 0, "leave": left.append, "closing": 0.3}, daemon=True)
+        start = time.monotonic()
+        server.start()
+        while not left and time.monotonic() - start < 5:
+            time.sleep(0.02)
+        took = time.monotonic() - start
+    finally:
+        release.set()
+    server.join(5)
+    assert left == [0] and took < 2, (left, took)
+    assert "didn't end within 0.3 seconds" in capsys.readouterr().err
+    assert [json.loads(line)["id"] for line in out.getvalue().splitlines()] == [1, 2, 3]
+    record = (tmp_path / "scratch/record/calls.jsonl").read_text(encoding="utf-8")
+    assert record.endswith("\n") and [json.loads(line)["tool"] for line in record.splitlines()] == ["run"] * 3
+
+
+def test_a_core_that_ends_is_not_left(session):
+    """A core that ends in time is ended once, and the harness isn't made to leave."""
+    import time
+    ended, left = [], []
+    machine = session.machine
+    machine.close = lambda: ended.append(1)
+    assert mcp.finish(session, left.append, 0.2) is True
+    time.sleep(0.4)                                                  # the watch has let it be
+    assert ended == [1] and left == [] and session.machine is None
+
+
+def test_a_cores_end_unloads_the_game_then_ends_the_core_once():
+    from yomikata.replay.libretro import Core
+    did = []
+
+    class Lib:
+        def retro_unload_game(self): did.append("unload")
+        def retro_deinit(self): did.append("deinit")
+
+    class Gl:
+        def close(self): did.append("gl")
+
+    class Hw:
+        def context_destroy(self): did.append("destroy")
+    core = Core.__new__(Core)
+    core.lib, core.hw, core.gl, core._loaded = Lib(), Hw(), Gl(), True
+    core.close()
+    core.close()
+    assert did == ["destroy", "unload", "deinit", "gl"]
+
+
 @needs_reader
 def test_compare_a_script_with_the_lines_on_screen_and_with_a_layout(session):
     session.steps([{"wait": 1, "snap": True}, {"wait": 10, "snap": True}, {"wait": 10, "snap": True}], prefix="c")
