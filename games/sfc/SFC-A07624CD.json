@@ -16,7 +16,7 @@
   "status": "partial",
   "sources": [
     "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
-    "The kana by their order in the font, held against the screen; the signs read in play. All 768 kanji (1D00-1FFF) read off sheets of the cartridge's font (yomikata rom-font), once, by one reader: the 74 also read in play agree. No second reader has read the font",
+    "Kana by their order in the font; signs read in play. All 768 kanji (1D00-1FFF) read off sheets of the cartridge's font (yomikata rom-font), once, by one reader, in their readings' order: the 74 read in play agree, and 124 more stood right in 27 sentences decoded from the cartridge",
     "Played from power-on: the openings of three chapters (SF, Bakumatsu, Near Future)",
     "What the script said in play agreed with the lines read off 54 of 54 pictures, over 4 scenes. No screen without text was among them; a question's answers come out as rows of its text"
   ],
