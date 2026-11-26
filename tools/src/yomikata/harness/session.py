@@ -674,7 +674,7 @@ class Session:
                     # begins is said, so that it isn't taken for a buffer's start.
                     before = {at: search.text_before(ram, at, kind) for at in hits[:16]}
                     middle = {f"0x{base + at:08X}": {"characters_before": n, "text_from": f"0x{base + at - 2 * n:08X}"}
-                              for at, n in before.items() if n}
+                              for at, n in before.items() if n >= 2}      # one may be a mark's last byte
                     if middle:
                         found.setdefault("mid_line", {}).update(middle)
             for part, its in parts.items():

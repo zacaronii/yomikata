@@ -37,7 +37,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap (also every few frames of a wait), take pictures. The pictures come back as one sheet. With a script loaded: stop repeating when it says something (`until_event`) or has said nothing for some presses (`until_quiet`), and steps to do whenever it does (`on`: press down and confirm at each choice) |
 | `screenshot` | The picture now |
 | `read` | Memory by address, a region by offset; also as text in the game's own codes, through a table and rules as `code_rule` words them; or as a script with text among its commands (`mixed`: text as text, other bytes as numbers, pointers marked) |
-| `find` | Where a text or bytes stand, in live memory or in snaps. A text is looked for in Shift-JIS, EUC-JP, UTF-16 either way, UTF-8, Shift-JIS as 16-bit little-endian numbers, and the game's own table when one is given; in parts too, when the whole isn't found. A hit with text standing right before it is said to be the middle of a line, with where the line begins (`mid_line`) |
+| `find` | Where a text or bytes stand, in live memory or in snaps. A text is looked for in Shift-JIS, EUC-JP, UTF-16 either way, UTF-8, Shift-JIS as 16-bit little-endian numbers, and the game's own table when one is given; in parts too, when the whole isn't found. A hit with two characters or more of text standing right before it is said to be the middle of a line, with where the line begins (`mid_line`) |
 | `text_runs` | The stretches of memory that read as Japanese, longest first: what to hold against the screen before any line is known |
 | `find_relative` | A line read off the screen, looked for in codes of the game's own: where the same characters have the same code and different ones different codes. Gives the codes, the start of a table |
 | `identify` | Which release a game file is: platform, id, and what names its build |
@@ -265,6 +265,17 @@ In the order to try them:
    in 137 calls and 14 runs: `find`, `read` over snaps and with `mixed`, and `refs … moving` were one
    session of six calls where Kamaitachi no Yoru 2's same finding had been three sessions and two scripts
    written by hand.
+
+18. A page that fills with lines (a novel that covers the picture): look for the page's own string before
+   anything finer. `find` on the newest line and on the page's first line, in one call each, sorts the
+   copies: a place that has both, the first before the newest, is the page; one that has only the newest
+   is a line's own buffer. Fate/stay night keeps the page as one string made ready for drawing, and its
+   script says what that string gains. The line's own buffer looked simpler and was wrong: a sentence
+   that is several lines of the game's script went through it in one frame, and only its last line was
+   ever seen there (a replay lost). Hold the first try against sentences that wrap. That game met the bar
+   in 136 calls and 14 runs; the finding was two sessions of 15 calls, with `read … mixed` on six places
+   at once. `refs … moving` found nothing there and wasn't needed, and `find`'s `mid_line` said "1
+   character before" for every hit, a mark's last byte taken for text: it now wants two characters.
 
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.

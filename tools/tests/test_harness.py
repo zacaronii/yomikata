@@ -1719,3 +1719,4 @@ def test_find_says_when_what_it_found_is_the_middle_of_a_line(session):
     data = bytes(session.machine.memory)
     assert search.text_before(data, 0x401) == 0 and search.text_before(data, 0x401 + 14) == 7
     assert search.text_before(data, 0x401 + 14, "utf8") == 0
+    assert "mid_line" not in session.find(text="らはあおく")["found"]       # one character before: it may be a mark's last byte

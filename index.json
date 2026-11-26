@@ -202,6 +202,13 @@
    "encoding": "unknown",
    "status": "auto"
   },
+  "SLPM-66513": {
+   "path": "games/ps2/SLPM-66513.json",
+   "sha256": "5576b88449922916b035c27074e82b3e4586862b6b5a7c66c01a21ad1e7d0452",
+   "platform": "ps2",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "SLPM-66602": {
    "path": "games/ps2/SLPM-66602.json",
    "sha256": "7564d83956e15356b29e30edc00f3476b909f5c6e62194b033bf6fb592e8cbce",
@@ -792,6 +799,19 @@
      "sha256": "f9644d025790fa363fd959bda7797f71c1cb93873754917fbef9cf005e623103"
     }
    }
+  },
+  "SLPM-66513": {
+   "path": "scripts/ps2/SLPM-66513.lua",
+   "sha256": "6d0f1cc19979b8997246d64db59bbe48c71776e67ecd3caa6b49631e991e0beb",
+   "platform": "ps2",
+   "runtime": 1,
+   "title": "Fate/stay night [Réalta Nua] (Fate/stay night: Realta Nua)",
+   "reads": "the story's text as the page gains it, a text for each press, with its furigana",
+   "builds": [
+    "SLPM-66513-f6c5993b"
+   ],
+   "needs": [],
+   "data": {}
   },
   "SLPM-66602": {
    "path": "scripts/ps2/SLPM-66602.lua",
