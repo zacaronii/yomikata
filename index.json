@@ -66,7 +66,7 @@
   },
   "PCECD-92261ECE": {
    "path": "games/pce-cd/PCECD-92261ECE.json",
-   "sha256": "7da1758cd37f42daaf09e95708ebd311074a4074a4db562c4095db51ade679ce",
+   "sha256": "85aa6bd2472c1d821dbfde013c0f86f53754ff2a709f9bcdd424ca3e08cfecfe",
    "platform": "pce-cd",
    "encoding": "shift_jis",
    "status": "partial"

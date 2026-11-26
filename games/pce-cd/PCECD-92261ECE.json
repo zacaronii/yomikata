@@ -14,10 +14,10 @@
  "sources": [
   "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
   "Kanji and signs are Shift-JIS; the one-byte codes are turned into Shift-JIS by the game's own table, which the script reads from memory as the game has it: no table in the catalog. The codes that aren't characters were read off pages beside the screen",
-  "The route was found by running the same core outside the harness, then replayed in the harness from power-on in one run with the script loaded",
+  "The route was found by playing the same core outside the harness: 59 runs, about 600,000 frames, some 30 minutes, which the harness's record doesn't count. It was then replayed in the harness from power-on in one run with the script loaded",
   "What it said agreed with the rows read off 31 of 31 pictures, over 4 scenes (the house, the shrine's gate, the shrine's hall, the village); it said nothing on the 4 screens without text",
   "Of the 31, 10 are the same search's answer at different places and 6 repeat a talk (the same person spoken to again)",
-  "The build check was added after that run; outside the harness the script so checked, loaded as a host would (it held from the title on), said the same 44 pages on the same frames over the route"
+  "The build check came after that run. In the harness, the final script was refused at power-on, loaded at the title and agreed on the house's 3 pages and its screen without text (59 harness calls in all)"
  ],
  "notes": "Read by the script games/pce-cd/PCECD-92261ECE.lua: a message window's pages, each once it has typed out and waits. Not read: who speaks (the game shows no name), menus, fights, choices."
 }
