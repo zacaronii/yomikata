@@ -64,6 +64,13 @@
    "encoding": "utf16le",
    "status": "partial"
   },
+  "NUS-NAFJ": {
+   "path": "games/n64/NUS-NAFJ.json",
+   "sha256": "32f956c6385b0c50775517684d8917edce7c196a94d2908ee98dc25906b630c1",
+   "platform": "n64",
+   "encoding": "table",
+   "status": "partial"
+  },
   "PCECD-92261ECE": {
    "path": "games/pce-cd/PCECD-92261ECE.json",
    "sha256": "85aa6bd2472c1d821dbfde013c0f86f53754ff2a709f9bcdd424ca3e08cfecfe",
@@ -846,6 +853,24 @@
    ],
    "needs": [],
    "data": {}
+  },
+  "NUS-NAFJ": {
+   "path": "scripts/n64/NUS-NAFJ.lua",
+   "sha256": "a14a1859c9bd19f4e8afa49321295ffc0319c63efd3f5cb613cd97fcda39a9c5",
+   "platform": "n64",
+   "runtime": 1,
+   "title": "どうぶつの森 (Doubutsu no Mori)",
+   "reads": "a speech bubble's page once the game has typed it out and waits for the button",
+   "builds": [
+    "NUS-NAFJ-00"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/n64/NUS-NAFJ.tbl",
+     "sha256": "1ec7a5b698b780066b31df6683133f1575a6e1633939bc3209368ba80a25e0eb"
+    }
+   }
   },
   "PCECD-92261ECE": {
    "path": "scripts/pce-cd/PCECD-92261ECE.lua",
