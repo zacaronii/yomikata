@@ -8,8 +8,8 @@ An entry is keyed by **release**, not title: the id the hardware or emulator rep
 |---|---|---|
 | PS1, PS2 | `SLPS-01234` | `SYSTEM.CNF`: `BOOT = cdrom:\SLPS_012.34;1` (`BOOT2` on PS2) |
 | PSP | `ULJM06119` | `UMD_DATA.BIN` / `PARAM.SFO` `DISC_ID` (what PPSSPP reports) |
-| GameCube | `GXXJ01` | first 6 bytes of the disc header |
-| Wii | `RXXJ01` | first 6 bytes of the disc header, as for GameCube (the Wii's magic 0x5D1C9EA3 is at 0x18, the GameCube's at 0x1C) |
+| GameCube | `GXXJ01` | first 6 bytes of the disc header; the build is the id, `-` and the disc's version (0x07) as two hex digits (`G8MJ01-00`), and `header_crc32` the CRC-32 of the header's first 0x80 bytes (an RVZ or WIA image keeps a copy of them at 0x58) |
+| Wii | `RXXJ01` | first 6 bytes of the disc header, as for GameCube, the build and `header_crc32` too (the Wii's magic 0x5D1C9EA3 is at 0x18, the GameCube's at 0x1C) |
 | DS | `AXXJ` | game code in the cartridge header (0x0C) |
 | 3DS | `CTR-P-AXXJ` | product code in the NCCH header (0x150) |
 | Super Famicom | `SHVC-AXXJ`, else `SFC-1A2B3C4D` | game code in the cartridge header where there is one, else the header's CRC-32 (see below) |

@@ -1,0 +1,21 @@
+{
+ "id": "G8MJ01",
+ "platform": "gc",
+ "title": "ペーパーマリオRPG",
+ "title_romaji": "Paper Mario: The Thousand-Year Door",
+ "versions": [
+  {
+   "header_crc32": "c587fb0e",
+   "note": "disc version 0 (the build G8MJ01-00)"
+  }
+ ],
+ "encoding": "shift_jis",
+ "status": "partial",
+ "sources": [
+  "The script (games/gc/G8MJ01.lua) is from reader's snapshots (#60, #64, #90); this entry measures it in the harness alone, from the game's file, no memory written, the script unchanged",
+  "Characters by the font's own map of glyphs to Shift-JIS, read from memory by the script: no table",
+  "Played from the title through the memory card's messages, the letter and the ship into the first town: what the script said agreed with the rows read off 31 of 31 pictures, over 4 scenes. No screen without text was among them",
+  "3 of the 31 screens repeat a talk (the same person spoken to twice). Furigana were not compared: the rows read off the screens leave them out"
+ ],
+ "notes": "Read by the script games/gc/G8MJ01.lua: the windows' lists of glyphs, a page at a time, with furigana and a choice's answers and cursor. Not looked at: menus, battles, a window kind not met. The build is the disc's id and its version (docs/format.md)."
+}

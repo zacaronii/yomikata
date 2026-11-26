@@ -2151,3 +2151,17 @@ def test_a_pc_engine_cd_is_read_from_its_data_track_and_named_by_its_boot_block(
     machine.platform, machine.core = "pce-cd", Core()
     base, ram = machine.ram()
     assert base == 0xD0000 and len(ram) == 0x40000 and ram[0x2FFFF] == 7 and ram[0x30000] == 9
+
+
+def test_identify_a_gamecube_disc_plain_and_compressed(tmp_path):
+    """A GameCube disc by its header's first 0x80 bytes, as an ISO and as an RVZ (which keeps them at 0x58)."""
+    import zlib
+    from yomikata.identify import identify
+    head = bytearray(0x80)
+    head[:6], head[7], head[0x1C:0x20], head[0x20:0x27] = b"GABJ01", 2, bytes.fromhex("c2339f3d"), b"MADE UP"
+    (tmp_path / "a.iso").write_bytes(bytes(head) + bytes(0x1000))
+    (tmp_path / "a.rvz").write_bytes(b"RVZ\x01" + bytes(0x54) + bytes(head) + bytes(0x100))
+    for name in ("a.iso", "a.rvz"):
+        release = identify(tmp_path / name)
+        assert (release.platform, release.id, release.build) == ("gc", "GABJ01", "GABJ01-02")
+        assert release.header_crc32 == f"{zlib.crc32(bytes(head)):08x}"
