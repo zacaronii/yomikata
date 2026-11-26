@@ -303,7 +303,7 @@ bytes as they lie in memory.
 | `nds` | `0x02000000`, 4 MB | |
 | `gba` | `0x02000000`, 256 KB, and `0x03000000`, 32 KB | |
 | `sfc` | `0x7E0000`, 128 KB | And the cartridge, where the core maps it (below) |
-| `gb`, `gbc` | `0xC000`, 8 KB | And the cartridge, whole, at `0x01000000` on (below) |
+| `gb`, `gbc` | `0xC000`, 8 KB | And the cartridge, whole, at `0x01000000` on (below). The I/O registers and high RAM at `0xFF00`-`0xFFFF` where the core maps them (mGBA does): LCDC at `0xFF40`, WY and WX at `0xFF4A`, say whether the window layer shows, which a game's copy of the screen in work RAM doesn't. Kept in a snap as the region `io`, and read at those addresses over a snap too |
 | `pce-cd` | `0xD0000`, 256 KB: the Super System Card's RAM, then the CD's own (from `0x100000`) | The console's 8 KB at `0x1F0000` too (the region `wram` in a snap). Not `0x0E0000`-`0x0EFFFF`: below |
 | `saturn` | `0x06000000`, 1 MB (the high work RAM), and `0x00200000`, 1 MB (the low) | Big-endian, as the console has it (mednafen_saturn keeps both as 16-bit words in the host's order; they are put back). The same again past the cache at `0x26000000` and `0x20200000`. The low 1 MB is the region `lwram` in a snap. No video memory: the core gives out neither VDP1's nor VDP2's |
 | `n64` | `0x80000000`, 8 MB (the RDRAM; a game without the Expansion Pak uses the first 4) | Big-endian, as the console has it (mupen64plus_next keeps it as 32-bit words in the host's order; they are put back). The same again past the cache at `0xA0000000`. No video memory, and the cartridge isn't given |
@@ -347,6 +347,10 @@ local tile = vram.u16(0x5800 + 2 * cell)
 A region has `size` and the reads of `mem` (`u8` … `read`, the big-endian ones too), taking an offset from its
 start. `vram` is laid out per console as `docs/inbox.md` says for a snapshot's `vram` part. A script that can't
 do without it says `-- reader: needs vram`; one that can do something without it tests for nil.
+
+The other regions are stretches a platform keeps beside main memory: `iwram` (Game Boy Advance), `wram`
+(PC Engine CD), `lwram` (Saturn) and `io` (Game Boy). Over a snap they answer at their console addresses as
+well, as they do in play.
 
 ## `text`
 

@@ -25,6 +25,11 @@ JOINED = {"pce-cd": (0xD0000, 0x100000)}
 # straight from the cartridge has switched to others by the time a line stands. The file is given to scripts
 # at this address on, byte for byte (docs/script-api.md).
 CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000}
+# A Game Boy's I/O registers and high RAM (0xFF00-0xFFFF), where the core maps them (mGBA does): the LCD's
+# registers say what the screen shows (LCDC at 0xFF40: the window on or off, which map; WY and WX at 0xFF4A
+# where it is), which the game's copy of the screen in work RAM doesn't. Read through the core's map, and kept
+# in a snap as the region `io`, answering at its own addresses there too (docs/script-api.md).
+IO = {"gb": (0xFF00, 0x100), "gbc": (0xFF00, 0x100)}
 # A core whose "system RAM" is more than one of the console's stretches, kept as 16-bit words in the host's
 # order: mednafen_saturn gives the Saturn's work RAM so, the low 1 MB (0x00200000) and then the high 1 MB
 # (0x06000000), each pair of bytes swapped; mupen64plus_next gives the N64's RDRAM (8 MB, 0x80000000 on) as
@@ -48,6 +53,8 @@ def region_starts(platform: str) -> dict[str, int]:
     """A platform's regions beside main memory, by name, at the console address each starts at."""
     out = dict(OTHER_STRETCHES.get(platform, {}))
     out.update({name: start for start, _, _, name in WORDS.get(platform, ())[1:]})
+    if platform in IO:
+        out["io"] = IO[platform][0]
     return out
 
 
@@ -182,6 +189,11 @@ class Machine:
             other = stretch(self.core.maps, start)
             if other:
                 out[name] = C.string_at(other[2], other[1])
+        if self.platform in IO:
+            start, length = IO[self.platform]
+            io = self.read(start, length)
+            if len(io) == length:                   # only where the core's map gives all of it
+                out["io"] = io
         return out
 
     def _ps1_video(self) -> bytes | None:

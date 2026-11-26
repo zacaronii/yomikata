@@ -62,8 +62,34 @@ def data_files(script: Path) -> dict[str, bytes]:
 
 
 def _regions(snapshot: Path) -> dict[str, bytes]:
-    video = snapshot.with_name(snapshot.name.split(".")[0] + ".vram.gz")
-    return {"vram": _load(video)} if video.is_file() else {}
+    """The regions kept beside a snapshot (`<name>.<region>.gz`: video memory, and others a platform has)."""
+    stem = snapshot.name.split(".")[0]
+    out = {}
+    for path in sorted(snapshot.parent.glob(f"{stem}.*.gz")):
+        region = path.name[len(stem) + 1:-len(".gz")]
+        if region != "ram" and "." not in region:
+            out[region] = _load(path)
+    return out
+
+
+def with_regions(read, platform: str | None, regions: dict[str, bytes]):
+    """A read over main memory that also answers at a region's own addresses, for the regions a platform keeps
+    at console addresses (a Game Boy's `io` at 0xFF00; harness/machine.py's region_starts)."""
+    from .harness.machine import region_starts
+    starts = {name: start for name, start in region_starts(platform or "").items() if name in regions}
+    if not starts:
+        return read
+
+    def both(address: int, size: int) -> bytes:
+        got = read(address, size)
+        if got:
+            return got
+        for name, start in starts.items():
+            at = address - start
+            if 0 <= at < len(regions[name]):
+                return regions[name][at:at + size]
+        return b""
+    return both
 
 
 def _memory(script: Path, snapshot: Path, platform: str | None, base: int | None):
@@ -74,7 +100,8 @@ def _memory(script: Path, snapshot: Path, platform: str | None, base: int | None
                                            else RAM_BASES.get(platform))
     if start is None:
         raise ValueError(f"{snapshot.name}: give the address its first byte has (--base) or its platform")
-    return rd.memory(start, _load(snapshot), MIRRORS.get(platform, ())), platform, meta
+    read = rd.memory(start, _load(snapshot), MIRRORS.get(platform, ()))
+    return with_regions(read, platform, _regions(snapshot)), platform, meta
 
 
 def _open(script: Path, snapshot: Path, platform: str | None, base: int | None, limits: dict) -> rd.Reader:

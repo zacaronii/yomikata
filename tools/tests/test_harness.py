@@ -713,6 +713,24 @@ def test_a_machine_counts_the_frames_it_runs_and_its_close_ends_the_core():
     machine.close()
     assert did == [("run", 5), ("run", 7), "close"] and machine.frames == 12
 
+
+def test_a_game_boys_io_is_a_region_where_the_cores_map_gives_it():
+    """Machine.regions on a Game Boy: the 256 bytes at 0xFF00 through the core's map, as `io`; none where the
+    map doesn't give them all."""
+    from yomikata.harness.machine import Machine, region_starts
+
+    class Core:
+        maps = []
+        def video_ram(self): return None
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core = "gb", Core()
+    machine.read = lambda address, size: bytes(range(size)) if address == 0xFF00 else b""
+    assert machine.regions()["io"] == bytes(range(256)) and region_starts("gb")["io"] == 0xFF00
+    machine.read = lambda address, size: bytes(0x80)                    # a core that maps only part of it
+    assert "io" not in machine.regions()
+    machine.platform = "gba"
+    assert "io" not in machine.regions() and "io" not in region_starts("gba")
+
 def test_a_cores_end_unloads_the_game_then_ends_the_core_once():
     from yomikata.replay.libretro import Core
     did = []

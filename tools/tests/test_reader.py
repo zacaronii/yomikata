@@ -518,3 +518,31 @@ def test_run_command(tmp_path, capsys):
     assert [(e["snapshot"], e["text"]) for e in lines if e["kind"] == "text"] == \
         [("s000", "こんにち"), ("s001", "さよなら"), ("s002", "また明日")]
     assert not [e for e in lines if e["kind"] == "log"]
+
+
+GB_WINDOW = """-- reader: no hooks
+reader.on_frame(function()
+    local io = mem.region("io")
+    local function hex(v) return v and string.format("%02X", v) or "nil" end
+    reader.emit{ text = string.format("LCDC %s WY %s region %s %s", hex(mem.u8(0xFF40)), hex(mem.u8(0xFF4A)),
+                                      io and tostring(io.size) or "nil", hex(io and io.u8(0x40))) }
+end)
+"""
+
+
+def test_a_game_boys_io_kept_with_a_snap_answers_at_its_own_addresses(tmp_path):
+    """A Game Boy snap keeps the I/O registers and high RAM as the region `io`; a script run over the snap reads
+    them at 0xFF00 on, as it does live, and by the region too. Without the file, nothing answers there."""
+    import gzip
+    ram, io = bytearray(0x2000), bytearray(0x100)
+    io[0x40], io[0x4A] = 0xE3, 0x00                                   # the window on, at the top of the screen
+    (tmp_path / "g.ram.gz").write_bytes(gzip.compress(bytes(ram)))
+    (tmp_path / "g.io.gz").write_bytes(gzip.compress(bytes(io)))
+    (tmp_path / "g.json").write_text(json.dumps({"id": "GB-00000000", "platform": "gb", "base_address": "0xC000"}))
+    script = tmp_path / "GB-00000000.lua"
+    script.write_text(GB_WINDOW, encoding="utf-8")
+    [reading] = run(script, [tmp_path / "g.ram.gz"], frames=1)
+    assert [e["text"] for e in reading.texts()] == ["LCDC E3 WY 00 region 256 E3"], reading.error
+    (tmp_path / "g.io.gz").unlink()
+    [reading] = run(script, [tmp_path / "g.ram.gz"], frames=1)
+    assert [e["text"] for e in reading.texts()] == ["LCDC nil WY nil region nil nil"], reading.error

@@ -2918,7 +2918,7 @@ class Session:
             first_of_scene = {self._name(group[0]) for group in scenes.values()}
         from .. import compare as cmp
         from ..check import agreement, sidecars
-        from ..run import Reading, _load, _regions
+        from ..run import Reading, _load, _regions, with_regions
         names = [self._name(n) for n in (snaps or sorted(self.snaps))]
         if not names:
             raise HarnessError("no snaps to run it over: snap some moments first")
@@ -2931,7 +2931,8 @@ class Session:
         for n, path in zip(names, paths):
             meta, _ = sidecars(path)
             platform = PLATFORM_ALIASES.get(meta.get("platform"), meta.get("platform"))
-            read = rd.memory(int(meta["base_address"], 16), _load(path), MIRRORS.get(platform, ()))
+            read = with_regions(rd.memory(int(meta["base_address"], 16), _load(path), MIRRORS.get(platform, ())),
+                                platform, _regions(path))
             reading = Reading(n)
             if live:
                 if "said" not in meta:
