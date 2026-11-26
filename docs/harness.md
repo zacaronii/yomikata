@@ -31,6 +31,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | | |
 |---|---|
 | `status`, `games` | What is loaded; the library's folders and files |
+| `budget` | How many calls a game has had, by the record, and how many it may have; sets the most. Past it the harness takes no further call for the game |
 | `load` | A game in a core, from power-on or from a savestate (one saved here, or a reader's in the inbox) |
 | `run` | N frames with buttons and the left stick held. With a script loaded, what it emitted on the way |
 | `run_until` | Runs until a place in memory changes or holds a value, the script emits something, or the picture has stood still; at most a given number of frames. Says how far it ran and why it stopped |
@@ -531,6 +532,15 @@ pull request, so that what the tools gained from one game can be seen in what th
 from before outcomes were kept has the last comparison by scenes instead, and says the screens aren't in it;
 a game without one yet is counted as far as it has got. The minutes are the clock's, pauses and all: they
 say how long a script took to make, and `tool seconds` how much of that the game was running.
+
+A budget is kept by the harness, not by whoever is counting. Every answer of every tool ends with the game's
+`calls_so_far`, read from the record (so it is the number `yomikata calls` gives, over every run of the
+harness, and a run's own load and state_load are in it: a run is three or four calls before it does anything
+unless `load` is given its `state`). `budget` with `calls` sets the most a game may have in all
+(`record/budgets.json`); the answers then carry `budget` and `left`, and at the budget the harness runs
+nothing more for that game and says so. A refused call isn't in the record. Set it when a game is begun,
+to what was agreed, and raise it only when whoever set it has said so. Two games went past theirs before
+this: Shadow Hearts (284 calls for about 150) and Xenogears (420 for 300), both by counting runs.
 
 ### Writing memory
 

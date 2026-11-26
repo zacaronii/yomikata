@@ -187,6 +187,46 @@ class Session:
         except OSError:
             pass
 
+    def calls_so_far(self, game: str | None) -> int:
+        """The calls the record has for a game: the same lines `yomikata calls` counts, read from the record
+        itself each time it has grown by other than this session's own last line."""
+        record = self.roots.scratch / "record" / "calls.jsonl"
+        try:
+            size = record.stat().st_size
+        except OSError:
+            return 0
+        counted = getattr(self, "_counted", None)
+        if counted is None or counted[0] != size:
+            counts: dict = {}
+            for line in record.read_text(encoding="utf-8").splitlines():
+                try:
+                    entry = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(entry, dict) and "tool" in entry:
+                    counts[entry.get("game")] = counts.get(entry.get("game"), 0) + 1
+            self._counted = counted = (size, counts)
+        return counted[1].get(game, 0)
+
+    def budget_of(self, game: str | None) -> int | None:
+        """The most calls a game may have in the record (scratch record/budgets.json), or None: no budget."""
+        try:
+            budgets = json.loads((self.roots.scratch / "record" / "budgets.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        limit = budgets.get(game) if isinstance(budgets, dict) and game else None
+        return limit if isinstance(limit, int) and not isinstance(limit, bool) else None
+
+    def over_budget(self, game: str | None) -> str | None:
+        """Why no further call is taken for this game, or None."""
+        limit = self.budget_of(game)
+        used = self.calls_so_far(game) if limit is not None else 0
+        if limit is None or used < limit:
+            return None
+        return (f"the budget for {game} is spent: {used} calls in the record, {limit} allowed. Nothing was run. "
+                "Stop here and say so to whoever set the budget; `budget` with a higher number of calls raises "
+                "it, when they have said how many")
+
     def _late(self) -> bool:
         return self.deadline is not None and time.monotonic() >= self.deadline
 
@@ -273,6 +313,34 @@ class Session:
         return {"game": self.game, "platform": getattr(self.machine, "platform", None),
                 "frames": getattr(self.machine, "frames", None), "states": states, "snaps": sorted(self.snaps),
                 "script": self.script_name, **({"memory_writes": self.pokes} if self.allow_poke else {})}
+
+    @tool("How many calls a game has had and how many it may have. The count is the record's own (what "
+          "`yomikata calls` sums), over every run of the harness; every answer of every tool carries it as "
+          "`calls_so_far`. Given `calls`, sets the most the game may have in all: at that many the harness "
+          "takes no further call for the game (this one aside) until the number is raised. Set it when a "
+          "game is begun, to what was agreed; raise it only when whoever set it has said so.",
+          calls=("integer", "the most calls the game may have in the record, in all (0 or less: no budget)", False),
+          game=("string", "path of the game under the library (default: the loaded game)", False))
+    def budget(self, calls: int | None = None, game: str = "") -> dict:
+        game = game or self.game
+        if not game:
+            raise HarnessError("no game is loaded: name one")
+        if calls is not None:
+            folder = self.roots.scratch / "record"
+            folder.mkdir(parents=True, exist_ok=True)
+            try:
+                budgets = json.loads((folder / "budgets.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                budgets = {}
+            budgets = budgets if isinstance(budgets, dict) else {}
+            if int(calls) > 0:
+                budgets[game] = int(calls)
+            else:
+                budgets.pop(game, None)
+            (folder / "budgets.json").write_text(json.dumps(budgets, ensure_ascii=False, indent=1), encoding="utf-8")
+        limit, used = self.budget_of(game), self.calls_so_far(game)
+        return {"game": game, "calls_so_far": used, "budget": limit,
+                **({"left": max(0, limit - used)} if limit is not None else {})}
 
     @tool("Which release a game file is: its platform, its id, and what names its build (the SHA-1 of a disc's "
           "boot executable, a cartridge's header checksum; for a PlayStation 2 disc `build`, its serial and "

@@ -313,6 +313,44 @@ def test_every_call_goes_into_the_record_and_is_summed_by_game(session, tmp_path
     assert cli.main(["calls", str(tmp_path / "nowhere")]) == 1
 
 
+def test_a_budget_is_counted_from_the_record_and_stops_calls_past_it(session, tmp_path):
+    from yomikata import calls
+    def ask(name, arguments=None):
+        answer = mcp.handle(session, {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                      "params": {"name": name, "arguments": arguments or {}}})["result"]
+        return answer.get("isError", False), [c["text"] for c in answer["content"] if c["type"] == "text"]
+    game, record = "ngc/Made Up (Japan).iso", tmp_path / "scratch/record/calls.jsonl"
+    # Every answer ends with the game's calls so far, an error's too; with no budget, only the count.
+    assert json.loads(ask("run", {"frames": 2})[1][-1]) == {"calls_so_far": 1}
+    wrong, texts = ask("run", {"frames": 0})
+    assert wrong and json.loads(texts[-1]) == {"calls_so_far": 2}
+    # Calls of an earlier run of the harness count: the number is the record's, not this run's.
+    with record.open("a", encoding="utf-8") as f:
+        for _ in range(3):
+            f.write(json.dumps({"at": "2026-01-01T00:00:00Z", "session": "earlier", "game": game, "tool": "run",
+                                "arguments": {}, "ok": True, "seconds": 0.1}) + "\n")
+        f.write(json.dumps({"at": "2026-01-01T00:00:00Z", "session": "earlier", "game": "sfc/Other.sfc", "tool": "run",
+                            "arguments": {}, "ok": True, "seconds": 0.1}) + "\n")
+    _, texts = ask("budget", {"calls": 8})
+    assert json.loads(texts[0]) == {"game": game, "calls_so_far": 5, "budget": 8, "left": 3}
+    assert json.loads(texts[-1]) == {"calls_so_far": 6, "budget": 8, "left": 2}          # asking is a call too
+    assert json.loads(ask("run", {"frames": 1})[1][-1])["left"] == 1
+    assert json.loads(ask("status")[1][-1]) == {"calls_so_far": 8, "budget": 8, "left": 0}
+    frames = session.machine.frames
+    wrong, texts = ask("run", {"frames": 5})
+    assert wrong and "budget" in texts[0] and "8 calls in the record, 8 allowed" in texts[0] and len(texts) == 1
+    assert session.machine.frames == frames                                              # nothing ran
+    assert ask("load", {"game": game, "core": "c.so", "platform": "gc"})[0]              # nor is the game loaded anew
+    rows = {row["game"]: row["calls"] for row in calls.summary(record)}
+    assert rows == {game: 8, "sfc/Other.sfc": 1}                                         # a refused call isn't in the record
+    # Raised, calls go on; the count is still what `yomikata calls` sums.
+    assert json.loads(ask("budget", {"calls": 11})[1][0])["left"] == 3
+    assert not ask("run", {"frames": 1})[0]
+    assert {row["game"]: row["calls"] for row in calls.summary(record)}[game] == 10
+    assert json.loads(ask("budget", {"calls": 0})[1][0]) == {"game": game, "calls_so_far": 10, "budget": None}
+    assert session.budget_of("sfc/Other.sfc") is None
+
+
 def test_mcp_over_lines(session):
     lines = [json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
              json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}), "",
