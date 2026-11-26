@@ -680,6 +680,18 @@ Dolphin core needs. A core that needs a BIOS looks for it in `system/` under scr
 given as `YOMIKATA_SYSTEM` (mounted read-only): your own console's, never one from elsewhere. PCSX ReARMed plays
 most games without one; some show nothing until it has one.
 
+### Saturn
+
+mednafen_saturn describes no memory map, and of the libretro memories gives the work RAM (2 MB: the low 1 MB,
+then the high 1 MB, as 16-bit words in the host's order) and the cartridge's save RAM, nothing else. The
+harness reads the work RAM at the console's addresses and big-endian (script-api.md); `find` and the other
+tools take 2- and 4-byte numbers big-endian on a Saturn. VDP1's and VDP2's memory can't be read: a game that
+draws its text as VDP1 sprites from glyphs it puts in VDP1's memory, and keeps no codes in work RAM, can't be
+read by a script here (Sakura Taisen, parked for that: its line is in no encoding in work RAM or on the disc,
+the counters that go up as a page types are the sprite list's, and its font was found neither in RAM nor on
+the disc). yabasanshiro doesn't load in the tools image or the harness image: it wants `libGL.so.1`, which
+neither has.
+
 ### Does a core repeat itself?
 
 Everything found by replaying rests on the same steps reaching the same moment. `repeat` checks it: it does

@@ -2276,3 +2276,42 @@ def _append_many(scratch, tag):
     from yomikata.harness import record
     for _ in range(200):
         record.append(Path(scratch), {"game": "g", "tool": tag, "pad": tag * 3000})
+
+
+def test_a_saturn_is_read_at_its_own_addresses_and_in_its_own_byte_order():
+    """mednafen_saturn gives the work RAM as one 2 MB block of 16-bit words in the host's order, the low 1 MB
+    and then the high 1 MB. Read here at the console's addresses (and past the cache, 0x20000000 on), big-endian;
+    the high 1 MB is main memory and the low the region lwram; a write lands in its words."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine, region_starts, BIG_ENDIAN
+    console = bytearray(0x200000)
+    console[0x100C00:0x100C10] = b"SEGA SEGASATURN "                       # high RAM 0x06000C00
+    console[0x000010:0x000014] = b"\x12\x34\x56\x78"                       # low RAM 0x00200010
+    host = bytearray(len(console))
+    host[0::2], host[1::2] = console[1::2], console[0::2]                  # words in the host's order
+    block = (C.c_char * len(host)).from_buffer(host)
+
+    class Lib:
+        def retro_get_memory_data(self, which):
+            return C.addressof(block) if which == 2 else None
+
+        def retro_get_memory_size(self, which):
+            return len(host) if which == 2 else 0
+
+    class Core:
+        maps, lib = [], Lib()
+
+        def video_ram(self):
+            return None
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core, machine.cartridge = "saturn", Core(), b""
+    assert machine.read(0x06000C00, 16) == b"SEGA SEGASATURN " == machine.read(0x26000C00, 16)
+    assert machine.read(0x06000C01, 4) == b"EGA " and machine.read(0x00200010, 4) == b"\x12\x34\x56\x78"
+    assert machine.read(0x060FFFFE, 8) == b"\0\0" and machine.read(0x00300000, 4) == b""
+    base, ram = machine.ram()
+    assert base == 0x06000000 and len(ram) == 0x100000 and ram[0xC00:0xC04] == b"SEGA"
+    regions = machine.regions()
+    assert set(regions) == {"lwram"} and regions["lwram"][0x10:0x14] == b"\x12\x34\x56\x78"
+    assert region_starts("saturn") == {"lwram": 0x00200000} and "saturn" in BIG_ENDIAN
+    assert machine.write(0x06000C03, b"!?") == 2                           # across two words
+    assert machine.read(0x06000C00, 6) == b"SEG!?S" and host[0x100C02:0x100C06] == b"!GS?"

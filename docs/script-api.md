@@ -305,6 +305,7 @@ bytes as they lie in memory.
 | `sfc` | `0x7E0000`, 128 KB | And the cartridge, where the core maps it (below) |
 | `gb`, `gbc` | `0xC000`, 8 KB | And the cartridge, whole, at `0x01000000` on (below) |
 | `pce-cd` | `0xD0000`, 256 KB: the Super System Card's RAM, then the CD's own (from `0x100000`) | The console's 8 KB at `0x1F0000` too (the region `wram` in a snap). Not `0x0E0000`-`0x0EFFFF`: below |
+| `saturn` | `0x06000000`, 1 MB (the high work RAM), and `0x00200000`, 1 MB (the low) | Big-endian, as the console has it (mednafen_saturn keeps both as 16-bit words in the host's order; they are put back). The same again past the cache at `0x26000000` and `0x20200000`. The low 1 MB is the region `lwram` in a snap. No video memory: the core gives out neither VDP1's nor VDP2's |
 
 **A Super Famicom cartridge.** Some games never copy their text into work RAM and draw it straight from the
 cartridge, so a script may read the cartridge at the addresses the game itself uses:
