@@ -1666,3 +1666,39 @@ def test_press_at_presses_when_a_number_comes_to_a_value_and_tries_find_which(se
     for bad in ({"at": [1], "tries": [[1]]}, {}, {"at": [1], "kind": "double"}, {"tries": [[]]}):
         with pytest.raises(HarnessError):
             session.press_at(hand, **bad)
+    # A hand that goes round and starts past its mark: with `wrap` it is waited for the next time round.
+    def round_and_round(buttons, stick):
+        plain(buttons, stick)
+        hand, _, score = struct.unpack_from(">ffI", machine.memory, 0x340)
+        if "a" in buttons and 120.0 <= hand <= 150.0:
+            score += 1
+        struct.pack_into(">ffI", machine.memory, 0x340, (hand + 7.5) % 360.0, 1.0, score)
+    machine._step = round_and_round
+    struct.pack_into(">ffI", machine.memory, 0x340, 300.0, 1.0, 0)
+    out = session.press_at(hand, at=[130], wrap=360, hold=1, after=0)
+    assert out["presses"][0]["pressed"] and 130 <= out["presses"][0]["value"] < 137.5
+    assert struct.unpack_from(">I", machine.memory, 0x348)[0] == 1
+    struct.pack_into(">ffI", machine.memory, 0x340, 300.0, 1.0, 0)
+    out = session.press_at(hand, at=[130], hold=1, after=0)                 # without it: taken as falling, pressed at once
+    assert out["presses"][0]["value"] >= 300 or out["presses"][0]["value"] < 120
+
+
+def test_steady_finds_what_goes_by_the_same_amount_from_snap_to_snap(session):
+    machine, plain = session.machine, session.machine._step
+
+    def turning(buttons, stick):
+        plain(buttons, stick)
+        struct.pack_into(">f", machine.memory, 0x360, machine.frames * 4.5)            # a hand
+        struct.pack_into(">f", machine.memory, 0x364, float(machine.frames % 7))        # something that jumps about
+        struct.pack_into(">H", machine.memory, 0x368, 1000 - 3 * machine.frames)        # a timer counting down
+    machine._step = turning
+    for i in range(4):
+        session.run(5)
+        session.snap(f"st-{i}")
+    names = [f"st-{i}" for i in range(4)]
+    found = session.steady(names, within=[f"0x{BASE + 0x300:08X}", f"0x{BASE + 0x400:08X}"])
+    assert [p["address"] for p in found["places"]] == [f"0x{BASE + 0x360:08X}"] and found["places"][0]["step"] == 22.5
+    found = session.steady(names, kind="u16", within=[f"0x{BASE + 0x300:08X}", f"0x{BASE + 0x400:08X}"])
+    assert [(p["address"], p["step"]) for p in found["places"]] == [(f"0x{BASE + 0x368:08X}", -15.0)]
+    with pytest.raises(HarnessError):
+        session.steady(names[:2])

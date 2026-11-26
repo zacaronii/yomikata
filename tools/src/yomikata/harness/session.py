@@ -1408,9 +1408,12 @@ class Session:
           limit=("integer", "frames at most to wait for each value (default 600)", False),
           after=("integer", "frames to run after the last press (default 30)", False),
           watch=("array", "places to read afterwards, hex, each as the same kind: what tells a press in time from "
-                          "one that wasn't", False))
+                          "one that wasn't", False),
+          wrap=("number", "for a number that goes round (an angle: 360): it is then taken as only ever going "
+                          "forward, and a value behind where it is now is waited for the next time round", False))
     def press_at(self, address: str, at: list | None = None, tries: list | None = None, kind: str = "float",
-                 button: str = "a", hold: int = 2, limit: int = 600, after: int = 30, watch: list | None = None) -> dict:
+                 button: str = "a", hold: int = 2, limit: int = 600, after: int = 30, watch: list | None = None,
+                 wrap: float = 0.0) -> dict:
         machine = self._need()
         kinds = {"float": ("f", 4), "u8": ("B", 1), "u16": ("H", 2), "u32": ("I", 4), "s16": ("h", 2), "s32": ("i", 4)}
         if kind not in kinds or bool(at) == bool(tries):
@@ -1420,6 +1423,7 @@ class Session:
         place, held = int(address, 16), self._buttons([button])
         seen = [int(str(a), 16) for a in watch or ()]
         hold, limit, after = max(1, min(int(hold), 60)), max(1, min(int(limit), MAX_FRAMES)), max(0, min(int(after), 3600))
+        wrap = max(0.0, float(wrap))
 
         def value(where):
             raw = self._read(where, size)
@@ -1435,9 +1439,17 @@ class Session:
                 if before is None:
                     raise HarnessError("the number can't be read")
                 rising = before < wanted
+                # A number that goes round: how far it still has to go forward, which only gets less until
+                # it is there (and then jumps up by nearly the whole round).
+                left = (wanted - before) % wrap if wrap else None
                 while waited < limit and not why:
                     now = value(place)
-                    if now is not None and (now >= wanted if rising else now <= wanted):
+                    if wrap and now is not None:
+                        to_go = (wanted - now) % wrap
+                        if to_go > left + wrap / 2 or to_go == 0:
+                            break
+                        left = to_go
+                    elif now is not None and (now >= wanted if rising else now <= wanted):
                         break
                     _, why = self._advance(1, set(), (0.0, 0.0), events)
                     waited += 1
@@ -1477,6 +1489,39 @@ class Session:
             machine.load_state(start)
             machine.frames, self.route, self.reader = frames, json.loads(way), reader
         return {"tried": len(rows), "rows": rows, "frames": machine.frames}
+
+    @tool("Numbers that go up or down by the same amount from each snap to the next, over snaps taken evenly "
+          "apart: a hand going round, a bar filling, a timer. What press_at wants to watch. Read as 32-bit "
+          "floats, or as whole numbers of 1, 2 or 4 bytes.",
+          snaps=("array", "three snaps or more, in order, taken the same number of frames apart", True),
+          kind=("string", "float (default), or u8, u16, u32", False),
+          least=("number", "the least it must move from one snap to the next (default 0.001 for floats, 1)", False),
+          within=("array", "look only between two addresses, hex", False))
+    def steady(self, snaps: list, kind: str = "float", least: float = 0.0, within: list | None = None) -> dict:
+        import numpy as np
+        kinds = {"float": "f4", "u8": "u1", "u16": "u2", "u32": "u4"}
+        if kind not in kinds or len(snaps or ()) < 3:
+            raise HarnessError("three snaps or more; kind is float, u8, u16 or u32")
+        order = ">" if self.machine is not None and self.machine.platform in ("gc", "wii") else "<"
+        size = int(kinds[kind][1])
+        least = float(least) or (0.001 if kind == "float" else 1.0)
+        moments, base = [], 0
+        for _, base, ram in self._memories(snaps):
+            moments.append(np.frombuffer(ram[:len(ram) // size * size], dtype=order + kinds[kind]).astype(np.float64))
+        with np.errstate(invalid="ignore", over="ignore"):
+            first = moments[1] - moments[0]
+            ok = np.isfinite(first) & (np.abs(first) >= least) & (np.abs(moments[0]) < 1e9)
+            for before, after in zip(moments[1:], moments[2:]):
+                step = after - before
+                ok &= np.isfinite(step) & (np.abs(step - first) <= 0.02 * np.abs(first) + 1e-6)
+        places = np.nonzero(ok)[0]
+        if within is not None:
+            low, high = (int(str(v), 16) for v in within)
+            places = places[(places * size + base >= low) & (places * size + base < high)]
+        return {"count": int(len(places)), "snaps": len(moments),
+                "places": [{"address": f"0x{base + int(i) * size:08X}", "from": round(float(moments[0][i]), 4),
+                            "to": round(float(moments[-1][i]), 4), "step": round(float(first[i]), 4)}
+                           for i in places[:MAX_HITS]]}
 
     @tool("Finds where a game of three dimensions keeps the place of the character the pad moves: numbers with "
           "a point (32-bit floats), where cursor_find looks for whole ones. It stands still twice, then pushes "
