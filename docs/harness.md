@@ -498,7 +498,17 @@ yomikata rom-font game.zip --at 0x1D312C --first 80 --count 1352 \
 4 bits in any colour and as a bit a pixel; a font shows as pieces found once each, near each other. A glyph
 narrower than its row and drawn a few pixels into it has no piece that begins on a byte: the busiest pieces are
 also looked for a bit at a time in rows of 16 and 24 bits (`rows of 16 bits`, with the `bit` each begins at).
-Live A Live's kanji are so: 16x12, `--form rows1 --width 16 --height 12`, found only this way. It gives
+Live A Live's kanji are so: 16x12, `--form rows1 --width 16 --height 12`, found only this way.
+
+A disc is read as its data track's sectors end to end (a .chd, .cue or .iso, or a raw track), so a place on it is
+sector x 2048 + offset. Look for the font in a memory snap first (`rom-font snap.ram --find picture.png`: a
+PlayStation game loads its font into memory as the disc has it), then `--locate snap.ram@ADDRESS` says where
+stretches of memory from there lie on the disc and which start they agree on. Codes one byte below a lead byte
+and two bytes after it (`--lead F8`: 00 to F7, then F800, F801, ...) are numbered so on the sheets, in `--first`,
+in the rows read and in the table. Xenogears: the font is 16x11 a bit a pixel, 22 bytes a glyph, from sector
+239438 + 1712 of the first disc, codes 10 to FE11; `--find` in a snap, `--locate` on the disc, sheets drawn from it.
+Its last glyphs, and some slots in the middle of its JIS order, hold kanji the order doesn't predict (a slot the
+game had no use for, given to one it had): `yomikata sorted` passes over them, and a sentence has to settle each. It gives
 the neighbourhood, not the start: draw a stretch as a sheet, and move `--at` until a known character stands
 whole and at its code (Gyakuten Saiban's glyphs begin 12 bytes off a tile's edge; a glyph drawn at every
 4-byte offset shows which is right). Then a sheet for every 256 codes, each read a row a line (`rows.txt`: the

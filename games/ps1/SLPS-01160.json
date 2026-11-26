@@ -22,11 +22,11 @@
   "status": "partial",
   "sources": [
     "The harness alone, from the game's disc (docs/first-script.md): no reader's snapshots, no memory written",
-    "The table: the codes of messages the game was showing, beside the characters read on screen. No second reader has read it, and no font was read",
+    "The table: the whole font read off sheets drawn from the disc (rom-font --lead F8), once, by one reader: 1,776 codes. The 256 read in play agree; kanji in JIS order keep it (yomikata sorted); 8 more stood right in messages decoded from snaps. No second reader",
     "Played from power-on: the opening's narration, the first scene, the hero's room, a talk with the housemaid and the scene inside it. What the script said in play agreed with the rows read off 25 of 25 pictures, over 5 scenes: 5 short of the 30 screens wanted",
     "The same readings built the table, so the comparison checks messages, their pages and who speaks more than the characters. No screen without text was among them"
   ],
-  "notes": "Read by the script games/ps1/SLPS-01160.lua: a window's pointer walks through a message as it types, and each page of it is said once the pointer stands on the page's end, with who speaks from the message's first row. The table has 257 codes: other kanji come out as U+FFFD. Not checked: the second disc (SLPS-01161), several windows at once, choices, fights, menus. A state loaded after a window has closed says its last page again.",
+  "notes": "Read by the script games/ps1/SLPS-01160.lua: a window's pointer walks through a message as it types, and each page of it is said once the pointer stands on the page's end, with who speaks from the message's first row. The table has the whole font, 1,777 codes; 8 glyphs not settled come out as U+FFFD. Not checked: the second disc (SLPS-01161), several windows at once, choices, fights, menus. A state loaded after a window has closed says its last page again.",
   "tables": [
     "tables/ps1/SLPS-01160.tbl"
   ],
