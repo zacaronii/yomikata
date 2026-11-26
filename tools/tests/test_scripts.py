@@ -2009,3 +2009,48 @@ def test_shin_megami_tensei_a_row_is_said_when_it_is_written_with_its_voiced_mar
     with rd.Reader(smt_memory(header=False), platform="sfc", game_id="SFC-56A9AAB6", data={"tbl": table}) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/sfc/SFC-56A9AAB6.lua"))
+
+
+def xenogears_memory(block: bytes, at: int, scene: bool = False, names: bytes | None = None):
+    """What Xenogears' script looks at: the list of names, a block of messages at 0x80110000, and the window's
+    pointer into it: the field's fixed window, or the one a scene of the fight's program points at."""
+    if names is None:
+        names = bytes.fromhex("c6a9a800").ljust(20, b"\0") + bytes.fromhex("6c6d00").ljust(20, b"\0")
+    chunks = {0x8006CCC4: names, 0x80110000: block + bytes(8)}
+    pointer = struct.pack("<I", at)
+    if scene:
+        chunks[0x800AD0C0] = struct.pack("<I", 0x3C02800C) + bytes(12)
+        chunks[0x800D24CC] = struct.pack("<I", 0x801A0000)
+        chunks[0x800D2A60] = struct.pack("<I", 0x80110000)
+        chunks[0x801A0000] = bytes(0x1C) + pointer
+    else:
+        chunks[0x800AD0C0] = struct.pack("<II", 0xFFFFFFFF, 0xFFFFFFFF) + struct.pack("<I", 0x80110000)
+        chunks[0x800C1B84] = bytes(0x1C) + pointer
+    return sparse(chunks)
+
+
+def test_xenogears_a_message_is_said_when_its_pointer_stands_on_its_end():
+    table = "# made up\n5C=「\n6C=そ\n6D=ら\nF810=空\nC6=ハ\nA9=ナ\nA8=コ\n".encode()
+    # A name by its number, a row, a bracket, そ空 and an unknown code, a wait, a row, the hero's name, ら.
+    spoken = bytes.fromhex("0f0501 01 5c 6c f810 77 0f001e 01 0f0500 6d 00")
+    plain = bytes.fromhex("6c6d 01 f810 00")
+    written = bytes.fromhex("6d6d 01 5c 6c 00")                               # who speaks, written out
+    offsets = [16, 16 + len(spoken), 16 + len(spoken) + len(plain)]
+    block = struct.pack("<I", 3) + struct.pack("<3H", *[o + 4 for o in offsets]) + bytes(10) + spoken + plain + written
+    base, first = 0x80110000, 20
+    assert struct.unpack_from("<H", block, 4)[0] == 8 + 4 * 3 == first
+    ends = [first + len(spoken) - 1, first + len(spoken) + len(plain) - 1, len(block) - 1]
+    walk = [0, base + first, base + first + 5, base + ends[0], base + ends[0], 0x8006CCC4 + 3, base + ends[0],   # a name drawn between
+            base + ends[0] + 1, base + ends[1], base + ends[1], base + ends[2] - 2, base + ends[2]]
+    for scene in (False, True):
+        with rd.Reader(xenogears_memory(block, 0, scene), platform="ps1", game_id="SLPS-01160", data={"tbl": table}) as r:
+            r.load(bundle(ROOT / "games/ps1/SLPS-01160.lua"), "SLPS-01160.lua")
+            said = []
+            for frame, at in enumerate(walk, 1):
+                r.read = xenogears_memory(block, at, scene)
+                r.frame(frame)
+                said += [(frame, e.get("speaker") or None, e["text"]) for e in r.take("text")]
+            assert said == [(4, "そら", "「そ空�\nハナコら"), (9, None, "そら\n空"), (12, "らら", "「そ")]
+    with rd.Reader(xenogears_memory(block, 0, names=bytes(40)), platform="ps1", game_id="SLPS-01160", data={"tbl": table}) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/ps1/SLPS-01160.lua"))
