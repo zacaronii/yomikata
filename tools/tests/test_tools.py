@@ -620,3 +620,61 @@ def test_rom_font_finds_glyphs_drawn_a_few_bits_into_rows_of_16(tmp_path, capsys
     assert 0x2000 + 4 * 24 <= int(best["from"], 16) <= int(best["to"], 16) < 0x2000 + 6 * 24
     glyphs = romfont.glyphs(rom, 0x2000, 0, 30, "rows1", 16, 12)
     assert all((glyphs[n][:, 3:15] == shapes[n]).all() for n in range(30))
+
+
+def test_rom_font_reads_and_finds_super_famicom_tiles_and_packed_rows(tmp_path, capsys):
+    """Made-up fonts in the new forms, each encoded here on its own: the Super Famicom's planar tiles of 2 and
+    4 bits a pixel (16x16 glyphs, their tiles in reading order), 12x12 glyphs of a bit a pixel with the rows
+    packed (bits1), and with each row in whole bytes (rows1). Each is drawn back exactly and found from a
+    picture of two of its glyphs in its own form."""
+    import numpy as np
+    from PIL import Image
+    from yomikata import cli, romfont
+    rng = np.random.default_rng(11)
+
+    def planar(shape, bits, colour):
+        """16x16 -> four tiles, each its rows as plane 0 and 1 bytes, then (4 bits) planes 2 and 3."""
+        out = b""
+        for row, column in ((0, 0), (0, 1), (1, 0), (1, 1)):
+            tile = shape[8 * row:8 * row + 8, 8 * column:8 * column + 8] * colour
+            plane = [[int("".join(str(int(v) >> p & 1) for v in r), 2) for r in tile] for p in range(bits)]
+            out += bytes(b for r in range(8) for b in (plane[0][r], plane[1][r]))
+            if bits == 4:
+                out += bytes(b for r in range(8) for b in (plane[2][r], plane[3][r]))
+        return out
+
+    def packed_rows(shape):                                             # 12x12, all 144 bits one after another
+        bits = "".join(str(int(v)) for v in shape.ravel())
+        return bytes(int(bits[k:k + 8].ljust(8, "0"), 2) for k in range(0, len(bits), 8))
+
+    def byte_rows(shape):                                               # 12x12, each row in two bytes
+        return b"".join(int("".join(str(int(v)) for v in r).ljust(16, "0"), 2).to_bytes(2, "big") for r in shape)
+
+    cases = [("snes2", 16, 16, lambda s: planar(s, 2, 3), "Super Famicom tiles of 2 bits, colour 3"),
+             ("snes4", 16, 16, lambda s: planar(s, 4, 9), "Super Famicom tiles of 4 bits, colour 9"),
+             ("bits1", 12, 12, packed_rows, "a bit a pixel, packed rows of 12 bits"),
+             ("rows1", 12, 12, byte_rows, None)]
+    for form, width, height, encode, found_as in cases:
+        shapes = (rng.random((24, height, width)) < 0.4).astype(np.uint8)
+        start = 0x2003
+        rom = bytes(rng.integers(0, 256, start, dtype=np.uint8)) + b"".join(encode(s) for s in shapes) + bytes(64)
+        assert romfont.size(form, width, height) == len(encode(shapes[0])), form
+        glyphs = romfont.glyphs(rom, start, 0x20, 24, form, width, height)
+        assert all((glyphs[0x20 + n] == shapes[n]).all() for n in range(24)), form
+        if found_as is None:
+            continue
+        picture = np.zeros((height + 8, 2 * width + 12, 3), dtype=np.uint8)      # light on dark, as a game draws it
+        picture[4:4 + height, 4:4 + width][shapes[6] == 1] = 255
+        picture[4:4 + height, 8 + width:8 + 2 * width][shapes[11] == 1] = 255
+        Image.fromarray(picture).save(tmp_path / f"{form}.png")
+        (tmp_path / f"{form}.sfc").write_bytes(rom)
+        assert cli.main(["rom-font", str(tmp_path / f"{form}.sfc"), "--find", str(tmp_path / f"{form}.png")]) == 0
+        found = {row["form"]: row for row in map(json.loads, capsys.readouterr().out.splitlines())}
+        each = romfont.size(form, width, height)
+        assert found_as in found, (form, list(found))
+        assert start + 6 * each <= int(found[found_as]["from"], 16) <= int(found[found_as]["to"], 16) < start + 12 * each, form
+    # A Super Famicom tile alone: colour numbers from its planes.
+    tile = bytes([0b10000000, 0b00000000] + [0] * 14 + [0b10000000, 0b10000000] + [0] * 14)
+    assert romfont.snes_tile(tile[:16], 2)[0, 0] == 1 and romfont.snes_tile(tile, 4)[0, 0] == 0b1101
+    with pytest.raises(ValueError, match="form is one of"):
+        romfont.size("tiles3")
