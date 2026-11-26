@@ -1,0 +1,27 @@
+{
+ "id": "CGB-AAUJ",
+ "platform": "gbc",
+ "title": "ポケットモンスター 金",
+ "title_romaji": "Pocket Monsters Kin",
+ "versions": [
+  {
+   "header_crc32": "89c8da80",
+   "note": "the Japanese Gold cartridge (POKEMON_GLDAAUJ, header checksum 0x48)"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/gbc/CGB-AAUJ.tbl"
+ ],
+ "unit": 1,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on mGBA (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
+  "From Pocket Monsters Aka (games/gb/GB-29D07340.lua): the script, the copy of the screen's tiles (0xC3A0, the same place), the window's rows, frame and voicing marks, and the table: this cartridge's font has Aka's glyphs under the same codes (all 127, two redrawn a pixel lower), found offline",
+  "Found in play here: the window isn't on the LCD's window layer, so it is known by its frame in the tile copy; the arrow is a row lower; a fight's command menu over the window is left out by its corner; the rows run to column 18",
+  "Played from the opening's talk to the naming, the hero's mother at home, the professor's lab and a first wild fight: four stretches, each replayed from a state with the script loaded (the fight as the presses advance_through made)",
+  "What the script said agreed with the rows read off 58 of 58 pictures, over 4 scenes; 8 pages said inside a press have no picture. No screen without text was among them",
+  "The rows were the script's pages, each held against its picture; the window scrolls a row up between pages, so the comparison held each screen to the rows it gained (compare's scrolls)"
+ ],
+ "notes": "Read by the script games/gbc/CGB-AAUJ.lua: the message window's two rows while its frame shows, when the page waits on its arrow or has stood half a second; and a page closed before that, when it closes. Not read: who speaks but where the game writes it into the text, menus and other boxes (a fight's commands, a choice), the screens before the story. Names chosen in play come out as typed."
+}
