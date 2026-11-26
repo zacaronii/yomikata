@@ -38,7 +38,7 @@
   },
   "HDR-0152-D1": {
    "path": "games/dc/HDR-0152-D1.json",
-   "sha256": "a6646d1b2a4fc7aca06d395dd7a9a243ff9ef877805a84ad56d934d6e5b8bcfa",
+   "sha256": "a3ad020b75c13f6131643b3b498496406ce42c7752cc61023ccb55c7ebbc2707",
    "platform": "dc",
    "encoding": "shift_jis",
    "status": "partial"
