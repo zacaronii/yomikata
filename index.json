@@ -148,7 +148,7 @@
   },
   "SFC-A07624CD": {
    "path": "games/sfc/SFC-A07624CD.json",
-   "sha256": "44e81011342b9ceef8773fdd4f676b18fa9cc51462ab4fb7a4e502cc0d332bb8",
+   "sha256": "8a5d2ce176fee4c926b35aa55d82e9545431406e308df5aca2b0fc6e513d25db",
    "platform": "sfc",
    "encoding": "table",
    "status": "partial"
@@ -867,7 +867,7 @@
    "data": {
     "tbl": {
      "path": "games/sfc/SFC-A07624CD.tbl",
-     "sha256": "f9dba8521860901bb66e538846ee58b92e391218c4fc41f1d5f4d0b35778ddc9"
+     "sha256": "f6eb910f5af82829cd0a5a1495d6b02730cf6e7f0241feb74a5d13f26d1b9091"
     }
    }
   },

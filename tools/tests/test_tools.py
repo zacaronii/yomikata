@@ -557,3 +557,30 @@ def test_rom_font_finds_draws_and_reads_a_cartridges_font(tmp_path, capsys):
     with pytest.raises(ValueError, match="read twice"):
         romfont.readings("80 あ\n80 い")
     assert romfont.held({1: "あ", 2: "あ"}, {})["one character for two glyphs"] == {"あ": ["1", "2"]}
+
+
+def test_rom_font_finds_glyphs_drawn_a_few_bits_into_rows_of_16(tmp_path, capsys):
+    """Glyphs 12 pixels wide in rows of 16 bits (two bytes a row, 12 rows a glyph), each drawn three pixels into
+    its row, as Live A Live keeps its kanji: no 8x8 piece of a picture begins on a byte, and the rows are found
+    a bit at a time. Dark text on light, as that game draws it."""
+    import numpy as np
+    from PIL import Image
+    from yomikata import cli, romfont
+    rng = np.random.default_rng(11)
+    shapes = (rng.random((30, 12, 12)) < 0.4).astype(np.uint8)
+    def packed(shape):
+        cell = np.zeros((12, 16), dtype=np.uint8)
+        cell[:, 3:15] = shape
+        return np.packbits(cell, axis=1).tobytes()
+    rom = bytes(rng.integers(0, 256, 0x2000, dtype=np.uint8)) + b"".join(packed(s) for s in shapes) + bytes(48)
+    (tmp_path / "game.sfc").write_bytes(rom)
+    picture = np.full((20, 40, 3), 255, dtype=np.uint8)
+    picture[4:16, 4:16][shapes[4] == 1] = 0
+    picture[4:16, 16:28][shapes[5] == 1] = 0                             # drawn 12 apart: no gap between them
+    Image.fromarray(picture).save(tmp_path / "text.png")
+    assert cli.main(["rom-font", str(tmp_path / "game.sfc"), "--find", str(tmp_path / "text.png"), "--ink", "-100"]) == 0
+    best = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert best["form"] == "a bit a pixel, rows of 16 bits"
+    assert 0x2000 + 4 * 24 <= int(best["from"], 16) <= int(best["to"], 16) < 0x2000 + 6 * 24
+    glyphs = romfont.glyphs(rom, 0x2000, 0, 30, "rows1", 16, 12)
+    assert all((glyphs[n][:, 3:15] == shapes[n]).all() for n in range(30))

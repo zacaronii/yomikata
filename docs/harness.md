@@ -495,7 +495,10 @@ yomikata rom-font game.zip --at 0x1D312C --first 80 --count 1352 \
 ```
 
 `--find` cuts 8x8 pieces out of a picture of the game's text and looks for each in the cartridge as tiles of
-4 bits in any colour and as a bit a pixel; a font shows as pieces found once each, near each other. It gives
+4 bits in any colour and as a bit a pixel; a font shows as pieces found once each, near each other. A glyph
+narrower than its row and drawn a few pixels into it has no piece that begins on a byte: the busiest pieces are
+also looked for a bit at a time in rows of 16 and 24 bits (`rows of 16 bits`, with the `bit` each begins at).
+Live A Live's kanji are so: 16x12, `--form rows1 --width 16 --height 12`, found only this way. It gives
 the neighbourhood, not the start: draw a stretch as a sheet, and move `--at` until a known character stands
 whole and at its code (Gyakuten Saiban's glyphs begin 12 bytes off a tile's edge; a glyph drawn at every
 4-byte offset shows which is right). Then a sheet for every 256 codes, each read a row a line (`rows.txt`: the
