@@ -148,7 +148,7 @@
   },
   "SFC-A07624CD": {
    "path": "games/sfc/SFC-A07624CD.json",
-   "sha256": "e28c4d751c423d429937e51d7becaee5e017056609c9d0a401db0fe8ae038968",
+   "sha256": "8a5d2ce176fee4c926b35aa55d82e9545431406e308df5aca2b0fc6e513d25db",
    "platform": "sfc",
    "encoding": "table",
    "status": "partial"
