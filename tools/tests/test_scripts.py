@@ -1971,3 +1971,41 @@ def test_live_a_live_what_the_pointer_passed_in_the_cartridge_is_said_when_it_st
     with rd.Reader(live_a_live_memory(script, 0xB000, check=bytes(16)), platform="sfc", game_id="SFC-A07624CD", data={"tbl": table}) as r:
         with pytest.raises(rd.ScriptError, match="another build"):
             r.load(bundle(ROOT / "games/sfc/SFC-A07624CD.lua"))
+
+
+def smt_memory(writes: bytes = b"", header: bool = True):
+    """What Shin Megami Tensei's script looks at: the cartridge's header in its first bank, and the list of
+    writes to the screen in work RAM."""
+    chunks = {0x7E0100: bytes(2) + writes + bytes(160)}
+    if header:
+        chunks[0x00FFC0] = b"DIGITAL DEVIL STORY  " + bytes(7) + bytes.fromhex("8b5274ad")
+    return sparse(chunks)
+
+
+def smt_row(where: int, cells: list[int], marks: dict[int, int] | None = None) -> bytes:
+    """A row as the game lists it: where it goes and its cells, then the write one tile row above it with
+    the voiced kana's marks."""
+    over = [(marks or {}).get(i, 0xCF) for i in range(len(cells))]
+    return (struct.pack(f"<HH{len(cells)}H", where, len(cells), *cells)
+            + struct.pack(f"<HH{len(cells)}H", where - 0x20, len(cells), *over))
+
+
+def test_shin_megami_tensei_a_row_is_said_when_it_is_written_with_its_voiced_marks():
+    table = "# made up\n0094=！\n0058=っ\n".encode()
+    KA, SO, TA, NA, HA = 0x2A, 0x33, 0x34, 0x39, 0x3E                     # hiragana by the order of the fifty sounds, from 0x25
+    first = smt_row(0x71C4, [0x97, NA, 0xCF, SO, 0x94, 0xCF, 0xCF, 0xAB], {3: 0x9E})        # a prompt, な, a space, ぞ！, the waiting mark
+    blink = smt_row(0x71C4, [0x97, NA, 0xCF, SO, 0x94, 0xCF, 0xCF, 0xCF], {3: 0x9E})        # the mark blinks: the same row
+    second = smt_row(0x7204, [0x5D + 25, 0x5A if False else 0x5D, 0x02, 0x0B, 0x58, 0xFFF & 0xC1], {0: 0x9F})   # パア１Ａっ and a gauge
+    other = smt_row(0x71C4, [KA, TA, HA])
+    moments = [b"", first, first, blink, blink, first, second, second, other, other, first, first]
+    with rd.Reader(smt_memory(), platform="sfc", game_id="SFC-56A9AAB6", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/sfc/SFC-56A9AAB6.lua"), "SFC-56A9AAB6.lua")
+        said = []
+        for frame, writes in enumerate(moments, 1):
+            r.read = smt_memory(writes)
+            r.frame(frame)
+            said += [(frame, e["text"]) for e in r.take("text")]
+        assert said == [(3, "な　ぞ！"), (8, "パア１Ａっ"), (10, "かたは"), (12, "な　ぞ！")]
+    with rd.Reader(smt_memory(header=False), platform="sfc", game_id="SFC-56A9AAB6", data={"tbl": table}) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/sfc/SFC-56A9AAB6.lua"))

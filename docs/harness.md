@@ -297,6 +297,18 @@ In the order to try them:
    A script that reads the cartridge needs a host that gives it: it must say so and read nothing where
    the read comes back empty, never fail.
 
+20. A window kept as tiles may not be in memory as a window: the game may keep only a list of writes to video
+   memory (where on the tile map, how many cells, the cells), a row at a time. Shin Megami Tensei does,
+   at 0x7E0102, and its voiced kana are two cells: the kana, and its mark in the row above, which is the
+   next write in the list. Three things from that game. A search for the row with its spaces as characters
+   found the cells in a snap fetched and searched by hand, where `find_relative` had refused it as "too
+   little to go by" (twice a の and two spaces: the tool wants more than it needs, and that is a fault to
+   mend). A buffer that looks like "the row being written" may be a list with a length in front of each
+   entry: read the words before it. And what blinks rewrites: a script that says a row whenever the list
+   changes says it at every blink of the waiting mark, so remember the row last said at each place.
+   Its bar came at 177 calls in 24 runs; `find`'s `not_found` and the dumps cost 77 of them before the
+   list was understood, a second naming screen that wanted another name than the first a few more.
+
 What it finds may be the script where it lies, the buffer the game types into, or a copy of the screen's
 tiles; which one changes as the line changes (`changed`, `run_until` on its first cell) says which to read.
 

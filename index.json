@@ -118,6 +118,13 @@
    "encoding": "unknown",
    "status": "auto"
   },
+  "SFC-56A9AAB6": {
+   "path": "games/sfc/SFC-56A9AAB6.json",
+   "sha256": "a9b0eecb63674942ec0ac2dac732b711713c69e7afb45a2b8fbf350c6fac3a59",
+   "platform": "sfc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "SFC-A07624CD": {
    "path": "games/sfc/SFC-A07624CD.json",
    "sha256": "44e81011342b9ceef8773fdd4f676b18fa9cc51462ab4fb7a4e502cc0d332bb8",
@@ -750,6 +757,24 @@
     "tbl": {
      "path": "games/ps1/SCPS-10088.tbl",
      "sha256": "9a1c5d1a4494476b3830dad58a462efc5bda762d7503fd17f07e9ae04eb6e67c"
+    }
+   }
+  },
+  "SFC-56A9AAB6": {
+   "path": "scripts/sfc/SFC-56A9AAB6.lua",
+   "sha256": "8c130c96844580c3935fa281d6a26d6a93fbbe5f35ce2074bb88cee1cd2e8f2e",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "真・女神転生 (Shin Megami Tensei)",
+   "reads": "text a row at a time as it is put on screen",
+   "builds": [
+    "56a9aab6"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/sfc/SFC-56A9AAB6.tbl",
+     "sha256": "f434435d55356382b357cb89c480e4bee58696e38777857a8495c6653e60dc78"
     }
    }
   },
