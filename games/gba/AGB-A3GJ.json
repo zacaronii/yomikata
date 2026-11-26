@@ -1,0 +1,25 @@
+{
+ "id": "AGB-A3GJ",
+ "platform": "gba",
+ "title": "逆転裁判2",
+ "title_romaji": "Gyakuten Saiban 2",
+ "versions": [
+  {
+   "header_crc32": "a2916307"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/gba/AGB-A3GJ.tbl"
+ ],
+ "unit": 2,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+  "The script is Gyakuten Saiban's (games/gba/AGB-ASBJ.lua) at this game's addresses, found offline in snaps: the word that walks the script, the section's start, the build's words. Eight commands met here and not in the first game take lengths read off the first scene's script",
+  "The table: the whole font, 1,412 characters. 1,191 glyphs are bit for bit a glyph of Gyakuten Saiban's font and take its reading (read once there, by one reader); 221 were read here off sheets, once. Four are left out. No second reader has read it",
+  "Played from power-on into the first episode's trial. What the script said in play agreed with the rows read off 89 of 89 pictures, over 3 scenes (38, 8 and 43 screens), choices' questions among them. No screen without text was among them",
+  "The rows given for each screen were the script's pages, each held against its picture and found the same: the comparison checks pages and their order more than it checks the characters"
+ ],
+ "notes": "Read by the script games/gba/AGB-A3GJ.lua. A scene's script lies unpacked in the board's 256 KB; a word in the CPU's 32 KB says where it has got to. A page is said when that stands on a wait or a choice; a choice's answers are said with it (channel choice) where they follow in the script. Who speaks: the speaker's number only, the tab's name being a picture. Not looked at: answers of a choice kept elsewhere, the cursor, the court record, cross-examination, saved games. Pages that go on by themselves (the dream) weren't compared."
+}

@@ -1,6 +1,13 @@
 {
  "format": 1,
  "entries": {
+  "AGB-A3GJ": {
+   "path": "games/gba/AGB-A3GJ.json",
+   "sha256": "52f7618dfe9d1c1e0f364d1f420d4c933a5c421247121acb769c1e631fedaaea",
+   "platform": "gba",
+   "encoding": "table",
+   "status": "partial"
+  },
   "AGB-A3UJ": {
    "path": "games/gba/AGB-A3UJ.json",
    "sha256": "7754621aa6de6484e178fb49cb958285736672d83c0a2f7c1c82af17ff5cbf3c",
@@ -717,6 +724,24 @@
   }
  },
  "scripts": {
+  "AGB-A3GJ": {
+   "path": "scripts/gba/AGB-A3GJ.lua",
+   "sha256": "f1a4ec18b81389cdf624a38fdbb5b6bcc427e99b3e59429f41823f512a7ff817",
+   "platform": "gba",
+   "runtime": 1,
+   "title": "逆転裁判2 (Gyakuten Saiban 2)",
+   "reads": "a message window's page once the game has typed it out and waits",
+   "builds": [
+    "a2916307"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gba/AGB-A3GJ.tbl",
+     "sha256": "dc2cff9a5d29f4cae0836ce6194295c9521f64ce059a953fa652c03a591a754b"
+    }
+   }
+  },
   "AGB-A3UJ": {
    "path": "scripts/gba/AGB-A3UJ.lua",
    "sha256": "4130bc93fbd05a3fa180596230fbaee4105b03f56c669a3d9e8b8a67a2dd9662",

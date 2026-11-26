@@ -2053,6 +2053,44 @@ def test_gyakuten_saiban_a_page_is_said_when_the_script_stands_on_its_wait():
             r.load(bundle(ROOT / "games/gba/AGB-ASBJ.lua"))
 
 
+def gyakuten2_memory(script: bytes, at: int, header: bytes | None = b"GYAKUTEN_SA2A3GJ"):
+    """What Gyakuten Saiban 2's script looks at: as the first game's, at its own addresses."""
+    chunks = {0x02010000: script + bytes(0x200), 0x03003C44: struct.pack("<II", at, 0x02010000) if at else bytes(8),
+              0x03005630: bytes.fromhex("c58b0108358c0108558c0108718c0108")}
+    if header is not None:
+        chunks[0x080000A0] = header
+    return sparse(chunks)
+
+
+def test_gyakuten_saiban_2_pages_choices_and_the_commands_of_its_own():
+    table = "# made up\nC000=あ\nC100=い\n".encode()
+    W = lambda *words: struct.pack(f"<{len(words)}H", *words)
+    # Who speaks (2), あ, a row, a command of this game's own whose arguments are 2 and 1 (not a wait), い, a wait;
+    # then by speaker 3 a question ended by a choice (its answers あ and い, then where each leads); then あ, ended
+    # by the wait for a choice kept elsewhere.
+    first = W(0x0E, 0x0200, 0xC0, 0x01, 0x5C, 0x02, 0x01, 0xC1, 0x02)
+    second = W(0x0E, 0x0300, 0xC1, 0xC0, 0x07, 0xC0, 0x01, 0xC1, 0x08, 0x82, 0x83)
+    third = W(0xC0, 0x0A, 0x84)
+    script = first + second + third
+    base, a, b, c = 0x02010000, len(first) - 2, len(first) + 8, len(first) + len(second) + 2
+    walk = [0, base + 4, base + 8, base + 14, base + a, base + a, base + a, base + a,
+            base + a + 2, base + a + 6, base + b, base + b, base + b, base + b,
+            base + c - 2, base + c, base + c, base + c, base + c]
+    with rd.Reader(gyakuten2_memory(script, 0), platform="gba", game_id="AGB-A3GJ", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/gba/AGB-A3GJ.lua"), "AGB-A3GJ.lua")
+        said = []
+        for frame, at in enumerate(walk, 1):
+            r.read = gyakuten2_memory(script, at)
+            r.frame(frame)
+            said += [(frame, e["channel"], (e.get("meta") or {}).get("speaker_number"), e["text"]) for e in r.take("text")]
+        assert said == [(7, "dialogue", 2, "あ\nい"), (13, "dialogue", 3, "いあ"), (13, "choice", None, "あ\nい"),
+                        (18, "dialogue", 3, "あ")]
+    with rd.Reader(gyakuten2_memory(script, 0, header=b"GYAKUTEN_SAIASBJ"), platform="gba", game_id="AGB-A3GJ",
+                   data={"tbl": table}) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/gba/AGB-A3GJ.lua"))
+
+
 def xenogears_memory(block: bytes, at: int, scene: bool = False, names: bytes | None = None):
     """What Xenogears' script looks at: the list of names, a block of messages at 0x80110000, and the window's
     pointer into it: the field's fixed window, or the one a scene of the fight's program points at."""
