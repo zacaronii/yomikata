@@ -2691,15 +2691,23 @@ class Session:
                             "memory write), and what is short of it", False),
           live=("boolean", "count what the script said in play on the way to each snap (kept with the snap when "
                            "it was taken with a script loaded) instead of running it over the still snap: for a "
-                           "script that reads a line only as it appears", False))
+                           "script that reads a line only as it appears", False),
+          scrolls=("boolean", "with scenes and live, for a window that scrolls and keeps old rows: give each "
+                              "screen all its rows as usual (snap_lines), and a screen is held to the rows it "
+                              "gained, those after what the screen before it in its scene left. What a script "
+                              "that says each line once is meant to say", False))
     def compare(self, source: str = "", name: str = "script.lua", data: dict | None = None, snaps: list | None = None,
                 frames: int = 40, entry: dict | None = None, tables: dict | None = None, version: str = "",
                 show: bool = False, live: bool = False,
-                scenes: dict | None = None) -> dict:
+                scenes: dict | None = None, scrolls: bool = False) -> dict:
+        first_of_scene, left = set(), []
+        if scrolls and not (scenes and live):
+            raise HarnessError("scrolls goes with scenes and live: the rows a screen gained are counted from play")
         if scenes:
             if not all(isinstance(v, list) and v for v in scenes.values()):
                 raise HarnessError("scenes is an object: a name for each scene to the snaps taken in it")
             snaps = [n for group in scenes.values() for n in group]
+            first_of_scene = {self._name(group[0]) for group in scenes.values()}
         from .. import compare as cmp
         from ..check import agreement, sidecars
         from ..run import Reading, _load, _regions
@@ -2740,6 +2748,14 @@ class Session:
             said = "\n".join(part for e in reading.story() for part in (e.get("speaker") or "", e["text"]) if part)
             unknown = meta.get("ocr_unavailable") or ("ocr" not in meta and not meta.get("no_text"))
             seen = None if unknown else list(meta.get("ocr") or [])
+            if scrolls and seen is not None:
+                # The rows after those the screen before left standing: the longest end of that screen's rows
+                # that this one begins with. A scene's first screen gained all it shows.
+                whole, before = seen, [] if n in first_of_scene else left
+                tidy = lambda row: "".join(str(row).split())                                 # noqa: E731
+                keep = next((k for k in range(min(len(before), len(whole)), 0, -1)
+                             if [tidy(r) for r in before[-k:]] == [tidy(r) for r in whole[:k]]), 0)
+                seen, left = whole[keep:], whole
             rows.append({"snap": n, "read": said, "seen": seen, "error": reading.error,
                          "written": bool(meta.get("memory_writes")),
                          "agreement": None if seen is None else round(agreement(said, seen), 2)})
