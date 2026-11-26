@@ -63,6 +63,36 @@ class MemoryMap(C.Structure):
     _fields_ = [("descriptors", C.POINTER(MemoryDescriptor)), ("num", C.c_uint)]
 
 
+def _reduce(address: int, mask: int) -> int:
+    """An address with the bits of `mask` taken out and those above them moved down: what a core means by
+    bits that are "disconnected" (a LoROM cartridge's bit 15: each bank's upper half follows the last's)."""
+    while mask:
+        low = (mask - 1) & ~mask
+        address = (address & low) | ((address >> 1) & ~low)
+        mask = (mask & (mask - 1)) >> 1
+    return address
+
+
+def locate(descriptors: list[dict], address: int) -> tuple[int, int] | None:
+    """Where one of the console's addresses is in a core's memory map, as libretro defines one: the number of
+    the first descriptor it belongs to, and the offset into that descriptor's memory. An address belongs
+    where it agrees with `start` in the bits of `select` (without a select: from start for len bytes); the
+    `disconnect` bits are then taken out, and what is past `len` wraps, the highest bit first (mirrors)."""
+    for number, d in enumerate(descriptors):
+        select, start, length = d.get("select", 0), d["start"], d["len"]
+        if select:
+            if (start ^ address) & select:
+                continue
+        elif not start <= address < start + length:
+            continue
+        at = _reduce((address - start) & ((1 << 64) - 1), d.get("disconnect", 0))
+        while at >= length and at:
+            at -= 1 << (at.bit_length() - 1)
+        if at < length:
+            return number, at
+    return None
+
+
 ENV_CB = C.CFUNCTYPE(C.c_bool, C.c_uint, C.c_void_p)
 VIDEO_CB = C.CFUNCTYPE(None, C.c_void_p, C.c_uint, C.c_uint, C.c_size_t)
 AUDIO_CB = C.CFUNCTYPE(None, C.c_int16, C.c_int16)
@@ -80,6 +110,7 @@ class Core:
         self.stick: tuple[float, float] = (0.0, 0.0)        # the left stick, each way from -1 to 1 (up is -1)
         self.asked: set[tuple[int, int, int, int]] = set()  # what the core has asked of the pad, for finding out
         self.maps: list[tuple[int, int, int]] = []          # (address, size, where the core keeps it)
+        self.descriptors: list[dict] = []                    # the same as the core gave them, with select and disconnect
         self.variables: dict[str, str] = {}                 # the core's options as it declares them: key -> "what; a|b"
         self.gl = None                                      # the context of a core that draws with the card
         self.hw: HwRender | None = None
@@ -142,6 +173,9 @@ class Core:
         if cmd == ENV_SET_MEMORY_MAPS:
             m = C.cast(data, C.POINTER(MemoryMap))[0]
             self.maps = [(d.start, d.len, d.ptr) for d in (m.descriptors[i] for i in range(m.num)) if d.ptr and d.len]
+            self.descriptors = [{"start": d.start, "len": d.len, "ptr": d.ptr + d.offset, "select": d.select,
+                                 "disconnect": d.disconnect}
+                                for d in (m.descriptors[i] for i in range(m.num)) if d.ptr and d.len]
             return True
         return False
 
@@ -244,10 +278,17 @@ class Core:
 
     def read(self, address: int, size: int) -> bytes:
         """Bytes at one of the console's addresses, from a core that describes its memory; fewer where it ends."""
-        for start, length, ptr in self.maps:
-            if start <= address < start + length:
-                return C.string_at(ptr + (address - start), max(0, min(size, start + length - address)))
-        return b""
+        found = locate(self.descriptors, address)
+        if found is None:
+            return b""
+        d, at = self.descriptors[found[0]], found[1]
+        # As far as the stretch goes on in memory; and with disconnected bits, no further than the next of them
+        # (a LoROM bank's end: what follows in the console's addresses isn't what follows in the cartridge).
+        most = d["len"] - at
+        if d["disconnect"]:
+            lowest = d["disconnect"] & -d["disconnect"]
+            most = min(most, lowest - ((address - d["start"]) & (lowest - 1)))
+        return C.string_at(d["ptr"] + at, max(0, min(size, most)))
 
     def video_ram(self) -> bytes | None:
         """The console's video memory, from a core that gives it out (cartridge consoles' cores do)."""

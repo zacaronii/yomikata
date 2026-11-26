@@ -589,6 +589,13 @@ console's clock. So there is nothing to give at `load` for this.
 
 Notes on cores:
 
+- A core may say where its memory is with a map (libretro's memory descriptors). The harness reads by it as
+  libretro defines it: an address belongs to the first descriptor it agrees with in the `select` bits, the
+  `disconnect` bits are taken out of it, and what is past the memory's length wraps. So a Super Famicom
+  cartridge reads as the game sees it, LoROM too (bank n's 0x8000-0xFFFF is the file's n-th 32 KB, and banks
+  from 0x80 on are the same again), and a read stops at a bank's end. Before this only a descriptor's first
+  stretch read true. Checked on Dragon Quest V (LoROM) against the file at six addresses.
+
 - A savestate loads only in the core build that made it. Note the core's SHA-256 with every state kept.
 
 PCSX ReARMed (a PlayStation game):

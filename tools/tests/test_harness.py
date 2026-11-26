@@ -1744,6 +1744,25 @@ def test_snap_lines_takes_a_routes_screens_in_one_call(session, tmp_path):
             session.snap_lines(**bad)
 
 
+def test_a_cores_memory_map_is_read_with_its_select_and_disconnect():
+    """libretro's rule for where an address is: a LoROM cartridge (bank n's upper half is the file's n-th
+    32 KB, and banks from 0x80 on are the same again), a HiROM one, and plain RAM."""
+    from yomikata.replay.libretro import locate
+    size = 0x180000                                                       # a 1.5 MB cartridge
+    lorom = [{"start": 0x7E0000, "len": 0x20000}, {"start": 0x008000, "len": size, "select": 0x408000, "disconnect": 0x8000}]
+    assert locate(lorom, 0x7E1234) == (0, 0x1234)
+    for bank in (0, 2, 5, 0x21):
+        assert locate(lorom, bank * 0x10000 + 0x8000) == (1, bank * 0x8000)
+        assert locate(lorom, (bank + 0x80) * 0x10000 + 0x8000) == (1, bank * 0x8000)      # the mirror from 0x80 on
+        assert locate(lorom, bank * 0x10000 + 0xFFFF) == (1, bank * 0x8000 + 0x7FFF)
+    assert locate(lorom, 0x020000) is None                                # a bank's lower half isn't cartridge
+    assert locate(lorom, 0x308000) == (1, 0x80000)                        # past the cartridge's end: its highest bit is dropped
+    hirom = [{"start": 0xC00000, "len": 0x300000, "select": 0xC00000}]
+    assert locate(hirom, 0xC00000) == (0, 0) and locate(hirom, 0xD0B355) == (0, 0x10B355)
+    assert locate(hirom, 0xF00000) == (0, 0x100000)                       # 3 MB wraps past its end
+    assert locate([{"start": 0x100, "len": 0x10}], 0x110) is None
+
+
 def test_advancing_finds_the_pointer_that_walks_while_a_line_types(session):
     """A pointer that goes up a code or two a frame while a line types and stands afterwards; a frame counter
     that never stands; a flag; a number that goes down. Only the first is given."""
