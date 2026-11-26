@@ -2091,6 +2091,46 @@ def test_gyakuten_saiban_2_pages_choices_and_the_commands_of_its_own():
             r.load(bundle(ROOT / "games/gba/AGB-A3GJ.lua"))
 
 
+def dq3_memory(cartridge: bytes, bank: int, at: int, title: bytes = b"GBDQ3\0\0\0\0\0\0BD3J\xc0"):
+    """What Dragon Quest III (Game Boy Color) looks at: the pointer into the cartridge (its bank and the address
+    in it), the hero's name in work RAM, the header where the core shows bank 0, and the cartridge whole."""
+    chunks = {0x0134: title, 0xC206: bytes([bank]) + at.to_bytes(2, "little"), 0xC55A: bytes([0x24, 0x25, 0, 0]),
+              0xC301: bytes([0x26] * 3) + b"\xf0", 0x01000000: cartridge}
+    return sparse(chunks)
+
+
+def test_dragon_quest_iii_a_page_is_said_when_the_pointer_stands_past_its_end():
+    table = "# made up\n94=＊\n95=「\n9A=。\nE530=空\n".encode()
+    # Bank 2 of a made-up cartridge: the end of a message before, then ＊「 the hero's name, a kanji, a space, a
+    # row, a katakana and a voiced kana, a wait; then the true name and 。, ended.
+    text = bytes([0xF7, 0xF0, 0x94, 0x95, 0xF9, 0x40, 0xE5, 0x30, 0xDB, 0x24, 0xF1, 0x5B, 0xA7, 0xFA,
+                  0xF9, 0x00, 0x9A, 0xF7])
+    cartridge = bytearray(0xC000)
+    cartridge[0x8100:0x8100 + len(text)] = text
+    first_end, second_end = 0x4100 + 14, 0x4100 + len(text)
+    walk = [0x4103, 0x4105, 0x4100 + 11] * 1 + [0x4100 + 11] * 6 + [first_end] * 6 + [first_end + 2] + [second_end] * 6
+    with rd.Reader(dq3_memory(bytes(cartridge), 2, 0x4100), platform="gbc", game_id="CGB-BD3J", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/gbc/CGB-BD3J.lua"), "CGB-BD3J.lua")
+        said = []
+        for frame, at in enumerate(walk, 1):
+            r.read = dq3_memory(bytes(cartridge), 2, at)
+            r.frame(frame)
+            said += [e["text"] for e in r.take("text")]
+        # Standing at the row's end says nothing; the page past its wait is said once, the last past its end.
+        assert said == ["＊「あい空\u3000あ\nアが", "ううう。"]
+    with rd.Reader(dq3_memory(bytes(cartridge), 2, 0x4100, title=b"SOME OTHER GAME!"), platform="gbc",
+                   game_id="CGB-BD3J", data={"tbl": table}) as r:
+        with pytest.raises(rd.ScriptError, match="another build"):
+            r.load(bundle(ROOT / "games/gbc/CGB-BD3J.lua"))
+    # A host that gives no cartridge: the script says so once and reads nothing.
+    no_cart = lambda address, size: b"" if address >= 0x01000000 else dq3_memory(bytes(cartridge), 2, first_end)(address, size)  # noqa: E731
+    with rd.Reader(no_cart, platform="gbc", game_id="CGB-BD3J", data={"tbl": table}) as r:
+        r.load(bundle(ROOT / "games/gbc/CGB-BD3J.lua"), "CGB-BD3J.lua")
+        for frame in range(1, 10):
+            r.frame(frame)
+        assert r.take("text") == []
+
+
 def xenogears_memory(block: bytes, at: int, scene: bool = False, names: bytes | None = None):
     """What Xenogears' script looks at: the list of names, a block of messages at 0x80110000, and the window's
     pointer into it: the field's fixed window, or the one a scene of the fight's program points at."""

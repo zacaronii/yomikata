@@ -1,0 +1,24 @@
+{
+ "id": "CGB-BD3J",
+ "platform": "gbc",
+ "title": "ドラゴンクエストIII そして伝説へ…",
+ "title_romaji": "Dragon Quest III",
+ "versions": [
+  {
+   "header_crc32": "b70423cf"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/gbc/CGB-BD3J.tbl"
+ ],
+ "unit": 1,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+  "Kana by the order of the fifty sounds, which every kana met keeps; the signs and kanji in the table read in play: the codes of a page beside the characters on screen. No font was read (it isn't in the cartridge as it is)",
+  "Played from power-on through the opening dream: four scenes. What the script said agreed with the rows read off 24 of 30 pictures with text: short of the bar (27). Five that fall short are questions whose yes/no box isn't read; one was a sign since put right in the table",
+  "On one picture the game had typed a page with no window shown (a place's entrance), and the script said it"
+ ],
+ "notes": "Read by the script games/gbc/CGB-BD3J.lua. The text lies in the cartridge as it is and is drawn from there; two bytes in work RAM say which bank and where. A page is said when that stands just past an end or a wait, read from the cartridge whole (the host gives it at 0x01000000). Not read: the yes/no box and other menus, fights, who speaks; a page typed while no window shows is still said. Kanji not met in play come out as U+FFFD."
+}

@@ -22,6 +22,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "CGB-BD3J": {
+   "path": "games/gbc/CGB-BD3J.json",
+   "sha256": "8e4a29378f6bce04b6d0b693f5a4aa9e093cccbe2752d618a3c1bb61520bec0c",
+   "platform": "gbc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "NPJH50127": {
    "path": "games/psp/NPJH50127.json",
    "sha256": "ff7013c8bf55a06aa5839dd104c81428aa594fab5ef722bd2ec1bae2761e07d0",
@@ -775,6 +782,24 @@
     "tbl": {
      "path": "games/gba/AGB-ASBJ.tbl",
      "sha256": "6b429bbd822f523c99234fbf68e0ace11c5bf283e9a2211b9df20220d1f3ca36"
+    }
+   }
+  },
+  "CGB-BD3J": {
+   "path": "scripts/gbc/CGB-BD3J.lua",
+   "sha256": "9bac184b74686541c80bbe23f332af9652941090afdc1246b1203289aec4057e",
+   "platform": "gbc",
+   "runtime": 1,
+   "title": "ドラゴンクエストIII そして伝説へ… (Dragon Quest III, Game Boy Color)",
+   "reads": "a message window's text from the cartridge, a page for each wait",
+   "builds": [
+    "b70423cf"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gbc/CGB-BD3J.tbl",
+     "sha256": "9f162f87e20e7181acc7a1889151b32df173dc61b0b2a7d2122f4de53032e8b6"
     }
    }
   },
