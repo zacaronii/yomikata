@@ -757,6 +757,64 @@ def test_a_game_boys_io_is_read_across_the_stretches_of_the_cores_map():
     core.descriptors, core.maps = core.descriptors[1:], core.maps[1:]       # no registers: no region
     assert "io" not in machine.regions()
 
+
+class Battles(FakeMachine):
+    """A made-up role-playing game: a byte at 0x50 is 1 during a fight, which ends after `hits` presses of a;
+    a menu (0x51 = 1) that a takes no notice of and b closes; a text pointer at 0x60 that moves when the fight
+    is over and a story page begins. The picture shows only the game's state, so it stands still in the menu."""
+    hits, menu_at = 6, None
+
+    def __init__(self, *a):
+        super().__init__(*a)
+        self.memory[0x50], self.presses, self.was = 1, 0, set()
+
+    def run(self, frames, buttons, stick):
+        super().run(frames, buttons, stick)
+        new = set(buttons) - self.was                                   # a press counts once, as it goes down
+        self.was = set(buttons)
+        m = self.memory
+        if m[0x51]:
+            if "b" in new:
+                m[0x51] = 0
+        elif "a" in new and m[0x50]:
+            self.presses += 1
+            if self.menu_at is not None and self.presses == self.menu_at:
+                m[0x51] = 1
+            elif self.presses >= self.hits:
+                m[0x50], m[0x60] = 0, m[0x60] + 1                       # the fight is won; the story goes on
+
+    def picture(self):
+        frame = np.zeros((48, 64, 3), dtype=np.uint8)
+        frame[:, :, 0] = self.memory[0x50] * 100 + self.memory[0x51] * 50
+        frame[:, :, 1] = self.presses % 256 if not self.memory[0x51] else 0
+        return frame
+
+
+def test_advance_through_presses_through_a_fight_and_backs_out_of_a_stuck_menu(tmp_path):
+    """advance_through presses a while the fight's flag holds, and stops when it ends or the text pointer moves;
+    a menu that takes no notice of a is seen as a still picture, backed out of with b, and the fight goes on.
+    One that never lets go is reported as stuck."""
+    for name in ("games/sfc", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/sfc/Made Up (Japan).sfc").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), Battles)
+    s.load("sfc/Made Up (Japan).sfc", "fake_libretro.so", "sfc")
+    flag, pointer = f"0x{BASE + 0x50:X}", f"0x{BASE + 0x60:X}"
+    out = s.advance_through(flag, equals="1", wait=10)
+    assert (out["stopped"], out["presses"], out["value"]) == ("mode ended", 6, "0x0"), out
+    s.machine.memory[0x50], s.machine.presses, s.machine.menu_at = 1, 0, 2
+    out = s.advance_through(flag, differs="0", wait=10, watch=pointer, stuck=4)
+    assert out["stopped"] == "watched changed" and out["backs"] == 1 and s.machine.presses == 6, out
+    s.machine.memory[0x50], s.machine.memory[0x51], s.machine.presses, s.machine.menu_at = 1, 1, 0, None
+    out = s.advance_through(flag, equals="1", wait=10, stuck=3, back=["x"])         # x never closes the menu
+    assert out["stopped"] == "stuck" and out["backs"] == 3 and out["presses"] == 12, out
+    out = s.advance_through(flag, equals="1", wait=10, most=2, stuck=0)
+    assert (out["stopped"], out["presses"]) == ("most", 2)
+    with pytest.raises(HarnessError, match="one of them"):
+        s.advance_through(flag)
+    s.close()
+
 def test_a_cores_end_unloads_the_game_then_ends_the_core_once():
     from yomikata.replay.libretro import Core
     did = []

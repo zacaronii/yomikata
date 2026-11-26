@@ -525,6 +525,97 @@ class Session:
             out["value"] = None if value is None else hex(value)
         return {**out, **({"events": events} if self.reader is not None else {})}
 
+    @tool("Presses a pattern of buttons over and over while a place in memory says the game is in some mode (a "
+          "fight, a menu), to get through it: stops when the mode ends, when a watched place changes (the text's "
+          "pointer: a story page has begun), at `most` presses, or when the call's time is up. When the picture "
+          "hasn't changed for `stuck` presses (a menu that takes no button), it presses `back` up to three times, "
+          "then stops and says so. Says the presses, why it stopped, and the mode's place's value.",
+          address=("string", "the mode's place in memory, hex: pressing goes on while it holds `equals` (or, with "
+                             "`differs`, while it doesn't hold that)", True),
+          size=("integer", "its bytes: 1, 2 or 4 (default 1)", False),
+          equals=("string", "the value while in the mode (0x… or decimal)", False),
+          differs=("string", "or the value the mode ends at: pressing goes on while it differs", False),
+          buttons=("array", "the buttons of one press (default a)", False),
+          hold=("integer", "frames a press is held (default 6)", False),
+          wait=("integer", "frames after a press (default 30)", False),
+          watch=("string", "a place whose change stops it at once, hex (a text pointer)", False),
+          watch_size=("integer", "its bytes: 1, 2, 3 or 4 (default 1)", False),
+          most=("integer", f"presses at most (default 300, at most {MAX_FRAMES // 8})", False),
+          stuck=("integer", "presses with no change in the picture that count as stuck (default 8; 0: no check)", False),
+          back=("array", "the buttons that back out of a stuck menu (default b)", False))
+    def advance_through(self, address: str, size: int = 1, equals: str = "", differs: str = "",
+                        buttons: list | None = None, hold: int = 6, wait: int = 30, watch: str = "",
+                        watch_size: int = 1, most: int = 300, stuck: int = 8, back: list | None = None) -> dict:
+        import hashlib
+        import numpy as np
+        machine = self._need()
+        if size not in (1, 2, 4) or watch_size not in (1, 2, 3, 4):
+            raise HarnessError("size is 1, 2 or 4; watch_size 1 to 4")
+        if (str(equals) == "") == (str(differs) == ""):
+            raise HarnessError("give equals (the mode's value) or differs (the value it ends at), one of them")
+        at = int(address, 16)
+        want = int(str(equals or differs), 0)
+        held = self._buttons(buttons if buttons is not None else ["a"])
+        backing = self._buttons(back if back is not None else ["b"])
+        hold, wait = max(1, int(hold)), max(0, int(wait))
+        most = max(1, min(int(most), MAX_FRAMES // 8))
+        stuck = max(0, int(stuck))
+        watched = int(watch, 16) if watch else None
+        events: list = []
+
+        def mode() -> bool:
+            value = self._cell(at, size)
+            return value is not None and (value == want if str(equals) != "" else value != want)
+
+        def seen():
+            return self._read(watched, watch_size) if watched is not None else None
+
+        def picture():
+            frame = machine.picture()
+            return None if frame is None else hashlib.sha1(np.ascontiguousarray(frame).tobytes()).digest()
+
+        def press(keys) -> str | None:
+            _, why = self._advance(hold, keys, (0.0, 0.0), events)
+            if why:
+                return why
+            _, why = self._advance(wait, set(), (0.0, 0.0), events)
+            return why
+
+        first, presses, backs, still, last = seen(), 0, 0, 0, picture()
+        stopped = None
+        while stopped is None:
+            if not mode():
+                stopped = "mode ended"
+                break
+            if presses >= most:
+                stopped = "most"
+                break
+            why = press(held)
+            presses += 1
+            if why:
+                stopped = why
+                break
+            if watched is not None and seen() != first:
+                stopped = "watched changed"
+                break
+            now = picture()
+            still = still + 1 if now is not None and now == last else 0
+            last = now
+            if stuck and still >= stuck:
+                if backs >= 3:
+                    stopped = "stuck"
+                    break
+                why = press(backing)
+                backs += 1
+                still = 0
+                if why:
+                    stopped = why
+                    break
+        value = self._cell(at, size)
+        return {"frames": machine.frames, "presses": presses, "backs": backs, "stopped": stopped,
+                "value": None if value is None else hex(value),
+                **({"events": events} if self.reader is not None else {})}
+
     @tool("Several moves in one call: each step holds buttons for a few frames, then waits (a number of frames, "
           "or until something happens, as run_until), and may snap or take a picture. With pictures, they come "
           "back as one sheet, numbered by step. Stops where the call's time is up and says at which step.",
