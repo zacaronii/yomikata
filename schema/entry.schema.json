@@ -14,7 +14,7 @@
       "description": "Other ids of the same release that share this entry, e.g. the serials of discs 2+ of a multi-disc game.",
       "type": "array", "items": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9-]{3,19}$"}, "uniqueItems": true
     },
-    "platform": {"enum": ["ps1", "ps2", "psp", "nds", "3ds", "gc", "wii", "saturn", "dc", "pce-cd", "fc", "fds", "sfc", "gb", "gbc", "gba", "n64", "md"]},
+    "platform": {"enum": ["ps1", "ps2", "psp", "nds", "3ds", "gc", "wii", "saturn", "dc", "pce", "pce-cd", "fc", "fds", "sfc", "gb", "gbc", "gba", "n64", "md"]},
     "title": {"description": "The title as printed on the release (Japanese where it has one).", "type": "string", "minLength": 1, "maxLength": 200},
     "title_romaji": {"type": "string", "maxLength": 200},
     "versions": {

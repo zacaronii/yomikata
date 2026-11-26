@@ -152,6 +152,15 @@ def data_track_start(cue: Path) -> tuple[Path, int]:
     raise DiscError(f"{cue.name} has no data track")
 
 
+def gdi_first_data_track(gdi: Path) -> Path:
+    """The file of a .gdi's first data track (type 4): a Dreamcast disc's, whose first sector holds IP.BIN."""
+    for line in gdi.read_text(errors="replace").splitlines()[1:]:
+        parts = line.split()
+        if len(parts) >= 5 and parts[2] == "4":
+            return gdi.parent / parts[4].strip('"')
+    raise DiscError(f"{gdi.name} has no data track")
+
+
 @contextmanager
 def open_data_track(path: Path, scratch: Path | None = None, chdman: str = "chdman"):
     """The image's data track, extracting a CHD to a temporary folder first (deleted afterwards)."""
@@ -161,16 +170,23 @@ def open_data_track(path: Path, scratch: Path | None = None, chdman: str = "chdm
         if path.suffix.lower() == ".chd":
             tmp = Path(tempfile.mkdtemp(prefix="yomikata-", dir=scratch))
             info = subprocess.run([chdman, "info", "-i", str(path)], capture_output=True, text=True, check=True).stdout
-            if "CD-ROM" in info or "CHCD" in info or "CHT2" in info:
-                subprocess.run([chdman, "extractcd", "-i", str(path), "-o", str(tmp / "disc.cue"),
-                                "-ob", str(tmp / "disc.bin")], capture_output=True, check=True)
-                track, start = data_track_start(tmp / "disc.cue")
+            if "CD-ROM" in info or "CHCD" in info or "CHT2" in info or "CHGD" in info:
+                done = subprocess.run([chdman, "extractcd", "-i", str(path), "-o", str(tmp / "disc.cue"),
+                                       "-ob", str(tmp / "disc.bin")], capture_output=True)
+                if done.returncode == 0:
+                    track, start = data_track_start(tmp / "disc.cue")
+                else:                                   # a GD-ROM (Dreamcast) unpacks only as a .gdi
+                    subprocess.run([chdman, "extractcd", "-i", str(path), "-o", str(tmp / "disc.gdi"),
+                                    "-ob", str(tmp / "track%t.bin")], capture_output=True, check=True)
+                    track = gdi_first_data_track(tmp / "disc.gdi")
             else:
                 subprocess.run([chdman, "extractdvd", "-i", str(path), "-o", str(tmp / "disc.iso")],
                                capture_output=True, check=True)
                 track = tmp / "disc.iso"
         elif path.suffix.lower() == ".cue":
             track, start = data_track_start(path)
+        elif path.suffix.lower() == ".gdi":
+            track = gdi_first_data_track(path)
         else:
             track = path
         img = Image(track, start)

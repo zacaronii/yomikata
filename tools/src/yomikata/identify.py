@@ -46,10 +46,34 @@ def ps2_crc(program: bytes) -> str:
 
 
 PCE_CD = b"PC Engine CD-ROM SYSTEM\0"
+SEGA_DISCS = {b"SEGA SEGASATURN ": ("saturn", 0x20, 0x2A, 0x38, rb"CD-(\d+)/(\d+)"),
+              b"SEGA SEGAKATANA ": ("dc", 0x40, 0x4A, 0x20, rb"GD-ROM(\d+)/(\d+)")}
+
+
+def identify_sega(head: bytes) -> Release | None:
+    """A Saturn or Dreamcast disc by the header at its first data sector (Saturn: the system ID; Dreamcast:
+    IP.BIN): the product number (10 bytes, spaces trimmed), with "-D" and the disc's number after it when the
+    disc is one of a set ("CD-1/2", "GD-ROM1/3"), since the discs of a set share a product number. The build is
+    the id, "-" and the version (6 bytes, "V1.005"); header_crc32 the CRC-32 of the header's first 0x100 bytes."""
+    kind = SEGA_DISCS.get(head[:16])
+    if not kind:
+        return None
+    platform, at_product, at_version, at_device, disc = kind
+    product = head[at_product:at_product + 10].decode("ascii", "replace").strip()
+    version = head[at_version:at_version + 6].decode("ascii", "replace").strip()
+    if not re.fullmatch(r"[A-Z0-9][A-Z0-9-]{2,9}", product):
+        return None
+    m = re.search(disc, head[at_device:at_device + 16])
+    code = f"{product}-D{int(m.group(1))}" if m and int(m.group(2)) > 1 else product
+    return Release(platform, code, header_crc32=f"{zlib.crc32(head[:0x100]):08x}", build=f"{code}-{version}")
 
 
 def identify_disc(path: Path, scratch: Path | None = None) -> Release:
     with open_data_track(path, scratch) as img:
+        first = img.sector(0)
+        sega = identify_sega(first)
+        if sega:
+            return sega
         boot = img.sector(1) if img.raw else b""
         if boot[0x20:0x20 + len(PCE_CD)] == PCE_CD:
             # A PC Engine CD: no file system and no product code; its boot block (the data track's second
@@ -178,8 +202,19 @@ def identify_nintendo_disc(head: bytes) -> Release | None:
     return Release(platform, code, header_crc32=f"{zlib.crc32(head[:0x80]):08x}", build=f"{code}-{head[7]:02X}")
 
 
+def identify_hucard(rom: bytes) -> Release:
+    """A PC Engine HuCard: "PCE-" and the CRC-32 of the ROM, without the 512-byte copier header some dumps have
+    (a size that leaves 512 when divided by 8192)."""
+    if len(rom) % 8192 == 512:
+        rom = rom[512:]
+    crc = f"{zlib.crc32(rom):08x}"
+    return Release("pce", f"PCE-{crc.upper()}", header_crc32=crc)
+
+
 def identify(path: Path, scratch: Path | None = None) -> Release:
     path = Path(path)
+    if _cart_name(path).lower().endswith(".pce"):
+        return identify_hucard(_cart_bytes(path, 0x800000))
     if path.suffix.lower() in (".rvz", ".wia", ".gcm", ".iso"):
         with open(path, "rb") as f:
             head = f.read(0xD8)
@@ -189,7 +224,7 @@ def identify(path: Path, scratch: Path | None = None) -> Release:
             return found
         if path.suffix.lower() in (".rvz", ".wia", ".gcm"):
             raise DiscError("not a GameCube or Wii disc image")
-    if path.suffix.lower() in (".chd", ".cue", ".bin", ".iso", ".img"):
+    if path.suffix.lower() in (".chd", ".cue", ".gdi", ".bin", ".iso", ".img"):
         return identify_disc(path, scratch)
     if _cart_name(path).lower().endswith(SFC_SUFFIXES):
         return identify_sfc(_cart_bytes(path, 0x800000))
