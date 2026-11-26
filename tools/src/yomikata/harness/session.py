@@ -22,6 +22,7 @@ from .. import reader as rd
 from .. import snapfile
 from ..run import MIRRORS, PLATFORM_ALIASES
 from . import record as calls_record
+from .machine import BIG_ENDIAN
 from . import search
 
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
@@ -246,7 +247,7 @@ class Session:
         data = self._read(address, size)
         if len(data) < size:
             return None
-        return int.from_bytes(data, "big" if self.machine.platform in ("gc", "wii") else "little")
+        return int.from_bytes(data, "big" if self.machine.platform in BIG_ENDIAN else "little")
 
     def _watch(self, events: list, address: str = "", size: int = 1, equals: str = "", event: str = "",
                still: int = 0):
@@ -792,7 +793,7 @@ class Session:
         if apart:
             _, base, ram = self._memories([snap] if snap else None)[0]
             if big_endian is None:
-                big_endian = getattr(self.machine, "platform", "") in ("gc", "wii")
+                big_endian = getattr(self.machine, "platform", "") in BIG_ENDIAN
             try:
                 total, sets = search.relative_apart(ram, [str(line) for line in apart], int(unit), bool(big_endian),
                                                     int(window))
@@ -810,7 +811,7 @@ class Session:
             _, base, ram = self._memories(None if name == "now" else [name])[0]
             memories.append((ram, str(line)))
         if big_endian is None:
-            big_endian = getattr(self.machine, "platform", "") in ("gc", "wii")
+            big_endian = getattr(self.machine, "platform", "") in BIG_ENDIAN
         shape = lambda hits, unit: [{"address": f"0x{base + at:08X}",                          # noqa: E731
                                      "codes": {ch: f"{code:0{2 * unit}X}" for ch, code in codes.items()}}
                                     for at, codes in hits]
@@ -887,7 +888,7 @@ class Session:
         if not picks:
             return {"candidates": 0, "words": [], "note": "nothing stays the same in all of them: the check can "
                     "only be the game's id (reader.game_id). Say so in the script and the pull request."}
-        big = platform in ("gc", "wii")
+        big = platform in BIG_ENDIAN
         if len(picks[0][1]) == 4 and candidates and platform in ("ps1", "psp", "ps2", "gc", "wii"):
             read = "mem.u32be" if big else "mem.u32"
             terms = [f"{read}(0x{at:08X}) ~= 0x{int.from_bytes(data, 'big' if big else 'little'):08X}" for at, data in picks]
@@ -1386,7 +1387,7 @@ class Session:
             raise HarnessError("give queue or code; size is 1 or 2; rows up to 32 of up to 4 bytes")
         at, low, high = int(queue or code, 16), int(least, 16), int(below, 16)
         where, rows, row_bytes, look = int(picture, 16), int(rows), int(row_bytes), 16
-        order = "big" if machine.platform in ("gc", "wii") else "little"
+        order = "big" if machine.platform in BIG_ENDIAN else "little"
         path = self.roots.inside("scratch", f"work/{self._name(name)}.json")
         kept = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
         state = {"before": None, "new": 0, "drawn": 0}
@@ -1497,7 +1498,7 @@ class Session:
         shots = [start] + [moved(d)[1] for d in ("right", "left", "down", "up")]
         found = {}
         for size in ((int(size),) if int(size) in (1, 2, 4) else (2, 4, 1)):
-            kind = {1: "u1", 2: "<i2", 4: "<i4"}[size] if machine.platform not in ("gc", "wii") else {1: "u1", 2: ">i2", 4: ">i4"}[size]
+            kind = {1: "u1", 2: "<i2", 4: "<i4"}[size] if machine.platform not in BIG_ENDIAN else {1: "u1", 2: ">i2", 4: ">i4"}[size]
             cut = len(start) // size * size
             s0, r, l, d, u = (np.frombuffer(x[:cut], dtype=kind).astype(np.int64) for x in shots)
             # A cursor: numbers a screen could have, moved by no more than a screen's worth in those frames.
@@ -1555,7 +1556,7 @@ class Session:
         if kind not in kinds or bool(at) == bool(tries):
             raise HarnessError("kind is float, u8, u16, u32, s16 or s32; give at, or tries")
         code, size = kinds[kind]
-        order = ">" if machine.platform in ("gc", "wii") else "<"
+        order = ">" if machine.platform in BIG_ENDIAN else "<"
         place, held = int(address, 16), self._buttons([button])
         seen = [int(str(a), 16) for a in watch or ()]
         hold, limit, after = max(1, min(int(hold), 60)), max(1, min(int(limit), MAX_FRAMES)), max(0, min(int(after), 3600))
@@ -1647,9 +1648,9 @@ class Session:
         found = self._advancing([(base, ram) for _, base, ram in self._memories(names)], len(snaps), unit, most, within, least)
         # A console's other memory, kept with each snap as a region (a Game Boy Advance's 32 KB in the CPU,
         # where its games keep their own state): looked through the same way.
-        from .machine import OTHER_STRETCHES
+        from .machine import region_starts
         from ..run import _load
-        for region, start in OTHER_STRETCHES.get(getattr(self.machine, "platform", ""), {}).items():
+        for region, start in region_starts(getattr(self.machine, "platform", "")).items():
             files = [self.roots.inside("scratch", f"snaps/{self._name(n)}.{region}.gz") for n in names]
             if all(f.is_file() for f in files):
                 found += self._advancing([(start, _load(f)) for f in files], len(snaps), unit, most, within, least)
@@ -1670,7 +1671,7 @@ class Session:
         """advancing over one stretch of memory at so many moments: (base, bytes) each, the first `typed` of
         them while the line types."""
         import numpy as np
-        order = ">" if self.machine is not None and self.machine.platform in ("gc", "wii") else "<"
+        order = ">" if self.machine is not None and self.machine.platform in BIG_ENDIAN else "<"
         base = memories[0][0]
         moments = [np.frombuffer(ram[:len(ram) // unit * unit], dtype=f"{order}u{unit}").astype(np.int64) for _, ram in memories]
         typing, after = moments[:typed], moments[typed:]
@@ -1710,7 +1711,7 @@ class Session:
         kinds = {"float": "f4", "u8": "u1", "u16": "u2", "u32": "u4"}
         if kind not in kinds or len(snaps or ()) < 3:
             raise HarnessError("three snaps or more; kind is float, u8, u16 or u32")
-        order = ">" if self.machine is not None and self.machine.platform in ("gc", "wii") else "<"
+        order = ">" if self.machine is not None and self.machine.platform in BIG_ENDIAN else "<"
         size = int(kinds[kind][1])
         least = float(least) or (0.001 if kind == "float" else 1.0)
         moments, base = [], 0
@@ -1751,7 +1752,7 @@ class Session:
         if kind not in ("float", "s16", "s32"):
             raise HarnessError("kind is float, s16 or s32")
         unit = 2 if kind == "s16" else 4
-        kind = (">" if machine.platform in ("gc", "wii") else "<") + {"float": "f4", "s16": "i2", "s32": "i4"}[kind]
+        kind = (">" if machine.platform in BIG_ENDIAN else "<") + {"float": "f4", "s16": "i2", "s32": "i4"}[kind]
 
         def after(direction):
             held = set() if stick or direction is None else {direction}
@@ -1992,7 +1993,7 @@ class Session:
                 return tuple(None if v is None else round(v / grid) for v in values)
             if grid:
                 import math
-                order = ">f" if machine.platform in ("gc", "wii") else "<f"
+                order = ">f" if machine.platform in BIG_ENDIAN else "<f"
                 raw = [self._read(at, 4) for at in (at_x, at_y)]
                 if any(len(b) < 4 for b in raw):
                     return None, None
@@ -2215,7 +2216,7 @@ class Session:
         if pattern:
             if values or unit not in (1, 2) or len(pattern) < 4 or len(set(pattern) - {"?"}) < 2:
                 raise HarnessError("a pattern goes without values, and has four characters or more")
-            kind = ("u1" if unit == 1 else (">u2" if getattr(self.machine, "platform", "") in ("gc", "wii") else "<u2"))
+            kind = ("u1" if unit == 1 else (">u2" if getattr(self.machine, "platform", "") in BIG_ENDIAN else "<u2"))
             rows, base = [], 0
             for name in snaps:
                 _, base, ram = self._memories([name])[0]
@@ -2247,7 +2248,7 @@ class Session:
             wanted = [int(str(v), 16) for v in values]
         except ValueError:
             raise HarnessError("values are hex") from None
-        kind = ("u1" if unit == 1 else (">u2" if getattr(self.machine, "platform", "") in ("gc", "wii") else "<u2"))
+        kind = ("u1" if unit == 1 else (">u2" if getattr(self.machine, "platform", "") in BIG_ENDIAN else "<u2"))
         state = before = base = None
         seen_at: list = []
         for name in snaps:
@@ -2323,7 +2324,7 @@ class Session:
           "points into a line in some moments only is what follows the line as it types or is shown.",
           address=("string", "the address pointed at, hex", True),
           span=("integer", "also pointers up to this many bytes past it (default 0)", False),
-          big_endian=("boolean", "the console's byte order (default: true for gc and wii, else false)", False),
+          big_endian=("boolean", "the console's byte order (default: true for gc, wii and saturn, else false)", False),
           snaps=("array", "look in these snaps instead of live memory", False),
           moving=("boolean", "with snaps: only the words that point there in every one of them and at "
                              "another place in some: what goes along a script as the game reads it, when "
@@ -2332,7 +2333,7 @@ class Session:
              moving: bool = False) -> dict:
         import numpy as np
         if big_endian is None:
-            big_endian = self._need().platform in ("gc", "wii")
+            big_endian = self._need().platform in BIG_ENDIAN
         target = int(address, 16)
 
         def pointing(base, ram):
@@ -2368,12 +2369,12 @@ class Session:
           "there, when it reads as text. For a stack or a record whose pointers are to strings.",
           address=("string", "where the words start, hex", True),
           count=("integer", "how many words (default 32, at most 256)", False),
-          big_endian=("boolean", "the console's byte order (default: true for gc and wii, else false)", False))
+          big_endian=("boolean", "the console's byte order (default: true for gc, wii and saturn, else false)", False))
     def pointed(self, address: str, count: int = 32, big_endian: bool | None = None) -> dict:
         machine = self._need()
         base, ram = machine.ram()
         if big_endian is None:
-            big_endian = machine.platform in ("gc", "wii")
+            big_endian = machine.platform in BIG_ENDIAN
         start, count = int(address, 16), max(1, min(int(count), 256))
         data = self._read(start, 4 * count)
         rows = []
