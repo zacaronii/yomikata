@@ -209,6 +209,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "SLPM-66620": {
+   "path": "games/ps2/SLPM-66620.json",
+   "sha256": "510753fdeff856376e80f345ed3902729fa52a32af64196c689bdb3c7cea6eda",
+   "platform": "ps2",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "SLPM-66978": {
    "path": "games/ps2/SLPM-66978.json",
    "sha256": "2d12a75dcfb3d0abafaf1d7c5389be5db0d0161cd0d8ff44125a78c7b25ab7e8",
@@ -803,6 +810,19 @@
      "sha256": "8bc9b274a7ade7c6fcfeb42be5a7885de648ecb9e0efc2bef5d67062ffea614e"
     }
    }
+  },
+  "SLPM-66620": {
+   "path": "scripts/ps2/SLPM-66620.lua",
+   "sha256": "d7452a79791888fc9ff78e208f3f0c82167743542a31acf77cba138e13046d8e",
+   "platform": "ps2",
+   "runtime": 1,
+   "title": "ひぐらしのなく頃に祭 (Higurashi no Naku Koro ni Matsuri)",
+   "reads": "the story's text as it is shown, up to each wait for a button",
+   "builds": [
+    "SLPM-66620-cda67466"
+   ],
+   "needs": [],
+   "data": {}
   },
   "SLPM-86111": {
    "path": "scripts/ps1/SLPM-86111.lua",
