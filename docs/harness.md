@@ -357,6 +357,13 @@ the whole numbers that only went up, a little a frame, and then stood. On Live A
 gives two: the count of characters drawn, and beside it the 16-bit pointer into the cartridge's script, which was away for two of the snaps (a row of dots is kept elsewhere) and is
 found all the same. That is three calls where the search by hand had been about a hundred.
 
+When nothing advances it says so (`nothing_advances`): the game may put a window down whole, as tiles, and
+then the thing to find is the window. Give `find_relative` a row as the screen has it, its spaces as plain
+spaces, with `spaces`: true: each space is then a cell, and all of them the same tile, which is a repeat like
+any other. A place that fits is the tile map, or the list of writes it is filled from: on Shin Megami Tensei a
+row with one kana twice and two spaces, refused before as too little, gives the list and the map and nothing
+else but the same two a byte off. Without `spaces` a row that finds nothing, or is too little, is tried with them.
+
 ### Snaps on disk
 
 A snap is written to `snaps/` in scratch as an inbox-style snapshot: `<name>.ram.gz`, a `<name>.<region>.gz`

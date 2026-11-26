@@ -708,7 +708,9 @@ class Session:
           "characters have the same code and different ones different codes, each with the codes it would give "
           "the characters (the start of a table). One line needs repeated characters, the longer the better. "
           "Surer: `lines`, two or more snaps each with the line on its screen; one place must fit them all, and "
-          "characters the lines share must have the same code. Write wide spaces where the screen has them.",
+          "characters the lines share must have the same code. Write wide spaces where the screen has them. "
+          "A window kept as tiles (a cell a character, blanks too): give a row with its spaces as plain "
+          "spaces and `spaces`; each is then a cell, and all of them the same tile.",
           text=("string", "the line on screen now; a line break stands for `gap` cells", False),
           lines=("object", "or several moments: a snap's name (or `now` for live memory) to the line on its screen", False),
           unit=("integer", "bytes a code: 1, 2 or 4 (default 1; try 2 as well)", False),
@@ -716,13 +718,15 @@ class Session:
           stride=("integer", "codes are this many cells apart (default 1; 2 where each character has a second cell)", False),
           gap=("integer", "cells a line break in the line stands for (default 1: one code for the break)", False),
           big_endian=("boolean", "the byte order of 2- and 4-byte codes (default: the console's)", False),
+          spaces=("boolean", "a plain space in the line is a cell too, the same code each time (default: "
+                             "spaces are left out)", False),
           apart=("array", "or several lines of one scene, each wherever it lies in memory (a script read where "
                           "it is): two of them must share three characters or more. Kana stretches are safest", False),
           snap=("string", "with apart: the snap to look in (default: live memory)", False),
           window=("integer", "with apart: how far from the first line the others may lie, in bytes (default 65536)", False))
     def find_relative(self, text: str = "", lines: dict | None = None, unit: int = 1, order: str = "",
                       stride: int = 1, gap: int = 1, big_endian: bool | None = None, apart: list | None = None,
-                      snap: str = "", window: int = 0x10000) -> dict:
+                      snap: str = "", window: int = 0x10000, spaces: bool = False) -> dict:
         if apart:
             _, base, ram = self._memories([snap] if snap else None)[0]
             if big_endian is None:
@@ -749,7 +753,8 @@ class Session:
                                      "codes": {ch: f"{code:0{2 * unit}X}" for ch, code in codes.items()}}
                                     for at, codes in hits]
         try:
-            total, hits = search.relative(memories, int(unit), bool(big_endian), order, int(stride), int(gap))
+            total, hits = search.relative(memories, int(unit), bool(big_endian), order, int(stride), int(gap),
+                                          spaces=bool(spaces))
             out = {"count": total, "places": shape(hits, int(unit))}
         except search.SearchError as e:
             if not str(e).startswith("too little"):
@@ -758,21 +763,26 @@ class Session:
         if not total:
             # The same line the other ways a game may keep it: codes of two bytes, the other byte order, kana
             # as far apart as in an order (up or down). Only the ways that fit a few places are given.
+            # And, for a line with spaces in it, each space as a cell: a window kept as tiles.
             ways = []
+            spaced = sorted({bool(spaces), any(" " in line.strip() for _, line in memories)})
             for size in (1, 2):
                 for big in ((False, True) if size > 1 else (False,)):
                     for by in ("", "unicode", "gojuon"):
-                        if (size, big, by) == (int(unit), bool(big_endian), order) and "note" not in out:
-                            continue
-                        try:
-                            count, some = search.relative(memories, size, big, by, int(stride), int(gap), 3)
-                        except search.SearchError:
-                            continue
-                        if 0 < count <= 50:
-                            ways.append({"unit": size, "big_endian": big, "order": by, "count": count,
-                                         "places": shape(some, size)})
+                        for cells in spaced:
+                            if ((size, big, by, cells) == (int(unit), bool(big_endian), order, bool(spaces))
+                                    and "note" not in out):
+                                continue
+                            try:
+                                count, some = search.relative(memories, size, big, by, int(stride), int(gap), 3,
+                                                              spaces=cells)
+                            except search.SearchError:
+                                continue
+                            if 0 < count <= 50:
+                                ways.append({"unit": size, "big_endian": big, "order": by, "count": count,
+                                             "places": shape(some, size), **({"spaces": True} if cells else {})})
             if ways:
-                out["other_ways"] = sorted(ways, key=lambda w: w["count"])
+                out["other_ways"] = sorted(ways, key=lambda w: (w["count"], not w["order"]))   # an order is the surer fit
             elif "note" in out:
                 raise HarnessError(out["note"])
         rows = [row for row in text.split("\n") if row.strip()] if text else []
@@ -784,7 +794,8 @@ class Session:
                 for i in range(len(rows) - size + 1):
                     try:
                         count, some = search.relative([(memories[0][0], "\n".join(rows[i:i + size]))], int(unit),
-                                                      bool(big_endian), order, int(stride), int(gap), 5)
+                                                      bool(big_endian), order, int(stride), int(gap), 5,
+                                                      spaces=bool(spaces))
                     except search.SearchError:
                         continue
                     if count:
@@ -1571,9 +1582,18 @@ class Session:
             low, high = (int(str(v), 16) for v in within)
             places = places[(places * unit + base >= low) & (places * unit + base < high)]
         places = sorted(places, key=lambda i: -int(rose[i]))[:MAX_HITS]
-        return {"count": len(places), "snaps": len(typing), "rest": len(after),
-                "places": [{"address": f"0x{base + int(i) * unit:08X}", "from": f"0x{int(typing[0][i]):0{2 * unit}X}",
-                            "to": f"0x{int(typing[-1][i]):0{2 * unit}X}", "moved_in": int(rose[i])} for i in places]}
+        out = {"count": len(places), "snaps": len(typing), "rest": len(after),
+               "places": [{"address": f"0x{base + int(i) * unit:08X}", "from": f"0x{int(typing[0][i]):0{2 * unit}X}",
+                           "to": f"0x{int(typing[-1][i]):0{2 * unit}X}", "moved_in": int(rose[i])} for i in places]}
+        if not places:
+            out["nothing_advances"] = (
+                "No number walks while this line types. If the snaps do span the typing (and unit 1 and 4 give "
+                "nothing either), the game doesn't walk a script: it may put a window down whole, as tiles. Look "
+                "for the window itself: find_relative with a row as the screen has it, its spaces as plain spaces, "
+                "and spaces: true (unit 2 as well); a place that fits is the tile map or the list of writes it "
+                "is filled from. Then `read` the words before the row for where and how many, and `changed` "
+                "over snaps a window apart for the list's start.")
+        return out
 
     @tool("Numbers that go up or down by the same amount from each snap to the next, over snaps taken evenly "
           "apart: a hand going round, a bar filling, a timer. What press_at wants to watch. Read as 32-bit "

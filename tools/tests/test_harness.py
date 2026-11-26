@@ -676,6 +676,25 @@ def test_find_relative_a_line_in_codes_of_the_games_own(session):
             bad()
 
 
+def test_find_relative_a_row_of_tiles_with_its_spaces(session):
+    # A window kept as tiles: a cell a character, blanks too, all one tile. The row has one kana twice.
+    row = "なつのひかりを みずうみで あびた"
+    assert sorted(ch for ch in set(row) if row.count(ch) > 1) == [" ", "み"]
+    own = {ch: 0x39 + 5 * i for i, ch in enumerate(dict.fromkeys(row))}
+    put(session, 0x900, b"".join(struct.pack(">H", own[ch]) for ch in row))
+    with pytest.raises(HarnessError, match="spaces: true"):
+        session.find_relative("あいう えお")                    # still too little, and it says what to give
+    out = session.find_relative(row, unit=2, spaces=True)
+    assert out["count"] == 1 and out["places"][0]["address"] == "0x80000900"
+    assert out["places"][0]["codes"][" "] == f"{own[' ']:04X}"
+    # Without the word the spaces are left out and one repeat is too little: it tries them as cells by itself.
+    out = session.find_relative(row, unit=2)
+    assert out["count"] == 0 and "too little" in out["note"]
+    assert {(w["unit"], w.get("spaces"), w["places"][0]["address"]) for w in out["other_ways"]} == {(2, True, "0x80000900")}   # in either byte order
+    with pytest.raises(HarnessError, match="too little"):
+        session.find_relative(row.replace(" ", ""))             # one repeat alone fits by chance: still refused
+
+
 def test_find_relative_over_two_moments_and_over_line_breaks(session):
     # Two lines without a repeat in either, on screen at two moments at the same place: what they share ties
     # the place down.
@@ -1788,7 +1807,9 @@ def test_advancing_finds_the_pointer_that_walks_while_a_line_types(session):
     found = session.advancing(names[:9], rest=names[9:], within=span)
     assert [(p["address"], p["from"], p["to"]) for p in found["places"]] == [(f"0x{BASE + 0x380:08X}", "0xB356", "0xB360")]
     assert session.advancing(names[:9], within=span)["count"] == 1                    # without the rest: still only it
-    assert session.advancing(names[:9], rest=names[9:], most=1, within=span)["count"] == 0   # a step of two is too much
+    assert "nothing_advances" not in found
+    none = session.advancing(names[:9], rest=names[9:], most=1, within=span)          # a step of two is too much
+    assert none["count"] == 0 and "spaces: true" in none["nothing_advances"]          # and it says where to look instead
     with pytest.raises(HarnessError):
         session.advancing(names[:3])
 

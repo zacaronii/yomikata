@@ -337,7 +337,8 @@ def picture_places(data: bytes, pixels, limit: int = 8) -> list[dict]:
 
 
 def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool = False, order: str = "",
-             stride: int = 1, gap: int = 1, limit: int = 20) -> tuple[int, list[tuple[int, dict[str, int]]]]:
+             stride: int = 1, gap: int = 1, limit: int = 20,
+             spaces: bool = False) -> tuple[int, list[tuple[int, dict[str, int]]]]:
     """Where memory could hold a line in codes of the game's own, `unit` bytes each, `stride` cells apart.
 
     `memories` are moments of the same memory, each with the line on screen then: one place must fit them all.
@@ -346,7 +347,10 @@ def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool 
     that share characters need none. A line break in a line stands for `gap` cells that aren't looked at; a
     wide space is a character like any other. With `order`, kana must also lie as far apart as in that order,
     counting up or down: "unicode" (as in JIS and Shift-JIS) or "gojuon" (the 46 plain hiragana in a row). Gives how many places
-    fit, and the first of them with the code each would give each character."""
+    fit, and the first of them with the code each would give each character.
+
+    A plain space in a line is left out unless `spaces`: a window kept as tiles has a cell for each space, all
+    the same tile, and then a space is a character like any other (and one that repeats, which helps)."""
     import numpy as np
     if unit not in (1, 2, 4) or stride < 1 or gap < 0:
         raise SearchError("unit is 1, 2 or 4; stride is 1 or more")
@@ -362,7 +366,7 @@ def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool 
         for ch in text.strip("\n"):
             if ch == "\n":
                 at += gap
-            elif ch in " \t\r":
+            elif ch in "\t\r" or (ch == " " and not spaces):
                 continue
             else:
                 cells_of.setdefault(ch, []).append((k, at))
@@ -388,7 +392,8 @@ def relative(memories: list[tuple[bytes, str]], unit: int = 1, big_endian: bool 
     groups = {k: v for k, v in groups.items() if len(v) > 1}
     if len(same) < 2 and sum(len(v) - 1 for v in groups.values()) < 3:
         raise SearchError("too little to go by: a line with repeated characters, two moments whose lines share "
-                          "characters, or kana and an order")
+                          "characters, or kana and an order. For a window kept as tiles, give the row with its "
+                          "spaces and spaces: true: the spaces are repeats too")
     kind = {1: "u1", 2: "u2", 4: "u4"}[unit]
     total, hits, seen = 0, [], set()
     size = len(memories[0][0])
