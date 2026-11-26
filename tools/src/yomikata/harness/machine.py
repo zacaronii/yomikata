@@ -30,6 +30,7 @@ CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000}
 # where it is), which the game's copy of the screen in work RAM doesn't. Read through the core's map, and kept
 # in a snap as the region `io`, answering at its own addresses there too (docs/script-api.md).
 IO = {"gb": (0xFF00, 0x100), "gbc": (0xFF00, 0x100)}
+IO_REGISTERS = 0x80                     # the I/O registers' part of it, without which the region isn't kept
 # A core whose "system RAM" is more than one of the console's stretches, kept as 16-bit words in the host's
 # order: mednafen_saturn gives the Saturn's work RAM so, the low 1 MB (0x00200000) and then the high 1 MB
 # (0x06000000), each pair of bytes swapped; mupen64plus_next gives the N64's RDRAM (8 MB, 0x80000000 on) as
@@ -190,10 +191,18 @@ class Machine:
             if other:
                 out[name] = C.string_at(other[2], other[1])
         if self.platform in IO:
+            # Read a stretch of the core's map at a time: a core gives the registers and the high RAM as
+            # stretches of their own (mGBA: 0xFF00-0xFF7F, 0xFF80-0xFFFE, and not 0xFFFF). What none gives is 0.
             start, length = IO[self.platform]
-            io = self.read(start, length)
-            if len(io) == length:                   # only where the core's map gives all of it
-                out["io"] = io
+            io, at = bytearray(), start
+            while len(io) < length:
+                piece = self.read(at, length - len(io))
+                if not piece:
+                    break
+                io += piece
+                at += len(piece)
+            if len(io) >= IO_REGISTERS:             # the registers at least
+                out["io"] = bytes(io) + bytes(length - len(io))
         return out
 
     def _ps1_video(self) -> bytes | None:

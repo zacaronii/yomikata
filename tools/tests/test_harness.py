@@ -726,10 +726,36 @@ def test_a_game_boys_io_is_a_region_where_the_cores_map_gives_it():
     machine.platform, machine.core = "gb", Core()
     machine.read = lambda address, size: bytes(range(size)) if address == 0xFF00 else b""
     assert machine.regions()["io"] == bytes(range(256)) and region_starts("gb")["io"] == 0xFF00
-    machine.read = lambda address, size: bytes(0x80)                    # a core that maps only part of it
+    machine.read = lambda address, size: b""                            # a core that doesn't map it
     assert "io" not in machine.regions()
     machine.platform = "gba"
     assert "io" not in machine.regions() and "io" not in region_starts("gba")
+
+
+def test_a_game_boys_io_is_read_across_the_stretches_of_the_cores_map():
+    """mGBA gives the registers and the high RAM as two stretches, and not 0xFFFF: io is read across them, through
+    the real Core.read and Machine.read, with what no stretch gives as 0."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine
+    from yomikata.replay.libretro import Core
+    registers = (C.c_char * 0x80).from_buffer(bytearray(range(0x80)))
+    high = (C.c_char * 0x7F).from_buffer(bytearray(range(0x80, 0xFF)))
+    core = Core.__new__(Core)
+    core.descriptors = [{"start": 0xFF00, "len": 0x80, "ptr": C.addressof(registers), "select": 0, "disconnect": 0},
+                        {"start": 0xFF80, "len": 0x7F, "ptr": C.addressof(high), "select": 0, "disconnect": 0}]
+    core.maps = [(d["start"], d["len"], d["ptr"]) for d in core.descriptors]
+    core.video_ram = lambda: None
+
+    class Lib:                                                          # no system RAM to fall back on
+        def retro_get_memory_data(self, which): return None
+        def retro_get_memory_size(self, which): return 0
+    core.lib = Lib()
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core, machine.cartridge = "gb", core, b""
+    assert machine.read(0xFF00, 0x100) == bytes(range(0x80))                 # one stretch at a time
+    assert machine.regions()["io"] == bytes(range(0xFF)) + b"\0"
+    core.descriptors, core.maps = core.descriptors[1:], core.maps[1:]       # no registers: no region
+    assert "io" not in machine.regions()
 
 def test_a_cores_end_unloads_the_game_then_ends_the_core_once():
     from yomikata.replay.libretro import Core
