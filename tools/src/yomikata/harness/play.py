@@ -45,6 +45,10 @@ def run(session: Session, plan: list, out: Path | None = None, say=print) -> lis
         if name not in known:
             raise HarnessError(f"no such tool: {name}")
         session.begin_call()
+        call = f"{session.session_id}-play-{number}"
+        calls_record.begin(session.roots.scratch, {
+            "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "session": session.session_id,
+            "game": session.game or game, "tool": TOOL, "arguments": {"tool": name, "call": number}}, call)
         began = time.monotonic()
         answer = _call(known[name][2], arguments or {})
         ok, machine = not answer.get("isError"), session.machine
@@ -52,7 +56,7 @@ def run(session: Session, plan: list, out: Path | None = None, say=print) -> lis
                  "game": session.game or game, "tool": TOOL, "arguments": {"tool": name, "call": number},
                  "ok": ok, "seconds": round(time.monotonic() - began, 2),
                  "outcome": {"frames": machine.frames if machine is not None else 0}}
-        calls_record.append(session.roots.scratch, entry)
+        calls_record.finish(session.roots.scratch, entry, call)
         lines.append(entry)
         for k, part in enumerate(answer["content"]):
             if part["type"] == "text":

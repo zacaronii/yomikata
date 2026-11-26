@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
+
+from .harness.record import entries as _entries
 
 
 def summary(path: Path) -> list[dict]:
@@ -11,13 +12,7 @@ def summary(path: Path) -> list[dict]:
     failed, when the first and the last were made, the seconds the tools ran, and the calls by tool. Calls made
     with no game loaded go under no game (None)."""
     games: dict = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        try:
-            entry = json.loads(line)
-        except ValueError:
-            continue                            # a line cut short by a harness that was stopped
-        if not isinstance(entry, dict) or "tool" not in entry:
-            continue
+    for entry in _entries(path.read_text(encoding="utf-8")):    # a call once, also one whose process died
         row = games.setdefault(entry.get("game"), {"game": entry.get("game"), "calls": 0, "sessions": set(), "failed": 0,
                                                    "first": entry.get("at"), "last": entry.get("at"), "seconds": 0.0,
                                                    "tools": {}})
@@ -46,12 +41,8 @@ def trend(path: Path) -> list[dict]:
     record from before outcomes were kept, the last one by scenes (`met` is then None: it isn't known). A
     game never compared by scenes has no bar yet, and its row counts everything so far."""
     games: dict = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        try:
-            entry = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(entry, dict) and "tool" in entry and entry.get("game"):
+    for entry in _entries(path.read_text(encoding="utf-8")):
+        if entry.get("game"):
             games.setdefault(entry["game"], []).append(entry)
     rows = []
     for game, entries in games.items():

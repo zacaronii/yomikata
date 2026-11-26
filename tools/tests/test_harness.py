@@ -297,7 +297,14 @@ def test_every_call_goes_into_the_record_and_is_summed_by_game(session, tmp_path
     ask("find", {"text": "こ" * 80})
     ask("no-such-tool", {})                                             # not a call of a tool
     record = tmp_path / "scratch/record/calls.jsonl"
-    lines = [json.loads(line) for line in record.read_text(encoding="utf-8").splitlines()]
+    raw = [json.loads(line) for line in record.read_text(encoding="utf-8").splitlines()]
+    # Each call twice: as it begins (ok not yet known) and with its answer, under one id.
+    assert [(e["tool"], e["ok"], bool(e.get("begun"))) for e in raw] == [
+        ("run", None, True), ("run", True, False), ("run", None, True), ("run", False, False),
+        ("find", None, True), ("find", True, False)]
+    assert [e["call"] for e in raw[::2]] == [e["call"] for e in raw[1::2]] and len({e["call"] for e in raw}) == 3
+    from yomikata.harness.record import entries
+    lines = entries(record.read_text(encoding="utf-8"))
     assert [(e["tool"], e["ok"]) for e in lines] == [("run", True), ("run", False), ("find", True)]
     assert {e["session"] for e in lines} == {session.session_id} and lines[0]["game"] == "ngc/Made Up (Japan).iso"
     assert lines[0]["arguments"] == {"frames": 2} and lines[2]["arguments"]["text"].endswith("(80 characters)")
@@ -313,6 +320,93 @@ def test_every_call_goes_into_the_record_and_is_summed_by_game(session, tmp_path
     assert [json.loads(line)["game"] for line in capsys.readouterr().out.splitlines()] == ["sfc/Other.sfc"]
     assert cli.main(["calls", str(tmp_path / "nowhere")]) == 1
 
+
+
+class BigMachine(FakeMachine):
+    """FakeMachine with 16 MB of memory, as a Dreamcast's: a 16-bit count at 0x800 goes up 2 a frame while
+    `typing`, and stands after; a stretch at 0x1000 changes at random, every frame."""
+    typing = True
+
+    def __init__(self, *a):
+        super().__init__(*a)
+        self.memory.extend(bytes((16 << 20) - len(self.memory)))
+
+    def run(self, frames, buttons, stick):
+        import random
+        super().run(frames, buttons, stick)
+        if self.typing:
+            struct.pack_into(">H", self.memory, 0x800, (struct.unpack_from(">H", self.memory, 0x800)[0] + 2 * frames) & 0xFFFF)
+        self.memory[0x1000:0x1040] = random.randbytes(0x40)
+
+
+def test_advancing_over_many_large_snaps_holds_one_at_a_time(tmp_path):
+    """Forty snaps of 16 MB through a line's typing and two after: advancing finds the count, and holds about
+    what one snap takes, not forty (it read them all at once before, and the harness died of it)."""
+    import tracemalloc
+    for name in ("games/dc", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/dc/Made Up (Japan).chd").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), BigMachine)
+    s.load("dc/Made Up (Japan).chd", "fake_libretro.so", "gc")          # big-endian, as the count is written
+    names = []
+    for i in range(42):
+        s.machine.typing = i < 40
+        s.machine.run(1, set(), (0.0, 0.0))
+        names.append(s.snap(f"big-{i:02d}")["snap"])
+    tracemalloc.start()
+    out = s.advancing(names[:40], rest=names[40:], unit=2)
+    peak = tracemalloc.get_traced_memory()[1]
+    tracemalloc.stop()
+    assert [p["address"] for p in out["places"]] == [f"0x{BASE + 0x800:08X}"], out
+    assert out["places"][0]["moved_in"] == 39
+    assert peak < 200 << 20, f"{peak >> 20} MB at most"                 # forty snaps as numbers: over 2.5 GB
+    # Too big a stretch is refused, saying what to do, before anything is read; so are too many snaps.
+    from yomikata.harness import session as harness_session
+    keep = harness_session.ADVANCING_MOST_BYTES
+    harness_session.ADVANCING_MOST_BYTES = 1 << 20
+    try:
+        with pytest.raises(HarnessError, match="give `within` a stretch"):
+            s.advancing(names[:40], rest=names[40:], unit=2)
+    finally:
+        harness_session.ADVANCING_MOST_BYTES = keep
+    # within: only that stretch is held, and the count is found in it.
+    near = s.advancing(names[:40], rest=names[40:], unit=2, within=[f"0x{BASE:X}", f"0x{BASE + 0x1000:X}"])
+    assert [p["address"] for p in near["places"]] == [f"0x{BASE + 0x800:08X}"]
+    past = s.advancing(names[:40], rest=names[40:], unit=2, within=[f"0x{BASE + 0x801:X}", f"0x{BASE + 0x1000:X}"])
+    assert past["places"] == []                                         # the count starts before the stretch
+    with pytest.raises(HarnessError, match="400 at most"):
+        s.advancing([f"x{i}" for i in range(401)])
+    s.close()
+
+
+def test_a_call_whose_process_dies_is_still_a_call_in_the_record(session, tmp_path):
+    """A call is in the record from its start: one that never comes back (the process killed in it, out of
+    memory or given up on) is counted, as one that failed, by the budget and by `yomikata calls`."""
+    from yomikata import calls
+    from yomikata.harness.record import entries
+    original = mcp.tools
+
+    def dies(**_):
+        raise SystemExit(137)                                           # as the process killed mid-call
+    mcp.tools = lambda s: {**original(s), "dies": ("dies", {}, dies)}
+    try:
+        mcp.handle(session, {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "run", "arguments": {"frames": 1}}})
+        with pytest.raises(SystemExit):
+            mcp.handle(session, {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "dies", "arguments": {}}})
+    finally:
+        mcp.tools = original
+    record = tmp_path / "scratch/record/calls.jsonl"
+    got = entries(record.read_text(encoding="utf-8"))
+    assert [(e["tool"], e["ok"], e.get("died", False)) for e in got] == [("run", True, False), ("dies", False, True)]
+    assert session.calls_so_far("ngc/Made Up (Japan).iso") == 2
+    row = calls.summary(record)[0]
+    assert (row["calls"], row["failed"], row["tools"]) == (2, 1, {"run": 1, "dies": 1})
+    # A record from before calls had ids reads as it did: a line a call.
+    with record.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"at": "2026-01-01T00:00:00Z", "session": "old", "game": "ngc/Made Up (Japan).iso",
+                            "tool": "run", "arguments": {}, "ok": True, "seconds": 0.1}) + "\n")
+    assert session.calls_so_far("ngc/Made Up (Japan).iso") == 3
 
 def test_a_budget_is_counted_from_the_record_and_stops_calls_past_it(session, tmp_path):
     from yomikata import calls
@@ -333,7 +427,8 @@ def test_a_budget_is_counted_from_the_record_and_stops_calls_past_it(session, tm
         f.write(json.dumps({"at": "2026-01-01T00:00:00Z", "session": "earlier", "game": "sfc/Other.sfc", "tool": "run",
                             "arguments": {}, "ok": True, "seconds": 0.1}) + "\n")
     _, texts = ask("budget", {"calls": 8})
-    assert json.loads(texts[0]) == {"game": game, "calls_so_far": 5, "budget": 8, "left": 3}
+    # Asking is a call too, and in the record from its start: its own answer counts it.
+    assert json.loads(texts[0]) == {"game": game, "calls_so_far": 6, "budget": 8, "left": 2}
     assert json.loads(texts[-1]) == {"calls_so_far": 6, "budget": 8, "left": 2}          # asking is a call too
     assert json.loads(ask("run", {"frames": 1})[1][-1])["left"] == 1
     assert json.loads(ask("status")[1][-1]) == {"calls_so_far": 8, "budget": 8, "left": 0}
@@ -345,10 +440,10 @@ def test_a_budget_is_counted_from_the_record_and_stops_calls_past_it(session, tm
     rows = {row["game"]: row["calls"] for row in calls.summary(record)}
     assert rows == {game: 8, "sfc/Other.sfc": 1}                                         # a refused call isn't in the record
     # Raised, calls go on; the count is still what `yomikata calls` sums.
-    assert json.loads(ask("budget", {"calls": 11})[1][0])["left"] == 3
+    assert json.loads(ask("budget", {"calls": 11})[1][0])["left"] == 2              # itself counted
     assert not ask("run", {"frames": 1})[0]
     assert {row["game"]: row["calls"] for row in calls.summary(record)}[game] == 10
-    assert json.loads(ask("budget", {"calls": 0})[1][0]) == {"game": game, "calls_so_far": 10, "budget": None}
+    assert json.loads(ask("budget", {"calls": 0})[1][0]) == {"game": game, "calls_so_far": 11, "budget": None}
     assert session.budget_of("sfc/Other.sfc") is None
 
 
@@ -363,7 +458,8 @@ def test_load_with_a_state_starts_the_game_there_in_one_call(session, tmp_path):
     status = json.loads(answer["content"][0]["text"])
     assert status["state"] == "kept" and status["frames"] == 7 + 2                 # the state's frame, and two to settle
     assert later.machine.read(BASE + 0x400, 1) == b"\x5a"
-    record = [json.loads(line) for line in (tmp_path / "scratch/record/calls.jsonl").read_text().splitlines()]
+    from yomikata.harness.record import entries
+    record = entries((tmp_path / "scratch/record/calls.jsonl").read_text())
     assert [e["tool"] for e in record if e["session"] == later.session_id] == ["load"]
     later.close()
     exact = Session(session.roots, FakeMachine)
@@ -586,7 +682,8 @@ def test_a_core_that_never_ends_is_left_when_the_calls_are_over_and_the_record_i
     assert "didn't end within 0.3 seconds" in capsys.readouterr().err
     assert [json.loads(line)["id"] for line in out.getvalue().splitlines()] == [1, 2, 3]
     record = (tmp_path / "scratch/record/calls.jsonl").read_text(encoding="utf-8")
-    assert record.endswith("\n") and [json.loads(line)["tool"] for line in record.splitlines()] == ["run"] * 3
+    from yomikata.harness.record import entries
+    assert record.endswith("\n") and [(e["tool"], e["ok"]) for e in entries(record)] == [("run", True)] * 3
 
 
 def test_a_core_that_ends_is_not_left(session):
@@ -2310,17 +2407,18 @@ def test_a_plan_played_outside_the_harness_is_its_calls_in_the_record_and_keeps_
     s.close()
     assert [e["arguments"] for e in lines] == [{"tool": "load", "call": 0}, {"tool": "steps", "call": 1}]
     assert all(e["tool"] == "offline_play" and e["ok"] for e in lines) and lines[-1]["outcome"]["frames"] == 68
-    assert len(said) == 2 and len(record_file.read_text().splitlines()) == 2
+    from yomikata.harness.record import entries
+    assert len(said) == 2 and len(entries(record_file.read_text())) == 2                # each call begun and answered
     s = Session(roots(), FakeMachine)
     for bad in ([["budget", {"calls": 9}]], [["compare", {"source": "-- x"}]]):     # refused before anything runs
         with pytest.raises(HarnessError, match="isn't for a plan"):
             play.run(s, [load] + bad, say=said.append)
     with pytest.raises(HarnessError, match="begins with a load"):
         play.run(s, plan[1:], say=said.append)
-    assert s.machine is None and len(record_file.read_text().splitlines()) == 2
+    assert s.machine is None and len(entries(record_file.read_text())) == 2
     with pytest.raises(HarnessError, match="don't fit"):                               # 2 used + 4 > 5
         play.run(s, plan + plan[1:] * 2, say=said.append)
-    assert s.machine is None and len(record_file.read_text().splitlines()) == 2
+    assert s.machine is None and len(entries(record_file.read_text())) == 2
     assert len(play.run(s, plan + plan[1:], say=said.append)) == 3                       # 2 + 3 = 5: fits
     s.close()
     rows = summary(record_file)
