@@ -45,7 +45,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `on_disc` | Whether a stretch of memory lies on the game's disc as it is, and where: if a place's text or font does, every place can be read from the disc without playing to it |
 | `core_options` | The loaded core's options as it declares them, and what was given at load |
 | `snap` | Keeps a moment under a name, and writes it to scratch as an inbox-style snapshot for `yomikata run` and `check` |
-| `snap_lines` | Says what a snap's screen showed, once read off its picture: its lines, or that it has no text |
+| `snap_lines` | Says what a snap's screen showed, once read off its picture: its lines, or that it has no text. With `screens`, a whole route's in one call |
 | `sheet` | The pictures of several snaps as one image, each under its name; with `crop`, only the part the text is in, and with `number` each numbered: a route's screens read by the dozen |
 | `repeat` | Does the same frames or steps again and says whether the game ended up the same: whether the core repeats itself |
 | `differs` | How this moment's memory differs from a snap's, also one another harness wrote |
@@ -86,6 +86,11 @@ it emits and read what it says, `overlay`. Then the check: `steps` through a str
 each, `sheet` to read the snaps' screens, `snap_lines` for each, and `compare`.
 
 docs/first-script.md walks through all of it, from a game file to a pull request.
+
+The check's own cost: `sheet` with `crop` and `number` puts two dozen screens on one picture, and `snap_lines`
+with `screens` takes what you read off them in one call (a snap's name to its lines, or to false for a
+screen without text). Fate/stay night's comparison of 36 screens was 39 calls with a `snap_lines` for each
+screen, and is 4 with `screens`: of that game's 136 calls to its bar, 35 were this.
 
 Buttons are `a`, `b`, `x`, `y`, `l`, `r`, `l2`, `r2`, `l3`, `r3`, `start`, `select` and the four directions, as a
 libretro pad names them (on a PlayStation `a` is circle, `b` cross, `x` triangle, `y` square).
