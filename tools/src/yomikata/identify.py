@@ -96,7 +96,24 @@ def identify_cart(path: Path) -> Release:
     code = head[0x0C:0x10].decode("ascii", "replace")
     if re.fullmatch(r"[A-Z0-9]{4}", code):                               # DS: the 4-character game code
         return Release("nds", code, header_crc32=f"{zlib.crc32(head[:0x160]):08x}")
-    raise DiscError("not a Game Boy Advance, DS or 3DS card image")
+    if head[0x104:0x108] == GB_LOGO:
+        return identify_gb(head)
+    raise DiscError("not a Game Boy, Game Boy Advance, DS or 3DS card image")
+
+
+GB_LOGO = bytes.fromhex("ceed6666")                                     # the start of the logo every cartridge shows
+
+
+def identify_gb(head: bytes) -> Release:
+    """A Game Boy or Game Boy Color cartridge, by its header (0x100-0x14F): a Color one sets bit 7 of 0x143. A
+    later cartridge has a 4-character game code in 0x13F-0x142 (its maker in 0x144, the old maker byte 0x33);
+    the id is the code with the console's prefix, else the header's CRC-32. The build is that CRC-32 too."""
+    crc = f"{zlib.crc32(head[0x100:0x150]):08x}"
+    color = bool(head[0x143] & 0x80)
+    code = head[0x13F:0x143].decode("ascii", "replace")
+    if head[0x14B] == 0x33 and re.fullmatch(r"[A-Z0-9]{4}", code):
+        return Release("gbc" if color else "gb", f"{'CGB' if color else 'DMG'}-{code}", header_crc32=crc)
+    return Release("gbc" if color else "gb", f"{'GBC' if color else 'GB'}-{crc.upper()}", header_crc32=crc)
 
 
 SFC_SUFFIXES = (".sfc", ".smc", ".swc", ".fig")
