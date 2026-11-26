@@ -38,7 +38,7 @@
   },
   "GB-29D07340": {
    "path": "games/gb/GB-29D07340.json",
-   "sha256": "13fa2b597ba4c9e7fb0b90bcc507e6a92f49e664ab72bab4d7fed452d901d629",
+   "sha256": "bc0d3b7470fb99f869a15776e5ee6a0bb7024fc7a36b1498de6e33d0547dc6e6",
    "platform": "gb",
    "encoding": "table",
    "status": "partial"
@@ -864,7 +864,7 @@
   },
   "GB-29D07340": {
    "path": "scripts/gb/GB-29D07340.lua",
-   "sha256": "69c4aa6b27b3651944b93997d70ea601a873a5ec507cb24c23c696b12d691834",
+   "sha256": "a2cb64774fdd6d1858678e6510caff25c13b33339cc247e80cdc4394fbdc6869",
    "platform": "gb",
    "runtime": 1,
    "title": "ポケットモンスター 赤 (Pocket Monsters Aka, Game Boy)",
