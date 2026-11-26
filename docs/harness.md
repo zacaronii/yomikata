@@ -414,6 +414,13 @@ stretches of one run, or a name from an earlier run) makes those others whole fi
 says so (`written_over`): nothing is lost, only disk. Before this it cost Mother 2 two scenes' snaps. `yomikata expand <files>` rewrites snaps as whole ones, for moving a few elsewhere or
 for a tool that doesn't know the form. Snapshots a reader uploads to an inbox are never kept this way.
 
+Snaps of every game share the one folder, and a snap's `.json` says which game took it. A name another game's
+snap holds is refused, with an error that says to choose a prefix: a route's snaps written over by another
+game's can't be compared again. (Gyakuten Saiban 2's route, prefixes `ra` and `rb`, wrote over 15 of Ryuu ga
+Gotoku 2's that way.) A snap from before the game was written beside it is told by its console only. In
+`steps` the refusal comes at the first such snap, with the game played up to it: give each game's snaps a
+prefix of their own from the start (`g2-`, `m3-`).
+
 ### Waypoints
 
 A state is the quick way back to a moment, and it only loads in the core build that made it. A waypoint is the
