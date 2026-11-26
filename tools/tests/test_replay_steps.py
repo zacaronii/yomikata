@@ -152,3 +152,27 @@ def test_a_snap_keeps_video_memory_when_the_core_gives_it(tmp_path):
     assert gzip.decompress((tmp_path / "a/s000.vram.gz").read_bytes()) == b"made up video memory"
     steps.run(FakeCore(), steps.parse("wait:2,snap"), tmp_path / "b")
     assert not (tmp_path / "b/s000.vram.gz").exists()
+
+
+def test_a_core_gets_its_options_defaults_and_a_log():
+    """An option the harness wasn't given is answered with the core's own default (the first value it declared),
+    and a core that asks for a log function gets one, which keeps what it logs: mednafen's PC Engine core crashed
+    on loading without either."""
+    import ctypes as C
+    from yomikata.replay import libretro
+    core = libretro.Core.__new__(libretro.Core)
+    core.options, core.variables, core._defaults, core.log = {b"given": b"mine"}, {}, {}, []
+    core._cbs = [None] * 6 + [libretro.LOG_CB(core._log)]
+    declared = (libretro.Variable * 3)(libretro.Variable(b"cd_speed", b"CD speed; 1x|2x|4x"),
+                                       libretro.Variable(b"given", b"Something; a|b"), libretro.Variable(None, None))
+    assert core._env(libretro.ENV_SET_VARIABLES, C.cast(declared, C.c_void_p))
+    asked = libretro.Variable(b"cd_speed", None)
+    assert core._env(libretro.ENV_GET_VARIABLE, C.cast(C.pointer(asked), C.c_void_p)) and asked.value == b"1x"
+    asked = libretro.Variable(b"given", None)
+    assert core._env(libretro.ENV_GET_VARIABLE, C.cast(C.pointer(asked), C.c_void_p)) and asked.value == b"mine"
+    asked = libretro.Variable(b"never_declared", None)
+    assert not core._env(libretro.ENV_GET_VARIABLE, C.cast(C.pointer(asked), C.c_void_p))
+    where = C.c_void_p()
+    assert core._env(libretro.ENV_GET_LOG_INTERFACE, C.cast(C.pointer(where), C.c_void_p)) and where.value
+    libretro.LOG_CB(where.value)(1, b"Loading %s...\n")
+    assert core.log == ["Loading %s..."]
