@@ -351,6 +351,27 @@ def test_a_budget_is_counted_from_the_record_and_stops_calls_past_it(session, tm
     assert session.budget_of("sfc/Other.sfc") is None
 
 
+def test_load_with_a_state_starts_the_game_there_in_one_call(session, tmp_path):
+    """A run of the harness that begins at a kept state is one call, not load, run, state_load, run."""
+    session.run(7)
+    put(session, 0x400, b"\x5a")
+    session.state_save("kept")
+    later = Session(session.roots, FakeMachine)
+    answer = mcp.handle(later, {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "load", "arguments": {
+        "game": "ngc/Made Up (Japan).iso", "core": "fake_libretro.so", "platform": "gc", "state": "kept"}}})["result"]
+    status = json.loads(answer["content"][0]["text"])
+    assert status["state"] == "kept" and status["frames"] == 7 + 2                 # the state's frame, and two to settle
+    assert later.machine.read(BASE + 0x400, 1) == b"\x5a"
+    record = [json.loads(line) for line in (tmp_path / "scratch/record/calls.jsonl").read_text().splitlines()]
+    assert [e["tool"] for e in record if e["session"] == later.session_id] == ["load"]
+    later.close()
+    exact = Session(session.roots, FakeMachine)
+    assert exact.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "gc", state="kept", settle=0)["frames"] == 7
+    with pytest.raises(HarnessError, match="no such state"):
+        exact.load("ngc/Made Up (Japan).iso", "fake_libretro.so", "gc", state="nowhere")
+    exact.close()
+
+
 def test_mcp_over_lines(session):
     lines = [json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}),
              json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}), "",

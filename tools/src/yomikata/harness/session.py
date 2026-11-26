@@ -28,6 +28,7 @@ BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "selec
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
 MAX_POKE = 256                  # bytes in one write
+WARM_FRAMES = 30                # frames a core runs from power-on before `load` takes it to a state
 CHUNK = 30                      # frames run between two looks at the clock, when nothing is watched
 CALL_SECONDS = 120.0            # how long one call may run the game before it stops and says so
 STORY = ("dialogue", "choice")
@@ -416,9 +417,14 @@ class Session:
           game=("string", "path of the game under the library, e.g. psx/Some Game (Japan).chd", True),
           core=("string", "the core's file under the cores folder, e.g. pcsx_rearmed_libretro.so", True),
           platform=("string", "the catalog's name for the console: ps1, gc, sfc, …", True),
-          state=("string", "a state saved here (its name), or a path under the inbox's snapshots ending in .state.gz", False),
-          options=("object", "core options, name to value", False))
-    def load(self, game: str, core: str, platform: str, state: str = "", options: dict | None = None) -> dict:
+          state=("string", "a state saved here (its name), or a path under the inbox's snapshots ending in "
+                           ".state.gz: the game is started, taken to the state and left ready (a picture, "
+                           "memory as the state has it) in this one call. No run or state_load is wanted after", False),
+          options=("object", "core options, name to value", False),
+          settle=("integer", "with state: frames run after it, so that there is a picture and memory is the "
+                             "core's own again (default 2; 0 to stand exactly on the state)", False))
+    def load(self, game: str, core: str, platform: str, state: str = "", options: dict | None = None,
+             settle: int = 2) -> dict:
         if self.make_machine is None:
             raise HarnessError("this harness has no cores")
         game_path, core_path = self.roots.inside("games", game), self.roots.inside("cores", core)
@@ -438,7 +444,14 @@ class Session:
         self.core_hash = hashlib.sha256(core_path.read_bytes()).hexdigest()
         self.once = bool(getattr(self.machine, "once", False))
         if state:
+            # A core takes a state only once it has run: a few frames from power-on first, then the state,
+            # then a frame or two so that the picture and the memory read are the state's.
+            self.machine.run(WARM_FRAMES, set(), (0.0, 0.0))
             self.state_load(state)
+            settle = max(0, min(int(settle), 600))
+            if settle:
+                self.machine.run(settle, set(), (0.0, 0.0))
+            return {**self.status(), "state": state}
         return self.status()
 
     def _unpacked(self, game_path: Path) -> Path:

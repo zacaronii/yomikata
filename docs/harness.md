@@ -32,7 +32,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 |---|---|
 | `status`, `games` | What is loaded; the library's folders and files |
 | `budget` | How many calls a game has had, by the record, and how many it may have; sets the most. Past it the harness takes no further call for the game |
-| `load` | A game in a core, from power-on or from a savestate (one saved here, or a reader's in the inbox) |
+| `load` | A game in a core, from power-on or from a savestate (one saved here, or a reader's in the inbox). With `state` the one call leaves the game ready at that state: nothing need be run or loaded after |
 | `run` | N frames with buttons and the left stick held. With a script loaded, what it emitted on the way |
 | `run_until` | Runs until a place in memory changes or holds a value, the script emits something, or the picture has stood still; at most a given number of frames. Says how far it ran and why it stopped |
 | `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap (also every few frames of a wait), take pictures. The pictures come back as one sheet. With a script loaded: stop repeating when it says something (`until_event`) or has said nothing for some presses (`until_quiet`), and steps to do whenever it does (`on`: press down and confirm at each choice) |
