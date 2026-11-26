@@ -78,11 +78,11 @@ class Machine:
 
     def run(self, frames: int, buttons: set[str], stick: tuple[float, float]) -> None:
         self.core.run(frames, buttons, stick)
+        self.frames += frames
 
     def close(self) -> None:
         """Ends the core (unload, deinit)."""
         self.core.close()
-        self.frames += frames
 
     def picture(self):
         return self.core.frame_rgb()
