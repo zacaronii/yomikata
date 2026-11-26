@@ -2151,6 +2151,12 @@ def test_a_pc_engine_cd_is_read_from_its_data_track_and_named_by_its_boot_block(
     machine.platform, machine.core = "pce-cd", Core()
     base, ram = machine.ram()
     assert base == 0xD0000 and len(ram) == 0x40000 and ram[0x2FFFF] == 7 and ram[0x30000] == 9
+    # The console's own 8 KB is a region beside it, under a name that isn't the main memory's file in a snap
+    # (<snap>.ram.gz): named "ram", it was written over the 256 KB.
+    Core.video_ram = lambda self: b""
+    assert set(machine.regions()) == {"wram"} and len(machine.regions()["wram"]) == 0x2000
+    from yomikata.harness.machine import OTHER_STRETCHES
+    assert all("ram" not in names for names in OTHER_STRETCHES.values())
 
 
 def test_identify_a_gamecube_disc_plain_and_compressed(tmp_path):
