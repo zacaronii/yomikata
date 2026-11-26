@@ -2307,6 +2307,44 @@ class Session:
                 **({"stopped": why} if why else {}), **({"turned": turns} if turns else {}),
                 **({"events": events} if self.reader is not None and events else {})}
 
+    def _fight_through(self, fight: dict):
+        """For explore: a function that, after a step, waits up to `begin` frames for a fight's mode and presses
+        through it as advance_through does (no stuck check: a menu that holds the fight runs to `most`). It gives
+        the moves made, as [frames, buttons], and the fight's outcome, or None when no fight came."""
+        machine = self.machine
+        if not isinstance(fight, dict) or not fight.get("address"):
+            raise HarnessError("fight is advance_through's mode: address, and equals or differs")
+        size = int(fight.get("size", 1))
+        equals, differs = str(fight.get("equals", "")), str(fight.get("differs", ""))
+        if size not in (1, 2, 4) or (equals == "") == (differs == ""):
+            raise HarnessError("fight: size 1, 2 or 4, and equals or differs, one of them")
+        at, want = int(str(fight["address"]), 16), int(equals or differs, 0)
+        keys = sorted(self._buttons(fight.get("buttons", ["a"])))
+        hold, wait = max(1, int(fight.get("hold", 6))), max(0, int(fight.get("wait", 30)))
+        most, begin = max(1, min(int(fight.get("most", 300)), MAX_FRAMES // 8)), max(0, int(fight.get("begin", 0)))
+
+        def mode() -> bool:
+            value = self._cell(at, size)
+            return value is not None and (value == want if equals != "" else value != want)
+
+        def through():
+            moves, waited = [], 0
+            while waited < begin and not mode():
+                machine.run(1, set(), (0.0, 0.0))
+                waited += 1
+            if waited:
+                moves.append([waited, []])
+            if not mode():
+                return moves, None
+            presses = 0
+            while mode() and presses < most:
+                machine.run(hold, set(keys), (0.0, 0.0))
+                machine.run(wait, set(), (0.0, 0.0))
+                moves += [[hold, keys], [wait, []]]
+                presses += 1
+            return moves, {"presses": presses, "stopped": "mode ended" if not mode() else "most"}
+        return through
+
     @tool("Finds where the character can walk by trying it: from where it stands it pushes each way for a few "
           "frames, goes back, and does the same from every place it got to, until nothing new comes or `most` "
           "places are known. For a map walk_to can't cross (ledges, fences, a maze) or one too dark to read. "
@@ -2335,10 +2373,17 @@ class Session:
                           "one. About what one push moves the character is best", False),
           close=("string", "a button that closes a window (a, b): pressed once first, and the press kept, when "
                            "no push moves the character from where it stands, not even a longer one (a message "
-                           "open takes the pad). Without it such a start is only said (`still`)", False))
+                           "open takes the pad). Without it such a start is only said (`still`)", False),
+          fight=("object", "where walking brings fights at random: the fight's mode as advance_through takes it "
+                           "(address, size, equals or differs, buttons, hold, wait, most) and `begin`, frames "
+                           "after a step for the fight to begin (0: the mode is set at once). A fight a push "
+                           "starts is pressed through there and the map goes on from where it ended; the "
+                           "fights are counted and listed, and a walk with `to` keeps their presses in the "
+                           "record of the way", False))
     def explore(self, x_address: str = "", y_address: str = "", size: int = 2, step: int = 8, most: int = 400,
                 to: list | None = None, near: int = 1, jump: int = 8, within: list | None = None,
-                grid: float = 0.0, diagonals: bool = False, whole: bool = False, close: str = "") -> dict:
+                grid: float = 0.0, diagonals: bool = False, whole: bool = False, close: str = "",
+                fight: dict | None = None) -> dict:
         machine = self._need()
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
         step, most, jump = max(1, min(int(step), 60)), max(2, min(int(most), 1500)), max(2, int(jump))
@@ -2401,12 +2446,15 @@ class Session:
                 origin = now()
                 if None in origin:
                     raise HarnessError("the place can't be read")
+        through = self._fight_through(fight) if fight else None
+        fights: list[dict] = []
         # Tried without the script and off the record of the way: the game is put back afterwards, so nothing
         # of the trying happened as far as a state or a waypoint knows.
         # A state is kept packed: a console's memory is mostly the same bytes over and over, and a house of
         # several rooms is more places than would fit unpacked.
         start, frames = machine.save_state(), machine.frames
-        places = {origin: (zlib.compress(start, 1), None, None)}    # a place: the state there, where it was reached from, the push
+        # A place: the state there, where it was reached from, the push, and the moves of a fight it brought.
+        places = {origin: (zlib.compress(start, 1), None, None, [])}
         doors, queue, held, late = {}, [origin], len(places[origin][0]), False
         near, found = max(0, int(near)), False             # with `to`, the trying ends once the place is reached
         while queue and not late and not found:
@@ -2421,7 +2469,13 @@ class Session:
                     break
                 machine.load_state(zlib.decompress(places[here][0]))
                 machine.run(step, set(push.split("+")), (0.0, 0.0))
-                there = now()
+                there, fought = now(), []
+                if through is not None and None not in there and there != here:
+                    # A step may bring a fight: pressed through here, and the map goes on from where it ended.
+                    fought, outcome = through()
+                    if outcome is not None:
+                        fights.append({"at": list(there), **outcome})
+                        there = now()
                 if None in there or there == here:
                     continue
                 if max(abs(there[0] - here[0]), abs(there[1] - here[1])) >= jump:
@@ -2429,7 +2483,7 @@ class Session:
                     continue
                 inside = within is None or (within[0] <= there[0] <= within[2] and within[1] <= there[1] <= within[3])
                 if there not in places and inside and len(places) < most and held < 1 << 30:
-                    places[there] = (zlib.compress(machine.save_state(), 1), here, push)
+                    places[there] = (zlib.compress(machine.save_state(), 1), here, push, fought)
                     held += len(places[there][0])
                     queue.append(there)
                     if to is not None and abs(there[0] - to[0]) <= near and abs(there[1] - to[1]) <= near:
@@ -2463,6 +2517,7 @@ class Session:
                "doors": [{"at": list(p), "push": push} for p, push in sorted(doors.items())][:MAX_ROWS],
                **({"stopped": "time"} if late else {}),
                **({"closed": closed} if closed else {}),
+               **({"fights": len(fights), "fought": fights[:MAX_ROWS]} if fight else {}),
                **({"still": still()} if len(places) == 1 and not doors and not late else {}),
                **({"more": "places beyond these weren't tried: raise most, or give within"}
                   if not late and len(places) >= most else {})}
@@ -2474,15 +2529,17 @@ class Session:
         goal = min(fits, key=lambda p: abs(p[0] - to[0]) + abs(p[1] - to[1]))
         pushes, at = [], goal
         while places[at][1] is not None:
-            pushes.append(places[at][2])
+            pushes.append((places[at][2], places[at][3]))
             at = places[at][1]
         # The game is taken as it stood at that place while trying, and the pushes that led there go into the
         # record of the way. Playing them again from here may end elsewhere: a core need not go on from a
         # loaded state exactly as it would have run through it, and each place was reached from a loaded one.
         machine.load_state(zlib.decompress(places[goal][0]))
-        machine.frames = frames + step * len(pushes)
-        for push in reversed(pushes):
+        machine.frames = frames + sum(step + sum(n for n, _ in fought) for _, fought in pushes)
+        for push, fought in reversed(pushes):
             self._moved(step, set(push.split("+")), (0.0, 0.0))
+            for n, keys in fought:                  # a fight the push brought, pressed through
+                self._moved(n, set(keys), (0.0, 0.0))
         events = []
         if self.reader is not None:
             self.reader.state_loaded()

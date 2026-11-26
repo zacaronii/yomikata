@@ -62,7 +62,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `press_at` | Presses a button when a number in memory comes to a value, several in turn: a press in time (a ring's hand over its mark, a bar that fills). With `tries`, lists of values are tried from this moment, the game put back after each, and what the game held afterwards is given for each |
 | `place_find` | Where a game of three dimensions keeps the character's place: floats that stand while the pad is let go, move with a push and come back with the push the other way, grouped three on end |
 | `walk_3d` | Walks the character of a game of three dimensions to a place on the ground with the left stick: learns from two pushes which way the stick moves the two numbers `place_find` gave (the camera may be turned), pushes toward the place, learning again from its own pushes as the camera turns, and stops when near, when a push no longer brings it nearer (a wall, a talk begun), or at the limit |
-| `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read |
+| `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read. With `fight`, presses through the fights its steps bring and maps on |
 | `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to`. Takes where the game draws the character, for a picture that doesn't keep it in the middle |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
@@ -194,6 +194,13 @@ In the order to try them:
    record. Before it presses, a longer push is tried: a game may count a step only once it is over (Pocket
    Monsters Gin, about 26 frames after the press), and then a push of 16 frames sees nothing move with no window
    open at all. `still` says so and names the `step` to give (28 did there), and `close` presses nothing.
+   Where walking brings fights at random, a push into tall grass may start one, and then that try ends there
+   (Gin's first route came out smaller than it is). `fight` takes the fight's mode as `advance_through` does
+   (address, equals or differs, buttons, hold, wait, most) and `begin`, the frames a fight's opening plays
+   before its flag is set: a fight a step brings is pressed through where it began, and the map goes on from
+   there. The answer counts the fights and lists each (`fought`: where, presses, why it stopped); a walk with
+   `to` keeps their presses in the record of the way. A `begin` is waited after every new place's step, so
+   a flag set at once (found with `grouped` against a snap of the opening) maps fastest.
    The words a place is read from may hold only on some maps: in Dragon Quest I & II they did in the first room
    and read 0xF8 and 0 after the stairs. After a change of map, push once by hand and read them before trusting
    a walk; `cursor_find` again where they don't move.
