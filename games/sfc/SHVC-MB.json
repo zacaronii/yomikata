@@ -16,8 +16,7 @@
   "status": "partial",
   "sources": [
     "The window font in video memory, read glyph by glyph: every character is one tile above its lower half, kana with their marks included",
-    "Headless replay from power-on (bsnes-mercury, balanced): options, naming, the first room and the first talk; 37 frames with a message compared with the layout's reading, all the same, and nothing read with no message window",
-    "Played on through the first night: 44 screens with text over 4 scenes. The script over each screen on its own agrees on 44 of 44; counted from play on 20 of 44, since it says what the window gains and a screen keeps earlier rows: the bar from play isn't met"
+    "Played on through the first night: 44 screens over 4 scenes (16 are one question's loop come round again: 28 apart from those). Each screen on its own: 44 of 44 agree. From play, each screen given the rows it gained (the window scrolls and keeps old rows): 43 of 44"
   ],
   "notes": "Text is kept as the tiles on screen, not as character codes: a cell is 16 bits, the tile's number (0x40-0x1FF, tables/sfc/SHVC-MB.tbl) plus attribute bits (0x0400 the cursor's colour, 0x1800 a highlighted line; the table lists all three). All windows work this way; only the message window is read. Not read: menus, names, shops, the battle window, a mark for a waiting line. Not reached in the replay: battles, shops, phone calls. Marks used on the naming screen (tiles 0x2A, 0x2B) and item icons are not mapped."
 }
