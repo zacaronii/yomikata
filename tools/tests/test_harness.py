@@ -4551,6 +4551,11 @@ def test_walk_3d_learns_a_swimmer_s_way_after_its_lag_and_follows_waypoints(tmp_
     s.machine.turn = 0.0
     out = s.walk_3d(xa, za, way=[[300.0, -50.0], [300.0, 200.0]], near=6, way_near=10)
     assert out["reached"] and out["waypoints"] == 1 and abs(s.machine.z - 200) <= 6, out
+    # The place within near: done, though a waypoint is left (it stands where the walk can't get).
+    s.machine.x, s.machine.z = 300.0, 150.0
+    s.machine.run(1, set(), (0.0, 0.0))
+    done = s.walk_3d(xa, za, x=300.0, z=200.0, near=60, way=[[300.0, 199.0]], way_near=1)
+    assert done["reached"] and done["frames"] <= 20, done
     with pytest.raises(HarnessError):
         s.walk_3d(xa, za, way=[["a"]])
     s.close()
