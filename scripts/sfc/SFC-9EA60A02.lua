@@ -16,11 +16,11 @@
 -- beside this script gives the kana and signs by code (Final Fantasy VI's own codes for them, held against this
 -- game's pages, and those it hasn't got read in play) and the kanji as their two bytes, read in play.
 --
--- The buffer keeps the last page after its window closes (and a state loaded keeps it too): WINDOW is 0 while no
--- message window is up, and a page is held to stand only while it isn't (5 while a window is up, 1 as it opens;
--- seen over every snap with a window and without one).
+-- The page is in the buffer before its window opens, and stays there after it closes (and through a state's load):
+-- WINDOW is OPEN while the message window is up and shows its page (0 with no window, 1 and 2 as it opens or
+-- closes; seen over every snap with a window and without one), and a page is held to stand only while it is.
 --
--- A page is said once PAGE and LEADS have stood the same for STILL frames with a window up; rows of nothing but
+-- A page is said once PAGE and LEADS have stood the same for STILL frames with its window open; rows of nothing but
 -- spaces are left out, and the spaces a row is indented by. Each page once, until another comes.
 --
 -- Not covered: menus, a fight's messages, the screens before the story. A code the table hasn't got comes out as
@@ -116,8 +116,8 @@ local ROWS, ACROSS = 4, 16
 local CELLS = ROWS * ACROSS
 local BLANK, ROW_END, PAGE_END, CLOSE, PAUSE = 0xFF, 0x01, 0x00, 0x17, 0x0C
 local LEAD_BYTES = { 0x1E, 0x1F }
-local WINDOW = 0x7E0BB5
-local STILL = 20
+local WINDOW, OPEN = 0x7E0BB5, 5
+local STILL = 6
 
 -- The build: the cartridge's header (its title), in its first bank.
 if mem.read(0xC0FFC0, 21) ~= "FINAL FANTASY 5      " then
@@ -175,8 +175,9 @@ reader.on_frame(function()
     if not cells or #cells < CELLS or not leads or #leads < CELLS then
         return
     end
-    if mem.u8(WINDOW) == 0 then
-        -- No window up: what the buffer holds was said already, or belongs to no page on screen.
+    if mem.u8(WINDOW) ~= OPEN then
+        -- No window showing its page: what the buffer holds is yet to be shown, was said already, or belongs to
+        -- no page on screen.
         last, stood = nil, 0
         return
     end
