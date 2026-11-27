@@ -67,6 +67,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `interact` | Tries each thing near the party in turn (things_find's, or places given): walks next to it by explore's way, faces it, presses a button, waits, and says what came (text the script said, the picture changed, the room changed); puts the game back after each try, or keeps one |
 | `expedition` | Walks the rooms one after another until something is said: maps the room (explore), goes through each door found there (by the room value), maps the room beyond, fights pressed through; stops at the first saying with the legs that led there, or gives the rooms as a graph. Given `legs`, walks them again without mapping |
 | `events` | Where an event still waits in the room the game is in, as the loaded script's `events` function says (docs/script-api.md): places ready for explore's `to`. `expedition` with `events` walks to them in each room before its doors, and stops at the first that says something |
+| `replay` | Plays the record of the way from where the game is to a saved state on the same way, with the loaded script on and a snap at each saying (`said`): every talk between two states in one call. Stopped by the call's time, it keeps where it got to (`keep`), to go on from in a later call |
 | `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to`. Takes where the game draws the character, for a picture that doesn't keep it in the middle |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
@@ -803,6 +804,20 @@ script's event, wait until the line stands, snap, and read the picture.
 A call that runs the game stops by itself after `--call-seconds` (120 unless said) and says so: `"stopped":
 "time"`, with how far it got; the game stands where it stopped and the next call goes on. This is what a slow
 core does to a long run, and nothing is lost by it.
+
+A session's game lasts only as long as the session, though: "the next call" means one in the same session. To go
+on in a later one, the walking tools save their progress when they stop on time, given `keep` (a state's name):
+`explore` towards a place keeps the nearest place it got to; `expedition` keeps where its walk to an event's place
+got to, or else the last room it reached; `replay` keeps how far it played. Each is a state with its way beside it,
+as `state_save` makes: load it and call the same again to go on. This is one mechanism, the record of the way. A
+kept state's way can be played again exactly with `replay`, from any state on it; `expedition`'s `legs` are the
+same walk as a recipe instead (go to a door's place, push through it), which explores again and so may take
+another path through a room, but needs no state.
+
+`replay` plays that record from where the game is to a saved state: load a state, replay to a later one saved on
+the same way (the way to it must go through where the game stands), with the script on and `said` snapping each
+saying. Every talk between two states, seen again in one call: Mother 3's opening, 31 screens over four scenes,
+took 3 calls this way, after pressing through single states had taken 13 and found little.
 
 A core that hangs inside one frame can't be stopped that way. A call that hasn't come back a minute after its
 time is answered with an error that says so, and the harness ends: its container goes, states and snaps in

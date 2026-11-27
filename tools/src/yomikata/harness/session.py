@@ -694,6 +694,32 @@ class Session:
                 "value": None if value is None else hex(value),
                 **({"events": events} if self.reader is not None else {})}
 
+    def _said_snaps(self, prefix: str, said: dict, events: list, shots: list) -> list[dict]:
+        """A snap the moment text is said: each frame (the hook _advance calls) looks at what has come since in
+        `events`, and takes the snap `after` frames on, mid-wait or mid-press as it falls. Sets the hook (the
+        caller puts the one before it back) and gives the list the snaps are added to."""
+        if not isinstance(said, dict) or set(said) - {"after", "shot"} or int(said.get("after", 2)) < 0:
+            raise HarnessError("said is an object: after (frames, 0 or more) and shot")
+        machine, before_hook = self.machine, self.each_frame
+        after, said_shot = int(said.get("after", 2)), bool(said.get("shot"))
+        taken, due, seen = [], [], [0]
+
+        def on_frame():
+            if before_hook is not None:
+                before_hook()
+            for e in events[seen[0]:]:
+                if e["kind"] == "text" and len(taken) + len(due) < MAX_STEPS:
+                    due.append(machine.frames + after)
+            seen[0] = len(events)
+            while due and machine.frames >= due[0]:
+                due.pop(0)
+                name = self.snap(f"{prefix}-said-{len(taken):02d}")["snap"]
+                taken.append({"snap": name, "frame": machine.frames})
+                if said_shot and len(shots) < MAX_SHOTS and machine.picture() is not None:
+                    shots.append((f"s{len(taken) - 1}", self._picture()))
+        self.each_frame = on_frame
+        return taken
+
     @tool("Several moves in one call: each step holds buttons for a few frames, then waits (a number of frames, "
           "or until something happens, as run_until), and may snap or take a picture. With pictures, they come "
           "back as one sheet, numbered by step. Stops where the call's time is up and says at which step.",
@@ -763,24 +789,8 @@ class Session:
         quiet: dict[int, int] = {}
         # A snap the moment text is said: each frame (the hook _advance calls) looks at what has come since, and
         # takes the snap `after` frames on, mid-wait or mid-press as it falls.
-        taken_said, due, seen_said, before_hook = [], [], [0], self.each_frame
-        if said is not None:
-            after, said_shot = int(said.get("after", 2)), bool(said.get("shot"))
-
-            def on_frame():
-                if before_hook is not None:
-                    before_hook()
-                for e in events[seen_said[0]:]:
-                    if e["kind"] == "text" and len(taken_said) + len(due) < MAX_STEPS:
-                        due.append(machine.frames + after)
-                seen_said[0] = len(events)
-                while due and machine.frames >= due[0]:
-                    due.pop(0)
-                    name = self.snap(f"{prefix}-said-{len(taken_said):02d}")["snap"]
-                    taken_said.append({"snap": name, "frame": machine.frames})
-                    if said_shot and len(shots) < MAX_SHOTS and machine.picture() is not None:
-                        shots.append((f"s{len(taken_said) - 1}", self._picture()))
-            self.each_frame = on_frame
+        before_hook = self.each_frame
+        taken_said = self._said_snaps(prefix, said, events, shots) if said is not None else []
         try:
             while queue:
                 step = queue.pop(0)
@@ -2589,11 +2599,13 @@ class Session:
           room=("string", "where the game keeps which room it is in, hex: a push that changes it is a door, "
                           "however far the place moved (a game whose rooms share their numbers, or whose door "
                           "moves the place less than jump)", False),
-          room_size=("integer", "bytes of room: 1, 2 or 4 (default 1)", False))
+          room_size=("integer", "bytes of room: 1, 2 or 4 (default 1)", False),
+          keep=("string", "with `to`: a state's name to save the nearest place it got to under, when the call's time "
+                          "runs out (load it and explore again to go on)", False))
     def explore(self, x_address: str = "", y_address: str = "", size: int = 2, step: int = 8, most: int = 400,
                 to: list | None = None, near: int = 1, jump: int = 8, within: list | None = None,
                 grid: float = 0.0, diagonals: bool = False, whole: bool = False, close: str = "",
-                fight: dict | None = None, room: str = "", room_size: int = 1) -> dict:
+                fight: dict | None = None, room: str = "", room_size: int = 1, keep: str = "") -> dict:
         machine = self._need()
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
         if room_size not in (1, 2, 4):
@@ -2794,7 +2806,8 @@ class Session:
                    else "the way on wasn't found among the places it could reach")
             return {**{k: v for k, v in out.items() if k != "map"}, "x": cx, "y": cy, "pushes": len(pushes),
                     "reached": False, "stopped_at": [cx, cy],
-                    "why": f"didn't reach {list(to)}: {why}; walked to the nearest place it got to"}
+                    "why": f"didn't reach {list(to)}: {why}; walked to the nearest place it got to",
+                    **({"kept": self._keep(keep)} if keep and late else {})}
         return {**{k: v for k, v in out.items() if k != "map"}, "x": cx, "y": cy, "pushes": len(pushes),
                 "reached": (cx, cy) == goal, "frames": machine.frames,
                 **({"events": events} if self.reader is not None and events else {})}
@@ -3020,6 +3033,9 @@ class Session:
           heading=("string", "up, down, left or right: cross each room towards that side instead of mapping all of it "
                              "(explore with a far `to`, the places nearest it first), for rooms where fights come "
                              "every few steps; the doors met on the way are tried", False),
+          keep=("string", "a state's name: when the call's time runs out, where it got to is saved under it "
+                          "(the end of a walk to an event's place, or else the last room it reached) instead of "
+                          "going back to where it began; load it and call again to go on", False),
           events=("boolean", "in each room, first walk to the places the loaded script's `events` function says "
                              "an event still waits at (docs/script-api.md), and stop at the first that says "
                              "something; then map the room and try its doors as before", False))
@@ -3027,7 +3043,7 @@ class Session:
                    step: int = 8, grid: float = 0.0, whole: bool = False, diagonals: bool = False,
                    fight: dict | None = None, through: int = 60, rooms: int = 8, most: int = 400,
                    legs: list | None = None, avoid: list | None = None, heading: str = "",
-                   events: bool = False) -> dict:
+                   events: bool = False, keep: str = "") -> dict:
         machine = self._need()
         if heading and heading not in ("up", "down", "left", "right"):
             raise HarnessError("heading is up, down, left or right")
@@ -3090,6 +3106,7 @@ class Session:
         # Each room reached: its entry (the state, the record's route and frames, the legs that led there).
         entries = {str(first): (start, route, frames, [])}
         queue, stopped, found = [str(first)], None, None
+        here, walked_on = str(first), False      # walked_on: the game stands where a walk to an event got to
         while queue and not found:
             if self._late():
                 stopped = "time"
@@ -3129,7 +3146,7 @@ class Session:
                     break
                 if self._late():
                     graph[here] = {"events": tried_events}
-                    stopped = "time"
+                    stopped, walked_on = "time", bool(tried_events)
                     break
                 machine.load_state(state)
                 machine.frames, self.route = there_frames, json.loads(json.dumps(there_route))
@@ -3177,6 +3194,16 @@ class Session:
         graph_out = {k: {**v, "doors": v.get("doors", [])[:MAX_ROWS]} for k, v in graph.items()}
         if found:
             return {"stopped": "said", **found, "rooms": graph_out, "frames": machine.frames}
+        if stopped == "time" and keep:
+            if not walked_on:
+                state, there_route, there_frames, _ = entries[here]
+                machine.load_state(state)
+                machine.frames, self.route = there_frames, json.loads(json.dumps(there_route))
+                if self.reader is not None:
+                    self.reader.state_loaded()
+                    self.reader.take()
+            return {"stopped": "time", "kept": self._keep(keep), "room": room_now(), "rooms": graph_out,
+                    "legs": {k: v[3] for k, v in entries.items()}, "frames": machine.frames}
         machine.load_state(start)
         machine.frames, self.route = frames, route
         if self.reader is not None:
@@ -3635,6 +3662,79 @@ class Session:
             self.reader.state_loaded()
             self._collect(self.reader.take(), [])
         return {"loaded": name, "frames": machine.frames, **({"memory_writes": self.pokes} if self.pokes else {})}
+
+    def _keep(self, name: str) -> str:
+        """Where a call that stopped on time got to, saved as a state with its way (state_save), so that loading
+        it and calling again goes on from there."""
+        return self.state_save(name)["state"]
+
+    def _rest_of_way(self, to: str) -> list:
+        """The moves from where the game is now to the saved state `to`, by the record of the way: this game's way
+        must be the first part of that state's (the last move here may be the first frames of one there)."""
+        path = self._state_file(to)
+        way = path.with_name(f"{to}.route.json")
+        if not path.is_file() or not way.is_file():
+            raise HarnessError(f"no state {to} with its way kept beside it")
+        target = json.loads(way.read_text(encoding="utf-8"))
+        if target.get("game") != self.game:
+            raise HarnessError(f"{to} is another game's state")
+        here, there = self.route.get("moves", []), target.get("moves", [])
+        if self.route.get("base") != target.get("base") or len(here) > len(there):
+            raise HarnessError(f"the way to {to} doesn't go through where the game is now: load a state on its way "
+                               "(one it was saved after, or one a replay kept)")
+        for k, move in enumerate(here):
+            last = k == len(here) - 1
+            other = there[k]
+            if move == other:
+                continue
+            if last and isinstance(move, list) and isinstance(other, list) and move[1:] == other[1:] \
+                    and move[0] < other[0]:
+                return [[other[0] - move[0], *other[1:]], *there[k + 1:]]
+            raise HarnessError(f"the way to {to} parts from where the game is now at its move {k}: load a state on "
+                               "its way")
+        return list(there[len(here):])
+
+    @tool("Plays the record of the way from where the game is now to a saved state: the moves that state was "
+          "reached by (kept beside it) after those that led here, with the loaded script on, and a snap each time "
+          "it says text (`said`). To see again everything said between two states in one call: load the first, "
+          "replay to the second. Where the call's time runs out, it stops, and with `keep` saves where it got to as "
+          "a state: load that and replay to the same state again to go on.",
+          to=("string", "the saved state to go to, whose way goes through where the game is now (required)", True),
+          keep=("string", "a state's name to save where it got to under, if the call's time runs out", False),
+          said=("object", "as steps' said: {after, shot}: a snap the moment the script says text", False),
+          prefix=("string", "names the snaps <prefix>-said-00, … (default: replay)", False),
+          columns=("integer", "pictures across the sheet, with shot (default 4)", False),
+          scale=("number", "each picture's scale on the sheet (default 1)", False))
+    def replay(self, to: str, keep: str = "", said: dict | None = None, prefix: str = "replay", columns: int = 4,
+               scale: float = 1.0):
+        machine, prefix = self._need(), self._name(prefix)
+        if said is not None and self.reader is None:
+            raise HarnessError("no script is loaded to say anything: call script_try first")
+        rest = self._rest_of_way(to)
+        if any(not (isinstance(m, list) and len(m) == 3) for m in rest):
+            raise HarnessError(f"the way to {to} holds a move a replay can't play (a state loaded or memory written "
+                               "on the way): replay to a state saved before it")
+        events, shots, before_hook = [], [], self.each_frame
+        taken = self._said_snaps(prefix, said, events, shots) if said is not None else []
+        played, why = 0, None
+        try:
+            for frames, held, where in rest:
+                _, why = self._advance(int(frames), set(held), (float(where[0]), float(where[1])), events)
+                if why == "time":
+                    break
+                played += 1
+        finally:
+            self.each_frame = before_hook
+        out = {"to": to, "moves": len(rest), "played": played, "frames": machine.frames,
+               **({"said": taken} if said is not None else {}),
+               **({"events": events[:MAX_ROWS]} if self.reader is not None else {})}
+        if why == "time":
+            out.update(stopped="time", left=len(rest) - played)
+            if keep:
+                out["kept"] = self._keep(keep)
+        else:
+            out["reached"] = to
+        return ("both", out, self._png(self._sheet(shots, columns, scale))) if shots else out
 
     # ---- waypoints
 

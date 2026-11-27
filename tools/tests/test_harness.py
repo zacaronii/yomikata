@@ -2904,6 +2904,91 @@ end
     session.reader.state_loaded()
     on = session.expedition(room=f"0x{BASE + 0x7F0:X}", step=1, rooms=3, events=True)
     assert on["rooms"]["1"]["events"] == [] and any(d["to"] == "2" for d in on["rooms"]["1"]["doors"]), on
+    # Time running out on the walk to the event's place: with keep, where the walk got to is kept, not the start.
+    machine.load_state(start)
+    session.reader.state_loaded()
+    ticks, late = [0], session._late
+    def soon():
+        ticks[0] += 1
+        return ticks[0] > 12
+    session._late = soon
+    cut = session.expedition(room=f"0x{BASE + 0x7F0:X}", step=1, rooms=3, events=True, keep="xp-k")
+    session._late = late
+    assert cut["stopped"] == "time" and cut["kept"] == "xp-k", cut
+    walked = struct.unpack_from(">hh", machine.memory, 0x30)
+    assert walked != (30, 25)
+    session.state_load("xp-k")
+    assert struct.unpack_from(">hh", machine.memory, 0x30) == walked
+
+
+@needs_reader
+def test_replay_plays_the_way_to_a_saved_state_and_goes_on_from_what_it_kept(session):
+    """A made-up game says a line at each press of a (a counter at 0x7F2 picks it). From a state, three presses
+    are made and a second state saved; back at the first, replay plays the same moves with the script on and
+    snaps each saying. A replay whose time runs out mid-way keeps where it got to: loaded, a replay to the same
+    state goes on from there and ends on that state's way exactly."""
+    machine, plain = session.machine, session.machine._step
+    lines = ["いち", "にい", "さん"]
+
+    def game(buttons, stick):
+        m = machine.memory
+        plain(buttons, stick)
+        if "a" in buttons and m[0x7F3] == 0:
+            m[0x7F2] += 1
+        m[0x7F3] = 1 if "a" in buttons else 0
+        line = lines[m[0x7F2] - 1].encode("cp932") if m[0x7F2] else b""
+        m[0x100:0x120] = line + bytes(0x20 - len(line))
+    machine._step = game
+    machine.memory[0x7F2] = machine.memory[0x7F3] = 0
+    machine.memory[0x100:0x120] = bytes(0x20)
+    session.state_save("rp-a")
+    session.steps([{"buttons": ["a"], "hold": 4, "wait": 40} for _ in range(3)])
+    session.state_save("rp-b")
+    assert machine.memory[0x7F2] == 3
+    session.state_load("rp-a")
+    assert session.script_try(SCRIPT, "GXXJ01.lua")["loaded"]
+    out = session.replay("rp-b", said={"after": 2})
+    assert out["reached"] == "rp-b" and len(out["said"]) == 3, out
+    assert [e["text"] for e in out["events"] if e["kind"] == "text"] == lines
+    assert machine.memory[0x7F2] == 3
+    # The call's time runs out after a few frames: where it got to is kept, and a replay from there ends the way.
+    session.state_load("rp-a")
+    ticks, late = [0], session._late
+    def soon():
+        ticks[0] += 1
+        return ticks[0] > 50
+    session._late = soon
+    cut = session.replay("rp-b", keep="rp-k")
+    session._late = late
+    assert cut["stopped"] == "time" and cut["kept"] == "rp-k" and 0 < cut["left"], cut
+    session.state_load("rp-k")
+    on = session.replay("rp-b")
+    assert on["reached"] == "rp-b" and machine.memory[0x7F2] == 3
+    b = json.loads((session.roots.scratch / "states" / "rp-b.route.json").read_text(encoding="utf-8"))
+    assert session.route["moves"] == b["moves"]
+    # A state off the way is refused.
+    session.state_load("rp-b")
+    session.steps([{"buttons": ["b"], "hold": 4}])
+    with pytest.raises(HarnessError):
+        session.replay("rp-a")
+
+
+def test_explore_keeps_the_nearest_place_when_its_time_runs_out(session):
+    """explore towards a place, its time running out on the way: with keep, the nearest place it got to is saved
+    as a state, from which a second explore goes on."""
+    session.cursor_find()
+    ticks, late = [0], session._late
+    def soon():
+        ticks[0] += 1
+        return ticks[0] > 40
+    session._late = soon
+    out = session.explore(to=[160, 40], near=0, step=1, keep="ex-k")
+    session._late = late
+    assert out["reached"] is False and out["kept"] == "ex-k", out
+    stood = out["stopped_at"]
+    session.state_load("ex-k")
+    here = session.explore(most=1)
+    assert [here["x"], here["y"]] == stood
 
 
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
