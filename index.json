@@ -314,6 +314,13 @@
    "encoding": "compressed",
    "status": "partial"
   },
+  "SHVC-ATVJ": {
+   "path": "games/sfc/SHVC-ATVJ.json",
+   "sha256": "76493de591310bab9ce9f0741008dda9c2534ab350b21c34ca08f1d0926723d0",
+   "platform": "sfc",
+   "encoding": "compressed",
+   "status": "partial"
+  },
   "SHVC-MB": {
    "path": "games/sfc/SHVC-MB.json",
    "sha256": "832d8ba03d41755d518558e64470454f154cd7976463c7e4896677257e811a69",
@@ -1380,6 +1387,24 @@
     "glyphs": {
      "path": "games/sfc/SHVC-AMXJ.glyphs",
      "sha256": "cab0c43feef6152cf30c87a161303a36244b7c7451978fb03d04249d56597074"
+    }
+   }
+  },
+  "SHVC-ATVJ": {
+   "path": "scripts/sfc/SHVC-ATVJ.lua",
+   "sha256": "bb39acbaeac23ac1535ea79ae9f17e71ce4c91069fea7762427dc1c17589d052",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "テイルズ オブ ファンタジア (Tales of Phantasia, Super Famicom)",
+   "reads": "the message window's rows off video memory once the page stands, each character by its picture",
+   "builds": [
+    "8fc7e4e3"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/sfc/SHVC-ATVJ.glyphs",
+     "sha256": "69a02d4fd5bf730d5f66cc4aefab6fbcaa5348682694188de2b6c0a26ca35b8e"
     }
    }
   },
