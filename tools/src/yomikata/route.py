@@ -183,13 +183,16 @@ class Ground:
 
 def ground(mesh: Mesh, box: tuple[float, float, float, float], cell: float = 25.0, slope: float = 50.0,
            up: float = 30.0, down: float = 60.0, head: tuple[float, float] = (25.0, 90.0), body: float = 20.0,
-           skip: list[str] | None = None, merge: float = 10.0, low: float | None = None, margin: int = 3) -> Ground:
+           skip: list[str] | None = None, merge: float = 10.0, low: float | None = None, margin: int = 3,
+           avoid: list | None = None) -> Ground:
     """The floors and walls of `mesh` inside box (x0, z0, x1, z1), in cells of `cell`. A triangle in a group
     matching any of `skip` is left out (fnmatch patterns). A wall shuts a floor when it passes within `body` of
     the cell's middle and rises through the head room over it: from head[0] to head[1] above the floor. A floor
     lower than `low` isn't walked (under water: Wind Waker's sea is at 0). Floors within `margin` cells of an
     edge (a drop or a wall) cost more to walk, and a straight stretch isn't drawn along the edge itself: a
-    character walked along a narrow ramp drifts, and one at its very edge walks off it."""
+    character walked along a narrow ramp drifts, and one at its very edge walks off it. `avoid` is things that
+    stand on the ground but aren't in its collision (placed actors: a tree, a barrel): (x, z, radius) each, whose
+    floors are shut."""
     g = Ground(float(cell), float(up), float(down))
     x0, z0, x1, z1 = box
     least = math.cos(math.radians(slope))
@@ -264,6 +267,14 @@ def ground(mesh: Mesh, box: tuple[float, float, float, float], cell: float = 25.
         for k, h in enumerate(kept):
             if any(lo < h + head[1] and hi > h + head[0] for lo, hi in walls.get(ij, ())):
                 g.shut.add((ij[0], ij[1], k))
+    for ax, az, radius in avoid or ():
+        ci, cj = g.cell_of(ax, az)
+        rings = int(math.ceil(radius / cell))
+        for i in range(ci - rings, ci + rings + 1):
+            for j in range(cj - rings, cj + rings + 1):
+                mx, mz = g.middle(i, j)
+                if math.hypot(mx - ax, mz - az) <= radius:
+                    g.shut.update((i, j, k) for k in range(len(g.floors.get((i, j), ()))))
     g.edges(margin)
     return g
 
