@@ -548,7 +548,14 @@ script says after the press and not in a wait without it is an answer. Where a g
 people and doors stand, `targets` gives meet those places instead: `yomikata placements` reads them off the disc
 (GameCube Zelda stages first: the actors, doors and starting points of a stage's or a room's .dzs/.dzr, with
 their names and world x, y, z), and meet walks to each, nearest first, with `walk` passing walk_3d's ledge guard
-on. Wind Waker's Outset Island is res/Stage/sea/Room44.arc; its opening's people are the chunk ACT0. A game that walks by the stick alone
+on. Wind Waker's Outset Island is res/Stage/sea/Room44.arc; its opening's people are the chunk ACT0. Between the
+character and a place there are often cliffs, walls and drops a straight walk runs into: `yomikata route` works
+out a way round them offline, from the stage's own collision (GameCube Zelda's room.dzb first). The ground facing
+up becomes floors in cells, walls shut the floors they stand in, steps up to `--up` and down to `--down` join them,
+and A* finds the way, pulled straight to a few corners; `--low` leaves out floors under water (Wind Waker: 1).
+Each line it prints is one of meet's `targets` with its `way`, which walk_3d walks in turn (`way`, `way_near`).
+A character that turns and speeds up slowly, as one swimming does, moves the way it was going at the start of a
+push: walk_3d's `lag` leaves those first frames out of what it learns of the stick's way. A game that walks by the stick alone
 (the pad does nothing) is mapped with `explore` and `expedition` given `stick`: eight pushes of the stick in
 place of the pad's, named n, ne, … (the stick's ways, which turn with the camera); a door found so is pushed
 through by the same way.

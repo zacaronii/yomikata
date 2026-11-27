@@ -2298,11 +2298,18 @@ class Session:
           yaw=("string", "the camera's turn, hex, where the stick's ways turn with it: the way the stick moves the "
                          "character is learnt once, and turned by how far the camera has turned since, in place of "
                          "learning it again from the last pushes", False),
-          yaw_kind=("string", "s16 (a turn is 65536: most consoles' angles) or float (radians) (default s16)", False))
+          yaw_kind=("string", "s16 (a turn is 65536: most consoles' angles) or float (radians) (default s16)", False),
+          way=("array", "waypoints [[x, z], …] walked to in turn before x, z (without x and z, the last is the place): "
+                        "a way round what a straight line runs into, as `yomikata route` gives it from the stage's "
+                        "collision", False),
+          way_near=("number", "how near a waypoint is near enough to go on to the next (default 50)", False),
+          lag=("integer", "frames at the start of each push that aren't learnt from: a character that turns and "
+                          "speeds up slowly (swimming) moves the way it was going before the stick, at first; the "
+                          "pushes that teach the way are this much longer (default 0)", False))
     def walk_3d(self, x_address: str, z_address: str, x: float | None = None, z: float | None = None,
                 near: float = 0.0, push: int = 8, limit: int = 1200, height: str = "", fall: float = 30.0,
                 water: dict | None = None, yaw: str = "", yaw_kind: str = "s16", floor: float | None = None,
-                settle: int = 0) -> dict:
+                settle: int = 0, way: list | None = None, way_near: float = 50.0, lag: int = 0) -> dict:
         import math
         import struct
         machine = self._need()
@@ -2355,12 +2362,23 @@ class Session:
         refused: list = []
         events, ran = [], 0
         start = where()
+        points = []
+        if way is not None:
+            try:
+                points = [(float(w[0]), float(w[1])) for w in way]
+            except (TypeError, ValueError, IndexError):
+                raise HarnessError("way is a list of [x, z]") from None
+            if (x is None or z is None) and points:
+                (x, z), points = points[-1], points[:-1]
+        lag = max(0, min(int(lag), 120))
         if x is None or z is None:
             return {"at": [round(start[0], 3), round(start[1], 3)], "frame": machine.frames,
                     **({"height": round(float_at(at_h), 3)} if at_h is not None and float_at(at_h) is not None else {}),
                     **({"yaw": round(turned(), 4)} if at_yaw is not None and turned() is not None else {})}
         push, limit = max(2, min(int(push), 60)), max(push, min(int(limit), MAX_FRAMES))
-        target = (float(x), float(z))
+        goals = points + [(float(x), float(z))]
+        leg = 0
+        target = goals[0]
 
         def stick(s, frames):
             nonlocal ran
@@ -2369,6 +2387,19 @@ class Session:
             ran += done
             after = where()
             return (after[0] - before[0], after[1] - before[1]), why
+
+        def pushed(s, frames):
+            """A push: (the whole move, the move after its first `lag` frames and how many frames that was, why it
+            stopped)."""
+            first = min(lag, frames // 2)
+            if not first:
+                move, why = stick(s, frames)
+                return move, move, frames, why
+            m1, why = stick(s, first)
+            if why:
+                return m1, m1, first, why
+            m2, why = stick(s, frames - first)
+            return (m1[0] + m2[0], m1[1] + m2[1]), m2, frames - first, why
         # The way each stick axis moves the two numbers, per frame: two pushes to learn it.
         learn = max(4, push)
         seen = []                                           # (stick, move per frame) of the pushes made
@@ -2376,7 +2407,11 @@ class Session:
             # With the ledge guard, each push that teaches the way is undone after: one may walk off the edge.
             if guarded:
                 taught_from = (machine.save_state(), json.loads(json.dumps(self.route)), machine.frames)
-            move, why = stick(s, learn)
+            why, move = None, (0.0, 0.0)
+            if lag:
+                _, why = stick(s, lag)                      # turning and speeding up: not learnt from
+            if not why:
+                move, why = stick(s, learn)
             if guarded and why != "time":
                 machine.load_state(taught_from[0])
                 self.route, machine.frames = taught_from[1], taught_from[2]
@@ -2397,10 +2432,14 @@ class Session:
         def way():
             """The 2x2 that takes a stick to a move per frame, fitted to the last pushes (least squares); with yaw,
             the one learnt first, turned as far as the camera has turned since."""
-            rows = seen[:2] if learnt_at is not None else seen[-6:]
-            sxx = sum(s[0] * s[0] for s, _ in rows); sxy = sum(s[0] * s[1] for s, _ in rows)
-            syy = sum(s[1] * s[1] for s, _ in rows)
-            det = sxx * syy - sxy * sxy
+            for rows in ((seen[:2],) if learnt_at is not None else (seen[-6:], seen[:2] + seen[-6:])):
+                # The last pushes alone, when they go more than one way; else with the two that taught the way
+                # (a long straight walk pushes one way only).
+                sxx = sum(s[0] * s[0] for s, _ in rows); sxy = sum(s[0] * s[1] for s, _ in rows)
+                syy = sum(s[1] * s[1] for s, _ in rows)
+                det = sxx * syy - sxy * sxy
+                if abs(det) >= 1e-3 * max(1.0, len(rows)) ** 2:
+                    break
             if abs(det) < 1e-9:
                 return None
             out = []
@@ -2420,9 +2459,14 @@ class Session:
             px, pz = where()
             gap = (target[0] - px, target[1] - pz)
             dist = math.hypot(*gap)
-            if dist <= near:
+            if leg < len(goals) - 1 and dist <= max(float(way_near), 1.0):
+                leg += 1                                    # a waypoint passed: on to the next
+                target, best, stuck = goals[leg], math.inf, 0
+                continue
+            if dist <= near and leg == len(goals) - 1:
                 return {"reached": True, "at": [round(px, 3), round(pz, 3)], "frames": ran,
-                        "events": len(events), **({"refused": refused} if guarded else {})}
+                        "events": len(events), **({"waypoints": leg} if points else {}),
+                        **({"refused": refused} if guarded else {})}
             m = way()
             if m is None:
                 why = "the pushes don't tell the way apart"
@@ -2452,7 +2496,7 @@ class Session:
                     tx, ty = sx * math.cos(a) - sy * math.sin(a), sx * math.sin(a) + sy * math.cos(a)
                     before_state, before_route, before_frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
                     h0 = float_at(at_h) if at_h is not None else None
-                    move, why = stick((tx, ty), frames)
+                    move, felt, felt_frames, why = pushed((tx, ty), frames)
                     if not why and settle:
                         done, why = self._advance(max(0, min(int(settle), 120)), set(), (0.0, 0.0), events)
                         ran += done
@@ -2481,12 +2525,12 @@ class Session:
                     break
                 sx, sy = moved_to
             else:
-                move, why = stick((sx, sy), frames)
+                move, felt, felt_frames, why = pushed((sx, sy), frames)
                 if why:
                     break
             # Learnt from only when it moved: a push against a wall says nothing of the way, and would turn it.
-            if math.hypot(*move) >= 0.25 * speed * frames:
-                seen.append(((sx, sy), (move[0] / frames, move[1] / frames)))
+            if math.hypot(*felt) >= 0.25 * speed * felt_frames:
+                seen.append(((sx, sy), (felt[0] / felt_frames, felt[1] / felt_frames)))
             if dist < best - 0.25 * speed * frames:
                 best, stuck = dist, 0
             else:
@@ -2495,9 +2539,9 @@ class Session:
                     why = "it stopped getting nearer: something is in the way, or a talk has begun"
                     break
         px, pz = where()
-        return {"reached": math.hypot(target[0] - px, target[1] - pz) <= near, "stopped": why or "limit",
-                "at": [round(px, 3), round(pz, 3)], "frames": ran, "events": len(events),
-                **({"refused": refused} if guarded else {})}
+        return {"reached": leg == len(goals) - 1 and math.hypot(target[0] - px, target[1] - pz) <= near,
+                "stopped": why or "limit", "at": [round(px, 3), round(pz, 3)], "frames": ran, "events": len(events),
+                **({"waypoints": leg} if points else {}), **({"refused": refused} if guarded else {})}
 
     @tool("Moves the cursor to a place, in the game's own numbers for it (cursor_find says where they are kept "
           "and how far a few frames move it; the picture says what the numbers mean): holds the pad a frame "
@@ -3351,11 +3395,11 @@ class Session:
                             "of x and z near it, once (the answer sorts the people from the things)", False),
           least=("number", "leave out places nearer the player than this: its own parts and what it carries", False),
           keep=("string", "a state's name to save the game under where someone answered", False),
-          targets=("array", "the people to go to, instead of looking for them in memory: [{x, z, name}, …] in the "
-                            "player's numbers, as `yomikata placements` reads them off the disc; tried nearest first",
-                   False),
+          targets=("array", "the people to go to, instead of looking for them in memory: [{x, z, name, way}, …] in "
+                            "the player's numbers, as `yomikata placements` reads them off the disc (and `yomikata "
+                            "route` gives each a way round what is between); tried nearest first", False),
           walk=("object", "walk_3d's own options for each walk: height, fall, floor, settle, water, yaw, push, "
-                          "limit", False))
+                          "limit, lag, way_near", False))
     def meet(self, x_address: str, z_address: str, near: float = 2000.0, stride: int = 0, reach: float = 0.0,
              button: str = "a", wait: int = 90, most: int = 6, look: bool = False, keep: str = "",
              loose: bool = False, least: float = 0.0, targets: list | None = None, walk: dict | None = None) -> dict:
@@ -3372,7 +3416,8 @@ class Session:
             order = ">f" if machine.platform in BIG_ENDIAN else "<f"
             px, pz = (struct.unpack(order, machine.read(a, 4))[0] for a in (ax, az))
             people = sorted(({"x": float(t["x"]), "z": float(t["z"]), "address": str(t.get("name", "")),
-                              "distance": round(math.hypot(float(t["x"]) - px, float(t["z"]) - pz), 3)} for t in targets),
+                              "distance": round(math.hypot(float(t["x"]) - px, float(t["z"]) - pz), 3),
+                              **({"way": t["way"]} if t.get("way") else {})} for t in targets),
                             key=lambda t: t["distance"])
             found = {"player": {"x": round(px, 3), "z": round(pz, 3)}, "stride": None, "things": people}
         else:
@@ -3399,11 +3444,12 @@ class Session:
             if self._late():
                 break
             back()
-            allowed = {"height", "fall", "floor", "settle", "water", "yaw", "yaw_kind", "push", "limit"}
+            allowed = {"height", "fall", "floor", "settle", "water", "yaw", "yaw_kind", "push", "limit", "lag",
+                       "way_near"}
             if walk and set(walk) - allowed:
                 raise HarnessError(f"walk takes: {', '.join(sorted(allowed))}")
             walked = self.walk_3d(f"0x{ax:X}", f"0x{az:X}", person["x"], person["z"], near=float(reach) or 0.0,
-                                  **(walk or {}))
+                                  way=[w[:2] for w in person["way"]] if person.get("way") else None, **(walk or {}))
             row = {"x": person["x"], "z": person["z"], "address": person["address"],
                    "reached": bool(walked.get("reached"))}
             if not walked.get("reached"):

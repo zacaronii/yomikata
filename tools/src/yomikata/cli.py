@@ -260,6 +260,20 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("archive", help="the stage or room archive on the disc, e.g. res/Stage/sea/Room44.arc")
     p.add_argument("--name", action="append", default=[], help="only entries whose name matches (fnmatch); several may be given")
     p.add_argument("--chunk", action="append", default=[], help="only entries of these chunks (ACTR, ACT0, TGDR, PLYR, …; fnmatch)")
+    p = sub.add_parser("route", help="a way over a game's own ground, from where the character stands to places on the disc's stage, round its cliffs, walls and drops: meet's targets, each with its waypoints (JSON lines: names and places only). GameCube Zelda collision (.dzb) first")
+    p.add_argument("disc", type=Path, help="the disc image (.rvz, .wia, .iso, .gcm)")
+    p.add_argument("archive", help="the stage or room archive with the collision and the placements, e.g. res/Stage/sea/Room44.arc")
+    p.add_argument("--from", dest="frm", type=float, nargs=3, required=True, metavar=("X", "Y", "Z"), help="where the character stands (walk_3d says x and z, its height y)")
+    p.add_argument("--to", type=float, nargs=3, action="append", default=[], metavar=("X", "Y", "Z"), help="a place to go to; several may be given")
+    p.add_argument("--name", action="append", default=[], help="placed entries of the archive whose name matches (fnmatch), as places to go to")
+    p.add_argument("--chunk", action="append", default=[], help="with --name: only entries of these chunks")
+    p.add_argument("--low", type=float, help="floors lower than this aren't walked (under water; Wind Waker: 1)")
+    p.add_argument("--up", type=float, default=30.0, help="the highest step walked up (default 30)")
+    p.add_argument("--down", type=float, default=60.0, help="the deepest step walked down (default 60)")
+    p.add_argument("--slope", type=float, default=50.0, help="the steepest ground walked, degrees (default 50)")
+    p.add_argument("--cell", type=float, default=25.0, help="the side of a cell of the ground (default 25)")
+    p.add_argument("--skip", action="append", default=[], help="collision groups to leave out (fnmatch)")
+    p.add_argument("--reach", type=float, default=600.0, help="how far from each end a floor is looked for (default 600)")
     p = sub.add_parser("disc-text", help="the stretches of a disc image that read as text through a table of the game's codes (the game's text: write it to scratch)")
     p.add_argument("disc", type=Path)
     p.add_argument("--table", type=Path, action="append", required=True, help="a .tbl of the game's codes; several are read as one")
@@ -684,6 +698,29 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         for e in placements.select(entries, args.name, args.chunk):
             print(json.dumps(e, ensure_ascii=False))
+        return 0
+    if args.cmd == "route":
+        from . import placements, route, rvz
+        try:
+            disc = rvz.open_disc(args.disc)
+            found = {f.path: f for f in rvz.files(disc)}
+            if args.archive not in found:
+                print(f"route: no file {args.archive} on the disc", file=sys.stderr)
+                return 1
+            data = rvz.content(disc, found[args.archive])
+            mesh = route.from_archive(data)
+            places = [{"name": "", "x": x, "y": y, "z": z} for x, y, z in args.to]
+            if args.name:
+                places += placements.select(placements.from_archive(data), args.name, args.chunk)
+        except (OSError, rvz.RvzError, placements.PlacementError, route.RouteError) as e:
+            print(f"route: {e}", file=sys.stderr)
+            return 1
+        if not places:
+            print("route: give --to or --name", file=sys.stderr)
+            return 1
+        for row in route.targets(mesh, tuple(args.frm), places, low=args.low, up=args.up, down=args.down,
+                                 slope=args.slope, cell=args.cell, skip=args.skip, reach=args.reach):
+            print(json.dumps(row, ensure_ascii=False))
         return 0
     if args.cmd == "disc-text":
         from . import disctext
