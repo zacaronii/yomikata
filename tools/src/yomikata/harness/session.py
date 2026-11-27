@@ -69,6 +69,16 @@ class Roots:
     inbox: Path
     scratch: Path
     system: Path | None = None      # where a core looks for a BIOS, when it isn't scratch's own system/
+    built: Path | None = None       # cores built into the image (patched ones), for a name the cores folder hasn't got
+
+    def core(self, name: str) -> Path:
+        """A core's file: in the cores folder, or else among the image's own built cores (tools/cores)."""
+        path = self.inside("cores", name)
+        if not path.is_file() and self.built is not None:
+            built = self.inside("built", name)
+            if built.is_file():
+                return built
+        return path
 
     def inside(self, root: str, relative: str) -> Path:
         """A path under one of the roots. One that climbs out of it, by .. or by a link, is refused."""
@@ -440,7 +450,8 @@ class Session:
 
     @tool("Loads a game in a core, from power-on or from a savestate. The game loaded before is dropped.",
           game=("string", "path of the game under the library, e.g. psx/Some Game (Japan).chd", True),
-          core=("string", "the core's file under the cores folder, e.g. pcsx_rearmed_libretro.so", True),
+          core=("string", "the core's file under the cores folder, e.g. pcsx_rearmed_libretro.so, or one built into "
+                          "the image with a patch (genesis_plus_gx_vram_libretro.so: a Mega Drive's video memory)", True),
           platform=("string", "the catalog's name for the console: ps1, gc, sfc, …", True),
           state=("string", "a state saved here (its name), or a path under the inbox's snapshots ending in "
                            ".state.gz: the game is started, taken to the state and left ready (a picture, "
@@ -452,7 +463,7 @@ class Session:
              settle: int = 2) -> dict:
         if self.make_machine is None:
             raise HarnessError("this harness has no cores")
-        game_path, core_path = self.roots.inside("games", game), self.roots.inside("cores", core)
+        game_path, core_path = self.roots.inside("games", game), self.roots.core(core)
         if not game_path.is_file() or not core_path.is_file():
             raise HarnessError("no such game or core")
         if self.once:
@@ -3279,7 +3290,7 @@ class Session:
         wanted = (point["game"], point["core"], point["platform"], point["options"])
         state = path.with_suffix(".state.gz")
         loaded_now = self.machine is not None and self.loaded == wanted
-        core_file = self.roots.inside("cores", point["core"])
+        core_file = self.roots.core(point["core"])
         same_build = core_file.is_file() and hashlib.sha256(core_file.read_bytes()).hexdigest() == point["core_sha256"]
         via = "state" if same_build and state.is_file() and not replay else "replay"
         if via == "state":

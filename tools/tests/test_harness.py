@@ -3468,6 +3468,66 @@ def test_a_mega_drive_is_read_at_its_own_addresses_in_its_own_byte_order_and_its
     assert CARTRIDGE["md"] == 0x01000000 and machine.read(0x01000100, 4) == b"SEGA" and machine.cartridge == rom
 
 
+def test_a_mega_drives_video_memory_from_the_patched_core_is_kept_in_snaps_in_the_consoles_order(session, tmp_path):
+    """genesis_plus_gx built with tools/cores/genesis_plus_gx-video-ram.patch gives the VDP's 64 KB as
+    RETRO_MEMORY_VIDEO_RAM, written a 16-bit word at a time in the host's order: the harness puts each word's bytes
+    back (a tile's first row reads as the console has it), and a snap keeps the 64 KB as its `vram` part, read
+    back the same. The official build gives none, and a snap then has no `vram` part."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine
+    from yomikata.run import _regions
+    console = bytes(range(256)) * 256                           # the VDP's VRAM as the console has it
+    host = bytes(b for k in range(0, len(console), 2) for b in (console[k + 1], console[k]))
+    work = (C.c_char * 0x10000)()
+
+    class Lib:
+        def retro_get_memory_data(self, which):
+            return C.addressof(work) if which == 2 else None
+
+        def retro_get_memory_size(self, which):
+            return 0x10000 if which == 2 else 0
+
+    def machine_with(video):
+        class Core:
+            lib, maps = Lib(), []
+
+            def video_ram(self):
+                return video
+        m = Machine.__new__(Machine)
+        m.platform, m.core = "md", Core()
+        return m
+    regions = machine_with(host).regions()
+    assert len(regions["vram"]) == 0x10000 and regions["vram"] == console
+    assert machine_with(None).regions() == {}
+    session.machine.regions = machine_with(host).regions
+    assert "vram" in session.snap("md-0")["regions"]
+    assert _regions(tmp_path / "scratch/snaps/md-0.ram.gz") == {"vram": console}
+    session.machine.regions = machine_with(None).regions
+    assert session.snap("md-1")["regions"] == [] and _regions(tmp_path / "scratch/snaps/md-1.ram.gz") == {}
+
+
+def test_a_core_built_into_the_image_is_found_where_the_cores_folder_hasnt_it(tmp_path):
+    """The harness image builds patched cores (tools/Dockerfile.harness) into a folder of its own: a core is
+    taken from the cores folder first, from the built ones where the folder hasn't its name, and a name that
+    climbs out of either is refused."""
+    from yomikata.harness.session import Roots
+    cores, built = tmp_path / "cores", tmp_path / "built"
+    cores.mkdir()
+    built.mkdir()
+    (cores / "genesis_plus_gx_libretro.so").write_bytes(b"official")
+    (built / "genesis_plus_gx_vram_libretro.so").write_bytes(b"patched")
+    roots = Roots(tmp_path / "games", cores, tmp_path / "inbox", tmp_path / "scratch", built=built)
+    assert roots.core("genesis_plus_gx_libretro.so").read_bytes() == b"official"
+    assert roots.core("genesis_plus_gx_vram_libretro.so").read_bytes() == b"patched"
+    assert not roots.core("missing_libretro.so").is_file()
+    (built / "genesis_plus_gx_libretro.so").write_bytes(b"patched too")
+    assert roots.core("genesis_plus_gx_libretro.so").read_bytes() == b"official"      # the folder's comes first
+    assert not Roots(tmp_path / "games", cores, tmp_path / "inbox", tmp_path / "scratch").core(
+        "genesis_plus_gx_vram_libretro.so").is_file()
+    with pytest.raises(HarnessError, match="outside"):
+        roots.core("../built/genesis_plus_gx_vram_libretro.so")
+
+
 def test_a_famicom_machine_reads_its_work_ram_through_pages_and_its_nametables(tmp_path):
     """fceumm maps a Famicom's 2 KB at 0x0000 in two pages, 0x6000-0x7FFF in eight pages of 1 KB, and the two
     nametables at 0x80002000, and gives out no video memory as such. The harness reads main memory and its

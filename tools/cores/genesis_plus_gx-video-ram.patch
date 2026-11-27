@@ -1,0 +1,21 @@
+--- a/libretro/libretro.c
++++ b/libretro/libretro.c
+@@ -3739,6 +3739,8 @@
+          return sram.on ? sram.sram : NULL;
+       case RETRO_MEMORY_SYSTEM_RAM:
+          return work_ram;
++      case RETRO_MEMORY_VIDEO_RAM:
++         return vram;
+       default:
+          return NULL;
+    }
+@@ -3790,6 +3792,9 @@
+             return 0x2000; /* 8KB internal RAM */
+       }
+ 
++      case RETRO_MEMORY_VIDEO_RAM:
++         return 0x10000; /* the VDP's VRAM, 16-bit words in the host's order */
++
+       default:
+         return 0;
+    }

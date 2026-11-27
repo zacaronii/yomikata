@@ -1,7 +1,9 @@
-# The tools image (tools/Dockerfile) is built from the repository's root and needs only tools/ and runtime/.
+# The tools image (tools/Dockerfile) is built from the repository's root and needs only tools/ and runtime/; the
+# harness image (tools/Dockerfile.harness) also tools/cores, the patches its cores are built with.
 *
 !tools/pyproject.toml
 !tools/src
+!tools/cores
 !runtime
 runtime/build*
 **/__pycache__
