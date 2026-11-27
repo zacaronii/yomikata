@@ -1689,6 +1689,34 @@ def test_compare_with_what_the_script_said_in_play(session):
         session.compare(snaps=["before"], live=True)
 
 
+@needs_reader
+def test_compare_reread_runs_the_script_over_snaps_taken_in_play_again(session):
+    """After a fix to a script or its table, the snaps already taken in play are counted again by running the
+    script as it now is over each one's memory: every snap the same way, those taken with no script loaded too;
+    how many were re-read is in the answer, the bar and the record."""
+    session.snap("before")                                            # no script yet
+    broken = SCRIPT.replace("text = text.sjis(bytes)", 'text = "?"')
+    assert session.script_try(broken)["loaded"]
+    session.steps([{"wait": 3, "snap": True}, {"wait": 10, "snap": True}], prefix="p")
+    session.snap_lines("p-000", ocr=["こんにちは"])
+    session.snap_lines("p-001", ocr=["さようなら"])
+    scenes = {"one": ["p-000"], "two": ["p-001"]}
+    said = session.compare(scenes=scenes, live=True, show=True)       # what the broken script said in play
+    assert [r["read"] for r in said["rows"]] == ["?", "?"] and said["script"]["re-read offline"] == 0
+    again = session.compare(source=SCRIPT, scenes=scenes, live=True, reread=True, show=True)
+    assert [r["read"] for r in again["rows"]] == ["こんにちは", "さようなら"]
+    assert all(r["reread"] for r in again["rows"])
+    assert again["script"]["re-read offline"] == 2 and again["bar"]["re-read offline"] == 2
+    assert again["bar"]["scenes"]["one"] == {"screens": 1, "agreeing": 1}
+    assert session.compare(source=SCRIPT, snaps=["before"], live=True, reread=True)["script"]["re-read offline"] == 1
+    with pytest.raises(HarnessError, match="give reread"):
+        session.compare(source=SCRIPT, snaps=["before"], live=True)
+    with pytest.raises(HarnessError, match="whole window"):
+        session.compare(source=SCRIPT, scenes=scenes, live=True, reread=True, scrolls=True)
+    with pytest.raises(HarnessError, match="reread goes with live"):
+        session.compare(source=SCRIPT, snaps=["p-000"], reread=True)
+
+
 def test_on_disc_finds_memory_that_lies_on_the_disc_as_it_is(session, tmp_path):
     line = bytes(range(40, 104))
     put(session, 0x300, line)
@@ -2370,6 +2398,9 @@ def test_a_comparisons_outcome_is_kept_with_its_call():
     assert mcp._outcome("compare", {"content": [{"type": "text", "text": json.dumps(
         {"script": {}, "bar": {"met": True, "screens with text": 40, "scenes": {"a": {}, "b": {}, "c": {}}}})}]}) == \
         {"bar": True, "screens": 40, "scenes": 3}
+    assert mcp._outcome("compare", {"content": [{"type": "text", "text": json.dumps(
+        {"script": {}, "bar": {"met": False, "screens with text": 10, "scenes": {"a": {}}, "re-read offline": 10}})}]}) == \
+        {"bar": False, "screens": 10, "scenes": 1, "reread": 10}
     assert mcp._outcome("compare", {"content": [{"type": "text", "text": json.dumps({"script": {}})}]}) is None
     assert mcp._outcome("run", {"content": [{"type": "text", "text": "{}"}]}) is None
     assert mcp._outcome("compare", {"isError": True, "content": [{"type": "text", "text": "no"}]}) is None

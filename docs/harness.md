@@ -441,6 +441,12 @@ screen all its rows with `snap_lines`, as for any other game, and each is held t
 screen before it in its scene left standing. Mother 3 (two rows, scrolling) was checked both ways, by rows
 worked out by hand and by `scrolls` on whole windows, and they agree.
 
+What a live `compare` counts is what the script said when the snap was taken: after a fix to the script or its
+table, the old snaps still hold the old script's sayings. `reread` with `live` runs the script as it now is over
+each snap's memory instead, every snap the same way (those taken with no script loaded too), and the answer, the
+bar and the record (`reread` in the call's outcome) count how many were re-read. It suits a script that reads a
+whole page from where it stands; one that says a line only as it appears reads nothing from a still snap.
+
 ### Snaps on disk
 
 A snap is written to `snaps/` in scratch as an inbox-style snapshot: `<name>.ram.gz`, a `<name>.<region>.gz`

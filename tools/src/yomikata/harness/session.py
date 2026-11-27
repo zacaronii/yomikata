@@ -3230,12 +3230,22 @@ class Session:
           scrolls=("boolean", "with scenes and live, for a window that scrolls and keeps old rows: give each "
                               "screen all its rows as usual (snap_lines), and a screen is held to the rows it "
                               "gained, those after what the screen before it in its scene left. What a script "
-                              "that says each line once is meant to say", False))
+                              "that says each line once is meant to say", False),
+          reread=("boolean", "with live, for snaps already taken from play: run this script over each snap's "
+                             "memory again (as without live) instead of counting what was said on the way to it, "
+                             "so that a fix to a script or its table is counted without playing the stretch "
+                             "again. Every snap is re-read the same way, those taken with no script loaded too; "
+                             "the answer and the record say how many were re-read", False))
     def compare(self, source: str = "", name: str = "script.lua", data: dict | None = None, snaps: list | None = None,
                 frames: int = 40, entry: dict | None = None, tables: dict | None = None, version: str = "",
                 show: bool = False, live: bool = False,
-                scenes: dict | None = None, scrolls: bool = False) -> dict:
+                scenes: dict | None = None, scrolls: bool = False, reread: bool = False) -> dict:
         first_of_scene, left = set(), []
+        if reread and not live:
+            raise HarnessError("reread goes with live: without live every snap is run over as it stands already")
+        played = live and not reread        # what was said in play counts, not a reading of the still snap
+        if reread and scrolls:
+            raise HarnessError("scrolls counts the rows said in play: a snap re-read gives its whole window")
         if scrolls and not (scenes and live):
             raise HarnessError("scrolls goes with scenes and live: the rows a screen gained are counted from play")
         if scenes:
@@ -3261,13 +3271,14 @@ class Session:
             read = with_regions(rd.memory(int(meta["base_address"], 16), _load(path), MIRRORS.get(platform, ())),
                                 platform, _regions(path))
             reading = Reading(n)
-            if live:
+            if played:
                 if "said" not in meta:
-                    raise HarnessError(f"{n} was taken with no script loaded: nothing was said on the way to it")
+                    raise HarnessError(f"{n} was taken with no script loaded: nothing was said on the way to it "
+                                       "(give reread to run the script over every snap again)")
                 reading.events = [("text", {"channel": e.get("channel") or "dialogue", "speaker": e.get("speaker") or "",
                                             "text": e.get("text") or ""}) for e in meta["said"]]
             try:
-                with (_NoReader() if live else rd.Reader(read, platform=platform, game_id=Path(name).stem,
+                with (_NoReader() if played else rd.Reader(read, platform=platform, game_id=Path(name).stem,
                                                          regions=_regions(path), data=blobs)) as reader:
                     try:
                         reader.load(source, name)
@@ -3275,7 +3286,7 @@ class Session:
                             reader.frame(tick + 1)
                     except rd.ScriptError as e:
                         reading.error = str(e)
-                    if not live:
+                    if not played:
                         reading.events = reader.take()
             except rd.ReaderUnavailable as e:
                 raise HarnessError(str(e)) from None
@@ -3293,7 +3304,7 @@ class Session:
                              if [tidy(r) for r in before[-k:]] == [tidy(r) for r in whole[:k]]), 0)
                 seen, left = whole[keep:], whole
             rows.append({"snap": n, "read": said, "seen": seen, "error": reading.error,
-                         "written": bool(meta.get("memory_writes")),
+                         "written": bool(meta.get("memory_writes")), "reread": reread,
                          "agreement": None if seen is None else round(agreement(said, seen), 2)})
         lined, empty = [r for r in rows if r["seen"]], [r for r in rows if r["seen"] == []]
         out = {"script": {"snapshots": len(rows),
@@ -3305,6 +3316,8 @@ class Session:
                           "marked as showing no text": len(empty),
                           "of those, reading nothing": sum(1 for r in empty if not r["read"]),
                           "taken after a memory write": sum(1 for r in rows if r["written"])}}
+        if live:
+            out["script"]["re-read offline"] = sum(1 for r in rows if r["reread"])
         if scenes:
             # The bar for calling a script checked (docs/first-script.md): thirty screens from play, over three
             # scenes or more, none after a memory write; nine in ten of those with text read as shown, and
@@ -3327,6 +3340,7 @@ class Session:
             by = {r["snap"]: r for r in rows}
             out["bar"] = {"met": not short, "short_of_it": short,
                           "screens with text": len(lined), "screens showing none": len(empty),
+                          "re-read offline": sum(1 for r in rows if r["reread"]),
                           "scenes": {scene: {"screens": sum(1 for n in group if by[n]["seen"] is not None),
                                              "agreeing": sum(1 for n in group if by[n]["seen"] and by[n]["agreement"] >= 0.8)
                                              + sum(1 for n in group if by[n]["seen"] == [] and not by[n]["read"])}

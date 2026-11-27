@@ -24,6 +24,12 @@ to start from. Everything in the skeleton that is an address is a place to fill 
 `steps` plays: buttons held, then a wait, with `shot: true` to see where you are on one sheet. Titles want a
 long press of start more often than a short one, and intros run for thousands of frames: wait rather than press.
 
+A name entry (a grid of kana with a bar of choices above it, such as the character set and an end choice) often
+takes neither B nor start as "done": B goes back a character and start does nothing, while a press of the
+confirm button types one more. Leave the grid by pressing up from its top row, which puts the cursor on the bar,
+then move right to the end choice and press the confirm button. Take a picture after each press until you know
+the screen: a few blind presses there cost a call each and change the name.
+
 At the first line of story, `waypoint_save`. A waypoint keeps every move since power-on, so it survives a new
 build of the core; `state_save` freely on top of it for the short way back.
 
@@ -88,6 +94,13 @@ each scene: another room, a battle, a film, after a save is loaded. Then
 to `compare` (with the script) counts the agreement and says whether the bar is met: thirty screens with text
 from play (those that show none are counted beside them, not among the thirty), three scenes or more, nine in
 ten of those with text read as shown, nothing read where there is none, and no snap taken after a memory write. Where the game has an entry with a layout, give `compare` the entry as well.
+
+After a fix to the script or its table, the snaps already taken in play need not be played again: `"reread":
+true` beside `"live": true` runs the script as it now is over each snap's memory, as without `live`, instead of
+counting what was said on the way to it. Every snap is re-read the same way, those taken with no script loaded
+too (without `reread` those are refused); the answer and the record say how many were re-read, and the pull
+request should say so. A re-read reads a still snap, so a script that says a line only as it appears reads nothing
+there, and `scrolls` doesn't go with it.
 
 Also: `repeat` a few steps to see that the core repeats itself here; load a state and see that the script says
 the line that is up, once; and `script_try` it on the earliest snap's moment (`waypoint_go` with `replay`, or a
