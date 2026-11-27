@@ -35,7 +35,7 @@ from .identify import identify
 
 log = logging.getLogger(__name__)
 ID_RE = re.compile(r"^[A-Z0-9][A-Z0-9-]{3,19}$")
-PLATFORMS = {"ps1", "ps2", "psp", "nds", "3ds", "gc", "wii", "saturn", "dc", "pce-cd", "sfc", "fc", "fds", "gba", "gb",
+PLATFORMS = {"ps1", "ps2", "psp", "nds", "3ds", "gc", "wii", "saturn", "dc", "pce-cd", "pce", "sfc", "fc", "fds", "gba", "gb",
              "gbc", "n64", "md"}
 # What a reader may call a platform, where it isn't the catalog's name (Genkan and RomM say ngc for the GameCube,
 # RomM genesis for the Mega Drive).
@@ -77,6 +77,8 @@ RAM = {
     "dc": [(0x8C000000, 0x8D000000), (0x0C000000, 0x0D000000), (0xAC000000, 0xAD000000)],   # 16 MB, two mirrors
     # The Super System Card's 192 KB and the CD's own 64 KB after it, read as one (the console's 8 KB: `wram`).
     "pce-cd": [(0x0D0000, 0x110000)],
+    # A HuCard has only the console's 8 KB (bank 0xF8), where beetle pce_fast's map puts it.
+    "pce": [(0x1F0000, 0x1F2000)],
     # The 8 MB of RAM (the Expansion Pak's included), and the same uncached. Kept in the console's byte order
     # (big-endian), as the harness reads it.
     "n64": [(0x80000000, 0x80800000), (0xA0000000, 0xA0800000)],
@@ -106,11 +108,11 @@ REGION_NAMES = sorted({name for parts in REGION_PARTS.values() for name in parts
 SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000, "sfc": 0x20000, "gba": 0x40000,
                 "gb": 0x2000, "gbc": 0x2000, "nds": 0x400000, "gc": 0x1800000, "wii": 0x1800000,
                 "saturn": 0x100000, "dc": 0x1000000, "pce-cd": 0x40000, "n64": 0x800000, "fc": 0x800, "fds": 0x800,
-                "md": 0x10000}
+                "md": 0x10000, "pce": 0x2000}
 # Video memory is smaller than the general limit on most consoles; a part larger than the console has is refused.
 # (A core may hand out a Game Boy game the Color's 16 KB: the cap is the larger.)
 VRAM_MAX = {"ps1": 0x100000, "sfc": 0x10000, "gba": 0x18000, "gb": 0x4000, "gbc": 0x4000, "nds": 0xA4000,
-            "pce-cd": 0x10000, "fc": 0x1000, "fds": 0x1000}
+            "pce-cd": 0x10000, "pce": 0x10000, "fc": 0x1000, "fds": 0x1000}
 # A savestate holds the whole machine. Dolphin's is 92-93 MB (17 MB gzipped): the GameCube's cap is its own.
 STATE_MAX = {"gc": 128 * 1024 * 1024, "wii": 128 * 1024 * 1024}
 VRAM_FORMAT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
