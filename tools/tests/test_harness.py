@@ -2489,12 +2489,48 @@ def test_explore_finds_where_one_can_walk_by_trying_and_walks_the_way_it_found(s
     out = session.explore(step=1, within=[96, 76, 116, 92], to=[112, 80], near=0)
     assert out["reached"] is True and (out["x"], out["y"]) == (112, 80) and out["pushes"] == 14 and "map" not in out
     assert struct.unpack_from(">hh", machine.memory, 0x30) == (112, 80) and machine.frames > frames
+    # Not reached, it walks as far as it got, to the place nearest the one asked for, and says where it stopped.
     out = session.explore(step=1, within=[96, 76, 116, 92], to=[200, 80])
-    assert out["reached"] is False and "isn't among" in out["why"]
+    assert out["reached"] is False and out["stopped_at"] == [116, 80] and "didn't reach [200, 80]" in out["why"]
+    assert struct.unpack_from(">hh", machine.memory, 0x30) == (116, 80)
+    assert session.explore(step=1, within=[96, 76, 116, 92], to=[200, 80])["why"].startswith("no place it got to")
     out = session.explore(step=1, most=5)
     assert out["places"] == 5 and "more" in out
     with pytest.raises(HarnessError, match="within"):
         session.explore(within=[1, 2, 3])
+
+
+def test_explore_hints_at_a_place_kept_in_pixels_and_walks_it_in_cells(session):
+    """A push that moves the place several of its numbers looks like pixels: explore says to give grid and
+    whole. With them a push is one place, and to and jump are in cells."""
+    session.cursor_find()
+    struct.pack_into(">hh", session.machine.memory, 0x30, 100, 80)
+    out = session.explore(step=4, within=[84, 64, 116, 96])            # 8 of the numbers a push
+    assert "grid 8 and whole" in out["hint"]
+    struct.pack_into(">hh", session.machine.memory, 0x30, 96, 80)      # on the grid of pushes: cell (12, 10)
+    cells = session.explore(step=4, grid=8, whole=True, within=[10, 8, 14, 12])
+    assert "hint" not in cells and (cells["x"], cells["y"]) == (12, 10) and cells["places"] == 25
+    out = session.explore(step=4, grid=8, whole=True, within=[10, 8, 14, 12], to=[14, 12], near=0)
+    assert out["reached"] is True and struct.unpack_from(">hh", session.machine.memory, 0x30) == (112, 96)
+
+
+@needs_reader
+def test_steps_snaps_the_moment_the_script_says_text(session):
+    """said: a snap `after` frames from each saying, mid-wait, where a snap at the step's end would come after
+    the line had given way to the next (the line here changes every 10 frames)."""
+    assert session.script_try(SCRIPT)["loaded"]
+    out = session.steps([{"wait": 35}], prefix="w", said={"after": 2, "shot": True})
+    texts = [e for e in out[1]["events"] if e["kind"] == "text"]
+    taken = out[1]["said"]
+    assert len(taken) == len(texts) >= 3
+    assert [t["frame"] for t in taken] == [e["frame"] + 2 for e in texts]
+    assert [t["snap"] for t in taken][:2] == ["w-said-00", "w-said-01"]
+    lines = [json.loads((session.roots.scratch / f"snaps/{t['snap']}.json").read_text())["said"][-1]["text"]
+             for t in taken]
+    assert lines == [e["text"] for e in texts]                              # each snap holds the line just said
+    assert session.each_frame is None                                        # the hook is put back
+    with pytest.raises(HarnessError, match="said is an object"):
+        session.steps([{"wait": 1}], said={"when": 1})
 
 
 def test_explore_says_when_a_window_takes_the_pad_and_closes_it_with_close(session):
