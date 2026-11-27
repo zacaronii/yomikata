@@ -47,7 +47,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `on_disc` | Whether a stretch of memory lies on the game's disc as it is, and where: if a place's text or font does, every place can be read from the disc without playing to it |
 | `core_options` | The loaded core's options as it declares them, and what was given at load |
 | `snap` | Keeps a moment under a name, and writes it to scratch as an inbox-style snapshot for `yomikata run` and `check` |
-| `snap_lines` | Says what a snap's screen showed, once read off its picture: its lines, or that it has no text. With `screens`, a whole route's in one call |
+| `snap_lines` | Says what a snap's screen showed, once read off its picture: its lines, or that it has no text; with `ruby`, its furigana as [base, reading] pairs, for `compare` to score. With `screens`, a whole route's in one call |
 | `sheet` | The pictures of several snaps as one image, each under its name; with `crop`, only the part the text is in, and with `number` each numbered: a route's screens read by the dozen |
 | `repeat` | Does the same frames or steps again and says whether the game ended up the same: whether the core repeats itself |
 | `differs` | How this moment's memory differs from a snap's, also one another harness wrote |

@@ -99,6 +99,12 @@ to `compare` (with the script) counts the agreement and says whether the bar is 
 from play (those that show none are counted beside them, not among the thirty), three scenes or more, nine in
 ten of those with text read as shown, nothing read where there is none, and no snap taken after a memory write. Where the game has an entry with a layout, give `compare` the entry as well.
 
+A game with furigana has them measured too: give `snap_lines` each screen's furigana as they stand on its
+picture, `"ruby": {"<snap>": [["<base>", "<reading>"], …]}` beside `screens` (each reading with exactly the
+characters it stands over, as docs/script-api.md asks of a script). `compare` scores each screen's pairs against
+the script's (those both have, over the larger count: a reading missed and one too many both count), and the
+bar wants nine in ten of the screens with furigana read to agree, beside the text's.
+
 After a fix to the script or its table, `"reread": true` beside `"live": true` checks the fix on the snaps
 already taken before you spend calls on a fresh run: it runs the script as it now is over each snap's memory, as
 without `live`, instead of counting what was said on the way to it. Every snap is re-read the same way, those
