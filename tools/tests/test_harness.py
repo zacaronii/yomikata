@@ -2763,15 +2763,15 @@ def test_explore_tells_a_fade_from_a_fight_by_how_long_the_mode_holds_or_by_a_se
 
 @needs_reader
 def test_things_find_finds_the_people_a_map_keeps_and_interact_tries_each(session):
-    """A made-up map: the party's place at 0x30, and its people in a list of their own at 0x400, 8 bytes each,
-    each with its place at the same offsets (x, then y). things_find finds that list from the party's place;
+    """A made-up map: the party's place at 0x30, and its people after it in the same list, 0x60 bytes a record, each
+    with its place at the same offsets (x, then y). things_find finds that list from the party's place;
     interact walks next to each, presses a, and says who spoke (two of the three do, the script reading what
     they say), and leaves the game where it was."""
     session.cursor_find()
     machine, plain = session.machine, session.machine._step
     people = [(110, 80, "おはよう"), (100, 100, ""), (130, 90, "こんばんは")]
     for k, (x, y, _) in enumerate(people):
-        struct.pack_into(">hh", machine.memory, 0x400 + 8 * k, x, y)
+        struct.pack_into(">hh", machine.memory, 0x90 + 0x60 * k, x, y)
 
     def map_(buttons, stick):
         m = machine.memory
@@ -2791,8 +2791,8 @@ def test_things_find_finds_the_people_a_map_keeps_and_interact_tries_each(sessio
     machine.memory[0x100:0x120] = bytes(0x20)
     assert session.script_try(SCRIPT, "GXXJ01.lua")["loaded"]
     found = session.things_find(near=64)
-    assert found["stride"] == 8 and [(t["x"], t["y"]) for t in found["things"]] == [(110, 80), (100, 100), (130, 90)]
-    assert found["things"][0]["address"] == f"0x{BASE + 0x400:X}"
+    assert found["stride"] == 0x60 and [(t["x"], t["y"]) for t in found["things"]] == [(110, 80), (100, 100), (130, 90)]
+    assert found["holds_party"] and found["things"][0]["address"] == f"0x{BASE + 0x90:X}"
     frames, place = machine.frames, struct.unpack_from(">hh", machine.memory, 0x30)
     out = session.interact(step=1, wait=10, near=64)
     spoke = {tuple(t["thing"]): t["said"] for t in out["tried"]}
