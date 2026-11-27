@@ -27,6 +27,9 @@ chown -R 99:100 "$CATALOG" 2>/dev/null
 
 SUMMARY="$SCRATCH/regress/summary.txt"
 rm -f "$SUMMARY"
+# The tools image as published (the package is public): else a stale local copy is run night after night. A
+# failed pull leaves the local image to run.
+docker pull -q "$IMAGE" >/dev/null || true
 docker run --rm --network none --user 99:100 \
     -v "$CATALOG:/catalog:ro" -v "$GAMES:/games:ro" -v "$SCRATCH:/scratch" \
     "$IMAGE" regress --catalog /catalog --games /games --scratch /scratch --summary /scratch/regress/summary.txt

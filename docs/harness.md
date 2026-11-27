@@ -905,6 +905,24 @@ name and village keyboards choose a row of kana with the stick, and the N64's A 
 points at; Start ends the name. Holding the stick up and pressing `b` gave a kana each time, which was enough to
 get past both.
 
+### DS
+
+The core for a DS is melonDS DS (`melondsds_libretro.so`, the official nightly build). Of the three DS cores it is
+the one kept up, and the one that describes a memory map: the main memory (4 MB at 0x02000000, as scripts read
+a DS's, layout.py), the ARM9's ITCM at 0 and its DTCM, which the core puts at 0x0E000000 (the DTCM moves; a
+script reads the main memory). It needs no BIOS or firmware (it has its own) and draws in software by default
+(`melonds_render_mode` `software`), so it runs in the tools image as well; the two screens come one above the
+other, 256x384 (`melonds_screen_layout1` `top-bottom`, no gap). DeSmuME and the older melonDS give the main memory
+alone and no map. None of the three gives the video memory out: a game whose text is only in its screens' tiles
+would need it from the core's savestate, as a PlayStation's is (vram.py), which is not written yet. A DS game's
+files are inside the card (NitroFS), not at an address: a font or a script's text in them is read from the
+card's files offline.
+
+**Touch.** The lower screen is touched with the button `touch` in `steps` (and anywhere buttons are taken): while
+it is held, the screen is pressed at the stick's place, -1 to 1 across the core's whole picture each way (the
+lower screen is the lower half: y from 0 to 1). It goes into the record of the way as a button and a place, as a
+push does.
+
 ### Does a core repeat itself?
 
 Everything found by replaying rests on the same steps reaching the same moment. `repeat` checks it: it does

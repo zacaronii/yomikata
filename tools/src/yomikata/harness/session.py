@@ -26,7 +26,8 @@ from .machine import BIG_ENDIAN
 from . import search
 
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
-BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "select", "up", "down", "left", "right")
+BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "select", "up", "down", "left", "right",
+           "touch")
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
 MAX_INFO = 50          # a script's info-level logs kept in a call's events, so that they can't crowd out its text
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
