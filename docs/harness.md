@@ -668,6 +668,19 @@ yomikata nitro game.zip --only "*.imb" --extract /scratch/work/ds --unpack
 yomikata nitro game.zip --only mes_all.bin --streams --extract /scratch/work/ds --unpack   # each section too
 ```
 
+A GameCube or Wii game keeps its messages and fonts as files on the disc too, and a disc in the library is most
+often an RVZ image (Dolphin's compressed form; WIA is its older kin). `yomikata rvz` lists a disc's files and
+takes them out, as `nitro` does a card's, from RVZ, WIA or a plain .iso/.gcm. A Wii disc's files are in its
+partitions, named `P0/…`, `P1/…` (the game's is most often the last); an image keeps them decrypted, so no key is
+needed. It was written from Dolphin's public description of the two formats (docs/WiaAndRvz.md in Dolphin's
+repository), with no code of Dolphin's; RVZ's pseudorandom padding, which is never a file's, is read back as
+zeros. RVZ is compressed with Zstandard: the tools need the `zstandard` package for it (in the server extra).
+Wind Waker: 2,159 files, `res/Msg/bmgres.arc` its messages; Twilight Princess: 3,678 in its second partition.
+
+```
+yomikata rvz game.rvz --only "res/Msg/*" --extract /scratch/work/gc
+```
+
 A font file taken out so is drawn with `rom-font` on it as on a cartridge. Gyakuten Saiban 4: `fonts.imb`, 1,840
 glyphs of 16x16 in four 4-bit tiles, in code order from 0x90 (`rom-font fonts.imb --at 0 --first 90 --form
 tiles4`); `mes_all.bin`, the whole script in 113 sections, each found by `--streams`.
