@@ -30,6 +30,7 @@ BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "selec
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
 MAX_INFO = 50          # a script's info-level logs kept in a call's events, so that they can't crowd out its text
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
+RECORDS = 64              # things_find: records of a list looked at each way from the party's own
 # Consoles whose games keep a place as whole numbers only (no numbers with a point): explore's grid needs whole.
 WHOLE_ONLY = ("fc", "fds", "gb", "gbc", "sfc", "pce", "pce-cd")
 # Options a core is loaded with unless the call gives its own. mupen64plus_next draws with GLideN64 unless told
@@ -2784,6 +2785,176 @@ class Session:
         return {**{k: v for k, v in out.items() if k != "map"}, "x": cx, "y": cy, "pushes": len(pushes),
                 "reached": (cx, cy) == goal, "frames": machine.frames,
                 **({"events": events} if self.reader is not None and events else {})}
+
+    @tool("Finds the people and things a map holds, by where the game keeps them: most games keep every one that "
+          "walks or can be spoken to as a record like the party's own, the same distance apart, each with its "
+          "place in the same numbers at the same offsets. Given the party's place (as explore takes it), it "
+          "looks through memory for places near the party's at a steady distance apart, and gives the "
+          "likeliest list: each thing's place, nearest first, and where it is kept. For interact, or to walk to "
+          "by hand. A list that holds the party itself gives it too, marked.",
+          x_address=("string", "where the game keeps the party's place across, hex (default: as cursor_find found)", False),
+          y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
+          near=("number", "how far from the party a thing may be, in the place's numbers (default 4096; in cells "
+                          "with grid)", False),
+          grid=("number", "count in cells of this many units, as explore's grid with whole", False),
+          most=("integer", "things at most (default 32)", False),
+          stride=("integer", "the list's records' spacing in bytes, when known (another of other_strides)", False))
+    def things_find(self, x_address: str = "", y_address: str = "", size: int = 2, near: float = 4096,
+                    grid: float = 0.0, most: int = 32, stride: int = 0) -> dict:
+        import numpy as np
+        machine = self._need()
+        at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
+        base, ram = machine.ram()
+        if size not in (1, 2, 4):
+            raise HarnessError("size is 1, 2 or 4")
+        raw = np.frombuffer(ram, dtype=np.uint8).astype(np.int64)
+        # A number of `size` bytes at every byte of memory, in the console's order and signed: a record's fields
+        # needn't stand a whole number of numbers apart (Final Fantasy VI's x and y are words three bytes apart).
+        count = len(raw) - size + 1
+        big = machine.platform in BIG_ENDIAN
+        cells = np.zeros(count, dtype=np.int64)
+        for k in range(size):
+            cells |= raw[k:k + count] << (8 * (size - 1 - k) if big else 8 * k)
+        cells = np.where(cells >= 1 << (8 * size - 1), cells - (1 << 8 * size), cells)
+        gap, ix = at_y - at_x, at_x - base
+        if not 0 <= ix < count or not 0 <= ix + gap < count:
+            raise HarnessError("the party's place isn't in main memory at those addresses")
+        g = float(grid) or 1.0
+        px, py = cells[ix], cells[ix + gap]
+        span = count - abs(gap)
+        xs = cells[:span] if gap >= 0 else cells[-gap:-gap + span]
+        ys = cells[gap:gap + span] if gap >= 0 else cells[:span]
+        reach = float(near) * g
+        close = np.nonzero((np.abs(xs - px) <= reach) & (np.abs(ys - py) <= reach))[0] + (0 if gap >= 0 else -gap)
+        close = close[(close != ix)]
+        # A list's records stand the same distance apart, most often with the party's own among them: the stride
+        # whose multiples from the party's record (at most RECORDS each way) hold the most different places near
+        # it (filler repeats one, or stands at 0). Only where no such list holds any, one of its own: places near
+        # the party on one residue, kept together.
+        def score(members):
+            places = {(int(cells[m]), int(cells[m + gap])) for m in members}
+            return len({p for p in places if p[0] and p[1]})       # a place at 0 is most often filler
+
+        ranked = []
+        strides = [int(stride)] if stride else range(max(4, size + 1), 513)
+        for each in strides:
+            on_party = close[((close - ix) % each == 0) & (np.abs(close - ix) <= RECORDS * each)]
+            if len(on_party) and score(on_party):
+                ranked.append((score(on_party), True, each, on_party))
+        if not ranked:
+            for each in strides:
+                residues = close % each
+                for r in np.unique(residues):
+                    members = close[residues == r]
+                    run = max(np.split(members, np.nonzero(np.diff(members) > each * 4)[0] + 1), key=len)
+                    if len(run) >= 2 and score(run):
+                        ranked.append((score(run), False, each, run))
+        if not ranked:
+            return {"things": [], "why": "no places near the party's stand a steady distance apart"}
+        # The most different places; on a tie the list that holds the party's own record, then the longer stride.
+        ranked.sort(key=lambda r: (r[0], r[1], r[2]), reverse=True)
+        (_, holds_party, stride, run), others = ranked[0], ranked[1:4]
+        things = []
+        for k in sorted(set(int(m) for m in run)):
+            x, y = int(cells[k]), int(cells[k + gap])
+            if (x, y) == (int(px), int(py)):
+                continue                                # the party itself, or those walking behind it
+            things.append({"x": round(x / g) if grid else x, "y": round(y / g) if grid else y,
+                           "address": f"0x{base + k:X}",
+                           "distance": round(float(max(abs(x - px), abs(y - py))) / g, 1)})
+        things.sort(key=lambda t: t["distance"])
+        return {"party": {"x": round(int(px) / g) if grid else int(px), "y": round(int(py) / g) if grid else int(py)},
+                "stride": stride, "holds_party": bool(holds_party), "things": things[:max(1, min(int(most), 128))],
+                "other_strides": [{"stride": o[2], "places": o[0], "holds_party": o[1]} for o in others]}
+
+    @tool("Tries each thing near the party in turn, the nearest first: walks next to it by the way explore finds, "
+          "faces it, presses a button, waits, and says what came: text the loaded script said, the picture "
+          "changed, the room changed (with `room`). The game is put back where it was after each try, and left "
+          "there at the end, so the calls cost no way; `keep` leaves it after one try instead, its moves in "
+          "the record of the way. For finding who or what moves the story on without a save from where it "
+          "is: things_find's list, or places given.",
+          things=("array", "places [[x, y], …] to try, in the place's numbers (cells with grid); default: things_find's", False),
+          x_address=("string", "where the game keeps the party's place across, hex (default: as cursor_find found)", False),
+          y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
+          step=("integer", "frames a push is held, as explore's (default 8)", False),
+          grid=("number", "as explore's", False), whole=("boolean", "as explore's", False),
+          diagonals=("boolean", "as explore's", False),
+          button=("string", "what is pressed facing it (default a)", False),
+          wait=("integer", "frames waited after the press (default 90)", False),
+          most=("integer", "things tried at most (default 8)", False),
+          near=("number", "with no things given: how far from the party things_find looks (default 4096)", False),
+          room=("string", "as explore's: where the room is kept, hex", False),
+          room_size=("integer", "bytes of room (default 1)", False),
+          keep=("integer", "leave the game after this try (its index in the answer), not where it began", False),
+          shot=("boolean", "a picture of what each press brought, on a sheet", False))
+    def interact(self, things: list | None = None, x_address: str = "", y_address: str = "", size: int = 2,
+                 step: int = 8, grid: float = 0.0, whole: bool = False, diagonals: bool = False, button: str = "a",
+                 wait: int = 90, most: int = 8, near: float = 4096, room: str = "", room_size: int = 1,
+                 keep: int | None = None, shot: bool = False):
+        import numpy as np
+        machine = self._need()
+        at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
+        x_address, y_address = f"0x{at_x:X}", f"0x{at_y:X}"
+        if things is None:
+            found = self.things_find(x_address, y_address, size, near=near, grid=grid)
+            things = [[t["x"], t["y"]] for t in found["things"] if t["distance"] > 0]
+        keys = sorted(self._buttons([button]))
+        start, route, frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
+        room_at = int(room, 16) if room else None
+
+        def back():
+            machine.load_state(start)
+            machine.frames, self.route = frames, json.loads(json.dumps(route))
+            if self.reader is not None:
+                self.reader.state_loaded()
+                self.reader.take()
+
+        tried, shots = [], []
+
+        def answer(out):
+            return ("both", out, self._png(self._sheet(shots, 4, 1.0))) if shots else out
+        for index, (tx, ty) in enumerate(list(things)[:max(1, min(int(most), 32))]):
+            if self._late():
+                break
+            walked = self.explore(x_address, y_address, size, step, 400, to=[tx, ty], near=1, grid=grid,
+                                  whole=whole, diagonals=diagonals, room=room, room_size=room_size)
+            row = {"thing": [tx, ty], "reached": bool(walked.get("reached")), "at": [walked.get("x"), walked.get("y")]}
+            if row["reached"]:
+                dx, dy = tx - walked["x"], ty - walked["y"]
+                face = ("right" if dx > 0 else "left") if abs(dx) >= abs(dy) else ("down" if dy > 0 else "up")
+                events: list = []
+                self._advance(max(2, step // 2), {face}, (0.0, 0.0), events)
+                self._advance(4, set(), (0.0, 0.0), events)
+                faced, faced_route, faced_frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
+                # What the press brings is told against the same wait without it, from the same moment: a step
+                # that scrolls the screen, or water that moves, change the picture either way.
+                room_before = self._cell(room_at, room_size) if room_at is not None else None
+                self._advance(max(1, int(wait)) + 6, set(), (0.0, 0.0), [])
+                unpressed = machine.picture()
+                machine.load_state(faced)
+                machine.frames, self.route = faced_frames, json.loads(json.dumps(faced_route))
+                if self.reader is not None:
+                    self.reader.state_loaded()
+                    self.reader.take()
+                self._advance(6, set(keys), (0.0, 0.0), events)
+                self._advance(max(1, int(wait)), set(), (0.0, 0.0), events)
+                pressed = machine.picture()
+                changed = 0.0
+                if unpressed is not None and pressed is not None and unpressed.shape == pressed.shape:
+                    changed = float(np.mean(np.any(unpressed != pressed, axis=-1)))
+                said = [e["text"] for e in events if e.get("kind") == "text" and e.get("channel") != "interface"]
+                row.update({"faced": face, "said": len(said), "picture_changed": round(changed, 3),
+                            **({"room_changed": self._cell(room_at, room_size) != room_before} if room_at is not None else {})})
+                if said:
+                    row["first_said"] = said[0][:40]
+                if shot and pressed is not None:
+                    from PIL import Image
+                    shots.append((f"{index}", Image.fromarray(pressed)))
+            tried.append(row)
+            if keep is not None and int(keep) == index:
+                return answer({"tried": tried, "kept": index, "frames": machine.frames})
+            back()
+        return answer({"tried": tried, "frames": machine.frames})
 
     @tool("The picture on screen with a grid over it in the game's own numbers for where the character stands, "
           "the numbers along the top and the left, and the character's own tile marked: so that a door, a "
