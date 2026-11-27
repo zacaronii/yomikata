@@ -2969,6 +2969,33 @@ class Session:
             back()
         return answer({"tried": tried, "frames": machine.frames})
 
+    def _script_events(self) -> list[list[int]]:
+        """The places the loaded script's `events` function says an event still waits at, in the room the game is
+        in now (docs/script-api.md): [[x, y], ...] in the numbers of the party's place. [] without the function."""
+        if self.reader is None:
+            return []
+        if self.reader.eval("return type(events)") != "function":
+            return []
+        out = self.reader.eval("local o = {} for _, p in ipairs(events() or {}) do "
+                               "o[#o + 1] = string.format('%d,%d', p[1], p[2]) end return table.concat(o, ';')")
+        places = []
+        for part in filter(None, out.strip().split(";")):
+            x, _, y = part.partition(",")
+            places.append([int(x), int(y)])
+        return places
+
+    @tool("Where an event still waits in the room the game is in, as the loaded script says it (its `events` "
+          "function, docs/script-api.md: for a game that keeps each room's event places and a flag for each that "
+          "is done). Places in the numbers of the party's place, ready for explore's `to` or expedition's `events`.")
+    def events(self) -> dict:
+        self._need()
+        if self.reader is None:
+            raise HarnessError("no script is loaded: call script_try first")
+        if self.reader.eval("return type(events)") != "function":
+            raise HarnessError("the loaded script has no events function")
+        places = self._script_events()
+        return {"places": places[:MAX_ROWS], "count": len(places), "frame": self.machine.frames}
+
     @tool("Walks a game's rooms one after another until something is said: maps the room it is in (explore), "
           "walks to each door found there and pushes through it, maps the room beyond, and so on, the rooms "
           "kept as a graph by the game's room value (`room`), fights pressed through (`fight`, with `holds`). "
@@ -2992,11 +3019,15 @@ class Session:
           avoid=("array", "room values not to map (the way back, rooms already known): a door into one is noted only", False),
           heading=("string", "up, down, left or right: cross each room towards that side instead of mapping all of it "
                              "(explore with a far `to`, the places nearest it first), for rooms where fights come "
-                             "every few steps; the doors met on the way are tried", False))
+                             "every few steps; the doors met on the way are tried", False),
+          events=("boolean", "in each room, first walk to the places the loaded script's `events` function says "
+                             "an event still waits at (docs/script-api.md), and stop at the first that says "
+                             "something; then map the room and try its doors as before", False))
     def expedition(self, room: str, room_size: int = 1, x_address: str = "", y_address: str = "", size: int = 2,
                    step: int = 8, grid: float = 0.0, whole: bool = False, diagonals: bool = False,
                    fight: dict | None = None, through: int = 60, rooms: int = 8, most: int = 400,
-                   legs: list | None = None, avoid: list | None = None, heading: str = "") -> dict:
+                   legs: list | None = None, avoid: list | None = None, heading: str = "",
+                   events: bool = False) -> dict:
         machine = self._need()
         if heading and heading not in ("up", "down", "left", "right"):
             raise HarnessError("heading is up, down, left or right")
@@ -3036,6 +3067,10 @@ class Session:
                 events.append(e)
             return push_through(leg["push"], events)
 
+        if events and self.reader is None:
+            raise HarnessError("events: no script is loaded to say where events wait: call script_try first")
+        wants_events = bool(events)
+
         if legs is not None:
             events, done = [], 0
             for leg in legs:
@@ -3069,6 +3104,32 @@ class Session:
             if self.reader is not None:
                 self.reader.state_loaded()
                 self.reader.take()
+            if wants_events:
+                tried_events = []
+                for place in self._script_events():
+                    if self._late():
+                        break
+                    machine.load_state(state)
+                    machine.frames, self.route = there_frames, json.loads(json.dumps(there_route))
+                    self.reader.state_loaded()
+                    self.reader.take()
+                    heard: list = []
+                    got = self.explore(to=list(place), near=0, most=most, **mapping)
+                    heard += got.get("events", [])
+                    if got.get("reached"):
+                        self._advance(max(through, 240), set(), (0.0, 0.0), heard)
+                    tried_events.append({"at": list(place), "reached": bool(got.get("reached"))})
+                    if said(heard):
+                        found = {"room": str(room_now()), "legs": there_legs, "event_at": list(place),
+                                 "said": said(heard)[:3]}
+                        break
+                if found:
+                    graph[here] = {"events": tried_events}
+                    break
+                machine.load_state(state)
+                machine.frames, self.route = there_frames, json.loads(json.dumps(there_route))
+                self.reader.state_loaded()
+                self.reader.take()
             if heading:
                 here_at = self.explore(most=1, **mapping)          # where the party stands, in the map's numbers
                 x0, y0, far = here_at["x"], here_at["y"], 10_000
@@ -3085,6 +3146,8 @@ class Session:
                 break
             node = graph.setdefault(here, {"entered": [mapped.get("x"), mapped.get("y")], "places": mapped["places"],
                                            "doors": []})
+            if wants_events:
+                node["events"] = tried_events
             for door in mapped.get("doors", []):
                 if self._late():
                     stopped = "time"
@@ -3106,7 +3169,7 @@ class Session:
                     entries[beyond] = (machine.save_state(), json.loads(json.dumps(self.route)), machine.frames,
                                        there_legs + [leg])
                     queue.append(beyond)
-        graph_out = {k: {**v, "doors": v["doors"][:MAX_ROWS]} for k, v in graph.items()}
+        graph_out = {k: {**v, "doors": v.get("doors", [])[:MAX_ROWS]} for k, v in graph.items()}
         if found:
             return {"stopped": "said", **found, "rooms": graph_out, "frames": machine.frames}
         machine.load_state(start)
