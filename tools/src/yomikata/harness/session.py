@@ -3137,6 +3137,146 @@ class Session:
                 "stride": stride, "holds_party": bool(holds_party), "things": things[:max(1, min(int(most), 128))],
                 "other_strides": [{"stride": o[2], "places": o[0], "holds_party": o[1]} for o in others]}
 
+    def _things_3d(self, at_x: int, at_z: int, near: float, stride: int = 0, loose: bool = False,
+                   least: float = 0.0) -> dict:
+        """things_find for a place kept as numbers with a point (a game in three dimensions): the records holding
+        two floats as far apart as the player's x and z, both within `near` of the player's, a steady distance
+        apart (the actors' list, most often with the player's own record among them)."""
+        import numpy as np
+        machine = self._need()
+        base, ram = machine.ram()
+        order = ">f4" if machine.platform in BIG_ENDIAN else "<f4"
+        n = len(ram) // 4 * 4
+        floats = np.frombuffer(ram[:n], dtype=order).astype(np.float64)
+        gap, ix = at_z - at_x, at_x - base
+        if gap % 4 or ix % 4 or not 0 <= ix < n or not 0 <= ix + gap < n:
+            raise HarnessError("the player's place isn't in main memory at those addresses (4-byte floats)")
+        g, i = gap // 4, ix // 4
+        px, pz = floats[i], floats[i + g]
+        if not (np.isfinite(px) and np.isfinite(pz)):
+            raise HarnessError("the player's x and z aren't numbers with a point")
+        span = len(floats) - abs(g)
+        xs = floats[:span] if g >= 0 else floats[-g:-g + span]
+        zs = floats[g:g + span] if g >= 0 else floats[:span]
+        with np.errstate(invalid="ignore"):
+            close = np.nonzero(np.isfinite(xs) & np.isfinite(zs) & (np.abs(xs - px) <= near) & (np.abs(zs - pz) <= near)
+                               & (xs != 0) & (zs != 0))[0] + (0 if g >= 0 else -g)   # a 0 is most often filler
+        close = close[close != i]
+        if least > 0:
+            close = close[np.hypot(floats[close] - px, floats[close + g] - pz) >= least]
+        if loose:
+            # Actors kept anywhere in the heap, in no list: every place with the player's spacing near it, once.
+            seen, things = set(), []
+            for k in close:
+                x, z = float(floats[k]), float(floats[k + g])
+                key = (round(x, 1), round(z, 1))
+                if key in seen or (x, z) == (float(px), float(pz)):
+                    continue
+                seen.add(key)
+                things.append({"x": round(x, 3), "z": round(z, 3), "address": f"0x{base + 4 * int(k):X}",
+                               "distance": round(float(np.hypot(x - px, z - pz)), 3)})
+            things.sort(key=lambda t: t["distance"])
+            return {"player": {"x": round(float(px), 3), "z": round(float(pz), 3)}, "stride": None, "things": things}
+
+        def score(members):
+            return len({(round(float(floats[m]), 2), round(float(floats[m + g]), 2)) for m in members})
+        ranked = []
+        # A record holds its x and z, so it is longer than the gap between them: a shorter stride would pair one
+        # record's numbers with the next one's.
+        for each in ([int(stride) // 4] if stride else range(abs(g) + 1, 513)):
+            on_player = close[((close - i) % each == 0) & (np.abs(close - i) <= RECORDS * each)]
+            if len(on_player) and score(on_player):
+                ranked.append((score(on_player), each, on_player))
+        if not ranked:
+            return {"things": [], "why": "no places near the player's stand a steady distance apart with its own"}
+        ranked.sort(key=lambda r: (r[0], r[1]), reverse=True)
+        _, each, run = ranked[0]
+        things = []
+        for k in sorted(set(int(m) for m in run)):
+            x, z = float(floats[k]), float(floats[k + g])
+            if (x, z) == (float(px), float(pz)):
+                continue                                    # the player, or a copy of its place (the camera's aim)
+            things.append({"x": round(x, 3), "z": round(z, 3), "address": f"0x{base + 4 * k:X}",
+                           "distance": round(float(np.hypot(x - px, z - pz)), 3)})
+        things.sort(key=lambda t: t["distance"])
+        return {"player": {"x": round(float(px), 3), "z": round(float(pz), 3)}, "stride": 4 * each, "things": things}
+
+    @tool("Goes to the people near the player in a game of three dimensions and talks to them, the nearest first, "
+          "until one says something: finds the actors' list by the player's place (two floats, x and z, as "
+          "place_find gives them: the records that hold places near it a steady distance apart, the player's own "
+          "among them), walks to each with walk_3d from where the call began, presses the button there and holds "
+          "the script's sayings against a wait without the press (what the scene says by itself doesn't count). "
+          "Stops at the first that answers and leaves the game there; else goes back to where it began. With no "
+          "script loaded, or `look`, it only lists the people.",
+          x_address=("string", "the player's x, hex: a float, as place_find gives it (required)", True),
+          z_address=("string", "and its z: the other float that moves on the ground (required)", True),
+          near=("number", "how far from the player to look for people, in the place's units (default 2000)", False),
+          stride=("integer", "the list's records' size in bytes, if known (default: found)", False),
+          reach=("number", "how near to walk before pressing, in the place's units (default: walk_3d's own)", False),
+          button=("string", "the button that talks (default a)", False),
+          wait=("integer", "frames after the press for a saying (default 90)", False),
+          most=("integer", "people tried at most (default 6)", False),
+          look=("boolean", "only list the people, nearest first", False),
+          loose=("boolean", "for actors kept anywhere in the heap, in no list: every place with the player's spacing "
+                            "of x and z near it, once (the answer sorts the people from the things)", False),
+          least=("number", "leave out places nearer the player than this: its own parts and what it carries", False),
+          keep=("string", "a state's name to save the game under where someone answered", False))
+    def meet(self, x_address: str, z_address: str, near: float = 2000.0, stride: int = 0, reach: float = 0.0,
+             button: str = "a", wait: int = 90, most: int = 6, look: bool = False, keep: str = "",
+             loose: bool = False, least: float = 0.0) -> dict:
+        machine = self._need()
+        try:
+            ax, az = int(str(x_address), 16), int(str(z_address), 16)
+        except ValueError:
+            raise HarnessError("x_address and z_address are hex addresses") from None
+        found = self._things_3d(ax, az, float(near), int(stride), bool(loose), float(least))
+        people = found.get("things", [])
+        if look or not people or self.reader is None:
+            return {**found, "things": people[:MAX_ROWS],
+                    **({"why": found.get("why") or "no script is loaded to hear an answer: listed only"}
+                       if not look and (not people or self.reader is None) else {})}
+        keys = self._buttons([button])
+        wait = max(10, min(int(wait), 600))
+        start, route, frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
+
+        def back(state=start):
+            machine.load_state(state)
+            machine.frames, self.route = frames, json.loads(json.dumps(route))
+            self.reader.state_loaded()
+            self.reader.take()
+
+        def said(events):
+            return [e["text"] for e in events if e.get("kind") == "text" and e.get("channel") != "interface"]
+        tried = []
+        for person in people[:max(1, min(int(most), 32))]:
+            if self._late():
+                break
+            back()
+            walked = self.walk_3d(f"0x{ax:X}", f"0x{az:X}", person["x"], person["z"], near=float(reach) or 0.0)
+            row = {"x": person["x"], "z": person["z"], "address": person["address"],
+                   "reached": bool(walked.get("reached"))}
+            if not walked.get("reached"):
+                tried.append({**row, "stopped": walked.get("stopped") or walked.get("why")})
+                continue
+            there = machine.save_state()
+            quiet: list = []
+            self._advance(6 + wait, set(), (0.0, 0.0), quiet)        # without the press: what comes by itself
+            machine.load_state(there)
+            self.reader.state_loaded()
+            self.reader.take()
+            heard: list = []
+            self._advance(6, keys, (0.0, 0.0), heard)
+            self._advance(wait, set(), (0.0, 0.0), heard)
+            answer = [t for t in said(heard) if t not in said(quiet)]
+            row["said"] = len(answer)
+            tried.append(row)
+            if answer:
+                return {"met": row, "said": answer[:3], "tried": tried, "stride": found["stride"],
+                        "frames": machine.frames, **({"kept": self._keep(keep)} if keep else {})}
+        back()
+        return {"met": None, "tried": tried, "stride": found["stride"], "frames": machine.frames,
+                **({"stopped": "time"} if self._late() else {})}
+
     @tool("Tries each thing near the party in turn, the nearest first: walks next to it by the way explore finds, "
           "faces it, presses a button, waits, and says what came: text the loaded script said, the picture "
           "changed, the room changed (with `room`). The game is put back where it was after each try, and left "

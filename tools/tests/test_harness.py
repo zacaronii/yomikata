@@ -3279,6 +3279,53 @@ def test_place_find_and_explore_by_numbers_with_a_point(session):
     assert session.explore(**{**cells, "step": 1}, within=[-10, -10, 10, 10], diagonals=True)["places"] == 11
 
 
+@needs_reader
+def test_meet_walks_to_the_nearest_people_and_finds_who_answers(session):
+    """A made-up game in three dimensions (no place at exactly 0, as in a real one): an actors' list from 0x400, records of 0x40 bytes (x at +0, height at
+    +4, z at +8 as floats), the player's the first; the camera turned so that the stick moves both x and z. Of
+    the two people, the nearer says nothing; the other answers when the player stands within 3 of them and
+    presses a. meet lists them nearest first, walks to the first, hears nothing more than without the press, then
+    to the second, which answers: the game is left there."""
+    machine, plain = session.machine, session.machine._step
+    mem = machine.memory
+    places = [(3.0, -4.0), (15.0, 1.0), (-17.0, 26.0)]
+    for k, (x, z) in enumerate(places):
+        struct.pack_into(">3f", mem, 0x400 + 0x40 * k, x, 1.0, z)
+    mem[0x100:0x120] = bytes(0x20)
+
+    def walked(buttons, stick):
+        plain(buttons, stick)
+        m = machine.memory
+        x, h, z = struct.unpack_from(">3f", m, 0x400)
+        sx, sy = stick
+        x, z = x + 0.8 * sx - 0.3 * sy, z + 0.3 * sx + 0.8 * sy
+        struct.pack_into(">3f", m, 0x400, x, h, z)
+        far = ((x + 17.0) ** 2 + (z - 26.0) ** 2) ** 0.5
+        if "a" in buttons and far <= 3.0:
+            line = "おはなし".encode("cp932")
+            m[0x100:0x120] = line + bytes(0x20 - len(line))
+    machine._step = walked
+    player = {"x_address": f"0x{BASE + 0x400:X}", "z_address": f"0x{BASE + 0x408:X}"}
+    listed = session.meet(**player, near=100, look=True)
+    assert listed["stride"] == 0x40 and [(t["x"], t["z"]) for t in listed["things"]] == [(15.0, 1.0), (-17.0, 26.0)]
+    assert session.script_try(SCRIPT, "GXXJ01.lua")["loaded"]
+    out = session.meet(**player, near=100, reach=2.0, keep="met-k")
+    assert out["met"]["x"] == -17.0 and out["said"] == ["おはなし"] and out["kept"] == "met-k", out
+    assert out["tried"][0]["said"] == 0 and out["tried"][0]["reached"]
+    x, _, z = struct.unpack_from(">3f", machine.memory, 0x400)
+    assert ((x + 17) ** 2 + (z - 26) ** 2) ** 0.5 <= 3.0                          # left where it was answered
+    with pytest.raises(HarnessError, match="hex"):
+        session.meet(x_address="nowhere", z_address="0x0")
+    # Actors in no list (here, one moved out of it): loose finds every place with the player's spacing; least
+    # leaves out what stands nearer than it (a sword the player carries).
+    struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)
+    struct.pack_into(">3f", machine.memory, 0x9A4, 40.0, 1.0, 7.0)
+    struct.pack_into(">3f", machine.memory, 0x700, 3.5, 1.0, -4.5)          # the sword
+    loose = session.meet(**player, near=100, look=True, loose=True, least=2.0)
+    assert (40.0, 7.0) in [(t["x"], t["z"]) for t in loose["things"]] and loose["stride"] is None
+    assert (3.5, -4.5) not in [(t["x"], t["z"]) for t in loose["things"]]
+
+
 def test_place_find_and_explore_by_whole_numbers(session):
     """A console without floats: the place is three whole numbers, many units a frame, the camera turned.
     place_find with a kind gives them and leaves out a number that leaps; explore counts them in cells of
