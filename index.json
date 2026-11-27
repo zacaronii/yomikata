@@ -17,7 +17,7 @@
   },
   "AGB-A3UJ": {
    "path": "games/gba/AGB-A3UJ.json",
-   "sha256": "7754621aa6de6484e178fb49cb958285736672d83c0a2f7c1c82af17ff5cbf3c",
+   "sha256": "864aee131ce87912298a0bb57a0dbb93f2f11f6527d0346b5f09ee66cf974136",
    "platform": "gba",
    "encoding": "table",
    "status": "partial"
