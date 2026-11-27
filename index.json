@@ -1323,7 +1323,7 @@
   },
   "SFC-0ACC8D36": {
    "path": "scripts/sfc/SFC-0ACC8D36.lua",
-   "sha256": "2b1deb19af789315b116f28e85db8d6e81f8d1c1ff424a88a8c71aa3e8b0035e",
+   "sha256": "3d6b08e2c307a9ca281e2c11816e975823762150888f5dd39028be4f62375066",
    "platform": "sfc",
    "runtime": 1,
    "title": "ファイナルファンタジーVI (Final Fantasy VI, Super Famicom)",
@@ -1335,7 +1335,7 @@
    "data": {
     "tbl": {
      "path": "games/sfc/SFC-0ACC8D36.tbl",
-     "sha256": "31bbab511736e05ae6cea5d3f5d536d55f1234101dbb1780b0a321fc84f6c958"
+     "sha256": "4610675758b78e44eeb5a392e4bc8970a6648843b31725a95b4d487c47aab18c"
     }
    }
   },

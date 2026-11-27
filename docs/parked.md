@@ -6,9 +6,9 @@ the harness's scratch (`states/`), where it may or may not still be.
 
 ## Final Fantasy VI (Super Famicom, SFC-0ACC8D36)
 
-Parked at 111 of its 300 calls, resumed and parked again at 153, and again at 180 (a last stretch of 40, stopped
-at 193; 13 left unspent): the way through the first town is found now (below), but the talk on it came too late in
-the stretch for a bar.
+Parked at 111 of its 300 calls, resumed and parked again at 153 and at 180, and again at 220 (a stretch of 60,
+for the event finder's first real test, stopped at 240; 20 left unspent): the reader now says the opening's
+pages, but the next talk is past the mines' fights, further than the calls went.
 
 - **Core**: bsnes_mercury_balanced. HiROM: a script reads the cartridge at `0xC00000` + its file offset.
 - **The text** is never in work RAM. A 24-bit pointer at `0x7E00C9` (low), `0x7E00CA`, `0x7E00CB` (bank) walks the
@@ -64,6 +64,27 @@ the stretch for a bar.
   soldiers' page offline on a snap before the next run.
 - **States** (this stretch): `ff-u1` at (30, 37) with the guard's window open, `ff-u2` after the guards' fight,
   `ff-u3` past the soldiers' page at the north end.
+- **The people** (calls 181-220): `things_find` from the party's place in pixels (words at `0x7E086A` across and
+  `0x7E086D` down, three bytes apart: an object record) finds the object list by itself, 41 bytes a record, the
+  party's first. At `ff-u3` the four things near the party pressed `a` to no effect against not pressing (the
+  party's own escort): the story moves by walking here. The door on, north at (31, 21), leads to the mines,
+  where random fights come every few steps (`explore`'s fight watch presses through them, and the map grows
+  slowly).
+- **The reader fixed** (branch `final-fantasy-6`): a message's last page ends on its 0x00, where the pointer
+  stands, and was never said; a message's first page has no 0x12 before it, and the search back ran into what
+  lies before the message (bank 0xCD opens with a table of every byte). The reader now notes where the pointer
+  jumps to when a message begins (one byte past its start, its 「) and reads no further back. Live from the
+  title it says the opening's nine pages (four of narration, said as they fade in: snaps 30 frames after the
+  saying are readable, brightened), the soldiers' talk among them. The table has 29 more codes (8 from the
+  town's soldiers' page, 21 from the opening). A narration page opens with code 07, not in the table.
+- **Where the bar stands**: the opening (4 pages), the soldiers on the cliff (5), the town (the guard's page and
+  the soldiers' page): 11 screens over 3 scenes, where 30 are needed. The rest is past the mines.
+- **Tool that would get past it**: `explore` maps one room; the mines are several, with fights on the way. A walk
+  that goes through each door it finds into the next room, maps that one, and keeps going (the rooms as a graph,
+  by the room value), stopping as soon as the loaded script says something, would reach the next talk in a few
+  calls instead of one call a room by hand.
+- **States**: `ff-p2` after the opening's run of presses, `ff-u4` past the north door (the mines' edge), `ff-u5`
+  after a fight there.
 
 ## Final Fantasy V (Super Famicom, SFC-9EA60A02)
 
@@ -156,40 +177,6 @@ dictionary are on the branch `chrono-cross-reader` (unmerged, opened as a draft 
 - **States** (harness scratch): `cc-a` the naming screen, `cc-b` after the opening talk (`cc-b3` 90 frames on,
   the pad answering), `cc-v` the walkway, `cc-z` the stairwell's foot, `cc-z6` its top, `cc-z7` the gate room
   entered from there.
-
-## Shining Force: Kamigami no Isan (Mega Drive, G-5512): checked, not started
-
-Parked at 7 of its 150 calls (and one `advancing` call made without the game loaded, which the record doesn't
-count under it): the text is drawn only into the VDP's tiles, which genesis_plus_gx doesn't give out.
-
-- **Core**: genesis_plus_gx, which gives the 64 KB of work RAM (as 16-bit words, put back by the harness) and no
-  video memory: every snap is work RAM alone, no `vram` part. The cartridge is given at `0x01000000` (#230).
-- **The text** isn't in the cartridge in any standard encoding (`runs`: no Shift-JIS, UTF-16 or UTF-8), and no
-  place in work RAM fits a narration row as codes of the game's own (`find_relative` offline, unit 1 and 2, stride
-  1 and 2, either byte order, spaces as characters or not, one row or three moments together; rows read off
-  full-size pictures).
-- **While a line types** (snaps every 2 frames over the intro's line after the 21st press of A every 120 frames
-  from power-on), no number walks the script (`advancing`, unit 2 and 4; unit 1 offline): what climbs is the
-  palette at `0xFF0000`-`0xFF007F` fading in, in steps of 2. So no pointer, count or buffer of codes follows the
-  typing: the line goes straight into tiles.
-- **States**: `sf-a` (power-on plus 40 presses: the intro's narration).
-- **Open (tools)**: whether genesis_plus_gx gives the VDP's memory out at all: a core option, or a newer build that
-  answers `RETRO_MEMORY_VIDEO_RAM` (it keeps the VRAM internally). Genkan's built-in Mega Drive core is also
-  genesis_plus_gx, so the answer matters there too. With VRAM, the game would be read off its tiles (lib/cells
-  and a dictionary, as Tales of Phantasia is). Not built: to be decided first.
-- **What exposes the VDP's memory** (upstream libretro/Genesis-Plus-GX, `libretro/libretro.c` and
-  `core/vdp_ctrl.h`, read from source): nothing today. `retro_get_memory_data` answers `RETRO_MEMORY_SAVE_RAM`
-  and `RETRO_MEMORY_SYSTEM_RAM` (`work_ram`, 64 KB on a Mega Drive); `RETRO_MEMORY_VIDEO_RAM` falls to the
-  default, NULL and 0. `SET_MEMORY_MAPS` is called only for the Mega CD (68K RAM, PRG RAM, word RAM): a Mega Drive
-  game gets no map. No core option changes what memory is given. The VDP's memory is `vram[0x10000]` (with
-  `cram[0x80]`, `vsram[0x80]`, `sat[0x400]`) in `core/vdp_ctrl.h`, not referred to from `libretro.c`.
-- **A small patch would do it** (not built): `case RETRO_MEMORY_VIDEO_RAM: return vram;` in
-  `retro_get_memory_data` and `return 0x10000;` in `retro_get_memory_size`. The harness's `Core.video_ram()` is
-  generic, so snaps would keep it as `vram` and a script would read it through `mem.region("vram")`. Two caveats:
-  the core keeps `vram` in the host's order through its word macros, so on a little-endian host the words are
-  likely swapped against the console's and want putting back, as the work RAM's are; and CRAM and VSRAM aren't
-  covered (another id or a map entry), though tiles need only VRAM. Genkan's built-in Mega Drive core is the same
-  and has the same gap; whether to patch either is the owner's call.
 
 ## Tools to build when needed
 

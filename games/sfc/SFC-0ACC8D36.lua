@@ -25,7 +25,7 @@
 
 local POINTER = 0x7E00C9          -- low, middle, bank
 local CART = 0xC00000
-local PAGE, ROW, TIMED, BUTTON, COMMAND, SPACE = 0x12, 0x01, 0x16, 0x11, 0x14, 0xFF
+local PAGE, ROW, TIMED, BUTTON, COMMAND, SPACE, ENDS = 0x12, 0x01, 0x16, 0x11, 0x14, 0xFF, 0x00
 local KANJI_FIRST, KANJI_LAST = 0x1C, 0x1F
 local BACK = 0x400                -- how far back a page's start is looked for
 local STILL = 20
@@ -59,27 +59,36 @@ local function second(bytes, k)
     return n % 2 == 1
 end
 
---- The page that ends at `at` (the pointer, just past its wait): its text.
-local function page_at(at)
-    local from = math.max(CART, at - BACK)
+--- The page that ends at `at` (the pointer, just past its wait): its text. Read back no further than `begin`,
+--- where the pointer jumped to when the message began (what lies before a message isn't text: bank 0xCD opens
+--- with a table of every byte).
+local function page_at(at, begin)
+    local from = math.max(CART, at - BACK, begin or 0)
     local bytes = mem.read(from, at - from)
     if not bytes or #bytes < 2 then
         return nil
     end
     local last = #bytes
-    -- Just past a wait: the timed one's two bytes, or the button's (and the byte after it).
+    -- Just past a wait (the timed one's two bytes, or the button's and the byte after it), or on the message's
+    -- end (0x00), where its last page stands.
     local b1, b2 = bytes:byte(last - 1), bytes:byte(last)
-    if not ((b1 == TIMED and not second(bytes, last - 1)) or (b1 == BUTTON and not second(bytes, last - 1))
+    local ends = mem.u8(at) == ENDS and not second(bytes .. "\0", last + 1)
+    if not ends and not ((b1 == TIMED and not second(bytes, last - 1)) or (b1 == BUTTON and not second(bytes, last - 1))
             or (b2 == BUTTON and not second(bytes, last))) then
         return nil
     end
-    -- Back to the page's start: the last 0x12 that is a code of its own.
+    -- Back to the page's start: after the last 0x12 that is a code of its own, or, on a message's first page,
+    -- after the 0x00 that ended the message before it.
     local start = nil
-    for k = last - 2, 1, -1 do
-        if bytes:byte(k) == PAGE and not second(bytes, k) then
+    for k = (ends and last or last - 2), 1, -1 do
+        local b = bytes:byte(k)
+        if (b == PAGE or b == ENDS) and not second(bytes, k) then
             start = k + 1
             break
         end
+    end
+    if not start and begin and from == begin then
+        start = 1                       -- the message's first page: from where the pointer jumped to
     end
     if not start then
         return nil
@@ -115,11 +124,12 @@ local function page_at(at)
     return table.concat(rows, "\n")
 end
 
-local said, last, stood = nil, nil, 0
+local said, last, stood, begin = nil, nil, 0, nil
+local JUMP = 16                   -- a pointer that moves back, or on further than this, has begun a message
 
 reader.on_state_loaded(function()
     reader.forget()
-    said, last, stood = nil, nil, 0
+    said, last, stood, begin = nil, nil, 0, nil
 end)
 
 reader.on_frame(function()
@@ -128,12 +138,15 @@ reader.on_frame(function()
         return
     end
     local at = p:byte(3) * 0x10000 + p:byte(2) * 0x100 + p:byte(1)
+    if last and at ~= last and (at < last or at > last + JUMP) then
+        begin = at - 1                  -- the pointer lands past a message's first byte (its 「, most often)
+    end
     stood = at == last and stood + 1 or 0
     last = at
     if stood ~= STILL or at < CART then
         return
     end
-    local page = page_at(at)
+    local page = page_at(at, begin)
     if page and page ~= "" and page ~= said then
         said = page
         reader.emit{ text = page, channel = "dialogue", id = text.hash(page) }
