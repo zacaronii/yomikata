@@ -63,6 +63,8 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `place_find` | Where a game of three dimensions keeps the character's place: floats that stand while the pad is let go, move with a push and come back with the push the other way, grouped three on end |
 | `walk_3d` | Walks the character of a game of three dimensions to a place on the ground with the left stick: learns from two pushes which way the stick moves the two numbers `place_find` gave (the camera may be turned), pushes toward the place, learning again from its own pushes as the camera turns, and stops when near, when a push no longer brings it nearer (a wall, a talk begun), or at the limit |
 | `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read. With `fight`, presses through the fights its steps bring and maps on; `holds` or `also` tell a fight from a fade. With `room`, a push that changes the room is a door, however far it moved |
+| `things_find` | Finds the people and things a map holds by where the game keeps them: records like the party's own, a steady distance apart, each with its place at the same offsets. Gives each one's place, nearest first, the list's stride and address |
+| `interact` | Tries each thing near the party in turn (things_find's, or places given): walks next to it by explore's way, faces it, presses a button, waits, and says what came (text the script said, the picture changed, the room changed); puts the game back after each try, or keeps one |
 | `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to`. Takes where the game draws the character, for a picture that doesn't keep it in the middle |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
@@ -223,6 +225,14 @@ In the order to try them:
    16 false fights on one walkway. `fight` takes `holds`, the frames the mode must stand before it is a fight (a
    fade drops it within a few), and `also`, a second mode that must hold with it; a mode that fails either is no
    fight, its frames are kept and nothing is pressed.
+   Without a save from further on, the way a story moves is found by trying what a map holds. `things_find`
+   reads where the game keeps its people: from the party's place (as `explore` takes it) it looks for places
+   near it in memory that stand a steady distance apart (a list of records like the party's own) and gives the
+   likeliest list, nearest first, with the stride and where it starts. `interact` then tries each: it walks next
+   to the thing with `explore`'s `to`, faces it, presses `a` (or `button`), waits `wait` frames, and says what
+   came: how much the loaded script said, how much of the picture changed, whether the room changed (`room`).
+   It puts the game back after each try, so a call costs no way; `keep` leaves the game after the try it names,
+   its moves in the record. A thing that walks is tried where it stood when the list was read.
    The words a place is read from may hold only on some maps: in Dragon Quest I & II they did in the first room
    and read 0xF8 and 0 after the stairs. After a change of map, push once by hand and read them before trusting
    a walk; `cursor_find` again where they don't move.

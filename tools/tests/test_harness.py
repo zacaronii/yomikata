@@ -2761,6 +2761,48 @@ def test_explore_tells_a_fade_from_a_fight_by_how_long_the_mode_holds_or_by_a_se
         session.explore(step=1, fight={**mode, "also": {"address": "0x10"}})
 
 
+@needs_reader
+def test_things_find_finds_the_people_a_map_keeps_and_interact_tries_each(session):
+    """A made-up map: the party's place at 0x30, and its people in a list of their own at 0x400, 8 bytes each,
+    each with its place at the same offsets (x, then y). things_find finds that list from the party's place;
+    interact walks next to each, presses a, and says who spoke (two of the three do, the script reading what
+    they say), and leaves the game where it was."""
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+    people = [(110, 80, "おはよう"), (100, 100, ""), (130, 90, "こんばんは")]
+    for k, (x, y, _) in enumerate(people):
+        struct.pack_into(">hh", machine.memory, 0x400 + 8 * k, x, y)
+
+    def map_(buttons, stick):
+        m = machine.memory
+        pressed = "a" in buttons and not m[0x3F0]
+        m[0x3F0] = 1 if "a" in buttons else 0
+        plain(buttons, stick)
+        x, y = struct.unpack_from(">hh", m, 0x30)
+        if pressed:
+            m[0x3F1] = 0
+            for k, (px, py, line) in enumerate(people):
+                if line and abs(px - x) <= 4 and abs(py - y) <= 4:
+                    m[0x3F1] = k + 1
+        line = people[m[0x3F1] - 1][2].encode("cp932") if m[0x3F1] else b""
+        m[0x100:0x120] = line + bytes(0x20 - len(line))
+    machine._step = map_
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    machine.memory[0x100:0x120] = bytes(0x20)
+    assert session.script_try(SCRIPT, "GXXJ01.lua")["loaded"]
+    found = session.things_find(near=64)
+    assert found["stride"] == 8 and [(t["x"], t["y"]) for t in found["things"]] == [(110, 80), (100, 100), (130, 90)]
+    assert found["things"][0]["address"] == f"0x{BASE + 0x400:X}"
+    frames, place = machine.frames, struct.unpack_from(">hh", machine.memory, 0x30)
+    out = session.interact(step=1, wait=10, near=64)
+    spoke = {tuple(t["thing"]): t["said"] for t in out["tried"]}
+    assert all(t["reached"] for t in out["tried"]), out
+    assert spoke == {(110, 80): 1, (100, 100): 0, (130, 90): 1}, out
+    assert machine.frames == frames and struct.unpack_from(">hh", machine.memory, 0x30) == place   # put back
+    kept = session.interact(things=[[130, 90]], step=1, wait=10, keep=0)
+    assert kept["kept"] == 0 and machine.frames > frames                 # left after the try that was kept
+
+
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
     """`yomikata calls --trend`: for each game, the calls, runs and minutes from its first call to the first
     comparison by scenes that met the bar; a comparison's outcome is kept with its call (counts only)."""
