@@ -2494,33 +2494,45 @@ class Session:
                 moved_to = None
                 tries = [(f, t) for f in dict.fromkeys((frames, max(2, frames // 2), max(2, frames // 4)))
                          for t in (0, 22.5, -22.5, 45, -45, 67.5, -67.5, 90, -90, 135, -135)]
-                for frames, turn in tries:
-                    a = math.radians(turn)
-                    tx, ty = sx * math.cos(a) - sy * math.sin(a), sx * math.sin(a) + sy * math.cos(a)
-                    before_state, before_route, before_frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
-                    h0 = float_at(at_h) if at_h is not None else None
-                    move, felt, felt_frames, why = pushed((tx, ty), frames)
-                    if not why and settle:
-                        done, why = self._advance(max(0, min(int(settle), 120)), set(), (0.0, 0.0), events)
+                for attempt in (0, 1):
+                    if attempt:
+                        # Every way refused: the height may have been read mid-hop (a game that hops the character
+                        # up a step), so every push lands "lower". Stand still a moment, then once more from there.
+                        done, why = self._advance(30, set(), (0.0, 0.0), events)
                         ran += done
-                    if why:
+                        if why:
+                            break
+                    for frames, turn in tries:
+                        a = math.radians(turn)
+                        tx, ty = sx * math.cos(a) - sy * math.sin(a), sx * math.sin(a) + sy * math.cos(a)
+                        before_state, before_route, before_frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
+                        h0 = float_at(at_h) if at_h is not None else None
+                        move, felt, felt_frames, why = pushed((tx, ty), frames)
+                        if not why and settle:
+                            done, why = self._advance(max(0, min(int(settle), 120)), set(), (0.0, 0.0), events)
+                            ran += done
+                        if why:
+                            break
+                        h1 = float_at(at_h) if at_h is not None else None
+                        fell = h0 is not None and h1 is not None and (h0 - h1 > float(fall)
+                                                                       or (floor is not None and h1 < float(floor)))
+                        if fell or (wet is not None and wet()):
+                            machine.load_state(before_state)
+                            machine.frames, self.route = before_frames, before_route
+                            if self.reader is not None:
+                                self.reader.state_loaded()
+                                self.reader.take()
+                            if len(refused) < MAX_ROWS:
+                                px0, pz0 = where()
+                                refused.append({"at": [round(px0, 1), round(pz0, 1)], "turn": turn,
+                                                "why": "fell" if fell else "water",
+                                                **({"height": [round(h0, 1), round(h1, 1)]}
+                                                   if h0 is not None and h1 is not None else {})})
+                            continue
+                        moved_to = (tx, ty)
                         break
-                    h1 = float_at(at_h) if at_h is not None else None
-                    fell = h0 is not None and h1 is not None and (h0 - h1 > float(fall)
-                                                                   or (floor is not None and h1 < float(floor)))
-                    if fell or (wet is not None and wet()):
-                        machine.load_state(before_state)
-                        machine.frames, self.route = before_frames, before_route
-                        if self.reader is not None:
-                            self.reader.state_loaded()
-                            self.reader.take()
-                        if len(refused) < MAX_ROWS:
-                            px0, pz0 = where()
-                            refused.append({"at": [round(px0, 1), round(pz0, 1)], "turn": turn,
-                                            "why": "fell" if fell else "water"})
-                        continue
-                    moved_to = (tx, ty)
-                    break
+                    if why or moved_to is not None:
+                        break
                 if why:
                     break
                 if moved_to is None:
