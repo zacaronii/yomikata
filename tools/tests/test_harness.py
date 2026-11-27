@@ -2664,6 +2664,23 @@ def test_steps_snaps_the_moment_the_script_says_text(session):
     assert session.each_frame is None                                        # the hook is put back
     with pytest.raises(HarnessError, match="said is an object"):
         session.steps([{"wait": 1}], said={"when": 1})
+    # Where `before` reaches back past what is kept (the run began later), the earliest frame is written once,
+    # not again for each frame asked for: a script counting still frames would take copies for the page standing.
+    session.state_save("bf-start")
+    out = session.steps([{"wait": 12}], prefix="wf", said={"after": 0, "before": list(range(1, 40))})
+    out = out[1] if isinstance(out, (list, tuple)) else out
+    first = out["said"][0]["frame"]
+    seq = sorted(p.name for p in (session.roots.scratch / "snaps").glob("wf-said-00-seq-*.json"))
+    frames = [session.snaps[p[:-5]].frame for p in seq]
+    assert len(frames) == len(set(frames)) and len(frames) < 39, frames
+    # A state loaded on the way empties what was kept: the sequence has no frame from before the load.
+    out = session.steps([{"wait": 15}, {"state": "bf-start", "wait": 12}], prefix="wg",
+                        said={"after": 0, "before": list(range(1, 40))})
+    out = out[1] if isinstance(out, (list, tuple)) else out
+    loaded_at = out["steps"][1]["frames"] - 12
+    last = len(out["said"]) - 1
+    seq = sorted(p.name for p in (session.roots.scratch / "snaps").glob(f"wg-said-{last:02d}-seq-*.json"))
+    assert seq and all(session.snaps[p[:-5]].frame >= loaded_at for p in seq), (loaded_at, out["said"])
     # before, in steps as in replay: each saying's sequence, memory as it was those frames before it.
     out = session.steps([{"wait": 35}], prefix="wb", said={"after": 2, "before": [4, 2]})
     out = out[1] if isinstance(out, (list, tuple)) else out
