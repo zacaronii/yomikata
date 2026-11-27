@@ -65,6 +65,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read. With `fight`, presses through the fights its steps bring and maps on; `holds` or `also` tell a fight from a fade. With `room`, a push that changes the room is a door, however far it moved |
 | `things_find` | Finds the people and things a map holds by where the game keeps them: records like the party's own, a steady distance apart, each with its place at the same offsets. Gives each one's place, nearest first, the list's stride and address |
 | `interact` | Tries each thing near the party in turn (things_find's, or places given): walks next to it by explore's way, faces it, presses a button, waits, and says what came (text the script said, the picture changed, the room changed); puts the game back after each try, or keeps one |
+| `expedition` | Walks the rooms one after another until something is said: maps the room (explore), goes through each door found there (by the room value), maps the room beyond, fights pressed through; stops at the first saying with the legs that led there, or gives the rooms as a graph. Given `legs`, walks them again without mapping |
 | `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to`. Takes where the game draws the character, for a picture that doesn't keep it in the middle |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
@@ -233,6 +234,24 @@ In the order to try them:
    came: how much the loaded script said, how much of the picture changed, whether the room changed (`room`).
    It puts the game back after each try, so a call costs no way; `keep` leaves the game after the try it names,
    its moves in the record. A thing that walks is tried where it stood when the list was read.
+   Where the story moves by walking rather than talking (Final Fantasy VI's town and mines, Chrono Cross's
+   fortress), `expedition` walks from room to room: it maps the room it is in with `explore`, walks to each door
+   found there and pushes through (`through` frames, then waits for the room value to change), maps the room
+   beyond, and keeps going, the rooms a graph by their room value. Fights are pressed through as `explore`'s
+   `fight` says (with `holds`). It stops at the first text the loaded script says, with the game left there and
+   its moves in the record, and gives the `legs` from where it began: each a door's place and its push. Given
+   back as `legs`, they are walked again without mapping, so a later call reaches the same place in a few
+   seconds. Without a saying it gives the graph and the legs to each room, and puts the game back. `avoid` names
+   rooms not to map (the way back): a door into one is noted only.
+   Final Fantasy VI's mines were its first real test, and taught three things. A fight's command cursor may sit on
+   an empty list: the fight watch takes `first`, presses made once as a fight begins (`[["up"]]` there), as
+   `advance_through` does. After a fight the field takes a moment to come back, and a push made at once moves
+   nobody, so the map took each place a fight ended on for a dead end: the watch now waits `after` frames (60) once
+   a fight ends. And where a fight comes every few steps, a whole room doesn't map within a call's two minutes:
+   `explore` with `to` far off in the way the story goes (it tries the places nearest the goal first) crossed the
+   same room in one call, fourteen fights pressed through. So `expedition` takes `heading` (up, down, left or
+   right): it crosses each room towards that side the same way, the places nearest it first, and tries the doors
+   met on the way, instead of mapping every room whole.
    The words a place is read from may hold only on some maps: in Dragon Quest I & II they did in the first room
    and read 0xF8 and 0 after the stairs. After a change of map, push once by hand and read them before trusting
    a walk; `cursor_find` again where they don't move.

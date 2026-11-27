@@ -2759,6 +2759,10 @@ def test_explore_tells_a_fade_from_a_fight_by_how_long_the_mode_holds_or_by_a_se
         assert all(f["at"][0] == 104 and (f["presses"], f["stopped"]) == (3, "mode ended") for f in out["fought"]), out
     with pytest.raises(HarnessError, match="also"):
         session.explore(step=1, fight={**mode, "also": {"address": "0x10"}})
+    # `first`: pressed once as a fight begins, before the presses that end it (a menu's cursor set first).
+    way = len(session.route["moves"])
+    out = session.explore(step=1, within=box, fight={**mode, "holds": 6, "first": [["b"]]}, to=[110, 80], near=0)
+    assert out["reached"] is True and any(m[1] == ["b"] for m in session.route["moves"][way:] if isinstance(m, list))
 
 
 @needs_reader
@@ -2801,6 +2805,57 @@ def test_things_find_finds_the_people_a_map_keeps_and_interact_tries_each(sessio
     assert machine.frames == frames and struct.unpack_from(">hh", machine.memory, 0x30) == place   # put back
     kept = session.interact(things=[[130, 90]], step=1, wait=10, keep=0)
     assert kept["kept"] == 0 and machine.frames > frames                 # left after the try that was kept
+
+
+@needs_reader
+def test_expedition_walks_room_to_room_until_something_is_said_and_its_legs_walk_again(session):
+    """Four made-up rooms (a byte at 0x7F0 says which): from the first, a door west leads to a dead end and a door
+    east to a second room, whose door south leads to a third where something is said on arriving. expedition maps
+    each room, goes through each door, and stops at the saying with the legs that led there; the legs, walked
+    again from the start, reach the same room and the same saying without mapping."""
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+    walls = {1: (90, 112, 78, 82), 2: (20, 40, 60, 100), 3: (200, 220, 50, 60), 4: (150, 160, 10, 20)}
+
+    def rooms(buttons, stick):
+        m = machine.memory
+        plain(buttons, stick)
+        x, y = struct.unpack_from(">hh", m, 0x30)
+        here = m[0x7F0]
+        x0, x1, y0, y1 = walls[here]
+        if here == 1 and x > x1 and y <= 80:
+            m[0x7F0], x, y = 2, 20, 80
+        elif here == 1 and x < x0:
+            m[0x7F0], x, y = 4, 155, 15
+        elif here == 2 and y > y1:
+            m[0x7F0], x, y = 3, 210, 55
+        else:
+            x, y = max(x0, min(x, x1)), max(y0, min(y, y1))
+        struct.pack_into(">hh", m, 0x30, x, y)
+        line = "とうちゃく".encode("cp932") if m[0x7F0] == 3 else b""
+        m[0x100:0x120] = line + bytes(0x20 - len(line))
+    machine._step = rooms
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    machine.memory[0x7F0] = 1
+    machine.memory[0x100:0x120] = bytes(0x20)
+    assert session.script_try(SCRIPT, "GXXJ01.lua")["loaded"]
+    room = f"0x{BASE + 0x7F0:X}"
+    start = machine.save_state()
+    out = session.expedition(room=room, step=1, rooms=6)
+    assert out["stopped"] == "said" and out["room"] == "3" and out["said"] == ["とうちゃく"], out
+    assert [leg["push"] for leg in out["legs"]][-1] == "down" and len(out["legs"]) == 2, out
+    assert machine.memory[0x7F0] == 3
+    doors = {d["to"] for d in out["rooms"]["1"]["doors"]}
+    assert "2" in doors, out
+    machine.load_state(start)
+    session.reader.state_loaded()
+    again = session.expedition(room=room, step=1, legs=out["legs"])
+    assert again["legs_walked"] == 2 and again["room"] == 3 and again["said"] == ["とうちゃく"], again
+    # Heading right then down (as far as each room goes that way) finds the same doors without mapping all.
+    machine.load_state(start)
+    session.reader.state_loaded()
+    headed = session.expedition(room=room, step=1, heading="right", rooms=6)
+    assert headed["stopped"] in ("said", "every door tried") and "1" in headed["rooms"], headed
 
 
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
