@@ -2483,17 +2483,29 @@ class Session:
                 **({"stopped": why} if why else {}), **({"turned": turns} if turns else {}),
                 **({"events": events} if self.reader is not None and events else {})}
 
-    def _fight_through(self, fight: dict):
-        """For explore: a function that, after a step, waits up to `begin` frames for a fight's mode and presses
-        through it as advance_through does (no stuck check: a menu that holds the fight runs to `most`). A mode
-        that comes and goes within `holds` frames (a screen's fade on a room change), or comes without `also` (a
-        second mode, the same keys), is no fight: the frames it took are kept and nothing is pressed. It gives
-        the moves made, as [frames, buttons], and the fight's outcome, or None when no fight came."""
+    def _fight_through(self, fight: dict, run=None, events: list | None = None):
+        """For explore, expedition and the fight tool: a function that, after a step, waits up to `begin` frames
+        for a fight's mode and plays through it. Without a plan it presses `buttons` over and over, as
+        advance_through does (no stuck check: a menu that holds the fight runs to `most`); with a `plan`, each
+        time the command menu is up (`menu`, a mode of its own) it plays the plan's next turn (a list of steps),
+        cycling through them or keeping to the last, and the `heal` turn instead while the HP it reads is below
+        a number. A mode that comes and goes within `holds` frames (a screen's fade on a room change), or comes
+        without `also` (a second mode, the same keys), is no fight: the frames it took are kept and nothing is
+        pressed. A game over (`game_over`: modes that mean it, the `room` other than it was once the fight is
+        over, or a saying whose id is in `said_ids`) stops it at once, nothing more pressed. `run` plays frames
+        (default: the machine, off the record); `events`, what the script said, for said_ids. It gives the moves
+        made, as [frames, buttons], and the fight's outcome, or None when no fight came."""
         machine = self.machine
         if not isinstance(fight, dict) or not fight.get("address"):
             raise HarnessError("fight is advance_through's mode: address, and equals or differs")
+        known = {"address", "size", "equals", "differs", "also", "buttons", "hold", "wait", "most", "begin", "holds",
+                 "after", "first", "plan", "cycle", "menu", "heal", "game_over", "room", "said_ids", "idle"}
+        if set(fight) - known:
+            raise HarnessError(f"fight takes: {', '.join(sorted(known))}")
 
         def condition(spec: dict, what: str):
+            if not isinstance(spec, dict):
+                raise HarnessError(f"{what}: address, size 1, 2 or 4, and equals or differs, one of them")
             size = int(spec.get("size", 1))
             equals, differs = str(spec.get("equals", "")), str(spec.get("differs", ""))
             if size not in (1, 2, 4) or (equals == "") == (differs == "") or not spec.get("address"):
@@ -2504,6 +2516,22 @@ class Session:
                 value = self._cell(at, size)
                 return value is not None and (value == want if equals != "" else value != want)
             return holds_now
+
+        def reading(spec: dict, what: str):
+            if not isinstance(spec, dict) or not spec.get("address") or int(spec.get("size", 1)) not in (1, 2, 4):
+                raise HarnessError(f"{what}: address and size 1, 2 or 4")
+            at, size = int(str(spec["address"]), 16), int(spec.get("size", 1))
+            return lambda: self._cell(at, size)
+
+        def turns_of(value, what: str) -> list:
+            if not isinstance(value, list) or not value or not all(
+                    isinstance(t, list) and t and all(isinstance(x, dict) and not set(x) - {"buttons", "hold", "wait"}
+                                                      for x in t) for t in value):
+                raise HarnessError(f"{what} is a list of turns, each a list of steps {{buttons, hold, wait}}")
+            for t in value:
+                for x in t:
+                    self._buttons(x.get("buttons"))
+            return value
         mode = condition(fight, "fight")
         also = fight.get("also")
         if also is not None and not isinstance(also, dict):
@@ -2515,11 +2543,41 @@ class Session:
         holds = max(0, min(int(fight.get("holds", 0)), 600))
         after = max(0, min(int(fight.get("after", 60)), 600))
         first = [sorted(self._buttons(list(p) if isinstance(p, (list, tuple)) else [p])) for p in (fight.get("first") or [])]
+        plan = turns_of(fight["plan"], "plan") if fight.get("plan") is not None else None
+        cycle = bool(fight.get("cycle", True))
+        menu = condition(fight["menu"], "fight's menu") if fight.get("menu") is not None else None
+        if plan is not None and menu is None:
+            raise HarnessError("a plan is played each time the command menu is up: give menu, its mode")
+        heal = fight.get("heal")
+        if heal is not None:
+            if not isinstance(heal, dict) or "below" not in heal or "hp" not in heal or "turn" not in heal:
+                raise HarnessError("heal is {hp: {address, size}, below: a number, turn: steps}")
+            hp, below, heal_turn = reading(heal["hp"], "heal's hp"), int(heal["below"]), turns_of([heal["turn"]], "heal's turn")[0]
+        overs = [condition(spec, "a game_over mode") for spec in (fight.get("game_over") or [])]
+        room = reading(fight["room"], "fight's room") if fight.get("room") is not None else None
+        said_ids = {str(i) for i in (fight.get("said_ids") or [])}
+        idle = fight.get("idle")
+        if idle is not None and (not isinstance(idle, dict) or not idle.get("buttons")):
+            raise HarnessError("idle is {buttons, every}: pressed while the command menu isn't up")
+        idle_keys = sorted(self._buttons(idle["buttons"])) if idle else []
+        idle_every = max(10, int(idle.get("every", 60))) if idle else 0
+        if said_ids and events is None:
+            raise HarnessError("said_ids needs the script's sayings: the fight tool watches them, explore doesn't")
+        play = run or (lambda n, held: machine.run(n, set(held), (0.0, 0.0)))
+
+        def over(seen: int):
+            for k, check in enumerate(overs):
+                if check():
+                    return f"game_over mode {k}"
+            if said_ids and any(str(e.get("id")) in said_ids for e in (events or [])[seen:] if e.get("kind") == "text"):
+                return "said_ids"
+            return None
 
         def through():
             moves, waited = [], 0
+            seen = len(events) if events is not None else 0
             while waited < begin and not mode():
-                machine.run(1, set(), (0.0, 0.0))
+                play(1, [])
                 waited += 1
             if waited:
                 moves.append([waited, []])
@@ -2529,29 +2587,158 @@ class Session:
             # the frames kept in the moves whatever they show.
             stood = 0
             while stood < holds and mode():
-                machine.run(1, set(), (0.0, 0.0))
+                play(1, [])
                 stood += 1
             if stood:
                 moves.append([stood, []])
             if not mode() or (second is not None and not second()):
                 return moves, None
+            room_before = room() if room is not None else None
+
+            def step(n: int, held: list) -> str | None:
+                """n frames with held, a frame at a time while a game over is looked for."""
+                for _ in range(n):
+                    play(1, held)
+                    why = over(seen)
+                    if why:
+                        return why
+                return None
+
+            def ended(outcome: dict, why: str | None) -> tuple:
+                if why:
+                    outcome = {**outcome, "stopped": "game over", "game_over": why}
+                return moves, outcome
             for once in first:                  # pressed once as the fight begins (a menu's cursor set first)
-                machine.run(hold, set(once), (0.0, 0.0))
-                machine.run(wait, set(), (0.0, 0.0))
+                why = step(hold, once) or step(wait, [])
                 moves += [[hold, once], [wait, []]]
-            presses = 0
-            while mode() and presses < most:
-                machine.run(hold, set(keys), (0.0, 0.0))
-                machine.run(wait, set(), (0.0, 0.0))
-                moves += [[hold, keys], [wait, []]]
-                presses += 1
+                if why:
+                    return ended({"presses": 0}, why)
+            presses, turns, healed, idle_frames = 0, 0, 0, 0
+            while mode() and presses < most and not self._late():
+                if plan is None:
+                    why = step(hold, keys) or step(wait, [])
+                    moves += [[hold, keys], [wait, []]]
+                    presses += 1
+                elif menu():
+                    low = heal is not None and (hp() is not None and hp() < below)
+                    turn = heal_turn if low else plan[turns % len(plan)] if cycle else plan[min(turns, len(plan) - 1)]
+                    why = None
+                    for x in turn:
+                        held = sorted(self._buttons(x.get("buttons")))
+                        n_hold, n_wait = max(1, int(x.get("hold", hold))), max(0, int(x.get("wait", wait)))
+                        why = (step(n_hold, held) if held else None) or step(n_wait, [])
+                        moves += [[n_hold, held]] if held else []
+                        moves += [[n_wait, []]]
+                        if why:
+                            break
+                    healed += 1 if low else 0
+                    turns += 0 if low else 1
+                    presses += 1
+                    idle_frames = 0
+                else:
+                    # No menu: a message in the fight may wait for a button (a talk, a game over's word), which
+                    # `idle` presses every so often; else a frame goes by.
+                    pressing = bool(idle_keys) and idle_frames >= idle_every and idle_frames % idle_every < hold
+                    why = step(hold, idle_keys) if pressing else step(1, [])
+                    moves.append([hold, idle_keys] if pressing else [1, []])
+                    idle_frames += hold if pressing else 1
+                    if idle_frames >= 60 * 60:         # a minute with no menu: not this fight's way
+                        return ended({"turns": turns, "stopped": "no menu for a minute"}, why)
+                if why:
+                    return ended({"presses": presses, **({"turns": turns, "healed": healed} if plan else {})}, why)
+            outcome = {"presses": presses, **({"turns": turns, "healed": healed} if plan else {}),
+                       "stopped": "mode ended" if not mode() else "most"}
             if after and not mode():
                 # The field takes a moment to come back after a fight (a fade): a push made at once moves
                 # nobody, and the map would take the place for a dead end.
-                machine.run(after, set(), (0.0, 0.0))
+                why = step(after, [])
                 moves.append([after, []])
-            return moves, {"presses": presses, "stopped": "mode ended" if not mode() else "most"}
+                if why:
+                    return ended(outcome, why)
+            if room is not None and not mode() and room() != room_before:
+                return ended(outcome, f"room {room_before} became {room()}")
+            return moves, outcome
+        through.mode = mode
         return through
+
+    @tool("Plays a fight through to its end by a plan, and tries again from just before it if it is lost. It "
+          "waits for the fight's mode (pressing `lead` meanwhile, to page through the scene that brings it), saves "
+          "the game there (`keep`), and plays the fight as the fight watch does: each time the command menu is up "
+          "(`menu`) the plan's next turn, a list of steps (the command picked by its buttons); `heal` instead while "
+          "the HP it reads is below a number. A game over (a `game_over` mode, the `room` changed by the end, or a "
+          "saying whose id is in `said_ids`) stops it at once, and the next of `plans` is tried from the kept "
+          "state. The loaded script is on throughout. Gives each try's outcome; won, the game stands after the "
+          "fight; lost every way, it stands at the kept state.",
+          fight=("object", "the fight's mode and its play, as explore's fight takes it: address, equals or differs, "
+                           "also; menu (the command menu's mode), plan (turns: lists of steps {buttons, hold, "
+                           "wait}), cycle (true: round the turns again; false: keep to the last), heal ({hp: "
+                           "{address, size}, below, turn}), game_over (modes), room ({address, size}), said_ids "
+                           "(ids of sayings that mean a game over: the title's or the opening's), idle ({buttons, every}: "
+                           "pressed while no command menu is up, for a talk in the fight that waits for a button), "
+                           "after, most", True),
+          plans=("array", "other plans, tried in order from the kept state when one loses (each as fight's plan)", False),
+          lead=("array", "buttons pressed every `every` frames while waiting for the fight (default: none)", False),
+          every=("integer", "frames between lead's presses (default 60)", False),
+          begin=("integer", "frames waited at most for the fight to begin (default 3600)", False),
+          keep=("string", "the name the state just before the fight is saved under (default fight-start)", False))
+    def fight(self, fight: dict, plans: list | None = None, lead: list | None = None, every: int = 60,
+              begin: int = 3600, keep: str = "fight-start") -> dict:
+        machine = self._need()
+        events: list = []
+
+        def run(n: int, held) -> None:
+            self._advance(n, set(held), (0.0, 0.0), events)
+        tries_plans = [fight.get("plan")] + list(plans or [])
+        watch = self._fight_through({**fight, "begin": 0}, run, events)      # checks the whole fight dict once
+        for other in plans or []:
+            self._fight_through({**fight, "plan": other, "begin": 0}, run, events)
+        lead_keys = sorted(self._buttons(lead)) if lead else []
+        every, waited = max(2, int(every)), 0
+        while not watch.mode() and waited < max(1, int(begin)) and not self._late():
+            if lead_keys:
+                run(6, lead_keys)
+                run(every - 6, [])
+                waited += every
+            else:
+                run(1, [])
+                waited += 1
+        if not watch.mode():
+            return {"fought": False, "why": "the fight's mode didn't come" + (" (the call's time ran out)" if self._late() else ""),
+                    "frames": machine.frames, "said": self._said_texts(events)}
+        kept = self._keep(keep)
+        kept_route, kept_frames = json.loads(json.dumps(self.route)), machine.frames
+        kept_state = machine.save_state()
+        tries, shots = [], []
+        for k, plan in enumerate(tries_plans):
+            if k:
+                machine.load_state(kept_state)
+                machine.frames, self.route = kept_frames, json.loads(json.dumps(kept_route))
+                if self.reader is not None:
+                    self.reader.state_loaded()
+                    self.reader.take()
+            through = self._fight_through({**fight, "plan": plan, "begin": 0} if plan is not None
+                                          else {**fight, "begin": 0}, run, events)
+            _, outcome = through()
+            tries.append({"plan": k, **(outcome or {"stopped": "no fight"})})
+            if machine.picture() is not None and len(shots) < MAX_SHOTS:
+                shots.append((f"try {k}", self._picture()))          # how each try ended, to see why
+            if outcome is not None and not outcome.get("game_over") and outcome.get("stopped") == "mode ended":
+                out = {"fought": True, "won": True, "kept": kept, "tries": tries, "frames": machine.frames,
+                       "said": self._said_texts(events)}
+                return ("both", out, self._png(self._sheet(shots, 4, 1.0))) if shots else out
+            if self._late():
+                break
+        machine.load_state(kept_state)
+        machine.frames, self.route = kept_frames, json.loads(json.dumps(kept_route))
+        if self.reader is not None:
+            self.reader.state_loaded()
+            self.reader.take()
+        out = {"fought": True, "won": False, "kept": kept, "tries": tries, "frames": machine.frames,
+               "said": self._said_texts(events), **({"stopped": "time"} if self._late() else {})}
+        return ("both", out, self._png(self._sheet(shots, 4, 1.0))) if shots else out
+
+    def _said_texts(self, events: list) -> list[str]:
+        return [e["text"] for e in events if e.get("kind") == "text" and e.get("channel") != "interface"][:MAX_ROWS]
 
     @tool("Finds where the character can walk by trying it: from where it stands it pushes each way for a few "
           "frames, goes back, and does the same from every place it got to, until nothing new comes or `most` "
@@ -2595,7 +2782,9 @@ class Session:
                            "fights are counted and listed, and a walk with `to` keeps their presses in the "
                            "record of the way. `holds`: frames the mode must stand before it is a fight (a "
                            "screen's fade on a room change may set it for a few); `also`: a second mode, the "
-                           "same keys, that must hold with it", False),
+                           "same keys, that must hold with it. And as the fight tool plays one: `menu` and `plan` "
+                           "(turns played each time the command menu is up), `cycle`, `heal`, and `game_over` and "
+                           "`room` (a lost fight: the push leads nowhere)", False),
           room=("string", "where the game keeps which room it is in, hex: a push that changes it is a door, "
                           "however far the place moved (a game whose rooms share their numbers, or whose door "
                           "moves the place less than jump)", False),
@@ -2710,6 +2899,8 @@ class Session:
                     if outcome is not None:
                         fights.append({"at": list(there), **outcome})
                         there = now()
+                        if outcome.get("game_over"):
+                            continue                # a fight lost: no way on from this push
                 if room_at is not None and room_now() != room_before:
                     # The room changed: a door, however far (or little) the place moved.
                     doors.setdefault(here, push)
