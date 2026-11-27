@@ -68,6 +68,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `expedition` | Walks the rooms one after another until something is said: maps the room (explore), goes through each door found there (by the room value), maps the room beyond, fights pressed through; stops at the first saying with the legs that led there, or gives the rooms as a graph. Given `legs`, walks them again without mapping |
 | `events` | Where an event still waits in the room the game is in, as the loaded script's `events` function says (docs/script-api.md): places ready for explore's `to`. `expedition` with `events` walks to them in each room before its doors, and stops at the first that says something |
 | `replay` | Plays the record of the way from where the game is to a saved state on the same way, with the loaded script on and a snap at each saying (`said`): every talk between two states in one call. Stopped by the call's time, it keeps where it got to (`keep`), to go on from in a later call |
+| `fight` | Plays a fight by a plan and tries again from just before it when it is lost: waits for the fight's mode (paging through the scene with `lead`), keeps the state there, and each time the command menu is up plays the plan's next turn (`heal` instead while HP is low). A game over (a mode, the room changed by the end, or a saying whose id means the title) stops it at once, nothing more pressed, and the next of `plans` is tried from the kept state |
 | `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to`. Takes where the game draws the character, for a picture that doesn't keep it in the middle |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
@@ -798,6 +799,20 @@ in the frames it is being typed. Run over a still snap it reads nothing, so `com
 way. A snap taken while a script is loaded keeps what the script said since the snap before (`said`), and
 `compare` with `live` counts that against the snap's lines instead: step to each line with `until` on the
 script's event, wait until the line stands, snap, and read the picture.
+
+### Fights that are lost
+
+Pressing one button through a fight wins the random ones and loses a boss: Final Fantasy VI's first boss, fought
+that way, sent the game back to its title, and the presses went on into the opening. The fight watch (explore's
+and expedition's `fight`, and the `fight` tool) knows a lost fight: give it `game_over`, modes that mean one, or
+`room`, the room value, which a return to the title changes, or (in the `fight` tool, which hears the script)
+`said_ids`, the ids of the title's or the opening's first sayings (ids, not text). It stops at once and says so.
+A `plan` plays the fight instead of a button: turns, each the steps that pick a command and its target, played
+each time the command menu is up (`menu`, a mode the game sets while it waits for a command), round and round
+(`cycle`) or keeping to the last; `heal`, a turn played instead while an HP the game keeps is below a number.
+The `fight` tool keeps the state at the fight's start and, when a plan loses, tries the next of `plans` from
+there: a lost fight costs one try, not the way back from the title. What a game's menu, commands and HP are
+belongs in its notes; the tool takes only addresses and buttons.
 
 ### A call's time
 

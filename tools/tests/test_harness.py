@@ -2992,6 +2992,86 @@ def test_explore_keeps_the_nearest_place_when_its_time_runs_out(session):
     assert [here["x"], here["y"]] == stood
 
 
+def _made_up_fight(session, enemy=100, party=50):
+    """A made-up boss fight: 0x7F5 is 1 during it, 0x7F6 1 while the command menu is up, 0x7F7 the boss's HP and
+    0x7F8 the party's, 0x7F9 the cursor (down: magic), 0x7F0 the room (0 once the game is over: the title). The
+    command a attacks the shell (the boss hits back for 40), down then a casts (50 to the boss), b heals (the
+    party back to 50); after each command the boss hits for 10, and the menu comes back 10 frames on."""
+    machine, plain = session.machine, session.machine._step
+    m = machine.memory
+    m[0x7F0], m[0x7F5], m[0x7F6], m[0x7F7], m[0x7F8], m[0x7F9], m[0x7FA], m[0x7FB] = 1, 1, 1, enemy, party, 0, 0, 0
+
+    def game(buttons, stick):
+        plain(buttons, stick)
+        m = machine.memory                          # a loaded state brings memory of its own
+        pressed = {b for b in buttons} - ({"a"} if m[0x7FA] & 1 else set()) - ({"down"} if m[0x7FA] & 2 else set()) \
+            - ({"b"} if m[0x7FA] & 4 else set())
+        m[0x7FA] = (1 if "a" in buttons else 0) | (2 if "down" in buttons else 0) | (4 if "b" in buttons else 0)
+        if m[0x7F5] != 1:
+            return
+        if m[0x7F6] == 0:
+            m[0x7FB] += 1
+            if m[0x7FB] >= 10:
+                m[0x7F6], m[0x7FB] = 1, 0
+            return
+        if "down" in pressed:
+            m[0x7F9] = 1
+        acted = False
+        if "a" in pressed:
+            if m[0x7F9] == 1:
+                m[0x7F7] = max(0, m[0x7F7] - 50)
+            else:
+                m[0x7F8] = max(0, m[0x7F8] - 40)
+            acted = True
+        elif "b" in pressed:
+            m[0x7F8], acted = 50, True
+        if acted:
+            m[0x7F9], m[0x7F6] = 0, 0
+            m[0x7F8] = max(0, m[0x7F8] - 10)
+            if m[0x7F7] == 0:
+                m[0x7F5] = 0                       # won
+            elif m[0x7F8] == 0:
+                m[0x7F5], m[0x7F0] = 0, 0          # lost: back to the title
+    machine._step = game
+    at = lambda a: f"0x{BASE + a:X}"
+    return {"address": at(0x7F5), "equals": "1", "menu": {"address": at(0x7F6), "equals": "1"},
+            "room": {"address": at(0x7F0)}, "after": 5, "hold": 2, "wait": 2}
+
+
+def test_fight_stops_at_a_game_over_and_wins_by_the_next_plan_from_the_kept_state(session):
+    """Attacking the shell loses: the room goes back to the title's, the game over is seen at once and nothing
+    more is pressed; the next plan (magic: down, then a) is tried from the state kept as the fight began, and
+    wins. With a plain fight watch (no plan) a loss is said as a game over too."""
+    fight = _made_up_fight(session)
+    attack, magic = [[{"buttons": ["a"]}]], [[{"buttons": ["down"]}, {"buttons": ["a"]}]]
+    out = session.fight({**fight, "plan": attack}, plans=[magic], keep="boss")
+    assert out["fought"] and out["won"], out
+    assert out["tries"][0]["stopped"] == "game over" and "room" in out["tries"][0]["game_over"], out
+    assert out["tries"][1]["stopped"] == "mode ended" and out["tries"][1]["turns"] == 2, out
+    assert session.machine.memory[0x7F0] == 1 and session.machine.memory[0x7F7] == 0
+    assert (session.roots.scratch / "states" / "boss.state.gz").is_file()
+    # Lost every way: the game stands at the kept state, before the fight.
+    session.state_load("boss")
+    lost = session.fight({**fight, "plan": attack}, keep="boss2")
+    assert lost["won"] is False and session.machine.memory[0x7F5] == 1 and session.machine.memory[0x7F8] == 50, lost
+    # A game_over mode stops the plain watch too.
+    session.state_load("boss")
+    plain = session.fight({k: v for k, v in fight.items() if k not in ("menu", "room")}
+                          | {"game_over": [{"address": f"0x{BASE + 0x7F0:X}", "equals": "0"}]}, keep="boss3")
+    assert plain["tries"][0]["game_over"] == "game_over mode 0", plain
+
+
+def test_fight_heals_when_the_hp_it_reads_is_low(session):
+    """A boss of 250 HP takes five casts; the party (50 HP, 10 lost a turn) heals with b whenever it is below 25."""
+    fight = _made_up_fight(session, enemy=250)
+    magic = [[{"buttons": ["down"]}, {"buttons": ["a"]}]]
+    heal = {"hp": {"address": f"0x{BASE + 0x7F8:X}"}, "below": 25, "turn": [{"buttons": ["b"]}]}
+    out = session.fight({**fight, "plan": magic, "heal": heal}, keep="boss-h")
+    assert out["won"] and out["tries"][0]["turns"] == 5 and out["tries"][0]["healed"] >= 1, out
+    with pytest.raises(HarnessError):
+        session.fight({**fight, "plan": magic, "menu": None})
+
+
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
     """`yomikata calls --trend`: for each game, the calls, runs and minutes from its first call to the first
     comparison by scenes that met the bar; a comparison's outcome is kept with its call (counts only)."""
