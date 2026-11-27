@@ -96,41 +96,40 @@ scene after the rescue in the meteor's field wasn't set off. Script, table and e
 
 ## Chrono Cross (PlayStation, SLPS-02364)
 
-Parked at 146 of 300 calls with a reader that works and no bar. The reader and its table are on the branch
-`chrono-cross-reader` (unmerged), to resume from.
+Parked again at 210 of 300 calls (64 this stretch) with a reader that reads the opening talk right and no bar: the
+next talk is further into the opening dungeon than this stretch could walk. The reader and its dictionary are on
+the branch `chrono-cross-reader` (unmerged), to resume from.
 
 - **Load**: disc 1's `.chd`, pcsx_rearmed. On a PlayStation pad `a` is circle (confirm) and `b` cross. Naming:
   `left` takes the cursor out of the grid into the side menu, `down` three times is the confirm item.
-- **The script lies in memory as it is**, the scene's messages in two copies (one at 0x80038000, one at
-  0x8010BC80 in the opening). `find`, `text_runs` and `find_relative` by sameness found nothing (two-byte kanji
-  among one-byte kana break it); `find_relative` with `order` gojuon on a kana-only stretch found it at once.
-- **No page is put together anywhere.** A message has slots, 0x12 and a number, that the game fills as it types
-  with the speaker's own words (endings, the hero's name): strings elsewhere (0x8006xxxx in the opening), each
-  ended by 0x00. The game types from the script a character at a time, a slot's string in its place.
-- **The reader's place**: READER, 0x80171B8C, is where the game reads next. In a slot it points into the slot's
-  string, often past its first characters by the time a frame sees it (so read the string from the 0x00 before
-  it), and the word at READER + 8 is where it goes back to in the message, just past the slot. Found offline in
-  snaps every frame across a page change: a word pointing into the script that moved every two frames.
-- **The script on the branch** follows the typing: each frame, what READER went over since the frame before,
-  and in a slot the slot's string; a page is said when READER stands on 0x02 (the button) or 0x00 (the
-  message's end). Over 90 per-frame snaps offline (`yomikata run --sequence`) a page came out right in its kana,
-  signs and three filled slots.
-- **Codes**: 0x01 a new row, 0x02 the button, 0x00 a message's end, 0x75 a space; 0x04, 0x08, 0x10, 0x18 and
-  0x12 take a byte (a pause, who speaks, the window, a slot). Kana by one plan, every point checked fitting:
-  hiragana in the order of the fifty sounds from 0x76, voiced from 0xA4, half-voiced from 0xB8, small from 0xBD;
-  katakana two bytes, the same from 0xF81A (voiced 0xF848, half-voiced 0xF85C, small 0xF861). Signs read in
-  play: 0xC6, 0xC7, 0xCA, 0xCC, 0xCD, 0xCE, 0xF5. Kanji are two bytes after 0xF8 to 0xFD, none in the table yet.
-- **Fights**: no one byte holds through a fight (0x8000E2C5 and 0x8000E2C7 follow the command menu and drop
-  between turns). The field's own data at 0x80037E52 reads 1 on the field and 0 while the fight's code lies
-  over it: `advance_through` with `differs` 1, and `begin` for a fight a walk runs into. Two fights went through
-  on `a` alone in one call each (84 and 83 presses, no backs). With the command cursor on the element command,
-  `a` went round several pictures for 300 presses and the stuck check never fired: a cycle longer than two.
-- **Missing**: the kanji (from pages beside their pictures, as Kaeru's); the speaker's name row (the message
-  names the speaker by a number, the name is a string in memory among the fill-ins, and no table of names may
-  be written into the catalog); and pages: the opening talk is about ten, the rooms walked after it had none,
-  and the next talk is further into the opening's dungeon.
-- **States** (harness scratch): `cc-a` the naming screen, `cc-b` after the opening talk, `cc-m2` the first
-  fight's menu, `cc-u` the furthest room reached.
+- **The reader reads what is drawn.** Each message window keeps the sprites that draw its page in a list at
+  0x80171C48 (a second window 0xC008 further on; the reader looks at four), 20 bytes a sprite: a textured
+  rectangle (0x64) of 11 by 11, its colour 0 when not shown. How many are the page's is a u16 0xC8 before the
+  list (the rest are left from the page before). The name row is drawn the same way, as the first row.
+- **Glyphs in bit planes**: the page's characters are drawn into a 4-bit texture at video memory half-word 640,
+  four to a place, each in a bit of its own; the sprite's palette (0x3E38 to 0x3E3B, each showing just one bit)
+  picks it. So a sprite's picture is that bit of its 11 by 11 texels: hashed, and known by the dictionary
+  `SLPS-02364.glyphs` (73 pictures from the opening talk). Kanji, names and filled slots come out as drawn: the
+  code table of the first reader is dropped.
+- **When a page is whole**: READER (0x80171B8C, the same offset in each window) is where the game reads the script
+  next; the page waits for the button where it stands on 0x02 or 0x00 out of a slot (the word at READER + 8 is
+  where it goes back to after a slot's string, far from it while in one). Said once that holds and the sprites
+  have stood 6 frames, each window's page once.
+- **Checked**: offline, the opening talk's 7 pages (both windows, names, the hero's name in a slot) read the same
+  as their pictures. The first reader, which followed the typing, said 3 of the 7 in play this stretch, one twice
+  with leftovers, and missed the window at the top of the screen.
+- **The party's place**: s16 at 0x80077C32 (across) and 0x80077C34 (down), 90 to 130 a push of 26 frames, the
+  camera turned (a push moves both); the facing at 0x80077C2A. Found with snaps a push apart (the floats
+  place_find gave first didn't map). `explore` with `whole`, `grid` 64, `step` 26 (a step counts once it's over)
+  and `diagonals` maps a room: 165 places of the walkway at `cc-v`, 526 of the stairwell at `cc-z`. It found no
+  doors with `jump` 5, though the party walks out of both by hand: a room change here isn't seen as a jump.
+- **Fights**: the field's own data at 0x80037E52 reads 1 on the field and 0 while a fight's code lies over it
+  (`advance_through` with `differs` 1). In `explore` it also fires on a room's fade (16 false fights at `cc-v`).
+- **Where play stands**: the opening talk is one scene of 7 pages. The rooms walked after it have no talk; from
+  the walkway (`cc-v`) the stairs up and the bridge lead round to the gate room of the opening talk. The next
+  talk is further on, by a way not found.
+- **States** (harness scratch): `cc-a` the naming screen, `cc-b` after the opening talk, `cc-v` the walkway,
+  `cc-z` the stairwell above it, `cc-z7` the landing at the top of its right-hand stairs.
 
 ## Shining Force: Kamigami no Isan (Mega Drive, G-5512): checked, not started
 
