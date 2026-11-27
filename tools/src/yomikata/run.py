@@ -26,7 +26,8 @@ RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 # Other addresses the same main memory answers at.
 # The same memory at other addresses: the PS1's past its cache and from 0; the Dreamcast's main 16 MB from
 # 0x0C000000 (its physical address) and past the cache.
-MIRRORS = {"ps1": (0x00000000, 0xA0000000), "dc": (0x0C000000, 0xAC000000)}
+MIRRORS = {"ps1": (0x00000000, 0xA0000000), "dc": (0x0C000000, 0xAC000000),
+           "fc": (0x0800, 0x1000, 0x1800), "fds": (0x0800, 0x1000, 0x1800)}   # 2 KB, four times to 0x1FFF
 
 
 def _load(path: Path) -> bytes:

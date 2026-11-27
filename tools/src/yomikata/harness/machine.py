@@ -31,6 +31,12 @@ CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000}
 # in a snap as the region `io`, answering at its own addresses there too (docs/script-api.md).
 IO = {"gb": (0xFF00, 0x100), "gbc": (0xFF00, 0x100)}
 IO_REGISTERS = 0x80                     # the I/O registers' part of it, without which the region isn't kept
+# Stretches a core maps in pages, read whole across them and kept as a region: fceumm gives 0x6000-0x7FFF in
+# 1 KB pages, a cartridge's work RAM on a Famicom and the first 8 KB of the Disk System's 32 KB (its 0x8000-
+# 0xDFFF it doesn't give). And the Famicom's video memory, which the core doesn't give out as such: its two
+# nametables (the screen's tiles, 2 KB) where its map puts them, at an address of the core's own.
+PAGED = {"fc": {"wram": (0x6000, 0x2000)}, "fds": {"wram": (0x6000, 0x2000)}}
+MAPPED_VIDEO = {"fc": (0x80002000, 0x800), "fds": (0x80002000, 0x800)}
 # A core whose "system RAM" is more than one of the console's stretches, kept as 16-bit words in the host's
 # order: mednafen_saturn gives the Saturn's work RAM so, the low 1 MB (0x00200000) and then the high 1 MB
 # (0x06000000), each pair of bytes swapped; mupen64plus_next gives the N64's RDRAM (8 MB, 0x80000000 on) as
@@ -56,6 +62,7 @@ def region_starts(platform: str) -> dict[str, int]:
     out.update({name: start for start, _, _, name in WORDS.get(platform, ())[1:]})
     if platform in IO:
         out["io"] = IO[platform][0]
+    out.update({name: start for name, (start, _) in PAGED.get(platform, {}).items()})
     return out
 
 
@@ -182,6 +189,8 @@ class Machine:
         video = self.core.video_ram()
         if not video and self.platform == "ps1":
             video = self._ps1_video()
+        if not video and self.platform in MAPPED_VIDEO:
+            video = self._paged(*MAPPED_VIDEO[self.platform]) or None
         out = {"vram": video} if video else {}
         for _, at, length, name in WORDS.get(self.platform, ())[1:]:
             out[name] = self._words(at, length)
@@ -203,7 +212,22 @@ class Machine:
                 at += len(piece)
             if len(io) >= IO_REGISTERS:             # the registers at least
                 out["io"] = bytes(io) + bytes(length - len(io))
+        for name, (start, length) in PAGED.get(self.platform, {}).items():
+            data = self._paged(start, length)
+            if len(data) == length:
+                out[name] = data
         return out
+
+    def _paged(self, start: int, length: int) -> bytes:
+        """`length` bytes from `start` through the core's map, a page at a time; as many as it gives."""
+        out, at = bytearray(), start
+        while len(out) < length:
+            piece = self.read(at, length - len(out))
+            if not piece:
+                break
+            out += piece
+            at += len(piece)
+        return bytes(out)
 
     def _ps1_video(self) -> bytes | None:
         """A PlayStation core gives out no video memory, but its savestate holds it (vram.py): 1024x512 16-bit

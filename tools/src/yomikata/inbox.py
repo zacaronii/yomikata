@@ -78,7 +78,10 @@ RAM = {
     "pce-cd": [(0x0D0000, 0x110000)],
     # The 8 MB of RAM (the Expansion Pak's included), and the same uncached. Kept in the console's byte order
     # (big-endian), as the harness reads it.
-    "n64": [(0x80000000, 0x80800000), (0xA0000000, 0xA0800000)],
+    "n64": [(0x80000000, 0x80800000), (0xA0000000, 0xA0800000)],    # The 2 KB of work RAM and its mirrors to 0x1FFF; a cartridge's work RAM at 0x6000 (8 KB), the Disk
+    # System's RAM at 0x6000-0xDFFF (32 KB).
+    "fc": [(0x0000, 0x2000), (0x6000, 0x8000)],
+    "fds": [(0x0000, 0x2000), (0x6000, 0xE000)],
 }
 
 
@@ -91,16 +94,18 @@ EXTRA_PARTS = {"state": 64 * 1024 * 1024,      # the emulator's savestate (holds
 # console address by `yomikata run` and the harness): sent as a part of that name, at most this many bytes.
 REGION_PARTS = {"saturn": {"lwram": 0x100000},          # the low 1 MB of work RAM (0x00200000)
                 "gb": {"io": 0x100}, "gbc": {"io": 0x100},  # the I/O registers and high RAM (0xFF00-0xFFFF)
-                "pce-cd": {"wram": 0x2000}}             # the console's own 8 KB (0x1F0000)
+                "pce-cd": {"wram": 0x2000},             # the console's own 8 KB (0x1F0000)
+                "fc": {"wram": 0x2000},                 # a cartridge's work RAM (0x6000-0x7FFF)
+                "fds": {"wram": 0x8000}}                # the Disk System's RAM from 0x6000 (fceumm gives 8 KB)
 REGION_NAMES = sorted({name for parts in REGION_PARTS.values() for name in parts})
 # The largest RAM snapshot accepted per platform (main RAM size), and how many are kept per game.
 SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000, "sfc": 0x20000, "gba": 0x40000,
                 "gb": 0x2000, "gbc": 0x2000, "nds": 0x400000, "gc": 0x1800000, "wii": 0x1800000,
-                "saturn": 0x100000, "dc": 0x1000000, "pce-cd": 0x40000, "n64": 0x800000}
+                "saturn": 0x100000, "dc": 0x1000000, "pce-cd": 0x40000, "n64": 0x800000, "fc": 0x800, "fds": 0x800}
 # Video memory is smaller than the general limit on most consoles; a part larger than the console has is refused.
 # (A core may hand out a Game Boy game the Color's 16 KB: the cap is the larger.)
 VRAM_MAX = {"ps1": 0x100000, "sfc": 0x10000, "gba": 0x18000, "gb": 0x4000, "gbc": 0x4000, "nds": 0xA4000,
-            "pce-cd": 0x10000}
+            "pce-cd": 0x10000, "fc": 0x1000, "fds": 0x1000}
 # A savestate holds the whole machine. Dolphin's is 92-93 MB (17 MB gzipped): the GameCube's cap is its own.
 STATE_MAX = {"gc": 128 * 1024 * 1024, "wii": 128 * 1024 * 1024}
 VRAM_FORMAT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")

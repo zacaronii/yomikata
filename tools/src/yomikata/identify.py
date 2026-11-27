@@ -249,10 +249,45 @@ def identify_hucard(rom: bytes) -> Release:
     return Release("pce", f"PCE-{crc.upper()}", header_crc32=crc)
 
 
+INES_MAGIC, FWNES_MAGIC, FDS_SIDE = b"NES\x1a", b"FDS\x1a", 65500
+FDS_BLOCK1 = b"\x01*NINTENDO-HVC*"
+
+
+def identify_nes(rom: bytes) -> Release:
+    """A Famicom (NES) cartridge: "FC-" and the CRC-32 of its PRG and CHR ROM, as No-Intro counts it: without
+    the 16-byte iNES or NES 2.0 header, and without the 512-byte trainer a header may say is there. A file
+    with no header is taken as PRG and CHR already, so every header variant of one dump gives one id."""
+    if rom[:4] == INES_MAGIC:
+        rom = rom[16 + (512 if rom[6] & 0x04 else 0):]
+    crc = f"{zlib.crc32(rom):08x}"
+    return Release("fc", f"FC-{crc.upper()}", header_crc32=crc)
+
+
+def identify_fds(disk: bytes) -> Release:
+    """A Famicom Disk System disk, by the disk-info block that begins each side: "FDS-", the maker's code (two
+    hex digits) and the game's name code (four characters, ones not A-Z or 0-9 as "-", spaces at the end left
+    out); for the second disk of a set or later, "-D" and its number from 1 (the first disk has none). The build
+    is the id and the revision as two hex digits, header_crc32 the CRC-32 of the first side's info block (56
+    bytes). A file with the 16-byte fwNES header and one without give the same release."""
+    if disk[:4] == FWNES_MAGIC:
+        disk = disk[16:]
+    if disk[:15] != FDS_BLOCK1:
+        raise ValueError("not a Famicom Disk System image: its first side has no disk-info block")
+    block = disk[:0x38]
+    maker, name, revision, number = block[0x0F], block[0x10:0x14], block[0x15], block[0x17]
+    code = re.sub(r"[^A-Z0-9]", "-", name.decode("ascii", "replace").rstrip(" ")) or "----"
+    ident = f"FDS-{maker:02X}{code}" + (f"-D{number + 1}" if number else "")
+    return Release("fds", ident, header_crc32=f"{zlib.crc32(block):08x}", build=f"{ident}-{revision:02X}")
+
+
 def identify(path: Path, scratch: Path | None = None) -> Release:
     path = Path(path)
     if _cart_name(path).lower().endswith(".pce"):
         return identify_hucard(_cart_bytes(path, 0x800000))
+    if _cart_name(path).lower().endswith(".nes"):
+        return identify_nes(_cart_bytes(path, 0x1000000))
+    if _cart_name(path).lower().endswith(".fds"):
+        return identify_fds(_cart_bytes(path, 16 + 0x38))
     if path.suffix.lower() in (".rvz", ".wia", ".gcm", ".iso"):
         with open(path, "rb") as f:
             head = f.read(0xD8)
