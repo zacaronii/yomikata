@@ -155,6 +155,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "PCE-D9E1549A": {
+   "path": "games/pce/PCE-D9E1549A.json",
+   "sha256": "9dd044a3ca99a130da8c96f2021a60c7498ffb2b6ecdd11e73b9534e2d8eeda1",
+   "platform": "pce",
+   "encoding": "unknown",
+   "status": "partial"
+  },
   "PCECD-92261ECE": {
    "path": "games/pce-cd/PCECD-92261ECE.json",
    "sha256": "85aa6bd2472c1d821dbfde013c0f86f53754ff2a709f9bcdd424ca3e08cfecfe",
@@ -1177,6 +1184,19 @@
      "sha256": "1ec7a5b698b780066b31df6683133f1575a6e1633939bc3209368ba80a25e0eb"
     }
    }
+  },
+  "PCE-D9E1549A": {
+   "path": "scripts/pce/PCE-D9E1549A.lua",
+   "sha256": "928a2b103f93e6854181cefb254175589d5dbd27c8ffb407493b89e8ccd7054b",
+   "platform": "pce",
+   "runtime": 1,
+   "title": "桃太郎伝説II (Momotarou Densetsu II, PC Engine)",
+   "reads": "the message window's rows off the screen's tile map once they have typed out and stand",
+   "builds": [
+    "d9e1549a"
+   ],
+   "needs": [],
+   "data": {}
   },
   "PCECD-92261ECE": {
    "path": "scripts/pce-cd/PCECD-92261ECE.lua",
