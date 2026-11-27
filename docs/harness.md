@@ -547,7 +547,15 @@ leave out the player's own parts), walks to each in turn from where it began, an
 script says after the press and not in a wait without it is an answer. A game that walks by the stick alone
 (the pad does nothing) is mapped with `explore` and `expedition` given `stick`: eight pushes of the stick in
 place of the pad's, named n, ne, … (the stick's ways, which turn with the camera); a door found so is pushed
-through by the same way. Wind Waker's player is the floats at
+through by the same way.
+
+`walk_3d` steers in a straight line, which walks off a pier or a ramp. Given `height` (the float of place_find's
+three that stood) it guards each push: the push is made from a state saved before it, and one that drops the
+height more than `fall` (or sets a `water` mode) is undone, and the next-best way tried, 22.5 degrees either side
+and on round, then shorter pushes; the refused pushes are listed in the answer. Where the stick's ways turn with
+the camera, `yaw` (the camera's turn: an s16 of a turn in 65536, or a float in radians with `yaw_kind`) turns the
+way learnt at the start by how far the camera has turned since, in place of learning it again from the last
+pushes. Wind Waker's player is the floats at
 0x80ACF694 (x) and 0x80ACF69C (z), its actors in the heap.
 
 ### Waypoints

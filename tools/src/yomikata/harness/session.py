@@ -2282,9 +2282,27 @@ class Session:
           near=("number", "how near is near enough, in the game's units (default: what a 4-frame push "
                           "moves the character)", False),
           push=("integer", "frames of each push toward the place (default 8)", False),
-          limit=("integer", "at most this many frames (default 1200)", False))
+          limit=("integer", "at most this many frames (default 1200)", False),
+          height=("string", "the ledge guard: where the game keeps the character's height, hex (a float: the one of "
+                            "place_find's three that stood). Each push is made from a state saved before it; one "
+                            "that drops the height more than `fall` is undone, and the next-best way tried (22.5 "
+                            "degrees either side, then 45, … then shorter pushes): a pier or a ramp is followed, "
+                            "not fallen off", False),
+          fall=("number", "with height: a drop of more than this, in the game's units, is a fall (default 30)", False),
+          settle=("integer", "with the guard: frames waited after each push before the height is read: a game that "
+                             "jumps the character off a ledge it runs at drops it only after the push", False),
+          floor=("number", "with height: a push that ends lower than this is refused too: a way down by small steps "
+                           "into water stands below the land (Wind Waker: swimming at 30, its pier at 180)", False),
+          water=("object", "with the guard: a mode that means the character is in water or has fallen (address, "
+                           "size, equals or differs): a push that sets it is undone too", False),
+          yaw=("string", "the camera's turn, hex, where the stick's ways turn with it: the way the stick moves the "
+                         "character is learnt once, and turned by how far the camera has turned since, in place of "
+                         "learning it again from the last pushes", False),
+          yaw_kind=("string", "s16 (a turn is 65536: most consoles' angles) or float (radians) (default s16)", False))
     def walk_3d(self, x_address: str, z_address: str, x: float | None = None, z: float | None = None,
-                near: float = 0.0, push: int = 8, limit: int = 1200) -> dict:
+                near: float = 0.0, push: int = 8, limit: int = 1200, height: str = "", fall: float = 30.0,
+                water: dict | None = None, yaw: str = "", yaw_kind: str = "s16", floor: float | None = None,
+                settle: int = 0) -> dict:
         import math
         import struct
         machine = self._need()
@@ -2302,10 +2320,45 @@ class Session:
             if not (math.isfinite(px) and math.isfinite(pz)):
                 raise HarnessError("the addresses don't hold numbers with a point")
             return px, pz
+        def float_at(address: int) -> float | None:
+            b = machine.read(address, 4)
+            return struct.unpack(order, b)[0] if len(b) == 4 else None
+        at_h = int(str(height), 16) if height else None
+        at_yaw = int(str(yaw), 16) if yaw else None
+        if yaw_kind not in ("s16", "float"):
+            raise HarnessError("yaw_kind is s16 or float")
+
+        def turned() -> float | None:
+            """The camera's turn now, in radians."""
+            if at_yaw is None:
+                return None
+            if yaw_kind == "float":
+                return float_at(at_yaw)
+            b = machine.read(at_yaw, 2)
+            if len(b) < 2:
+                return None
+            v = struct.unpack(">h" if machine.platform in BIG_ENDIAN else "<h", b)[0]
+            return v * 2 * math.pi / 65536
+        wet = None
+        if water is not None:
+            if not isinstance(water, dict) or not water.get("address"):
+                raise HarnessError("water is a mode: address, size, equals or differs")
+            w_at, w_size = int(str(water["address"]), 16), int(water.get("size", 1))
+            w_eq, w_ne = str(water.get("equals", "")), str(water.get("differs", ""))
+            if (w_eq == "") == (w_ne == "") or w_size not in (1, 2, 4):
+                raise HarnessError("water: address, size 1, 2 or 4, and equals or differs, one of them")
+
+            def wet():
+                v = self._cell(w_at, w_size)
+                return v is not None and (v == int(w_eq, 0) if w_eq else v != int(w_ne, 0))
+        guarded = at_h is not None or wet is not None
+        refused: list = []
         events, ran = [], 0
         start = where()
         if x is None or z is None:
-            return {"at": [round(start[0], 3), round(start[1], 3)], "frame": machine.frames}
+            return {"at": [round(start[0], 3), round(start[1], 3)], "frame": machine.frames,
+                    **({"height": round(float_at(at_h), 3)} if at_h is not None and float_at(at_h) is not None else {}),
+                    **({"yaw": round(turned(), 4)} if at_yaw is not None and turned() is not None else {})}
         push, limit = max(2, min(int(push), 60)), max(push, min(int(limit), MAX_FRAMES))
         target = (float(x), float(z))
 
@@ -2320,11 +2373,21 @@ class Session:
         learn = max(4, push)
         seen = []                                           # (stick, move per frame) of the pushes made
         for s in ((1.0, 0.0), (0.0, 1.0)):
+            # With the ledge guard, each push that teaches the way is undone after: one may walk off the edge.
+            if guarded:
+                taught_from = (machine.save_state(), json.loads(json.dumps(self.route)), machine.frames)
             move, why = stick(s, learn)
+            if guarded and why != "time":
+                machine.load_state(taught_from[0])
+                self.route, machine.frames = taught_from[1], taught_from[2]
+                if self.reader is not None:
+                    self.reader.state_loaded()
+                    self.reader.take()
             if why == "time":
                 return {"reached": False, "stopped": "time", "at": list(map(lambda v: round(v, 3), where())),
                         "frames": ran}
             seen.append((s, (move[0] / learn, move[1] / learn)))
+        learnt_at = turned()                                # the camera's turn when the way was learnt
         speed = max(math.hypot(*m) for _, m in seen)
         if speed < 1e-9:
             return {"reached": False, "stopped": "the stick doesn't move the two numbers: are they the place, and "
@@ -2332,8 +2395,9 @@ class Session:
         near = float(near) if near and near > 0 else 4 * speed
 
         def way():
-            """The 2x2 that takes a stick to a move per frame, fitted to the last pushes (least squares)."""
-            rows = seen[-6:]
+            """The 2x2 that takes a stick to a move per frame, fitted to the last pushes (least squares); with yaw,
+            the one learnt first, turned as far as the camera has turned since."""
+            rows = seen[:2] if learnt_at is not None else seen[-6:]
             sxx = sum(s[0] * s[0] for s, _ in rows); sxy = sum(s[0] * s[1] for s, _ in rows)
             syy = sum(s[1] * s[1] for s, _ in rows)
             det = sxx * syy - sxy * sxy
@@ -2343,6 +2407,13 @@ class Session:
             for k in (0, 1):                                # each of the two numbers
                 bx = sum(s[0] * m[k] for s, m in rows); by = sum(s[1] * m[k] for s, m in rows)
                 out.append(((syy * bx - sxy * by) / det, (sxx * by - sxy * bx) / det))
+            now = turned() if learnt_at is not None else None
+            if now is not None:
+                # The camera turned by d: what a stick did then, it does now turned by d in the ground's plane.
+                d = now - learnt_at
+                c, sn = math.cos(d), math.sin(d)
+                out = [(c * out[0][0] - sn * out[1][0], c * out[0][1] - sn * out[1][1]),
+                       (sn * out[0][0] + c * out[1][0], sn * out[0][1] + c * out[1][1])]
             return out                                      # move[k] = out[k][0] * sx + out[k][1] * sy
         best, stuck, why = math.inf, 0, None
         while ran < limit:
@@ -2351,7 +2422,7 @@ class Session:
             dist = math.hypot(*gap)
             if dist <= near:
                 return {"reached": True, "at": [round(px, 3), round(pz, 3)], "frames": ran,
-                        "events": len(events)}
+                        "events": len(events), **({"refused": refused} if guarded else {})}
             m = way()
             if m is None:
                 why = "the pushes don't tell the way apart"
@@ -2370,9 +2441,49 @@ class Session:
                 break
             frames = push if length > push else max(2, int(round(length)))
             sx, sy = sx / length, sy / length
-            move, why = stick((sx, sy), frames)
-            if why:
-                break
+            if guarded:
+                # The ledge guard: the push from a state saved before it; a fall or water undoes it, and the next
+                # ways round the wanted one are tried, nearest first.
+                moved_to = None
+                tries = [(f, t) for f in dict.fromkeys((frames, max(2, frames // 2), max(2, frames // 4)))
+                         for t in (0, 22.5, -22.5, 45, -45, 67.5, -67.5, 90, -90, 135, -135)]
+                for frames, turn in tries:
+                    a = math.radians(turn)
+                    tx, ty = sx * math.cos(a) - sy * math.sin(a), sx * math.sin(a) + sy * math.cos(a)
+                    before_state, before_route, before_frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
+                    h0 = float_at(at_h) if at_h is not None else None
+                    move, why = stick((tx, ty), frames)
+                    if not why and settle:
+                        done, why = self._advance(max(0, min(int(settle), 120)), set(), (0.0, 0.0), events)
+                        ran += done
+                    if why:
+                        break
+                    h1 = float_at(at_h) if at_h is not None else None
+                    fell = h0 is not None and h1 is not None and (h0 - h1 > float(fall)
+                                                                   or (floor is not None and h1 < float(floor)))
+                    if fell or (wet is not None and wet()):
+                        machine.load_state(before_state)
+                        machine.frames, self.route = before_frames, before_route
+                        if self.reader is not None:
+                            self.reader.state_loaded()
+                            self.reader.take()
+                        if len(refused) < MAX_ROWS:
+                            px0, pz0 = where()
+                            refused.append({"at": [round(px0, 1), round(pz0, 1)], "turn": turn,
+                                            "why": "fell" if fell else "water"})
+                        continue
+                    moved_to = (tx, ty)
+                    break
+                if why:
+                    break
+                if moved_to is None:
+                    why = "every way from here falls or enters the water"
+                    break
+                sx, sy = moved_to
+            else:
+                move, why = stick((sx, sy), frames)
+                if why:
+                    break
             # Learnt from only when it moved: a push against a wall says nothing of the way, and would turn it.
             if math.hypot(*move) >= 0.25 * speed * frames:
                 seen.append(((sx, sy), (move[0] / frames, move[1] / frames)))
@@ -2385,7 +2496,8 @@ class Session:
                     break
         px, pz = where()
         return {"reached": math.hypot(target[0] - px, target[1] - pz) <= near, "stopped": why or "limit",
-                "at": [round(px, 3), round(pz, 3)], "frames": ran, "events": len(events)}
+                "at": [round(px, 3), round(pz, 3)], "frames": ran, "events": len(events),
+                **({"refused": refused} if guarded else {})}
 
     @tool("Moves the cursor to a place, in the game's own numbers for it (cursor_find says where they are kept "
           "and how far a few frames move it; the picture says what the numbers mean): holds the pad a frame "

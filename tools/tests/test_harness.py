@@ -3354,6 +3354,64 @@ def test_explore_with_the_stick_in_three_dimensions(session):
     assert there["reached"] is True                       # round the wall's end, by the stick
 
 
+def test_walk_3d_keeps_to_a_pier_and_steers_by_the_camera(session):
+    """An L-shaped pier at height 10 over water (height 0): along x from 0 to 42 at |z| <= 2, then along z at x
+    from 38 to 42. Walking from its start to its far end, straight would cross the water: without the guard it
+    falls in; with it, each push that drops the height is undone and the next way tried, and it gets there round
+    the corner, saying which pushes it refused. Then a camera that keeps turning (its turn an s16 at 0x320), the
+    stick's ways turning with it: with yaw, the way learnt once is turned by the camera's turn."""
+    machine, plain = session.machine, session.machine._step
+    mem = machine.memory
+
+    def on_pier(x, z):
+        return (0 <= x <= 42 and abs(z) <= 2) or (38 <= x <= 42 and -2 <= z <= 40)
+
+    def pier(buttons, stick):
+        plain(buttons, stick)
+        m = machine.memory
+        x, h, z = struct.unpack_from(">3f", m, 0x300)
+        if h > 5:                                        # in the water nothing moves on by the stick here
+            sx, sy = stick
+            x, z = x + 0.9 * sx, z + 0.9 * sy
+            h = 10.0 if on_pier(x, z) else 0.0
+        struct.pack_into(">3f", m, 0x300, x, h, z)
+    machine._step = pier
+    struct.pack_into(">3f", mem, 0x300, 2.0, 10.0, 0.0)
+    start = machine.save_state()
+    place = {"x_address": f"0x{BASE + 0x300:08X}", "z_address": f"0x{BASE + 0x308:08X}", "x": 40.0, "z": 38.0, "near": 2.0}
+    blind = session.walk_3d(**place)
+    assert not blind["reached"]
+    machine.load_state(start)
+    guarded = session.walk_3d(**place, height=f"0x{BASE + 0x304:08X}", fall=3.0, limit=3000)
+    assert guarded["reached"] and guarded["refused"] and all(r["why"] == "fell" for r in guarded["refused"]), guarded
+    assert struct.unpack_from(">f", machine.memory, 0x304)[0] == 10.0                 # still on the pier
+    # A floor: no push ends below it, however small the step down (here none falls 3 at once but all go below 5).
+    machine.load_state(start)
+    low = session.walk_3d(**place, height=f"0x{BASE + 0x304:08X}", fall=100.0, floor=5.0, settle=4, limit=3000)
+    assert low["reached"] and low["refused"], low
+    # The camera turns 1/256 of a turn a frame; the stick moves the character by the camera's ways.
+    import math
+
+    def turning(buttons, stick):
+        plain(buttons, stick)
+        m = machine.memory
+        x, h, z = struct.unpack_from(">3f", m, 0x300)
+        turn = struct.unpack_from(">h", m, 0x320)[0]
+        a = turn * 2 * math.pi / 65536
+        sx, sy = stick
+        x, z = x + math.cos(a) * sx - math.sin(a) * sy, z + math.sin(a) * sx + math.cos(a) * sy
+        struct.pack_into(">3f", m, 0x300, x, h, z)
+        struct.pack_into(">h", m, 0x320, ((turn + 256 + 32768) % 65536) - 32768)
+    machine._step = turning
+    struct.pack_into(">3f", machine.memory, 0x300, 0.0, 1.0, 0.0)
+    struct.pack_into(">h", machine.memory, 0x320, 0)
+    out = session.walk_3d(x_address=place["x_address"], z_address=place["z_address"], x=60.0, z=-25.0, near=2.0,
+                          yaw=f"0x{BASE + 0x320:08X}", limit=2000)
+    assert out["reached"], out
+    with pytest.raises(HarnessError, match="yaw_kind"):
+        session.walk_3d(x_address=place["x_address"], z_address=place["z_address"], yaw_kind="degrees")
+
+
 def test_place_find_and_explore_by_whole_numbers(session):
     """A console without floats: the place is three whole numbers, many units a frame, the camera turned.
     place_find with a kind gives them and leaves out a number that leaps; explore counts them in cells of
