@@ -85,7 +85,9 @@ Play with the script loaded, and let it say when to take a picture:
 ```
 
 Each time the script says something, the game runs on a little and a snap and a picture are taken: the
-pictures come back as a sheet. Read each, and give each snap its lines with `snap_lines` (or `no_text`). Take
+pictures come back as a sheet. `on` comes after the step the text came in, so a page that gives way to the next
+within a step (a shout, a line that closes by itself) is gone by then: `"said": {"after": 2, "shot": true}`
+beside the steps snaps the moment the script says it instead, mid-wait, as `<prefix>-said-00` on. Read each, and give each snap its lines with `snap_lines` (or `no_text`). Take
 snaps where there is no text too (the title, a menu, a walk): a script must read nothing there. Do this in
 each scene: another room, a battle, a film, after a save is loaded. Then
 
