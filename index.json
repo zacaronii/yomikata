@@ -78,6 +78,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "GB-65EF364B": {
+   "path": "games/gb/GB-65EF364B.json",
+   "sha256": "c34d5ce4266d80339509b2e5d3a431ce20577004c5025e34b888c9c247bc58e0",
+   "platform": "gb",
+   "encoding": "table",
+   "status": "partial"
+  },
   "GB-7F805941": {
    "path": "games/gb/GB-7F805941.json",
    "sha256": "4aea0fe41f14d03fcb426a8ade727fbb4334509bb089b9fcdaf3e6ae7c3e6982",
@@ -1011,6 +1018,24 @@
     "tbl": {
      "path": "games/gb/GB-29D07340.tbl",
      "sha256": "79476b8b75c9049026e132294bc2cb68fd3117f846476b11c34b1da89557261f"
+    }
+   }
+  },
+  "GB-65EF364B": {
+   "path": "scripts/gb/GB-65EF364B.lua",
+   "sha256": "558f962b7dfc327ce0356989841fbed267cf51f5e8c6df4d38a6ef472412feda",
+   "platform": "gb",
+   "runtime": 1,
+   "title": "ポケットモンスター 青 (Pocket Monsters Ao, Game Boy)",
+   "reads": "the message window's two rows once they have typed out and stand",
+   "builds": [
+    "65ef364b"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gb/GB-65EF364B.tbl",
+     "sha256": "3a5789f93cf34851165e6c274b3e75a1e12511eb9ae01e79226db76d5161b63f"
     }
    }
   },
