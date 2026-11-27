@@ -448,6 +448,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "SLPM-86379": {
+   "path": "games/ps1/SLPM-86379.json",
+   "sha256": "f1488a24942e4e1ff16404accaccc0946162be69141644f5860124c2e4b4c63d",
+   "platform": "ps1",
+   "encoding": "compressed",
+   "status": "partial"
+  },
   "SLPM-86500": {
    "path": "games/ps1/SLPM-86500.json",
    "sha256": "289e5fafa2357c00bdab2a7163daa13562becfa38065f2ebaccee6c2761dfe9b",
@@ -1539,6 +1546,24 @@
     "tbl": {
      "path": "games/ps1/SLPM-86168.tbl",
      "sha256": "788a00efcd430b52b0c5417bdd1d17f87f627db3d7430e40feb79e3d86e91cf7"
+    }
+   }
+  },
+  "SLPM-86379": {
+   "path": "scripts/ps1/SLPM-86379.lua",
+   "sha256": "38fa9c7b6561ffba62fe216a4475c29ad3712636971b356b17cbcdb20f952f67",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "ヴァルキリープロファイル (Valkyrie Profile, disc 1)",
+   "reads": "the talk window's rows once a page has typed out, each character by its picture",
+   "builds": [
+    "33619ac1f19a4679b798a0f0a000a341a58eb748"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/ps1/SLPM-86379.glyphs",
+     "sha256": "bdcb633563af8ac672116b6330cf7125dff843ffda0029b90d9d92ae9fceac65"
     }
    }
   },
