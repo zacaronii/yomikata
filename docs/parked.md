@@ -85,6 +85,22 @@ pages, but the next talk is past the mines' fights, further than the calls went.
   calls instead of one call a room by hand.
 - **States**: `ff-p2` after the opening's run of presses, `ff-u4` past the north door (the mines' edge), `ff-u5`
   after a fight there.
+- **The mines** (calls 241-263, with `expedition`): the map's number is a word at `0x7E1F64` (low 9 bits; the town
+  19, the mines' first map 41). The first mine map was mapped (69 places), its one door leading back; the gate at
+  its top stays shut. A fight leaves the field still for a while after it ends (the fight watch's `after`), its
+  command cursor needs one `up` (`first`), and crossing a map with fights every few steps runs out of a call's
+  time (`heading`). Walking here takes steps of 40 frames: the place's bytes change only well after a push.
+- **The events** (calls 264-280): each map's event places are in the cartridge, a table of 2-byte offsets into
+  bank `0xC4` by map, 5 bytes a place (x and y in the party's tile numbers, then the event's address from
+  `0xCA0000`). An event that is done returns at once on a flag (its first command `0xC0`, the flag's number with
+  its top bit set, and an address holding `0xFE`); the flags are bits from `0x7E1E80` (the town's two done
+  events' flags are set, the mine map's three are clear). The script's `events()` (branch `final-fantasy-6`) gives
+  the map's places whose flag is clear, doors (an event that only loads a map, `0x6A`/`0x6B`) left out: on map 41,
+  (42, 9), (42, 5) and (33, 22), offline and live. `expedition` with `events` walks to them first, but from
+  `ff-u4` the walk to the first, through the mine's fights in steps of 40, used the whole call; from `ff-x5`
+  (at the gate, (40, 8)) the party doesn't move at all. Spent at 280 of 280.
+- **Next**: a walk to an event place that keeps its progress across calls (the nearest state reached, given back
+  to go on from), as `legs` does for doors; or the walk from `ff-u4` to (42, 9) split over two calls.
 
 ## Final Fantasy V (Super Famicom, SFC-9EA60A02)
 
