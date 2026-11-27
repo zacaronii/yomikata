@@ -784,6 +784,11 @@ def test_a_game_boy_advances_sprite_table_and_video_memory_are_kept_and_read_at_
     machine.core.maps = [(0x07000000, 0x200, C.addressof(held))]                         # half given
     assert "oam" not in machine.regions()
     assert "oam" not in region_starts("gb") and "vram" not in region_starts("snes")
+    # A Famicom's nametables (kept in a snap as `vram`) answer over a snap where they do in play: 0x80002000.
+    from yomikata.run import with_regions
+    assert region_starts("fc")["vram"] == 0x80002000 and region_starts("fds")["vram"] == 0x80002000
+    over = with_regions(lambda a, n: b"", "fc", {"vram": bytes(range(8)) * 0x100})
+    assert over(0x80002002, 3) == b"\x02\x03\x04" and over(0x80002800, 1) == b"" and over(0x2000, 1) == b""
 
 
 def test_a_game_boys_io_is_read_across_the_stretches_of_the_cores_map():
@@ -1832,7 +1837,8 @@ def made_up_sfc(hirom: bool, title: bytes = b"MADE UP") -> bytes:
 def test_rom_reader_gives_the_cartridge_at_the_consoles_own_addresses():
     """Snaps keep memory, not the cartridge: rom_reader gives a script the cartridge where it reads it in play,
     and no more than docs/script-api.md promises: a Super Famicom HiROM cartridge at 0xC00000 on, byte for byte
-    (a copier's header left out), not its mirrors, and no LoROM one; a Game Boy's at CARTRIDGE."""
+    (a copier's header left out), not its mirrors; a LoROM one in the upper halves of banks 0x00-0x3F, its header
+    at 0x00FFC0; a Game Boy's at CARTRIDGE, and its bank 0 at 0x0000 (its header at 0x0134)."""
     from yomikata.harness.machine import CARTRIDGE, rom_reader
     hi = made_up_sfc(True)
     read = rom_reader("sfc", hi)
@@ -1840,8 +1846,16 @@ def test_rom_reader_gives_the_cartridge_at_the_consoles_own_addresses():
     assert read(0xC0FFFE, 4) == hi[0xFFFE:]                                           # where the file ends
     assert read(0x400123, 1) == b"" and read(0x008000, 4) == b"" and read(0x7E0000, 1) == b""     # mirrors, RAM
     assert rom_reader("sfc", bytes(512) + hi)(0xC0FFC0, 7) == b"MADE UP"              # a copier's header
-    assert rom_reader("sfc", made_up_sfc(False)) is None                              # LoROM: not dependable yet
+    lo = rom_reader("sfc", made_up_sfc(False))                                        # LoROM
+    assert lo(0x00FFC0, 7) == b"MADE UP" and lo(0x018000, 4) == b"MARK" and lo(0x008123, 1) == b"\x23"
+    assert lo(0x00FFFE, 4) == made_up_sfc(False)[0x7FFE:0x8000]                       # not over into the next bank
+    assert lo(0x000123, 1) == b"" and lo(0x808000, 1) == b"" and lo(0x408000, 1) == b"" and lo(0x7E0000, 1) == b""
+    assert lo(0x028000, 1) == b""                                                     # past the file's end
     assert rom_reader("gb", b"GB" * 8)(CARTRIDGE["gb"] + 2, 2) == b"GB"
+    cart = bytes(0x134) + b"POKEMON RED" + bytes(0x4000 - 0x134 - 11) + b"BANK1"
+    gb = rom_reader("gbc", cart)
+    assert gb(0x0134, 11) == b"POKEMON RED" and gb(0x4000, 5) == b""                  # bank 0 only: 1+ switch
+    assert gb(CARTRIDGE["gbc"] + 0x4000, 5) == b"BANK1" and gb(0xC000, 1) == b""
     assert rom_reader("gba", b"AGB!" * 4)(0x08000004, 4) == b"AGB!"                   # where the core gives it
     assert rom_reader("gba", b"AGB!")(0x02000000, 4) == b""
     assert rom_reader("ps1", b"x") is None and rom_reader("sfc", b"short") is None
@@ -4181,7 +4195,7 @@ def test_a_famicom_machine_reads_its_work_ram_through_pages_and_its_nametables(t
         base, ram = machine.ram()
         assert (base, len(ram)) == (0, 0x800) and machine.read(0x1810, 2) == b"\x03\x03"
         regions = machine.regions()
-        assert set(regions) == {"wram", "vram"} and region_starts(platform) == {"wram": 0x6000}
+        assert set(regions) == {"wram", "vram"} and region_starts(platform) == {"wram": 0x6000, "vram": 0x80002000}
         assert regions["wram"] == b"".join(bytes([0x60 + k]) * 0x400 for k in range(8))
         assert regions["vram"] == b"\x05" * 0x800
     assert keep

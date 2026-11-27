@@ -357,7 +357,9 @@ cartridge, so a script may read the cartridge at the addresses the game itself u
 - a HiROM cartridge at `0xC00000` on, byte for byte (bank `0xC0` is the file's first 64 KB). Read it through
   these linear addresses, not through its mirrors (`0x40`-`0x7D`, and `0x8000`-`0xFFFF` of banks `0x00`-`0x3F`),
   which a host may not give truly;
-- a LoROM cartridge isn't dependable yet: a script shouldn't rely on reading one;
+- a LoROM cartridge in the upper halves (`0x8000`-`0xFFFF`) of banks `0x00`-`0x3F`: bank `n`'s is the file's
+  32 KB at `n x 0x8000`, its header at `0x00FFC0`. Not its other banks or mirrors (`0x40`-`0x7D`, `0x80` on), which
+  LoROM maps differ in;
 - a script that needs the cartridge checks a read, and where it gets nothing says so once in the log and
   reads nothing. It must not fail: a host may give work RAM alone.
 
@@ -372,7 +374,8 @@ as on a host that follows the map. A snap's main memory and the searches over it
 **A Game Boy cartridge.** A core shows a script only the two banks the game has switched in, and by the time a
 line stands the game may have switched to others. The harness gives the cartridge's file whole at `0x01000000`
 on, byte for byte (bank `n` at `0x01000000 + n x 0x4000`). The same rule holds: a script checks a read there, and
-where it gets nothing says so once and reads nothing.
+where it gets nothing says so once and reads nothing. Bank 0, which the console always shows at `0x0000`-`0x3FFF`
+(its header at `0x0134`), may be read there too.
 
 **A Famicom cartridge or disk.** fceumm's map has no program ROM at all (`0x8000`-`0xFFFF` reads nothing), so a
 script has nothing there to check its build against or to read text from. The harness gives a Famicom image at
@@ -381,10 +384,12 @@ script has nothing there to check its build against or to read text from. The ha
 there after its fwNES header (where it has one), side after side (65,500 bytes each). The same rule holds.
 
 **Over a snap.** A snap keeps memory, not the cartridge. Where a script reads one of the cartridges above (a
-Super Famicom HiROM cartridge at `0xC00000`, a Game Boy, Famicom, Disk System or Mega Drive image at
-`0x01000000`), the harness's `compare` gives it the loaded game's, over snaps of that game, and `yomikata run`
-gives it with `--rom` and the game's file: a build check on the cartridge's header holds there as in play. A Super
-Famicom cartridge is given only as above (no mirrors, no LoROM), so that what reads over a snap reads in play.
+Super Famicom cartridge as above, a Game Boy's bank 0 at `0x0000`, a Game Boy, Famicom, Disk System or Mega Drive
+image at `0x01000000`), the harness's `compare` gives it the loaded game's, over snaps of that game, `yomikata run`
+gives it with `--rom` and the game's file, and so does the nightly regression check: a build check on the
+cartridge's header holds there as in play. A Super Famicom cartridge is given only as above (no mirrors), so that
+what reads over a snap reads in play. A Famicom's nametables (the snap's `vram`) answer at `0x80002000` over a snap,
+as in play.
 
 **A Mega Drive cartridge.** genesis_plus_gx gives out no map of the cartridge either. The harness gives it whole at
 `0x01000000` on, as the console sees it (byte `n` of the ROM at `0x01000000 + n`; an SMD dump put back in order), so
