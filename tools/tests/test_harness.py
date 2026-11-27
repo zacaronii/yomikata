@@ -1831,6 +1831,127 @@ def test_compare_gives_a_super_famicom_script_its_cartridge_over_snaps(tmp_path)
     t.close()
 
 
+def unpack(packed: bytes) -> bytes:
+    """A made-up decompressor: 0x00 n and n bytes as they are; 0x01 back length, that many bytes copied from back."""
+    out, i = bytearray(), 0
+    while i < len(packed):
+        if packed[i] == 0:
+            n = packed[i + 1]
+            out += packed[i + 2:i + 2 + n]
+            i += 2 + n
+        else:
+            back, n = packed[i + 1], packed[i + 2]
+            for _ in range(n):
+                out.append(out[-back])
+            i += 3
+    return bytes(out)
+
+
+class Unpacker(FakeMachine):
+    """A game whose script is packed: a press of a unpacks the next page into BUFFER (or, kept twice, the pages
+    alternating between two places), 2 frames after the press. Beside it, as a real game has: the frame counter
+    (0x10), the line that changes every 10 frames (0x100), a stack rewritten every frame, and a tile copy of the
+    page whose first half holds while the page stands and whose second half moves every frame."""
+    BUFFER, OTHER, TILES, STACK, SIZE = 0x400, 0x500, 0x800, 0x900, 64
+    PACKED = [b"\x00\x0a" + bytes(range(0x21, 0x2B)) + b"\x01\x0a\x1e" + b"\x00\x04\x50\x51\x52\x53",
+              b"\x00\x14" + bytes(range(0x40, 0x54)) + b"\x01\x05\x14",
+              b"\x00\x08" + bytes(range(0x60, 0x68)) + b"\x01\x08\x20" + b"\x00\x02\x30\x31",
+              None]                                                  # the fourth is the first again
+    twice = False
+    write = True
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.page, self.held, self.due = -1, False, None
+        self.memory[self.BUFFER:self.BUFFER + self.SIZE] = b"\xff" * self.SIZE
+        self.memory[self.OTHER:self.OTHER + self.SIZE] = b"\xff" * self.SIZE
+
+    def text(self):
+        packed = self.PACKED[self.page % len(self.PACKED)] or self.PACKED[0]
+        return unpack(packed).ljust(self.SIZE, b"\xff")
+
+    def run(self, frames, buttons, stick):
+        for _ in range(frames):
+            super().run(1, buttons, stick)
+            if "a" in buttons and not self.held:
+                self.page, self.due = self.page + 1, self.frames + 2
+            self.held = "a" in buttons
+            if self.due == self.frames and self.write:
+                at = self.OTHER if self.twice and self.page % 2 else self.BUFFER
+                self.memory[at:at + self.SIZE] = self.text()
+            if self.page >= 0:
+                half = self.text()[:self.SIZE // 2]
+                moving = bytes((b + self.frames) & 0xFF for b in self.text()[self.SIZE // 2:])
+                self.memory[self.TILES:self.TILES + self.SIZE] = half + moving
+            self.memory[self.STACK:self.STACK + 32] = bytes((self.frames * 37 + i * 11) & 0xFF for i in range(32))
+
+
+def unpacker_session(tmp_path, machine):
+    for name in ("games/sfc", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True, exist_ok=True)
+    (tmp_path / "games/sfc/Made Up (Japan).sfc").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), machine)
+    s.load("sfc/Made Up (Japan).sfc", "fake_libretro.so", "sfc")
+    steps = []
+    for k in range(4):                                  # a snap before each page opens, three while it stands
+        steps += [{"wait": 1, "snap": f"b{k}"}, {"buttons": ["a"], "hold": 1, "wait": 5, "snap": f"p{k}a"},
+                  {"wait": 9, "snap": f"p{k}b"}, {"wait": 9, "snap": f"p{k}c"}]
+    s.steps(steps)
+    return s
+
+
+PAGES = [[f"p{k}a", f"p{k}b", f"p{k}c"] for k in range(4)]
+
+
+def test_page_buffer_finds_where_a_packed_page_is_written_whole(tmp_path):
+    """The buffer comes first, whole, with each page written by the first snap after its press (not before it),
+    and the repeated page the same; the tile copy that moves while a page stands is ranked below it, the stack
+    and the counter left out."""
+    s = unpacker_session(tmp_path, Unpacker)
+    out = s.page_buffer(PAGES, before=[f"b{k}" for k in range(4)], repeats=[[0, 3]])
+    top = out["stretches"][0]
+    assert top["address"] == f"0x{BASE + Unpacker.BUFFER:08X}" and top["stood"] == 1.0 and top["repeats"]
+    assert top["length"] >= 30 and top["written"] == [0, 0, 0, 0]
+    places = {r["address"]: r for r in out["stretches"]}
+    tiles = places.get(f"0x{BASE + Unpacker.TILES:08X}")
+    assert tiles and tiles["stood"] < 1.0 and tiles["score"] < top["score"]            # ranked down, not out
+    assert f"0x{BASE + Unpacker.STACK:08X}" not in places                               # never stands: left out
+    assert all(not (BASE + 0x10 <= int(a, 16) < BASE + 0x14) for a in places)            # the counter
+    assert s.page_buffer(PAGES, within=[f"0x{BASE + 0x700:X}", f"0x{BASE + 0x1000:X}"])["stretches"][0]["address"] \
+        == f"0x{BASE + Unpacker.TILES:08X}"
+    with pytest.raises(HarnessError, match="two pages or more"):
+        s.page_buffer([["p0a"]])
+    with pytest.raises(HarnessError, match="pairs of page indices"):
+        s.page_buffer(PAGES, repeats=[[0, 9]])
+    s.close()
+
+
+def test_page_buffer_gives_both_halves_of_a_buffer_kept_twice(tmp_path):
+    """Pages that alternate between two buffers: both are given, side by side at the top, each said to alternate
+    with the other."""
+    class Twice(Unpacker):
+        twice = True
+    s = unpacker_session(tmp_path, Twice)
+    out = s.page_buffer(PAGES)
+    first, second = out["stretches"][:2]
+    addresses = {f"0x{BASE + Unpacker.BUFFER:08X}", f"0x{BASE + Unpacker.OTHER:08X}"}
+    assert {first["address"], second["address"]} == addresses
+    assert first["alternates_with"] == second["address"] and second["alternates_with"] == first["address"]
+    s.close()
+
+
+def test_page_buffer_gives_no_stood_stretch_where_no_page_is_written(tmp_path):
+    """With no buffer, nothing stands through the pages: the tile copy is still given, ranked down as one that
+    moves, and nothing is passed off as a page's buffer."""
+    class Nowhere(Unpacker):
+        write = False
+    s = unpacker_session(tmp_path, Nowhere)
+    out = s.page_buffer(PAGES)
+    assert out["stretches"] and all(r["stood"] < 1.0 for r in out["stretches"])
+    s.close()
+
+
 def test_on_disc_finds_memory_that_lies_on_the_disc_as_it_is(session, tmp_path):
     line = bytes(range(40, 104))
     put(session, 0x300, line)
