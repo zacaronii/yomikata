@@ -3406,6 +3406,30 @@ def test_walk_3d_keeps_to_a_pier_and_steers_by_the_camera(session):
     machine.load_state(start)
     low = session.walk_3d(**place, height=f"0x{BASE + 0x304:08X}", fall=100.0, floor=5.0, settle=4, limit=3000)
     assert low["reached"] and low["refused"], low
+    # A step up the character hops onto: for 25 frames after, its height reads the top of the hop (30), above
+    # where it lands (12). Read mid-hop, every next push lands "lower" than that, and each is refused; the guard
+    # stands still a moment and tries again from where it landed.
+    def hop(buttons, stick):
+        plain(buttons, stick)
+        m = machine.memory
+        x, h, z = struct.unpack_from(">3f", m, 0x300)
+        timer = struct.unpack_from(">H", m, 0x330)[0]
+        sx, sy = stick
+        nx, nz = x + 0.9 * sx, z + 0.9 * sy
+        if 0 <= nx <= 42 and abs(nz) <= 2:
+            if x < 10 <= nx:
+                timer = 25
+            x, z = nx, nz
+        timer = max(0, timer - 1)
+        h = 30.0 if timer else (12.0 if x >= 10 else 10.0)
+        struct.pack_into(">3f", m, 0x300, x, h, z)
+        struct.pack_into(">H", m, 0x330, timer)
+    machine._step = hop
+    struct.pack_into(">3f", machine.memory, 0x300, 2.0, 10.0, 0.0)
+    struct.pack_into(">H", machine.memory, 0x330, 0)
+    hopped = session.walk_3d(**{**place, "x": 40.0, "z": 0.0}, height=f"0x{BASE + 0x304:08X}", fall=10.0, limit=3000)
+    assert hopped["reached"] and any(r.get("height", [0, 0])[0] == 30.0 for r in hopped["refused"]), hopped
+    machine._step = pier
     # The camera turns 1/256 of a turn a frame; the stick moves the character by the camera's ways.
     import math
 
