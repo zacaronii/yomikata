@@ -813,7 +813,11 @@ each time the command menu is up (`menu`, a mode the game sets while it waits fo
 `idle` presses a button every so often while no command menu is up: a fight may stop for a talk that waits for
 it (Final Fantasy VI's first boss does, twice), and without it the try ends after a minute with no menu. The
 `fight` tool keeps the state at the fight's start and, when a plan loses, tries the next of `plans` from there:
-a lost fight costs one try, not the way back from the title. A picture of how each try ended comes back with it. What a game's menu, commands and HP are
+a lost fight costs one try, not the way back from the title. A picture of how each try ended comes back with it,
+and a won fight's state is kept too (`<keep>-won`). A lost fight may show it late: Final Fantasy VI's ends its
+fight's mode at once, and leaves the map only after a word and a fade, so the room and the game-over modes are
+watched for `over_wait` frames after the fight (600 unless said); a check made just after it took a loss for a
+win. What a game's menu, commands and HP are
 belongs in its notes; the tool takes only addresses and buttons.
 
 ### A call's time
