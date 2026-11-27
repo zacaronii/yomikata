@@ -3433,7 +3433,8 @@ class Session:
           loose=("boolean", "for actors kept anywhere in the heap, in no list: every place with the player's spacing "
                             "of x and z near it, once (the answer sorts the people from the things)", False),
           least=("number", "leave out places nearer the player than this: its own parts and what it carries", False),
-          keep=("string", "a state's name to save the game under where someone answered", False),
+          keep=("string", "a state's name to save the game under where someone answered (when no one did, where the "
+                          "last walk got to)", False),
           targets=("array", "the people to go to, instead of looking for them in memory: [{x, z, name, way}, …] in "
                             "the player's numbers, as `yomikata placements` reads them off the disc (and `yomikata "
                             "route` gives each a way round what is between); tried nearest first", False),
@@ -3479,6 +3480,7 @@ class Session:
         def said(events):
             return [e["text"] for e in events if e.get("kind") == "text" and e.get("channel") != "interface"]
         tried = []
+        last_reached = None
         for person in people[:max(1, min(int(most), 32))]:
             if self._late():
                 break
@@ -3497,6 +3499,7 @@ class Session:
                               **({"refused": len(walked["refused"])} if walked.get("refused") else {})})
                 continue
             there = machine.save_state()
+            last_reached = (there, json.loads(json.dumps(self.route)), machine.frames)
             quiet: list = []
             self._advance(6 + wait, set(), (0.0, 0.0), quiet)        # without the press: what comes by itself
             machine.load_state(there)
@@ -3511,6 +3514,15 @@ class Session:
             if answer:
                 return {"met": row, "said": answer[:3], "tried": tried, "stride": found["stride"],
                         "frames": machine.frames, **({"kept": self._keep(keep)} if keep else {})}
+        if keep and last_reached is not None:
+            # No one answered, but a walk got there: kept where the last one did (to look, or press, from there).
+            machine.load_state(last_reached[0])
+            self.route, machine.frames = last_reached[1], last_reached[2]
+            self.reader.state_loaded()
+            self.reader.take()
+            return {"met": None, "tried": tried, "stride": found["stride"], "frames": machine.frames,
+                    "kept": self._keep(keep), "kept_at": "the last place reached; no one answered",
+                    **({"stopped": "time"} if self._late() else {})}
         back()
         return {"met": None, "tried": tried, "stride": found["stride"], "frames": machine.frames,
                 **({"stopped": "time"} if self._late() else {})}

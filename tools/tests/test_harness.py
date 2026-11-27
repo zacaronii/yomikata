@@ -3335,6 +3335,12 @@ def test_meet_walks_to_the_nearest_people_and_finds_who_answers(session):
     by_way = session.meet(**player, targets=[{"x": -17.0, "z": 26.0, "name": "Ab1", "way": [[3.0, 20.0, 0.0]]}],
                           reach=2.0, walk={"limit": 1500, "way_near": 2.0})
     assert by_way["met"]["address"] == "Ab1", by_way
+    # No one answers (Cd2 says nothing), with keep: the game is kept where the walk got to, not put back.
+    struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)
+    silent = session.meet(**player, targets=[{"x": 15.0, "z": 1.0, "name": "Cd2"}], reach=2.0, walk={"limit": 1500},
+                          keep="nobody-k")
+    x, _, z = struct.unpack_from(">3f", machine.memory, 0x400)
+    assert silent["met"] is None and silent["kept"] == "nobody-k" and ((x - 15) ** 2 + (z - 1) ** 2) ** 0.5 <= 2.5, silent
     with pytest.raises(HarnessError, match="walk takes"):
         session.meet(**player, targets=[{"x": 1.0, "z": 1.0}], walk={"fly": True})
     struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)            # back where the sword is beside
