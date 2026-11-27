@@ -148,6 +148,32 @@ def test_snapshots_of_the_n64_at_its_8_mb_and_the_uncached_mirror(tmp_path):
     assert r.status_code == 400 and "outside n64 main RAM" in r.json()["detail"]
 
 
+def test_snapshots_of_the_famicom_and_its_disk_system_with_their_work_ram(tmp_path):
+    """fc and fds snapshots: the 2 KB at 0x0000, and the work RAM at 0x6000 as the part `wram` (8 KB on a
+    cartridge, up to the Disk System's 32 KB); samples in the 2 KB, its mirrors and the work RAM are taken, others
+    refused."""
+    c = TestClient(create_app("secret", tmp_path / "data"))
+
+    def post(game, platform, ram, **parts):
+        meta = {"id": game, "platform": platform, "base_address": "0x0000", "ocr": ["こんにちは"]}
+        files = {"ram": ("ram", ram), **{k: (k, v) for k, v in parts.items()}}
+        return c.post("/api/snapshots", data={"meta": json.dumps(meta)}, headers=AUTH, files=files)
+    for game, platform, wram in (("FC-12345678", "fc", 0x2000), ("FDS-01ZEL", "fds", 0x8000)):
+        r = post(game, platform, os.urandom(0x800), wram=os.urandom(wram), vram=os.urandom(0x800))
+        assert r.status_code == 200 and r.json()["parts"] == ["ram", "vram", "wram"], (platform, r.json())
+        r = post(game, platform, os.urandom(0x800), wram=os.urandom(wram + 1))
+        assert r.status_code == 400 and r.json()["detail"].startswith(f"wram is larger than {platform}'s"), r.json()
+        assert post(game, platform, os.urandom(0x801)).status_code == 400
+
+    def sample(game, platform, address):
+        return c.post("/api/samples", json={"id": game, "platform": platform, "samples": [
+            {"ocr": "こんにちは", "bytes_hex": "82b182f182c982bf82cd", "address": address}]}, headers=AUTH)
+    for address in ("0x0300", "0x1300", "0x6100"):
+        assert sample("FC-12345678", "fc", address).status_code == 200, address
+    assert sample("FDS-01ZEL", "fds", "0xC000").status_code == 200
+    assert sample("FC-12345678", "fc", "0xC000").status_code == 400                 # the cartridge's ROM
+
+
 def test_offline_reads_take_a_snapshots_regions_but_not_its_savestate(tmp_path):
     """yomikata run's regions beside a snapshot: lwram and the like, not the savestate kept with it."""
     from yomikata.run import _regions

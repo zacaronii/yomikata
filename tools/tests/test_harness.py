@@ -2727,6 +2727,92 @@ def test_a_pc_engine_cd_is_read_from_its_data_track_and_named_by_its_boot_block(
     assert all("ram" not in names for names in OTHER_STRETCHES.values())
 
 
+def test_identify_famicom_cartridges_by_their_rom_and_disks_by_their_info_block(tmp_path):
+    """A Famicom cartridge is named by its PRG and CHR ROM's CRC-32, whatever header the dump has (iNES, NES
+    2.0, a trainer, none, in a zip); a Disk System disk by its maker and name codes, with the disk's number for
+    the second of a set, and its revision as the build, with or without the fwNES header."""
+    import os, zlib, zipfile
+    from yomikata.identify import identify
+    rom = os.urandom(0x4000 + 0x2000)
+    want = f"FC-{zlib.crc32(rom):08X}"
+    variants = {"ines.nes": b"NES\x1a\x01\x01\x00\x00" + bytes(8) + rom,
+                "nes2.nes": b"NES\x1a\x01\x01\x10\x08\x00\x00\x07\x00\x00\x00\x00\x01" + rom,
+                "trainer.nes": b"NES\x1a\x01\x01\x04\x00" + bytes(8) + os.urandom(512) + rom,
+                "bare.nes": rom}
+    for name, data in variants.items():
+        (tmp_path / name).write_bytes(data)
+        assert identify(tmp_path / name).id == want, name
+    with zipfile.ZipFile(tmp_path / "game.zip", "w") as z:
+        z.writestr("Made Up (Japan).nes", variants["ines.nes"])
+    release = identify(tmp_path / "game.zip")
+    assert (release.platform, release.id, release.header_crc32) == ("fc", want, want[3:].lower())
+
+    def side(maker, name, revision, number):
+        block = (b"\x01*NINTENDO-HVC*" + bytes([maker]) + name + bytes([0x20, revision, 0, number])).ljust(0x38, b"\x00")
+        return block + bytes(65500 - 0x38)
+    disk = side(0xA4, b"ZQ1 ", 3, 0)
+    for name, data in (("plain.fds", disk + disk), ("fwnes.fds", b"FDS\x1a\x02" + bytes(11) + disk + disk)):
+        (tmp_path / name).write_bytes(data)
+        release = identify(tmp_path / name)
+        assert (release.platform, release.id, release.build) == ("fds", "FDS-A4ZQ1", "FDS-A4ZQ1-03"), name
+        assert release.header_crc32 == f"{zlib.crc32(disk[:0x38]):08x}"
+    (tmp_path / "second.fds").write_bytes(side(0x01, b"A?B ", 0, 1))
+    assert identify(tmp_path / "second.fds").id == "FDS-01A-B-D2"
+    (tmp_path / "junk.fds").write_bytes(bytes(65500))
+    with pytest.raises(ValueError, match="disk-info block"):
+        identify(tmp_path / "junk.fds")
+
+
+def test_a_famicom_machine_reads_its_work_ram_through_pages_and_its_nametables(tmp_path):
+    """fceumm maps a Famicom's 2 KB at 0x0000 in two pages, 0x6000-0x7FFF in eight pages of 1 KB, and the two
+    nametables at 0x80002000, and gives out no video memory as such. The harness reads main memory and its
+    mirrors to 0x1FFF, the work RAM as the region `wram` (8 KB, across its pages) and the nametables as `vram`."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine, region_starts
+    work = (C.c_char * 0x800)(*([3] * 0x800))
+    pages = [(C.c_char * 0x400)(*([0x60 + k] * 0x400)) for k in range(8)]
+    tables = (C.c_char * 0x800)(*([5] * 0x800))
+    keep = (work, pages, tables)
+
+    class Lib:
+        def retro_get_memory_data(self, which):
+            return C.addressof(work) if which == 2 else None
+
+        def retro_get_memory_size(self, which):
+            return 0x800 if which == 2 else 0
+
+    class Core:
+        lib = Lib()
+        maps = ([(0x0000, 0x400, C.addressof(work)), (0x0400, 0x400, C.addressof(work) + 0x400)]
+                + [(0x6000 + 0x400 * k, 0x400, C.addressof(p)) for k, p in enumerate(pages)]
+                + [(0x80002000, 0x800, C.addressof(tables))])
+
+        def read(self, address, size):
+            for start, length, ptr in self.maps:
+                if start <= address < start + length:
+                    return C.string_at(ptr + address - start, min(size, start + length - address))
+            return b""
+
+        def video_ram(self):
+            return None
+
+        def ram(self):
+            return C.string_at(C.addressof(work), 0x800)
+
+        def ram_base(self):
+            return None
+    for platform in ("fc", "fds"):
+        machine = Machine.__new__(Machine)
+        machine.platform, machine.core, machine.cartridge = platform, Core(), b""
+        base, ram = machine.ram()
+        assert (base, len(ram)) == (0, 0x800) and machine.read(0x1810, 2) == b"\x03\x03"
+        regions = machine.regions()
+        assert set(regions) == {"wram", "vram"} and region_starts(platform) == {"wram": 0x6000}
+        assert regions["wram"] == b"".join(bytes([0x60 + k]) * 0x400 for k in range(8))
+        assert regions["vram"] == b"\x05" * 0x800
+    assert keep
+
+
 def test_identify_a_gamecube_disc_plain_and_compressed(tmp_path):
     """A GameCube disc by its header's first 0x80 bytes, as an ISO and as an RVZ (which keeps them at 0x58)."""
     import zlib
