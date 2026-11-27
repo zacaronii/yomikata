@@ -2458,6 +2458,7 @@ class Session:
                        (sn * out[0][0] + c * out[1][0], sn * out[0][1] + c * out[1][1])]
             return out                                      # move[k] = out[k][0] * sx + out[k][1] * sy
         best, stuck, why = math.inf, 0, None
+        last_ok, backed, short = None, 0, 1                # the state before the last push let through
         while ran < limit:
             px, pz = where()
             gap = (target[0] - px, target[1] - pz)
@@ -2487,6 +2488,7 @@ class Session:
                 why = "no way toward the place"
                 break
             frames = push if length > push else max(2, int(round(length)))
+            frames = max(2, frames // short)
             sx, sy = sx / length, sy / length
             if guarded:
                 # The ledge guard: the push from a state saved before it; a fall or water undoes it, and the next
@@ -2495,6 +2497,18 @@ class Session:
                 tries = [(f, t) for f in dict.fromkeys((frames, max(2, frames // 2), max(2, frames // 4)))
                          for t in (0, 22.5, -22.5, 45, -45, 67.5, -67.5, 90, -90, 135, -135)]
                 for attempt in (0, 1):
+                    if attempt and last_ok is not None and backed < 3:
+                        # Every way refused: the character may already be in the air, over an edge the last push
+                        # let through before it dropped. Back to before that push, and on with shorter pushes and
+                        # a longer wait after each (a game that lets a character run on air a moment before it drops).
+                        machine.load_state(last_ok[0])
+                        self.route, machine.frames = last_ok[1], last_ok[2]
+                        if self.reader is not None:
+                            self.reader.state_loaded()
+                            self.reader.take()
+                        backed, short, last_ok = backed + 1, short * 2, None
+                        why = "backed"
+                        break
                     if attempt:
                         # Every way refused: the height may have been read mid-hop (a game that hops the character
                         # up a step), so every push lands "lower". Stand still a moment, then once more from there.
@@ -2508,8 +2522,9 @@ class Session:
                         before_state, before_route, before_frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
                         h0 = float_at(at_h) if at_h is not None else None
                         move, felt, felt_frames, why = pushed((tx, ty), frames)
-                        if not why and settle:
-                            done, why = self._advance(max(0, min(int(settle), 120)), set(), (0.0, 0.0), events)
+                        if not why and (settle or short > 1):
+                            wait = max(int(settle), 8) * short if short > 1 else int(settle)
+                            done, why = self._advance(max(0, min(wait, 120)), set(), (0.0, 0.0), events)
                             ran += done
                         if why:
                             break
@@ -2533,12 +2548,16 @@ class Session:
                         break
                     if why or moved_to is not None:
                         break
+                if why == "backed":
+                    why, best, stuck = None, math.inf, 0
+                    continue
                 if why:
                     break
                 if moved_to is None:
                     why = "every way from here falls or enters the water"
                     break
                 sx, sy = moved_to
+                last_ok = (before_state, before_route, before_frames)
             else:
                 move, felt, felt_frames, why = pushed((sx, sy), frames)
                 if why:
