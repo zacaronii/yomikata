@@ -78,7 +78,8 @@ RAM = {
     "pce-cd": [(0x0D0000, 0x110000)],
     # The 8 MB of RAM (the Expansion Pak's included), and the same uncached. Kept in the console's byte order
     # (big-endian), as the harness reads it.
-    "n64": [(0x80000000, 0x80800000), (0xA0000000, 0xA0800000)],    # The 2 KB of work RAM and its mirrors to 0x1FFF; a cartridge's work RAM at 0x6000 (8 KB), the Disk
+    "n64": [(0x80000000, 0x80800000), (0xA0000000, 0xA0800000)],
+    # The 2 KB of work RAM and its mirrors to 0x1FFF; a cartridge's work RAM at 0x6000 (8 KB), the Disk
     # System's RAM at 0x6000-0xDFFF (32 KB).
     "fc": [(0x0000, 0x2000), (0x6000, 0x8000)],
     "fds": [(0x0000, 0x2000), (0x6000, 0xE000)],
