@@ -544,7 +544,10 @@ when it gets no nearer. A talk or a scene that begins on the way stops it too; t
 it that hold actors (a list of records a steady distance apart with the player's own among them, or, for a game
 that keeps them anywhere in its heap, every place with the same spacing of x and z: `loose`, with `least` to
 leave out the player's own parts), walks to each in turn from where it began, and presses there; what the
-script says after the press and not in a wait without it is an answer. Wind Waker's player is the floats at
+script says after the press and not in a wait without it is an answer. A game that walks by the stick alone
+(the pad does nothing) is mapped with `explore` and `expedition` given `stick`: eight pushes of the stick in
+place of the pad's, named n, ne, … (the stick's ways, which turn with the camera); a door found so is pushed
+through by the same way. Wind Waker's player is the floats at
 0x80ACF694 (x) and 0x80ACF69C (z), its actors in the heap.
 
 ### Waypoints

@@ -33,6 +33,18 @@ MAX_INFO = 50          # a script's info-level logs kept in a call's events, so 
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
 
 
+# explore's pushes with the stick, for a game that walks by it (in three dimensions, most): eight ways, by name.
+STICK_WAYS = {"n": (0.0, -1.0), "ne": (0.7071, -0.7071), "e": (1.0, 0.0), "se": (0.7071, 0.7071),
+              "s": (0.0, 1.0), "sw": (-0.7071, 0.7071), "w": (-1.0, 0.0), "nw": (-0.7071, -0.7071)}
+
+
+def push_of(push: str) -> tuple[set, tuple[float, float]]:
+    """The buttons and the stick a push of explore's names: a stick way (n, ne, …) or buttons ("up+left")."""
+    if push in STICK_WAYS:
+        return set(), STICK_WAYS[push]
+    return set(push.split("+")), (0.0, 0.0)
+
+
 def ruby_agreement(given: list, seen: list) -> float:
     """How far a script's furigana agree with those read off the picture: the [base, reading] pairs both have
     (spaces aside, each pair counted once), over the larger of the two counts, so that a reading missed and one
@@ -2817,6 +2829,10 @@ class Session:
           diagonals=("boolean", "push the four slanting ways too: for a passage that runs aslant of the pad's "
                                 "ways and is narrower than a push (a camera turned, as in most games of three "
                                 "dimensions)", False),
+          stick=("boolean", "push the stick, eight ways (n, ne, e, se, s, sw, w, nw), not the pad: for a game that "
+                            "walks by the stick (in three dimensions, most). The ways turn with the camera, so a "
+                            "push's name is the stick's, not the map's; a door found so is pushed through the same way",
+                 False),
           whole=("boolean", "with grid: the place is whole numbers of `size` bytes, not floats: pixels, or any "
                             "place a push moves by many (a console without floats)", False),
           grid=("number", "count in cells of this many of the game's units, so that places a hair apart are one: "
@@ -2847,7 +2863,8 @@ class Session:
     def explore(self, x_address: str = "", y_address: str = "", size: int = 2, step: int = 8, most: int = 400,
                 to: list | None = None, near: int = 1, jump: int = 8, within: list | None = None,
                 grid: float = 0.0, diagonals: bool = False, whole: bool = False, close: str = "",
-                fight: dict | None = None, room: str = "", room_size: int = 1, keep: str = "") -> dict:
+                fight: dict | None = None, room: str = "", room_size: int = 1, keep: str = "",
+                stick: bool = False) -> dict:
         machine = self._need()
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
         if room_size not in (1, 2, 4):
@@ -2888,7 +2905,8 @@ class Session:
             raise HarnessError("the place can't be read" + (": with grid and without whole it is read as numbers with "
                                                              "a point; for whole numbers give whole" if grid and not whole else ""))
         import zlib
-        ways = ("up", "down", "left", "right") + (("up+left", "up+right", "down+left", "down+right") if diagonals else ())
+        ways = tuple(STICK_WAYS) if stick else \
+            ("up", "down", "left", "right") + (("up+left", "up+right", "down+left", "down+right") if diagonals else ())
 
         def moves(frames: int) -> bool:
             """Whether a push of so many frames, any way, moves the character from here; the game is put back."""
@@ -2896,7 +2914,7 @@ class Session:
             try:
                 for push in ways:
                     machine.load_state(here)
-                    machine.run(frames, set(push.split("+")), (0.0, 0.0))
+                    machine.run(frames, *push_of(push))
                     if now() != origin:
                         return True
                 return False
@@ -2944,7 +2962,7 @@ class Session:
                     break
                 machine.load_state(zlib.decompress(places[here][0]))
                 room_before = room_now()
-                machine.run(step, set(push.split("+")), (0.0, 0.0))
+                machine.run(step, *push_of(push))
                 there, fought = now(), []
                 if through is not None and None not in there and there != here:
                     # A step may bring a fight: pressed through here, and the map goes on from where it ended.
@@ -3036,7 +3054,7 @@ class Session:
         machine.load_state(zlib.decompress(places[goal][0]))
         machine.frames = frames + sum(step + sum(n for n, _ in fought) for _, fought in pushes)
         for push, fought in reversed(pushes):
-            self._moved(step, set(push.split("+")), (0.0, 0.0))
+            self._moved(step, *push_of(push))
             for n, keys in fought:                  # a fight the push brought, pressed through
                 self._moved(n, set(keys), (0.0, 0.0))
         events = []
@@ -3407,6 +3425,7 @@ class Session:
           y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
           step=("integer", "frames a push is held, as explore's (default 8)", False),
           grid=("number", "as explore's", False), whole=("boolean", "as explore's", False),
+          stick=("boolean", "as explore's: push the stick, eight ways", False),
           diagonals=("boolean", "as explore's", False),
           fight=("object", "as explore's (address, equals or differs, holds, …)", False),
           through=("integer", "frames a door's push is held, and then waited for the room to change (default 60)", False),
@@ -3428,7 +3447,7 @@ class Session:
                    step: int = 8, grid: float = 0.0, whole: bool = False, diagonals: bool = False,
                    fight: dict | None = None, through: int = 60, rooms: int = 8, most: int = 400,
                    legs: list | None = None, avoid: list | None = None, heading: str = "",
-                   events: bool = False, keep: str = "") -> dict:
+                   events: bool = False, keep: str = "", stick: bool = False) -> dict:
         machine = self._need()
         if heading and heading not in ("up", "down", "left", "right"):
             raise HarnessError("heading is up, down, left or right")
@@ -3438,7 +3457,7 @@ class Session:
         through = max(4, min(int(through), 600))
         fighter = self._fight_through(fight) if fight else None
         mapping = dict(x_address=x_address, y_address=y_address, size=size, step=step, grid=grid, whole=whole,
-                       diagonals=diagonals, room=room, room_size=room_size, fight=fight)
+                       diagonals=diagonals, room=room, room_size=room_size, fight=fight, stick=stick)
 
         def room_now():
             return self._cell(room_at, room_size)
@@ -3449,7 +3468,7 @@ class Session:
         def push_through(push: str, events: list) -> bool:
             """Holds the door's push, then waits for the room to change (a fight on the way pressed through)."""
             before = room_now()
-            self._advance(through, set(push.split("+")), (0.0, 0.0), events)
+            self._advance(through, *push_of(push), events)
             waited = 0
             while room_now() == before and waited < through:
                 self._advance(4, set(), (0.0, 0.0), events)
