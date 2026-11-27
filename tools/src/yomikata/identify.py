@@ -280,6 +280,48 @@ def identify_fds(disk: bytes) -> Release:
     return Release("fds", ident, header_crc32=f"{zlib.crc32(block):08x}", build=f"{ident}-{revision:02X}")
 
 
+MD_SUFFIXES = (".md", ".gen", ".smd", ".bin")
+SMD_BLOCK = 0x4000
+
+
+def md_unpack(data: bytes) -> bytes:
+    """A Mega Drive image as the console sees it: an SMD dump (a 512-byte header, then 16 KB blocks, each the odd
+    bytes' 8 KB and then the even bytes') put back in order; any other image as it is."""
+    if len(data) % SMD_BLOCK == 0x200 and data[0x300:0x304] != b"SEGA":
+        body, out = data[0x200:], bytearray()
+        for at in range(0, len(body) - SMD_BLOCK + 1, SMD_BLOCK):
+            block = body[at:at + SMD_BLOCK]
+            pairs = bytearray(SMD_BLOCK)
+            pairs[0::2], pairs[1::2] = block[SMD_BLOCK // 2:], block[:SMD_BLOCK // 2]
+            out += pairs
+        return bytes(out)
+    return data
+
+
+def is_md(head: bytes) -> bool:
+    """Whether an image's first bytes are a Mega Drive cartridge's ("SEGA" at 0x100, as "SEGA MEGA DRIVE" or
+    "SEGA GENESIS" begin), an SMD dump's once put back in order too."""
+    return head[0x100:0x104] == b"SEGA" or md_unpack(head + bytes(-len(head) % SMD_BLOCK))[0x100:0x104] == b"SEGA"
+
+
+def identify_md(data: bytes) -> Release:
+    """A Mega Drive cartridge: its header at 0x100 ("SEGA MEGA DRIVE" or "SEGA GENESIS"). The id is the serial of
+    the product code at 0x180 ("GM G-5512   00": the kind, the serial, the revision at 0x18C), as the console's
+    discs are named; a header without one gives "MD-" and the CRC-32 of the whole ROM. The build is the id and the
+    revision; header_crc32 the ROM's CRC-32. An SMD dump is put back in order first."""
+    rom = md_unpack(data)
+    if rom[0x100:0x104] != b"SEGA":
+        raise ValueError("not a Mega Drive cartridge: no SEGA header at 0x100")
+    crc = f"{zlib.crc32(rom):08x}"
+    code = rom[0x180:0x18E].decode("ascii", "replace")
+    serial = re.sub(r"[^A-Z0-9-]", "", code[3:12].strip().upper().replace(" ", "-")).strip("-")
+    revision = re.sub(r"[^A-Z0-9]", "", code[12:14].upper()) or "00"
+    if re.fullmatch(r"[A-Z0-9][A-Z0-9-]{3,19}", serial):
+        return Release("md", serial, header_crc32=crc, build=f"{serial}-{revision}")
+    ident = f"MD-{crc.upper()}"
+    return Release("md", ident, header_crc32=crc, build=ident)
+
+
 def identify(path: Path, scratch: Path | None = None) -> Release:
     path = Path(path)
     if _cart_name(path).lower().endswith(".pce"):
@@ -288,6 +330,9 @@ def identify(path: Path, scratch: Path | None = None) -> Release:
         return identify_nes(_cart_bytes(path, 0x1000000))
     if _cart_name(path).lower().endswith(".fds"):
         return identify_fds(_cart_bytes(path, 16 + 0x38))
+    name = _cart_name(path).lower()
+    if name.endswith(MD_SUFFIXES) and (not name.endswith(".bin") or is_md(_cart_bytes(path, 0x4400))):
+        return identify_md(_cart_bytes(path, 0x1000000))
     if path.suffix.lower() in (".rvz", ".wia", ".gcm", ".iso"):
         with open(path, "rb") as f:
             head = f.read(0xD8)
