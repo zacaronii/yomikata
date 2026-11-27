@@ -256,6 +256,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("disc", type=Path, help="the image: .rvz, .wia, .iso or .gcm")
     p.add_argument("--only", action="append", default=[], help="a pattern of paths (fnmatch: res/Msg/*); several may be given")
     p.add_argument("--extract", type=Path, help="a scratch folder to write the files into, by their paths")
+    p = sub.add_parser("state-text", help="where a game keeps the page it shows, from two saved states or more on different pages: the words that point into the page in every state, and roots that hold them (JSON: addresses and counts only)")
+    p.add_argument("--state", type=Path, action="append", required=True, help="a saved state (.state.gz or raw); one per page, in order")
+    p.add_argument("--text", action="append", required=True, help="the opening of that state's page, as shown (encoded with --encoding), or hex:… for its bytes")
+    p.add_argument("--encoding", default="cp932", help="how the game encodes its text (default cp932: Shift-JIS)")
+    p.add_argument("--anchor", required=True, help="bytes RAM begins with, to find it in a state (text, or hex:…); a GameCube's: its disc ID")
+    p.add_argument("--address", type=lambda v: int(v, 0), default=0x80000000, help="RAM's address (default 0x80000000)")
+    p.add_argument("--size", type=lambda v: int(v, 0), default=0x1800000, help="RAM's size (default 0x1800000: a GameCube's 24 MB)")
+    p.add_argument("--order", choices=["big", "little"], default="big", help="the words' byte order (default big)")
+    p.add_argument("--back", type=lambda v: int(v, 0), default=64, help="bytes before the opening a word may point (where its message starts; default 64)")
+    p.add_argument("--ahead", type=lambda v: int(v, 0), default=256, help="bytes after it (a pointer that moves as the page types; default 256)")
+    p.add_argument("--reach", type=lambda v: int(v, 0), default=0x400, help="one level up: how far before a slot a root may point (default 0x400)")
     p = sub.add_parser("placements", help="where a game puts its people, doors and things, read off its disc: targets in its own world coordinates for the harness's walk_3d and meet (JSON lines: names and places only). GameCube Zelda stages first")
     p.add_argument("disc", type=Path, help="the disc image (.rvz, .wia, .iso, .gcm)")
     p.add_argument("archive", help="the stage or room archive on the disc, e.g. res/Stage/sea/Room44.arc")
@@ -689,6 +700,23 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, rvz.RvzError) as e:
             print(f"rvz: {e}", file=sys.stderr)
             return 1
+        return 0
+    if args.cmd == "state-text":
+        from . import statetext
+
+        def as_bytes(v: str) -> bytes:
+            return bytes.fromhex(v[4:]) if v.startswith("hex:") else v.encode(args.encoding)
+        if len(args.state) != len(args.text):
+            print("state-text: give a --text for each --state", file=sys.stderr)
+            return 1
+        try:
+            pages = [(statetext.ram(statetext.blob(path.read_bytes()), as_bytes(args.anchor), args.address, args.size,
+                                    args.order), as_bytes(text)) for path, text in zip(args.state, args.text)]
+            out = statetext.follow(pages, args.back, args.ahead, args.reach)
+        except (OSError, ValueError, UnicodeEncodeError, statetext.StateTextError) as e:
+            print(f"state-text: {e}", file=sys.stderr)
+            return 1
+        print(json.dumps(out))
         return 0
     if args.cmd == "placements":
         from . import placements, rvz

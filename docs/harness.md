@@ -560,7 +560,15 @@ Each line it prints is one of meet's `targets` with its `way`, which walk_3d wal
 A character that turns and speeds up slowly, as one swimming does, moves the way it was going at the start of a
 push: walk_3d's `lag` leaves those first frames out of what it learns of the stick's way. A game that hops
 the character up a step reads high for a moment: when the ledge guard refuses every way, it stands still for 30
-frames and tries them once more from where the character landed (its refusals give the two heights). A game that walks by the stick alone
+frames and tries them once more from where the character landed (its refusals give the two heights).
+
+A game may show text by more than one way (its talk window by one, a cutscene's or an event's pages by
+another), and a script that reads one hears nothing of the other. `yomikata state-text` finds the other offline:
+save two states with it on screen on different pages, give each the opening of its page and an anchor RAM
+begins with (a GameCube's disc ID); it lists the words that point into the page in every state (with how far
+in), and the roots one level up that hold them at the same offset in every state: an address, an offset, then
+the text, for the script to read. meet counts a page that comes as the player arrives, and not standing still
+where the call began, as an answer (`by` arrival): a talk that starts on its own as the player comes near. A game that walks by the stick alone
 (the pad does nothing) is mapped with `explore` and `expedition` given `stick`: eight pushes of the stick in
 place of the pad's, named n, ne, … (the stick's ways, which turn with the camera); a door found so is pushed
 through by the same way.
