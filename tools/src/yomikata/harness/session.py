@@ -2499,7 +2499,8 @@ class Session:
         if not isinstance(fight, dict) or not fight.get("address"):
             raise HarnessError("fight is advance_through's mode: address, and equals or differs")
         known = {"address", "size", "equals", "differs", "also", "buttons", "hold", "wait", "most", "begin", "holds",
-                 "after", "first", "plan", "cycle", "menu", "heal", "game_over", "room", "said_ids", "idle"}
+                 "after", "first", "plan", "cycle", "menu", "heal", "game_over", "room", "said_ids", "idle",
+                 "over_wait"}
         if set(fight) - known:
             raise HarnessError(f"fight takes: {', '.join(sorted(known))}")
 
@@ -2556,6 +2557,7 @@ class Session:
         overs = [condition(spec, "a game_over mode") for spec in (fight.get("game_over") or [])]
         room = reading(fight["room"], "fight's room") if fight.get("room") is not None else None
         said_ids = {str(i) for i in (fight.get("said_ids") or [])}
+        over_wait = max(0, min(int(fight.get("over_wait", 600)), 3600))
         idle = fight.get("idle")
         if idle is not None and (not isinstance(idle, dict) or not idle.get("buttons")):
             raise HarnessError("idle is {buttons, every}: pressed while the command menu isn't up")
@@ -2655,8 +2657,18 @@ class Session:
                 moves.append([after, []])
                 if why:
                     return ended(outcome, why)
-            if room is not None and not mode() and room() != room_before:
-                return ended(outcome, f"room {room_before} became {room()}")
+            if (room is not None or overs or said_ids) and not mode():
+                # A lost fight may show it only once its last word and a fade are over (the title comes, the room
+                # changes): watched a while (over_wait frames), so that a loss isn't taken for a win.
+                waited = 0
+                while (room is None or room() == room_before) and waited < over_wait and not self._late():
+                    why = step(10, [])
+                    moves.append([10, []])
+                    waited += 10
+                    if why:
+                        return ended(outcome, why)
+                if room is not None and room() != room_before:
+                    return ended(outcome, f"room {room_before} became {room()}")
             return moves, outcome
         through.mode = mode
         return through
@@ -2675,12 +2687,14 @@ class Session:
                            "{address, size}, below, turn}), game_over (modes), room ({address, size}), said_ids "
                            "(ids of sayings that mean a game over: the title's or the opening's), idle ({buttons, every}: "
                            "pressed while no command menu is up, for a talk in the fight that waits for a button), "
-                           "after, most", True),
+                           "over_wait (frames the room is watched after the fight, default 600: a loss may leave it "
+                           "late), after, most", True),
           plans=("array", "other plans, tried in order from the kept state when one loses (each as fight's plan)", False),
           lead=("array", "buttons pressed every `every` frames while waiting for the fight (default: none)", False),
           every=("integer", "frames between lead's presses (default 60)", False),
           begin=("integer", "frames waited at most for the fight to begin (default 3600)", False),
-          keep=("string", "the name the state just before the fight is saved under (default fight-start)", False))
+          keep=("string", "the name the state just before the fight is saved under (default fight-start); "
+                         "won, the state after it is saved as <keep>-won", False))
     def fight(self, fight: dict, plans: list | None = None, lead: list | None = None, every: int = 60,
               begin: int = 3600, keep: str = "fight-start") -> dict:
         machine = self._need()
@@ -2723,8 +2737,8 @@ class Session:
             if machine.picture() is not None and len(shots) < MAX_SHOTS:
                 shots.append((f"try {k}", self._picture()))          # how each try ended, to see why
             if outcome is not None and not outcome.get("game_over") and outcome.get("stopped") == "mode ended":
-                out = {"fought": True, "won": True, "kept": kept, "tries": tries, "frames": machine.frames,
-                       "said": self._said_texts(events)}
+                out = {"fought": True, "won": True, "kept": kept, "kept_after": self._keep(f"{keep}-won"), "tries": tries,
+                       "frames": machine.frames, "said": self._said_texts(events)}
                 return ("both", out, self._png(self._sheet(shots, 4, 1.0))) if shots else out
             if self._late():
                 break

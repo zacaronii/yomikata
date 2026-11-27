@@ -3000,6 +3000,7 @@ def _made_up_fight(session, enemy=100, party=50):
     machine, plain = session.machine, session.machine._step
     m = machine.memory
     m[0x7F0], m[0x7F5], m[0x7F6], m[0x7F7], m[0x7F8], m[0x7F9], m[0x7FA], m[0x7FB] = 1, 1, 1, enemy, party, 0, 0, 0
+    m[0x7FE] = 0
 
     def game(buttons, stick):
         plain(buttons, stick)
@@ -3007,7 +3008,12 @@ def _made_up_fight(session, enemy=100, party=50):
         pressed = {b for b in buttons} - ({"a"} if m[0x7FA] & 1 else set()) - ({"down"} if m[0x7FA] & 2 else set()) \
             - ({"b"} if m[0x7FA] & 4 else set())
         m[0x7FA] = (1 if "a" in buttons else 0) | (2 if "down" in buttons else 0) | (4 if "b" in buttons else 0)
-        if m[0x7F5] != 1:
+        if m[0x7F5] != 1 and not m[0x7FE]:
+            return
+        if m[0x7FE]:
+            m[0x7FE] += 1
+            if m[0x7FE] > 200:
+                m[0x7F0], m[0x7FE] = 0, 0
             return
         if m[0x7F6] == 0:
             m[0x7FB] += 1
@@ -3025,13 +3031,18 @@ def _made_up_fight(session, enemy=100, party=50):
             acted = True
         elif "b" in pressed:
             m[0x7F8], acted = 50, True
+        if m[0x7FE]:
+            m[0x7FE] += 1
+            if m[0x7FE] > 200:
+                m[0x7F0], m[0x7FE] = 0, 0          # lost: back to the title, a while after the fight ends
+            return
         if acted:
             m[0x7F9], m[0x7F6] = 0, 0
             m[0x7F8] = max(0, m[0x7F8] - 10)
             if m[0x7F7] == 0:
                 m[0x7F5] = 0                       # won
             elif m[0x7F8] == 0:
-                m[0x7F5], m[0x7F0] = 0, 0          # lost: back to the title
+                m[0x7F5], m[0x7FE] = 2, 1          # lost: the fight's mode ends, the title comes later
     machine._step = game
     at = lambda a: f"0x{BASE + a:X}"
     return {"address": at(0x7F5), "equals": "1", "menu": {"address": at(0x7F6), "equals": "1"},
@@ -3049,7 +3060,7 @@ def test_fight_stops_at_a_game_over_and_wins_by_the_next_plan_from_the_kept_stat
     assert out["tries"][0]["stopped"] == "game over" and "room" in out["tries"][0]["game_over"], out
     assert out["tries"][1]["stopped"] == "mode ended" and out["tries"][1]["turns"] == 2, out
     assert session.machine.memory[0x7F0] == 1 and session.machine.memory[0x7F7] == 0
-    assert (session.roots.scratch / "states" / "boss.state.gz").is_file()
+    assert (session.roots.scratch / "states" / "boss.state.gz").is_file() and out["kept_after"] == "boss-won"
     # Lost every way: the game stands at the kept state, before the fight.
     session.state_load("boss")
     lost = session.fight({**fight, "plan": attack}, keep="boss2")[1]
