@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import sys
@@ -278,6 +279,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--margin", type=int, default=3, help="cells from an edge (a drop, a wall) that cost more to walk (default 3)")
     p.add_argument("--avoid", action="append", default=[], help="placed entries of these chunks (ACTR, SCOB, …; fnmatch) are gone round: things on the ground that aren't in its collision")
     p.add_argument("--avoid-radius", type=float, default=100.0, help="how far round each (default 100)")
+    p.add_argument("--through", action="append", default=[], help="with --avoid: placed names (fnmatch) walked through, not round (Wind Waker's grass: kusa*)")
     p = sub.add_parser("disc-text", help="the stretches of a disc image that read as text through a table of the game's codes (the game's text: write it to scratch)")
     p.add_argument("disc", type=Path)
     p.add_argument("--table", type=Path, action="append", required=True, help="a .tbl of the game's codes; several are read as one")
@@ -719,7 +721,8 @@ def main(argv: list[str] | None = None) -> int:
                 places += placements.select(placed, args.name, args.chunk)
             chosen = {(p["x"], p["z"]) for p in places}
             avoid = [(e["x"], e["z"], args.avoid_radius) for e in placements.select(placed, [], args.avoid)
-                     if (e["x"], e["z"]) not in chosen] if args.avoid else []
+                     if (e["x"], e["z"]) not in chosen
+                     and not any(fnmatch.fnmatch(e["name"], t) for t in args.through)] if args.avoid else []
         except (OSError, rvz.RvzError, placements.PlacementError, route.RouteError) as e:
             print(f"route: {e}", file=sys.stderr)
             return 1

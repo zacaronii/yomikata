@@ -2463,6 +2463,11 @@ class Session:
             px, pz = where()
             gap = (target[0] - px, target[1] - pz)
             dist = math.hypot(*gap)
+            last = math.hypot(goals[-1][0] - px, goals[-1][1] - pz)
+            if leg < len(goals) - 1 and last <= near:
+                # The place itself is near enough: the waypoints left (the last often stands in what is
+                # met, a person's own body) aren't walked to.
+                leg, target, gap, dist = len(goals) - 1, goals[-1], (goals[-1][0] - px, goals[-1][1] - pz), last
             if leg < len(goals) - 1 and dist <= max(float(way_near), 1.0):
                 leg += 1                                    # a waypoint passed: on to the next
                 target, best, stuck = goals[leg], math.inf, 0
