@@ -554,7 +554,8 @@ out a way round them offline, from the stage's own collision (GameCube Zelda's r
 up becomes floors in cells, walls shut the floors they stand in, steps up to `--up` and down to `--down` join them,
 and A* finds the way, pulled straight to a few corners; `--low` leaves out floors under water (Wind Waker: 1).
 Things placed on the ground that aren't in its collision (a tree, a barrel, other people) are gone round with
-`--avoid CHUNK` (Wind Waker: ACTR, SCOB, and the scene's layer, ACT0 in the opening).
+`--avoid CHUNK` (Wind Waker: ACTR, SCOB, and the scene's layer, ACT0 in the opening); `--through NAME` leaves
+out those walked through (Wind Waker's grass, kusa*), which would otherwise squeeze the way against a fence.
 Each line it prints is one of meet's `targets` with its `way`, which walk_3d walks in turn (`way`, `way_near`).
 A character that turns and speeds up slowly, as one swimming does, moves the way it was going at the start of a
 push: walk_3d's `lag` leaves those first frames out of what it learns of the stick's way. A game that hops
