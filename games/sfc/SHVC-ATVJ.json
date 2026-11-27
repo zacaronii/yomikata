@@ -1,0 +1,24 @@
+{
+ "id": "SHVC-ATVJ",
+ "platform": "sfc",
+ "title": "テイルズ オブ ファンタジア",
+ "title_romaji": "Tales of Phantasia",
+ "versions": [
+  {
+   "header_crc32": "8fc7e4e3",
+   "note": "the cartridge TALES OF PHANTASIA (6 MB, extended HiROM)"
+  }
+ ],
+ "encoding": "compressed",
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on bsnes (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
+  "Found in play: the script lies packed and no page stands in memory as codes (page_buffer found no buffer of one); each character is drawn into tiles of video memory and laid out by a tile map in work RAM, the font fixed on a grid of 14 by 16 pixels",
+  "A byte (0x7E20A0) is 5 while text is shown, a window or narration, and 0 while none is: the map and the tiles keep the last page after it closes",
+  "The dictionary: 159 pictures, each page's cells beside its picture, read in play, since the font in the cartridge is packed too",
+  "Played from power-on through the prologue, the morning at the hero's home and the village, and into two houses, with the script loaded",
+  "What the script said agreed with the rows read off 31 of 31 pictures, over 4 scenes (4, 13, 9 and 5). No screen without text was among them",
+  "Calls: 74 of a budget of 150"
+ ],
+ "notes": "Read by the script games/sfc/SHVC-ATVJ.lua: the message window's rows (and narration drawn the same way), each character by its picture, said once the page stands. Not read: menus, fights' messages. A character not met in play comes out as U+FFFD."
+}
