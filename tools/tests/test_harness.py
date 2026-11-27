@@ -2652,6 +2652,27 @@ def test_steps_snaps_the_moment_the_script_says_text(session):
         session.steps([{"wait": 1}], said={"when": 1})
 
 
+def test_steps_load_a_state_between_segments(session):
+    """A step with `state` loads that saved state before its press: segments of a run, each from its own state,
+    in one call. The game is the state's (its frame count back), the script starts over and says the page there
+    again, and a state that isn't there fails before anything is played."""
+    assert session.script_try(SCRIPT)["loaded"]
+    session.run(12)
+    session.state_save("seg")
+    at = session.machine.frames
+    session.run(20)
+    out = session.steps([{"wait": 3}, {"state": "seg", "wait": 3}], prefix="sg", said={"after": 1})
+    out = out[1] if isinstance(out, (list, tuple)) else out
+    rows = out["steps"]
+    assert rows[1]["state"] == "seg" and rows[1]["frames"] == at + 3, rows
+    again = [e for e in out["events"] if e["kind"] == "text"]
+    assert again and again[-1]["text"] == "さようなら" and again[-1]["frame"] > at, again
+    before = session.machine.frames
+    with pytest.raises(HarnessError, match="no such state"):
+        session.steps([{"wait": 5}, {"state": "nowhere"}])
+    assert session.machine.frames == before
+
+
 def test_explore_says_when_a_window_takes_the_pad_and_closes_it_with_close(session):
     """A message open takes the pad (Dragon Quest I & II's, after a search): explore without `close` gives one
     place and says why it may be; with `close` it presses the button, keeps the press in the record of the

@@ -760,7 +760,9 @@ class Session:
                           "wait (frames after, default 0), until (object: run_until's address/size/equals/event/"
                           "still, with limit), times (repeat it, default 1), snap (true, or a name), shot (true), "
                           "every (with wait and snap: a snap each so many frames of the wait, to catch what "
-                          "is there only while something happens)", True),
+                          "is there only while something happens), state (a saved state loaded before the step: "
+                          "segments of a run, each from its own state, in one call; the script starts over as "
+                          "after any load)", True),
           on=("object", "what to do when the script says something: a kind of event (text, dialogue, choice, "
                         "any) and the steps to do right after the step it came in, e.g. {\"choice\": [{\"buttons\": "
                         "[\"down\"]}, {\"buttons\": [\"a\"], \"wait\": 30}]}. A step with times and "
@@ -785,7 +787,7 @@ class Session:
         if not isinstance(steps, list) or not steps or not all(isinstance(s, dict) for s in steps):
             raise HarnessError("steps is a list of objects")
         known = {"buttons", "stick", "hold", "wait", "until", "times", "snap", "shot", "every", "until_event",
-                 "until_quiet"}
+                 "until_quiet", "state"}
         kinds = ("text", "any", *STORY)
         on = dict(on or {})
         if on or any("until_event" in step or "until_quiet" in step for step in steps):
@@ -807,6 +809,13 @@ class Session:
             raise HarnessError(f"at most {MAX_STEPS} snaps during waits in a call")
         for step in [*steps, *(x for v in on.values() for x in v)]:
             self._buttons(step.get("buttons"))
+            if "state" in step:
+                # A saved state loaded before the step's press: segments of a run, each from its own state, in one
+                # call. Looked for now, so that a name wrong fails before anything is played.
+                name = str(step["state"])
+                path = self.roots.inside("inbox", name) if name.endswith(".state.gz") else self._state_file(name)
+                if not path.is_file():
+                    raise HarnessError(f"no such state: {name}")
             if "until" in step and not (isinstance(step["until"], dict) and "limit" in step["until"]):
                 raise HarnessError("until is an object with a limit, as run_until takes")
         for step in steps:
@@ -834,8 +843,11 @@ class Session:
                     if step is skipping:                        # the rest of a repetition whose event has come
                         continue
                     skipping = None
+                if "state" in step:
+                    self.state_load(str(step["state"]))         # the reader starts over, as after any load
                 held, where, before = self._buttons(step.get("buttons")), self._stick(step.get("stick")), len(events)
-                row, why = {"step": number, **({"on": answer} if answer else {})}, None
+                row, why = {"step": number, **({"on": answer} if answer else {}),
+                            **({"state": str(step["state"])} if "state" in step else {})}, None
                 answers = answers + 1 if answer else answers
                 label = f"{prefix}-{number:03d}" + (f"-on{answers:02d}" if answer else "")
                 if held or where != (0.0, 0.0):
