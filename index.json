@@ -237,6 +237,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "SFC-819B137D": {
+   "path": "games/sfc/SFC-819B137D.json",
+   "sha256": "d48354d144066d931f7d56d9d418f83d799a14ca6d11583c07cc510fb665c332",
+   "platform": "sfc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "SFC-A07624CD": {
    "path": "games/sfc/SFC-A07624CD.json",
    "sha256": "8a5d2ce176fee4c926b35aa55d82e9545431406e308df5aca2b0fc6e513d25db",
@@ -1141,6 +1148,24 @@
     "tbl": {
      "path": "games/sfc/SFC-56A9AAB6.tbl",
      "sha256": "f434435d55356382b357cb89c480e4bee58696e38777857a8495c6653e60dc78"
+    }
+   }
+  },
+  "SFC-819B137D": {
+   "path": "scripts/sfc/SFC-819B137D.lua",
+   "sha256": "da3baa602da700a9e8bd056164ed9f3a6e86735333e370a306ed3c98f4b85697",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "真・女神転生II (Shin Megami Tensei II)",
+   "reads": "a page of the message window as the game types it, a character at a time",
+   "builds": [
+    "819b137d"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/sfc/SFC-819B137D.tbl",
+     "sha256": "5e8d993f76fb3cdf2523feed6310e1147cfdcaf465f0517c0031f725287f73d2"
     }
    }
   },
