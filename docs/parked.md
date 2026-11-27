@@ -83,9 +83,16 @@ scene after the rescue in the meteor's field wasn't set off. Script, table and e
 - **States**: `f5-a` power-on plus 40 presses (the opening's castle pages are before it); `f5-k` the rescue
   scene's fight; `f5-q` the field after the rescue; `f5-s` the same from the latest run; `f5-u` beside a figure on
   the crater's top-right rim.
-- **Next**: from `f5-u`, face the figure (up and to the right of the party) and press the confirm button. That
-  scene should give the 8 or more screens the bar still wants; then the bar over it and the 22 screens (snaps
-  `f5r2-00` to `f5r2-08` and `f5y-*-on01` to `on13`).
+- **Resumed (calls 180-189, a budget of 60 more, to 238)**: the 22 screens' snaps re-read under the current script
+  with the cartridge given over snaps (#230): 22 of 22, the build check on the header holding (a check only, not
+  the bar). From `f5-u`, the figure on the crater's rim was faced from below and from the left and the confirm
+  button pressed (state `f5-v` stands right under it): no page. It may be the meteor itself or an object, not a
+  person; the scene after the rescue likely starts elsewhere (the world map, or a spot on the field the walks
+  didn't step on). Parked again at 189.
+- **Next**: look for where the scene after the rescue starts before spending calls: the field's tiles and its
+  objects in work RAM (a list of the map's people near the party's place bytes), or leave the field for the
+  world map and walk round to the meteor from outside. Then the bar over it and the 22 screens (snaps `f5r2-00`
+  to `f5r2-08` and `f5y-*-on01` to `on13`).
 
 ## Chrono Cross (PlayStation, SLPS-02364)
 
@@ -158,6 +165,19 @@ count under it): the text is drawn only into the VDP's tiles, which genesis_plus
   answers `RETRO_MEMORY_VIDEO_RAM` (it keeps the VRAM internally). Genkan's built-in Mega Drive core is also
   genesis_plus_gx, so the answer matters there too. With VRAM, the game would be read off its tiles (lib/cells
   and a dictionary, as Tales of Phantasia is). Not built: to be decided first.
+- **What exposes the VDP's memory** (upstream libretro/Genesis-Plus-GX, `libretro/libretro.c` and
+  `core/vdp_ctrl.h`, read from source): nothing today. `retro_get_memory_data` answers `RETRO_MEMORY_SAVE_RAM`
+  and `RETRO_MEMORY_SYSTEM_RAM` (`work_ram`, 64 KB on a Mega Drive); `RETRO_MEMORY_VIDEO_RAM` falls to the
+  default, NULL and 0. `SET_MEMORY_MAPS` is called only for the Mega CD (68K RAM, PRG RAM, word RAM): a Mega Drive
+  game gets no map. No core option changes what memory is given. The VDP's memory is `vram[0x10000]` (with
+  `cram[0x80]`, `vsram[0x80]`, `sat[0x400]`) in `core/vdp_ctrl.h`, not referred to from `libretro.c`.
+- **A small patch would do it** (not built): `case RETRO_MEMORY_VIDEO_RAM: return vram;` in
+  `retro_get_memory_data` and `return 0x10000;` in `retro_get_memory_size`. The harness's `Core.video_ram()` is
+  generic, so snaps would keep it as `vram` and a script would read it through `mem.region("vram")`. Two caveats:
+  the core keeps `vram` in the host's order through its word macros, so on a little-endian host the words are
+  likely swapped against the console's and want putting back, as the work RAM's are; and CRAM and VSRAM aren't
+  covered (another id or a map entry), though tiles need only VRAM. Genkan's built-in Mega Drive core is the same
+  and has the same gap; whether to patch either is the owner's call.
 
 ## Tools to build when needed
 
