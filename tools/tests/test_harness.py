@@ -2860,6 +2860,52 @@ def test_expedition_walks_room_to_room_until_something_is_said_and_its_legs_walk
     assert headed["stopped"] in ("said", "every door tried") and "1" in headed["rooms"], headed
 
 
+@needs_reader
+def test_events_says_where_an_event_waits_and_expedition_walks_there_first(session):
+    """A made-up room with a door east and, out of the way, a place where a scene plays when stepped on while
+    its flag (a byte at 0x7F1) is clear. The script's `events` function gives that place while the flag is
+    clear; the `events` tool says it, and expedition with `events` walks there before any door and stops at
+    the scene's saying. Once the flag is set, no place is given and expedition goes on to the door."""
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+
+    def room(buttons, stick):
+        m = machine.memory
+        plain(buttons, stick)
+        x, y = struct.unpack_from(">hh", m, 0x30)
+        x, y = max(20, min(x, 35)), max(20, min(y, 32))
+        if m[0x7F0] == 1 and x >= 35 and y <= 21:
+            m[0x7F0], x, y = 2, 20, 20
+        struct.pack_into(">hh", m, 0x30, x, y)
+        if m[0x7F0] == 1 and (x, y) == (22, 31):
+            m[0x7F1] = 1
+        line = "おまちかね".encode("cp932") if m[0x7F0] == 1 and (x, y) == (22, 31) else b""
+        m[0x100:0x120] = line + bytes(0x20 - len(line))
+    machine._step = room
+    struct.pack_into(">hh", machine.memory, 0x30, 30, 25)
+    machine.memory[0x7F0], machine.memory[0x7F1] = 1, 0
+    machine.memory[0x100:0x120] = bytes(0x20)
+    events = SCRIPT + """
+function events()
+    if mem.u8(0x800007F1) == 0 and mem.u8(0x800007F0) == 1 then return { { 22, 31 } } end
+    return {}
+end
+"""
+    assert session.script_try(events, "GXXJ01.lua")["loaded"]
+    assert session.events()["places"] == [[22, 31]]
+    start = machine.save_state()
+    out = session.expedition(room=f"0x{BASE + 0x7F0:X}", step=1, rooms=3, events=True)
+    assert out["stopped"] == "said" and out["event_at"] == [22, 31] and out["said"] == ["おまちかね"], out
+    assert machine.memory[0x7F1] == 1 and out["legs"] == []
+    assert session.events()["places"] == []
+    # Done already: nothing waits, and the walk goes through the door as before.
+    machine.load_state(start)
+    machine.memory[0x7F1] = 1
+    session.reader.state_loaded()
+    on = session.expedition(room=f"0x{BASE + 0x7F0:X}", step=1, rooms=3, events=True)
+    assert on["rooms"]["1"]["events"] == [] and any(d["to"] == "2" for d in on["rooms"]["1"]["doors"]), on
+
+
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
     """`yomikata calls --trend`: for each game, the calls, runs and minutes from its first call to the first
     comparison by scenes that met the bar; a comparison's outcome is kept with its call (counts only)."""

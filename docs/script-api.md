@@ -152,6 +152,15 @@ characters that have no reading (U+FFFD), and with `--containing` prints the sho
 characters, which is how a doubtful reading of a glyph is settled (docs/harness.md, "A game's own font"). A
 script without the function is none the worse.
 
+## Events: where a scene still waits
+
+A script may also define a global function `events`, which gives the places in the room the game is in now where
+an event still waits: a list of `{ x, y }`, in the same numbers as the party's place the harness walks by. For a
+game that keeps each room's event places (a table in the cartridge, say) and a flag for each that is done, it is
+the room's places whose flag is still clear. A host never calls it; the harness does (`events`, and
+`expedition` with `events`), to walk to a scene instead of searching every tile for it. A script without the
+function is none the worse.
+
 ## The build
 
 Addresses belong to one build of one game. A script is tied to its build twice:
