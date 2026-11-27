@@ -31,6 +31,8 @@ BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "selec
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
 MAX_INFO = 50          # a script's info-level logs kept in a call's events, so that they can't crowd out its text
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
+MAX_BEFORE = 300                    # frames said's `before` keeps memory for (as memory allows: MAX_SNAP_BYTES)
+MAX_SNAP_BYTES = 512 * 1024 * 1024  # memory snapped during waits (every) in a call: many small snaps, or few large
 
 
 # explore's pushes with the stick, for a game that walks by it (in three dimensions, most): eight ways, by name.
@@ -731,17 +733,40 @@ class Session:
         """A snap the moment text is said: each frame (the hook _advance calls) looks at what has come since in
         `events`, and takes the snap `after` frames on, mid-wait or mid-press as it falls. Sets the hook (the
         caller puts the one before it back) and gives the list the snaps are added to."""
-        if not isinstance(said, dict) or set(said) - {"after", "shot"} or int(said.get("after", 2)) < 0:
-            raise HarnessError("said is an object: after (frames, 0 or more) and shot")
+        if not isinstance(said, dict) or set(said) - {"after", "shot", "before"} or int(said.get("after", 2)) < 0:
+            raise HarnessError("said is an object: after (frames, 0 or more), shot, and before")
         machine, before_hook = self.machine, self.each_frame
         after, said_shot = int(said.get("after", 2)), bool(said.get("shot"))
+        before = said.get("before") or []
+        if not isinstance(before, list) or not all(isinstance(b, int) and 0 < b <= MAX_BEFORE for b in before):
+            raise HarnessError(f"before is a list of frames before each saying, each 1 to {MAX_BEFORE}")
+        before = sorted(set(before), reverse=True)
+        if before:
+            size = len(machine.ram()[1]) + sum(len(v) for v in machine.regions().values())
+            if (before[0] + 1) * size > MAX_SNAP_BYTES:
+                raise HarnessError(f"before keeps memory for {before[0]} frames, {size} bytes each: more than "
+                                   f"{MAX_SNAP_BYTES // (1024 * 1024)} MB; at most {MAX_SNAP_BYTES // size - 1} frames here")
         taken, due, seen = [], [], [0]
+        kept: list = []                         # memory of the last frames, for `before`: (frame, base, ram, regions)
 
         def on_frame():
             if before_hook is not None:
                 before_hook()
+            if before:
+                base, ram = machine.ram()
+                kept.append((machine.frames, base, ram, machine.regions()))
+                while kept and kept[0][0] < machine.frames - before[0]:
+                    kept.pop(0)
             for e in events[seen[0]:]:
                 if e["kind"] == "text" and len(taken) + len(due) < MAX_STEPS:
+                    # The page's sequence: memory as it was those frames before the saying (as far as kept), named
+                    # after the snap the saying will have (docs/regress.md: <bar>-seq-NN).
+                    name = f"{prefix}-said-{len(taken) + len(due):02d}"
+                    for k, back in enumerate(before):
+                        at = next((m for m in kept if m[0] >= machine.frames - back), None)
+                        if at is not None:
+                            self._write_snap(f"{name}-seq-{k:02d}", at[1], at[2], at[3], at[0], picture=False,
+                                             said=False)
                     due.append(machine.frames + after)
             seen[0] = len(events)
             while due and machine.frames >= due[0]:
@@ -775,7 +800,9 @@ class Session:
           said=("object", "a snap the moment the script says text, wherever in a step that falls: {\"after\": "
                           "frames after the saying (default 2), \"shot\": true for a picture too}. Named "
                           "<prefix>-said-00, -01, …; for a page that gives way to the next within a step, which a "
-                          "snap at the step's end (on) misses", False))
+                          "snap at the step's end (on) misses. \"before\": [frames, …] also snaps memory as it was "
+                          "that many frames before each saying, <said snap>-seq-00, -01, … (the furthest first): "
+                          "the sequence the nightly check reads a typing page by (docs/regress.md)", False))
     def steps(self, steps: list, prefix: str = "step", columns: int = 4, scale: float = 1.0,
               on: dict | None = None, said: dict | None = None):
         machine, prefix = self._need(), self._name(prefix)
@@ -806,7 +833,14 @@ class Session:
                     raise HarnessError("every goes with wait and snap, and is a number of frames")
                 during += max(1, int(step.get("times", 1))) * (int(step["wait"]) // int(step["every"]))
         if during > MAX_STEPS:
-            raise HarnessError(f"at most {MAX_STEPS} snaps during waits in a call")
+            # Past the count, by size: a console with little memory may snap many frames (a page's typing, frame
+            # by frame), kept as differences from the first, while one with much may not.
+            base_ram = machine.ram()[1]
+            size = len(base_ram) + sum(len(v) for v in machine.regions().values())
+            if during * size > MAX_SNAP_BYTES or during > 20 * MAX_STEPS:
+                raise HarnessError(f"at most {MAX_STEPS} snaps during waits in a call, or as many as come to "
+                                   f"{MAX_SNAP_BYTES // (1024 * 1024)} MB of memory ({size} bytes a snap here: "
+                                   f"{min(20 * MAX_STEPS, MAX_SNAP_BYTES // max(1, size))})")
         for step in [*steps, *(x for v in on.values() for x in v)]:
             self._buttons(step.get("buttons"))
             if "state" in step:
@@ -1241,12 +1275,18 @@ class Session:
           ocr=("array", "the lines on screen, if you read them off the frame", False),
           no_text=("boolean", "true when the screen shows no text", False))
     def snap(self, name: str, ocr: list | None = None, no_text: bool = False) -> dict:
+        machine = self._need()
+        base, ram = machine.ram()
+        return self._write_snap(name, base, ram, machine.regions(), machine.frames, ocr, no_text,
+                                picture=machine.picture() is not None)
+
+    def _write_snap(self, name: str, base: int, ram: bytes, regions: dict, frame: int, ocr: list | None = None,
+                    no_text: bool = False, picture: bool = True, said: bool = True) -> dict:
+        """A snap of memory taken now or kept from a few frames before (said's `before`): its files, as `snap`."""
         machine, name = self._need(), self._name(name)
         folder = self.roots.scratch / "snaps"
         self._not_anothers(folder, name, machine.platform)
-        base, ram = machine.ram()
-        regions = machine.regions()
-        self.snaps[name] = Snap(base, machine.frames)
+        self.snaps[name] = Snap(base, frame)
         # All but the session's first are written as what differs from it (snapfile.py): a few kilobytes, not
         # all of memory again. Writing over the first makes this one the first; the snaps kept as differing
         # from a file about to be written over (this run's, or an earlier run's under the same name) are
@@ -1262,20 +1302,20 @@ class Session:
         if first is None:
             self.first_snap = (name, ram, regions)
         meta = {"platform": machine.platform, "game": self.game, "base_address": f"0x{base:X}",
-                "frame": machine.frames, "ocr": list(ocr or [])}
+                "frame": frame, "ocr": list(ocr or [])}
         if no_text:
             meta["no_text"] = True
         elif not ocr:
             meta["ocr_unavailable"] = True
         if self.pokes:                          # what this moment shows was reached with memory written
             meta["memory_writes"] = self.pokes
-        if self.reader is not None:             # what the script said on the way here, for `compare` with `live`
+        if self.reader is not None and said:    # what the script said on the way here, for `compare` with `live`
             meta["said"] = self.said
-        self.said = []
+            self.said = []
         (folder / f"{name}.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
-        if machine.picture() is not None:
+        if picture and machine.picture() is not None:
             (folder / f"{name}.png").write_bytes(self._png(self._picture()))
-        return {"snap": name, "frame": machine.frames, "bytes": len(ram), "regions": sorted(regions),
+        return {"snap": name, "frame": frame, "bytes": len(ram), "regions": sorted(regions),
                 **({"written_over": "a snap of this name was there, and others were kept as what differs from "
                                     "it: they are whole files now. A name of its own for each snap saves that"}
                    if kept else {}),
@@ -4370,12 +4410,14 @@ class Session:
           "a state: load that and replay to the same state again to go on.",
           to=("string", "the saved state to go to, whose way goes through where the game is now (required)", True),
           keep=("string", "a state's name to save where it got to under, if the call's time runs out", False),
-          said=("object", "as steps' said: {after, shot}: a snap the moment the script says text", False),
+          said=("object", "as steps' said: {after, shot, before}: a snap the moment the script says text", False),
           prefix=("string", "names the snaps <prefix>-said-00, … (default: replay)", False),
+          marks=("array", "snaps at given frames of the replay: [[frames from its start, name], …], as a route's "
+                          "bar snaps were placed", False),
           columns=("integer", "pictures across the sheet, with shot (default 4)", False),
           scale=("number", "each picture's scale on the sheet (default 1)", False))
     def replay(self, to: str, keep: str = "", said: dict | None = None, prefix: str = "replay", columns: int = 4,
-               scale: float = 1.0):
+               scale: float = 1.0, marks: list | None = None):
         machine, prefix = self._need(), self._name(prefix)
         if said is not None and self.reader is None:
             raise HarnessError("no script is loaded to say anything: call script_try first")
@@ -4383,19 +4425,37 @@ class Session:
         if any(not (isinstance(m, list) and len(m) == 3) for m in rest):
             raise HarnessError(f"the way to {to} holds a move a replay can't play (a state loaded or memory written "
                                "on the way): replay to a state saved before it")
+        try:
+            due = sorted((int(m[0]), self._name(str(m[1]))) for m in (marks or []))
+        except (TypeError, ValueError, IndexError):
+            raise HarnessError("marks is a list of [frames, name]") from None
+        if len(due) > MAX_STEPS or any(f < 0 for f, _ in due):
+            raise HarnessError(f"at most {MAX_STEPS} marks, each at 0 frames or more")
         events, shots, before_hook = [], [], self.each_frame
         taken = self._said_snaps(prefix, said, events, shots) if said is not None else []
-        played, why = 0, None
+        played, why, start, marked = 0, None, machine.frames, []
         try:
             for frames, held, where in rest:
-                _, why = self._advance(int(frames), set(held), (float(where[0]), float(where[1])), events)
+                left, keys, stick = int(frames), set(held), (float(where[0]), float(where[1]))
+                # A move is played in pieces where a mark falls inside it: the snap at its frame.
+                while left > 0 and not why:
+                    upto = left
+                    if due and due[0][0] - (machine.frames - start) < left:
+                        upto = max(0, due[0][0] - (machine.frames - start))
+                    if upto:
+                        _, why = self._advance(upto, keys, stick, events)
+                        left -= upto
+                    while due and not why and due[0][0] <= machine.frames - start:
+                        marked.append(self.snap(due.pop(0)[1])["snap"])
                 if why == "time":
                     break
                 played += 1
+            while due and not why and due[0][0] <= machine.frames - start:
+                marked.append(self.snap(due.pop(0)[1])["snap"])
         finally:
             self.each_frame = before_hook
         out = {"to": to, "moves": len(rest), "played": played, "frames": machine.frames,
-               **({"said": taken} if said is not None else {}),
+               **({"said": taken} if said is not None else {}), **({"marked": marked} if marks else {}),
                **({"events": events[:MAX_ROWS]} if self.reader is not None else {})}
         if why == "time":
             out.update(stopped="time", left=len(rest) - played)

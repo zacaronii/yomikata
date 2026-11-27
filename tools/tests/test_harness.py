@@ -2095,9 +2095,19 @@ def test_snaps_during_a_wait_and_what_points_where_in_each(session, tmp_path):
     assert out["steps"] == [{"step": 0, "frames": 9, "snaps": ["type-000-00", "type-000-01"]}]
     assert [session.snaps[n].frame for n in out["steps"][0]["snaps"]] == [5, 8]
     for bad in ([{"wait": 4, "every": 2}], [{"wait": 4, "every": 0, "snap": True}], [{"every": 2, "snap": True}],
-                [{"wait": 4000, "every": 1, "snap": True}]):
+                [{"wait": 5000, "every": 1, "snap": True}]):
         with pytest.raises(HarnessError):
             session.steps(bad)
+    # Past 200 snaps by size: a console with little memory may snap a page's typing frame by frame.
+    many = session.steps([{"wait": 300, "every": 1, "snap": "many"}])
+    assert len(many["steps"][0]["snaps"]) == 300
+    import yomikata.harness.session as hs
+    was, hs.MAX_SNAP_BYTES = hs.MAX_SNAP_BYTES, 1024
+    try:
+        with pytest.raises(HarnessError, match="MB of memory"):
+            session.steps([{"wait": 300, "every": 1, "snap": "big"}])
+    finally:
+        hs.MAX_SNAP_BYTES = was
     # A word that points into the line in one moment only comes first.
     session.machine.memory[0x60:0x64] = struct.pack(">I", BASE + 0x104)
     session.snap("typing")
@@ -3033,6 +3043,31 @@ def test_replay_plays_the_way_to_a_saved_state_and_goes_on_from_what_it_kept(ses
     assert out["reached"] == "rp-b" and len(out["said"]) == 3, out
     assert [e["text"] for e in out["events"] if e["kind"] == "text"] == lines
     assert machine.memory[0x7F2] == 3
+    # Marks: snaps at given frames of the replay, inside a move as well as at its end; and `before`: each
+    # saying's memory as it was those frames before it, as <said snap>-seq-NN (the earlier first).
+    session.state_load("rp-a")
+    assert session.script_try(SCRIPT, "GXXJ01.lua")["loaded"]
+    start = machine.frames
+    out = session.replay("rp-b", said={"after": 2, "before": [3, 1]}, prefix="rpm", marks=[[10, "rpm-at10"], [44, "rpm-at44"]])
+    assert out["marked"] == ["rpm-at10", "rpm-at44"] and session.snaps["rpm-at10"].frame == start + 10
+    assert session.snaps["rpm-at44"].frame == start + 44
+    last = len(out["said"]) - 1
+    said_at = out["said"][last]["frame"] - 2
+    assert session.snaps[f"rpm-said-{last:02d}-seq-00"].frame == said_at - 3, out["said"]
+    assert session.snaps[f"rpm-said-{last:02d}-seq-01"].frame == said_at - 1
+    seq = json.loads((session.roots.scratch / f"snaps/rpm-said-{last:02d}-seq-00.json").read_text())
+    assert "said" not in seq and not (session.roots.scratch / f"snaps/rpm-said-{last:02d}-seq-00.png").exists()
+    with pytest.raises(HarnessError, match="before"):
+        session.replay("rp-b", said={"before": [0]})
+    import yomikata.harness.session as hs
+    was, hs.MAX_SNAP_BYTES = hs.MAX_SNAP_BYTES, 4096
+    try:
+        with pytest.raises(HarnessError, match="at most"):
+            session.replay("rp-b", said={"before": [200]})              # more frames than memory allows
+    finally:
+        hs.MAX_SNAP_BYTES = was
+    with pytest.raises(HarnessError, match="marks"):
+        session.replay("rp-b", marks=[["x"]])
     # The call's time runs out after a few frames: where it got to is kept, and a replay from there ends the way.
     session.state_load("rp-a")
     ticks, late = [0], session._late
