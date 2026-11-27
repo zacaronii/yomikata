@@ -403,6 +403,13 @@ any other. A place that fits is the tile map, or the list of writes it is filled
 row with one kana twice and two spaces, refused before as too little, gives the list and the map and nothing
 else but the same two a byte off. Without `spaces` a row that finds nothing, or is too little, is tried with them.
 
+Before concluding nothing is there, try one row with `spaces`, and look at `padded`. A window of fixed width
+pads each row with blanks, so a row break stands for as many cells as the row is short of the width, and two
+rows with a break are found nowhere. When they aren't, `find_relative` tries them padded to each width from
+the longest row's and gives the widths that fit. Kaeru no Tame ni Kane wa Naru keeps its page so, two rows of
+18 cells numbered by the page itself (0x54 a blank): the two rows with a break found nothing, padded to 18 they
+found it. It was found in the end from a word on the stack in snaps taken every frame from a page's start.
+
 A console may have more memory than its main one, and a game may keep its own state there. A Game Boy
 Advance has 256 KB on the board (main memory here: what `find`, `find_relative` and the rest look through,
 and what a snap's `.ram.gz` is) and 32 KB in the CPU, which each snap keeps beside it as the region `iwram`.

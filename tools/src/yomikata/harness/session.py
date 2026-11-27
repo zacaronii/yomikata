@@ -971,7 +971,8 @@ class Session:
           "Surer: `lines`, two or more snaps each with the line on its screen; one place must fit them all, and "
           "characters the lines share must have the same code. Write wide spaces where the screen has them. "
           "A window kept as tiles (a cell a character, blanks too): give a row with its spaces as plain "
-          "spaces and `spaces`; each is then a cell, and all of them the same tile.",
+          "spaces and `spaces`; each is then a cell, and all of them the same tile. Rows found nowhere are also "
+          "tried padded with blank cells to each width (`padded`): a window whose rows are that many cells.",
           text=("string", "the line on screen now; a line break stands for `gap` cells", False),
           lines=("object", "or several moments: a snap's name (or `now` for live memory) to the line on its screen", False),
           unit=("integer", "bytes a code: 1, 2 or 4 (default 1; try 2 as well)", False),
@@ -1065,6 +1066,22 @@ class Session:
                 if parts:
                     break
             out["parts"] = parts
+            # A window kept as cells of a fixed width pads each row with blanks to the width, so a row break
+            # stands for as many cells as the row is short of it (Kaeru no Tame ni Kane wa Naru: rows of 18). The
+            # rows padded to each width from the longest row's, a space a cell, wide ones too.
+            cells = [row.replace("　", " ") for row in rows]
+            padded = []
+            for width in range(max(len(row) for row in cells), 41):
+                line = "".join(row.ljust(width) for row in cells[:-1]) + cells[-1]
+                try:
+                    count, some = search.relative([(memories[0][0], line)], int(unit), bool(big_endian), order,
+                                                  int(stride), int(gap), 5, spaces=True)
+                except search.SearchError:
+                    continue
+                if 0 < count <= 50:
+                    padded.append({"width": width, "count": count, "places": shape(some, int(unit))})
+            if padded:
+                out["padded"] = sorted(padded, key=lambda p: p["count"])[:5]
         return out
 
     @tool("What a script can check to know it is on this build of the game: places in memory that hold the same "

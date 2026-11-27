@@ -31,3 +31,14 @@ that needs its place on the map found first (for `walk_to`).
   after it; `ff-m` walked north into the town's edge.
 - **Next**: find the party's place on the map (compare snaps a step apart), then `walk_to` between the story's
   beats, `advance_through` through the fights, and the table from the pages on the way.
+
+## Tools to build when needed
+
+- **A proportional-font reader from video memory.** For a game that draws its text a character at a time into
+  fresh tiles, in a font of varying width, and keeps no page in memory: read the window's pixel rows from video
+  memory (lib/gbtiles.lua gives a Game Boy's tiles), cut the glyphs at blank columns, fingerprint each, and look
+  them up in a dictionary (the `.glyphs` way, from whole tiles to cut glyphs), saying each unknown glyph with
+  its picture so the dictionary is quick to build. Kaeru no Tame ni Kane wa Naru draws so, but keeps its page
+  unpacked in work RAM, so it didn't need one. Build it as its own pull request, with synthetic tests, when a
+  game does.
+

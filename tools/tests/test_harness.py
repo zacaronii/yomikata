@@ -1147,6 +1147,23 @@ def test_find_and_runs_across_snaps(session):
         session.find(text="あ", snaps=["nothing"])
 
 
+def test_find_relative_tries_rows_padded_to_a_windows_width(session):
+    """A page kept as Kaeru no Tame ni Kane wa Naru keeps its own: two rows of 18 cells, each a number of the
+    page's own in the order its characters first come, 0x54 a blank padding each row to the width. Two rows
+    with a break aren't found (the break is as many cells as the row is short); padded to 18, they are."""
+    rows = ["やまのうえの　かわのした", "そらのいろ　はなのいろ。"]
+    numbers, cells = {}, b""
+    for row in rows:
+        for ch in row:
+            cells += bytes([0x54]) if ch == "　" else bytes([numbers.setdefault(ch, len(numbers))])
+        cells += bytes([0x54]) * (18 - len(row))
+    put(session, 0xD00, cells)
+    out = session.find_relative("\n".join(rows))
+    assert out["count"] == 0 and out["padded"][0]["width"] == 18, out
+    assert out["padded"][0]["places"][0]["address"] == "0x80000D00"
+    assert out["padded"][0]["places"][0]["codes"]["の"] == f"{numbers['の']:02X}"
+
+
 def test_find_relative_a_line_in_codes_of_the_games_own(session):
     line = "ははのははははがいたい"
     own = {ch: 0x130 + 7 * i for i, ch in enumerate(dict.fromkeys(line))}              # codes in no usual order
