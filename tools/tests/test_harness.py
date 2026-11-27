@@ -761,6 +761,31 @@ def test_a_game_boys_io_is_a_region_where_the_cores_map_gives_it():
     assert "io" not in machine.regions() and "io" not in region_starts("gba")
 
 
+def test_a_game_boy_advances_sprite_table_and_video_memory_are_kept_and_read_at_their_addresses():
+    """A Game Boy Advance game may draw each character as a sprite: the sprite table (1 KB at 0x07000000, a
+    stretch of the core's map) is kept as the region `oam`, and over a snap it and video memory (`vram`) answer at
+    the console's addresses, as they do in play; none where the map doesn't give the table whole."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine, region_starts
+    from yomikata.run import with_regions
+    video, table = bytes(range(256)) * 384, bytes((7 * k) & 0xFF for k in range(0x400))
+    held = C.create_string_buffer(table, 0x400)
+
+    class Core:
+        maps = [(0x07000000, 0x400, C.addressof(held))]
+        def video_ram(self): return video
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core = "gba", Core()
+    regions = machine.regions()
+    assert regions["oam"] == table and regions["vram"] == video
+    assert region_starts("gba")["oam"] == 0x07000000 and region_starts("gba")["vram"] == 0x06000000
+    read = with_regions(lambda address, size: b"", "gba", regions)
+    assert read(0x07000008, 8) == table[8:16] and read(0x06010000, 4) == video[0x10000:0x10004]
+    machine.core.maps = [(0x07000000, 0x200, C.addressof(held))]                         # half given
+    assert "oam" not in machine.regions()
+    assert "oam" not in region_starts("gb") and "vram" not in region_starts("snes")
+
+
 def test_a_game_boys_io_is_read_across_the_stretches_of_the_cores_map():
     """mGBA gives the registers and the high RAM as two stretches, and not 0xFFFF: io is read across them, through
     the real Core.read and Machine.read, with what no stretch gives as 0."""

@@ -303,7 +303,7 @@ bytes as they lie in memory.
 | `gc` | `0x80000000`, 24 MB | Big-endian |
 | `wii` | `0x80000000`, 24 MB, and `0x90000000`, 64 MB | Big-endian |
 | `nds` | `0x02000000`, 4 MB | |
-| `gba` | `0x02000000`, 256 KB, and `0x03000000`, 32 KB | |
+| `gba` | `0x02000000`, 256 KB, and `0x03000000`, 32 KB | The video memory at `0x06000000` (96 KB, the region `vram`) and the sprite table at `0x07000000` (1 KB, OAM: 128 sprites of 8 bytes, the region `oam`), where mGBA's map gives them: for a game that draws each character as a sprite of its own. Read at those addresses over a snap too |
 | `sfc` | `0x7E0000`, 128 KB | And the cartridge, where the core maps it (below) |
 | `gb`, `gbc` | `0xC000`, 8 KB | And the cartridge, whole, at `0x01000000` on (below). The I/O registers and high RAM at `0xFF00`-`0xFFFF` where the core maps them (mGBA does): LCDC at `0xFF40`, WY and WX at `0xFF4A`, say whether the window layer shows, which a game's copy of the screen in work RAM doesn't. Kept in a snap as the region `io`, and read at those addresses over a snap too |
 | `pce-cd` | `0xD0000`, 256 KB: the Super System Card's RAM, then the CD's own (from `0x100000`) | The console's 8 KB at `0x1F0000` too (the region `wram` in a snap). Not `0x0E0000`-`0x0EFFFF`: below |
