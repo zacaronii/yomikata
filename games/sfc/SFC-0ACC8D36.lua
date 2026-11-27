@@ -152,3 +152,45 @@ reader.on_frame(function()
         reader.emit{ text = page, channel = "dialogue", id = text.hash(page) }
     end
 end)
+
+-- Where a scene still waits in the map the party is on (docs/script-api.md, "Events"), for the harness to walk
+-- to. Each map's event places are in the cartridge: a table of 2-byte offsets into bank 0xC4 (TRIGGERS, a map's
+-- number at MAP), each place 5 bytes (x and y in the party's tile numbers, then the event's address from
+-- 0xCA0000). An event that is done is guarded at its start by "if flag n is set, return" (0xC0, n with its top
+-- bit set, and an address that holds 0xFE); the flags are bits from FLAGS. A place is given while its guard's
+-- flag is clear, or when it has no such guard, unless its event only takes the party to another map (0x6A or
+-- 0x6B first): a door, which expedition finds by itself.
+local MAP, TRIGGERS, EVENTS, FLAGS = 0x7E1F64, 0xC40000, 0xCA0000, 0x7E1E80
+local GUARD, RETURN, DOORS = 0xC0, 0xFE, { [0x6A] = true, [0x6B] = true }
+
+function events()
+    local map = mem.u16(MAP)
+    if not map then
+        return {}
+    end
+    map = map & 0x1FF
+    local from, to = mem.u16(TRIGGERS + 2 * map), mem.u16(TRIGGERS + 2 * map + 2)
+    local out = {}
+    if not from or not to then
+        return out
+    end
+    for k = from, to - 5, 5 do
+        local at = TRIGGERS + k
+        local x, y = mem.u8(at), mem.u8(at + 1)
+        local event = EVENTS + mem.u8(at + 2) + 256 * mem.u8(at + 3) + 65536 * mem.u8(at + 4)
+        local body, waits = event, true
+        if mem.u8(event) == GUARD then
+            local n = mem.u16(event + 1)
+            local target = EVENTS + mem.u8(event + 3) + 256 * mem.u8(event + 4) + 65536 * mem.u8(event + 5)
+            if n & 0x8000 ~= 0 and mem.u8(target) == RETURN then
+                local bit = n & 0x7FFF
+                waits = (mem.u8(FLAGS + (bit >> 3)) >> (bit & 7)) & 1 == 0
+            end
+            body = event + 6
+        end
+        if waits and not DOORS[mem.u8(body)] then
+            out[#out + 1] = { x, y }
+        end
+    end
+    return out
+end
