@@ -24,7 +24,21 @@ JOINED = {"pce-cd": (0xD0000, 0x100000)}
 # A Game Boy's cartridge, whole: a core shows only the two banks switched in now, and a game that draws its text
 # straight from the cartridge has switched to others by the time a line stands. The file is given to scripts
 # at this address on, byte for byte (docs/script-api.md).
-CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000}
+# A Famicom's program ROM isn't in fceumm's map at all (0x8000-0xFFFF reads nothing), so its image is given the
+# same way: after its 16-byte iNES header (and a trainer), the program then the CHR. A Disk System's disk image
+# after its fwNES header, side after side.
+CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000, "fc": 0x01000000, "fds": 0x01000000}
+
+
+def cartridge_image(platform: str, data: bytes) -> bytes:
+    """The bytes a script finds at CARTRIDGE: a Game Boy's file as it is; a Famicom's without its iNES header and
+    trainer; a Disk System's without its fwNES header. A file without a header is taken as it is."""
+    from ..identify import FWNES_MAGIC, INES_MAGIC
+    if platform == "fc" and data[:4] == INES_MAGIC:
+        return data[16 + (512 if data[6] & 0x04 else 0):]
+    if platform == "fds" and data[:4] == FWNES_MAGIC:
+        return data[16:]
+    return data
 # A Game Boy's I/O registers and high RAM (0xFF00-0xFFFF), where the core maps them (mGBA does): the LCD's
 # registers say what the screen shows (LCDC at 0xFF40: the window on or off, which map; WY and WX at 0xFF4A
 # where it is), which the game's copy of the screen in work RAM doesn't. Read through the core's map, and kept
@@ -104,7 +118,7 @@ class Machine:
         self.platform = PLATFORM_ALIASES.get(platform, platform)
         self.core = Core(core_path, system_dir, options)
         self.core.load_game(game)
-        self.cartridge = Path(game).read_bytes() if self.platform in CARTRIDGE else b""
+        self.cartridge = cartridge_image(self.platform, Path(game).read_bytes()) if self.platform in CARTRIDGE else b""
         self.frames = 0
         # A core that draws with the card can't be loaded a second time in one process: the second load never
         # comes back (seen with Dolphin).
