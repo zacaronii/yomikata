@@ -98,18 +98,26 @@ def keep(scratch: Path, games: Path, catalog: Path, identify=None) -> tuple[int,
             continue
         into = folder / KEEP / gid
         into.mkdir(parents=True, exist_ok=True)
+        lost = []
         for stem in stems:
             if (into / f"{stem}.json").is_file():
                 continue
-            for part in sorted(snaps.glob(f"{stem}.*.gz")):
-                region = part.name[len(stem) + 1:-len(".gz")]
-                if "." in region:
-                    continue                      # a savestate kept beside it
-                snapfile.write(into / part.name, snapfile.read(part), None)
+            try:
+                parts = [(part, snapfile.read(part)) for part in sorted(snaps.glob(f"{stem}.*.gz"))
+                         if "." not in part.name[len(stem) + 1:-len(".gz")]]      # not a savestate kept beside it
+            except snapfile.SnapError:
+                lost.append(stem)                 # kept as a difference from a snap that is gone: can't be read
+                continue
+            for part, data in parts:
+                snapfile.write(into / part.name, data, None)
             for side in (f"{stem}.json", f"{stem}.png"):
                 if (snaps / side).is_file():
                     shutil.copyfile(snaps / side, into / side)
             copied += 1
+        if lost:
+            skipped[f"{game} ({len(lost)} snaps)"] = (f"{len(lost)} bar snaps can't be read (each kept as a "
+                                                       f"difference from a snap that is gone): {', '.join(lost[:5])}"
+                                                       + (" …" if len(lost) > 5 else ""))
     folder.mkdir(parents=True, exist_ok=True)
     ids_path.write_text(json.dumps(ids, ensure_ascii=False, indent=1), encoding="utf-8")
     return copied, skipped

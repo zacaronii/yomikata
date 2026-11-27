@@ -85,3 +85,24 @@ def test_only_games_with_a_merged_script_are_kept(world):
     copied, skipped = keep(world.scratch, world.games, world.catalog, world.identify)
     assert copied == 0 and skipped == {GAME: "no merged script"}
     assert not (world.scratch / "regress" / "keep" / "GXXJ01").exists()
+
+
+def test_a_bar_snap_whose_base_is_gone_is_skipped_not_fatal(world):
+    """A snap kept as a difference from another (snapfile) can't be read once that other is gone: keep leaves it
+    out and says which, and keeps the rest; it doesn't stop the night's check."""
+    from yomikata.regress import keep
+    snaps = world.scratch / "snaps"
+    memory = bytearray(snapfile.read(snaps / "bar-0.ram.gz"))
+    memory[0x800] = 1
+    written = snapfile.write(snaps / "bar-2.ram.gz", bytes(memory),
+                             ("loose.ram.gz", snapfile.read(snaps / "loose.ram.gz")))   # a difference from `loose`
+    assert written
+    (snaps / "bar-2.json").write_text(json.dumps({"platform": "gc", "game": GAME, "base_address": "0x80000000",
+                                                  "frame": 1, "ocr": ["こんにちは"]}), encoding="utf-8")
+    assert snapfile.read(snaps / "bar-2.ram.gz") == bytes(memory)
+    (snaps / "loose.ram.gz").unlink()
+    copied, skipped = keep(world.scratch, world.games, world.catalog, world.identify)
+    kept = world.scratch / "regress" / "keep" / "GXXJ01"
+    assert copied == 2 and sorted(p.name for p in kept.glob("*.json")) == ["bar-0.json", "bar-1.json"]
+    why = skipped[f"{GAME} (1 snaps)"]
+    assert "bar-2" in why and "gone" in why
