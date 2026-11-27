@@ -148,3 +148,6 @@ Looked at outside the harness only (0 calls); not begun, as a job of Xenogears' 
   unpacked in work RAM, so it didn't need one. Build it as its own pull request, with synthetic tests, when a
   game does.
 
+- **`page_buffer`'s ranking.** With one snap a page, long stretches that stand and differ between pages (tile
+  graphics, other unpacked blocks) win over a page's buffer, as on Tales of Phantasia's first pages: rank them
+  against the page's expected size (its characters on screen), or cap the length.
