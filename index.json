@@ -64,6 +64,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "FC-20CC079D": {
+   "path": "games/fc/FC-20CC079D.json",
+   "sha256": "eaeec44b4af93659063fdd9d3f876f7e9696874deb7304f40466ca11f6302231",
+   "platform": "fc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "G8MJ01": {
    "path": "games/gc/G8MJ01.json",
    "sha256": "0a0b5ced378fa1085a750324ae1bea4e26c36a3558566f5faad6802ba3dab3db",
@@ -994,6 +1001,24 @@
     "tbl": {
      "path": "games/gbc/CGB-BD3J.tbl",
      "sha256": "9f162f87e20e7181acc7a1889151b32df173dc61b0b2a7d2122f4de53032e8b6"
+    }
+   }
+  },
+  "FC-20CC079D": {
+   "path": "scripts/fc/FC-20CC079D.lua",
+   "sha256": "c67022248805722f00269aa3e02e56e94993333e57e8d54b662cbde7d4a15fec",
+   "platform": "fc",
+   "runtime": 1,
+   "title": "マザー (Mother, Famicom)",
+   "reads": "the message window's rows off the screen's tiles once they have typed out and stand",
+   "builds": [
+    "20cc079d"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/fc/FC-20CC079D.tbl",
+     "sha256": "d0bd4647ce6863cc07db3089011bd57cfa89d1e07656792013829055a61abd86"
     }
    }
   },
