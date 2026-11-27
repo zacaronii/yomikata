@@ -121,6 +121,33 @@ def test_snapshots_of_saturn_pce_cd_dreamcast_and_wii_with_their_region_parts(tm
         assert r.status_code == 200, (platform, r.json())
 
 
+def test_snapshots_of_the_n64_at_its_8_mb_and_the_uncached_mirror(tmp_path):
+    """Genkan's N64 core sends n64 snapshots: 8 MB of RAM at 0x80000000, in the console's byte order. One that
+    size is kept as sent (bytes in that order, not swapped); one larger, or outside RAM and its uncached mirror at
+    0xA0000000, is refused; a sample is taken at either."""
+    c = TestClient(create_app("secret", tmp_path / "data"))
+
+    def post(base, ram):
+        meta = {"id": "NUS-NAFJ", "platform": "n64", "base_address": base, "ocr": ["こんにちは"]}
+        return c.post("/api/snapshots", data={"meta": json.dumps(meta)}, headers=AUTH, files={"ram": ("ram", ram)})
+    ram = b"\x80\x37\x12\x40" + os.urandom(4092) + bytes(0x800000 - 4096)       # a word as the console holds it
+    r = post("0x80000000", gzip.compress(ram, 1))
+    assert r.status_code == 200, r.json()
+    kept = tmp_path / "data/snapshots/n64/NUS-NAFJ" / f"{r.json()['sha1']}.ram.gz"
+    assert gzip.decompress(kept.read_bytes()) == ram
+    assert post("0x80000000", os.urandom(0x800001)).status_code == 400
+    assert post("0x80800000", os.urandom(16)).status_code == 400
+    for address in ("0x80400000", "0xA0400000"):
+        r = c.post("/api/samples", json={"id": "NUS-NAFJ", "platform": "n64",
+                                         "samples": [{"ocr": "こんにちは", "bytes_hex": "82b182f182c982bf82cd",
+                                                      "address": address}]}, headers=AUTH)
+        assert r.status_code == 200, (address, r.json())
+    r = c.post("/api/samples", json={"id": "NUS-NAFJ", "platform": "n64",
+                                     "samples": [{"ocr": "こんにちは", "bytes_hex": "82b1", "address": "0x90000000"}]},
+               headers=AUTH)
+    assert r.status_code == 400 and "outside n64 main RAM" in r.json()["detail"]
+
+
 def test_offline_reads_take_a_snapshots_regions_but_not_its_savestate(tmp_path):
     """yomikata run's regions beside a snapshot: lwram and the like, not the savestate kept with it."""
     from yomikata.run import _regions
