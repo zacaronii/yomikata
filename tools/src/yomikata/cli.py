@@ -125,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--base", default=None, help="address of the snapshots' first byte (default: their .json, else the platform's RAM)")
     p.add_argument("--frames", type=int, default=2, help="ticks over each snapshot")
     p.add_argument("--sequence", action="store_true", help="the snapshots are consecutive moments of one run: one reader, one tick each")
+    p.add_argument("--rom", type=Path, help="the game's file, unpacked: a script then finds the cartridge where it reads it in play (snapshots keep memory only)")
     p.add_argument("--log", action="store_true", help="print the script's log lines too")
     p.add_argument("--story", action="store_true", help="only what is read: dialogue and choices, not interface text")
     p.add_argument("--dump", action="store_true", help="everything the game has in memory at each snapshot, as the script's own dump function says it: for reading a place's whole text through the script's decoder")
@@ -838,7 +839,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             readings = run(args.script, args.snapshots, platform=args.platform,
                            base=int(args.base, 16) if args.base else None, frames=args.frames, sequence=args.sequence,
-                           dump=args.dump)
+                           dump=args.dump, rom=args.rom.read_bytes() if args.rom else None)
         except (rd.ReaderUnavailable, ValueError, OSError) as e:        # a BundleError is a ValueError
             print(e, file=sys.stderr)
             return 1

@@ -3271,6 +3271,10 @@ class Session:
             platform = PLATFORM_ALIASES.get(meta.get("platform"), meta.get("platform"))
             read = with_regions(rd.memory(int(meta["base_address"], 16), _load(path), MIRRORS.get(platform, ())),
                                 platform, _regions(path))
+            if meta.get("game") and meta.get("game") == self.game:
+                # A snap keeps memory, not the cartridge: the loaded game's, where the snap is of that game.
+                from .machine import with_rom
+                read = with_rom(read, getattr(self.machine, "rom", None))
             reading = Reading(n)
             if played:
                 if "said" not in meta:

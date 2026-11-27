@@ -344,6 +344,12 @@ script has nothing there to check its build against or to read text from. The ha
 `0x01000000 + n x 0x2000`, the last bank the one fixed at `0xE000`), then the CHR. A Disk System image is given
 there after its fwNES header (where it has one), side after side (65,500 bytes each). The same rule holds.
 
+**Over a snap.** A snap keeps memory, not the cartridge. Where a script reads one of the cartridges above (a
+Super Famicom HiROM cartridge at `0xC00000`, a Game Boy, Famicom, Disk System or Mega Drive image at
+`0x01000000`), the harness's `compare` gives it the loaded game's, over snaps of that game, and `yomikata run`
+gives it with `--rom` and the game's file: a build check on the cartridge's header holds there as in play. A Super
+Famicom cartridge is given only as above (no mirrors, no LoROM), so that what reads over a snap reads in play.
+
 **A Mega Drive cartridge.** genesis_plus_gx gives out no map of the cartridge either. The harness gives it whole at
 `0x01000000` on, as the console sees it (byte `n` of the ROM at `0x01000000 + n`; an SMD dump put back in order), so
 a script can check its build against the header at `0x01000100`. The same rule holds.

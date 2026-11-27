@@ -1721,6 +1721,87 @@ def test_compare_reread_runs_the_script_over_snaps_taken_in_play_again(session):
         session.compare(source=SCRIPT, snaps=["p-000"], reread=True)
 
 
+def made_up_sfc(hirom: bool, title: bytes = b"MADE UP") -> bytes:
+    """A 64 KB Super Famicom image with a header that holds: its title at bus 0xFFC0, its checksum and complement,
+    its map byte; each byte elsewhere its offset's low byte, and a mark at the start of its second 32 KB."""
+    image = bytearray(i & 0xFF for i in range(0x10000))
+    image[0x8000:0x8004] = b"MARK"
+    at = 0xFFB0 if hirom else 0x7FB0
+    image[at + 0x10:at + 0x10 + 21] = title.ljust(21)
+    image[at + 0x25] = 0x21 if hirom else 0x20
+    image[at + 0x2C:at + 0x30] = struct.pack("<HH", 0xEDCB, 0x1234)
+    return bytes(image)
+
+
+def test_rom_reader_gives_the_cartridge_at_the_consoles_own_addresses():
+    """Snaps keep memory, not the cartridge: rom_reader gives a script the cartridge where it reads it in play,
+    and no more than docs/script-api.md promises: a Super Famicom HiROM cartridge at 0xC00000 on, byte for byte
+    (a copier's header left out), not its mirrors, and no LoROM one; a Game Boy's at CARTRIDGE."""
+    from yomikata.harness.machine import CARTRIDGE, rom_reader
+    hi = made_up_sfc(True)
+    read = rom_reader("sfc", hi)
+    assert read(0xC0FFC0, 7) == b"MADE UP" and read(0xC08000, 4) == b"MARK" and read(0xC00123, 1) == b"\x23"
+    assert read(0xC0FFFE, 4) == hi[0xFFFE:]                                           # where the file ends
+    assert read(0x400123, 1) == b"" and read(0x008000, 4) == b"" and read(0x7E0000, 1) == b""     # mirrors, RAM
+    assert rom_reader("sfc", bytes(512) + hi)(0xC0FFC0, 7) == b"MADE UP"              # a copier's header
+    assert rom_reader("sfc", made_up_sfc(False)) is None                              # LoROM: not dependable yet
+    assert rom_reader("gb", b"GB" * 8)(CARTRIDGE["gb"] + 2, 2) == b"GB"
+    assert rom_reader("ps1", b"x") is None and rom_reader("sfc", b"short") is None
+
+
+class Cartridge(FakeMachine):
+    """FakeMachine with the game's file as its cartridge, as Machine keeps it for reading over snaps; read in play
+    too, as a Super Famicom core's map gives it."""
+
+    def __init__(self, core_path, game, platform, system_dir, options):
+        from yomikata.harness.machine import rom_reader
+        super().__init__(core_path, game, platform, system_dir, options)
+        self.rom = rom_reader(platform, Path(game).read_bytes())
+
+    def read(self, address, size):
+        return super().read(address, size) or self.rom(address, size)
+
+
+SFC_SCRIPT = SCRIPT.replace('if mem.u32be(0x80000040) ~= 0x80000100 then',
+                            'if mem.read(0xC0FFC0, 7) ~= "MADE UP" or mem.u32be(0x80000040) ~= 0x80000100 then')
+
+
+@needs_reader
+def test_compare_gives_a_super_famicom_script_its_cartridge_over_snaps(tmp_path):
+    """A script whose build check reads the cartridge's header refused every snap: a snap keeps memory only.
+    compare now gives it the loaded game's cartridge, over snaps of that game (not another's), and so does
+    `run` with the game's file; reread too, which still never meets the bar."""
+    from yomikata.run import run
+    for name in ("games/sfc", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/sfc/Made Up (Japan).sfc").write_bytes(made_up_sfc(True))
+    (tmp_path / "games/sfc/Other (Japan).sfc").write_bytes(made_up_sfc(True, b"SOMETHING ELSE"))
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), Cartridge)
+    s.load("sfc/Made Up (Japan).sfc", "fake_libretro.so", "sfc")
+    assert s.script_try(SFC_SCRIPT, "SFC-MADEUP.lua")["loaded"]
+    s.steps([{"wait": 3, "snap": True}, {"wait": 10, "snap": True}], prefix="p")
+    s.snap_lines("p-000", ocr=["こんにちは"])
+    s.snap_lines("p-001", ocr=["さようなら"])
+    out = s.compare(source=SFC_SCRIPT, name="SFC-MADEUP.lua", snaps=["p-000", "p-001"], show=True)
+    assert [(r["read"], r["error"]) for r in out["rows"]] == [("こんにちは", None), ("さようなら", None)]
+    again = s.compare(source=SFC_SCRIPT, name="SFC-MADEUP.lua", scenes={"a": ["p-000"], "b": ["p-001"]},
+                      live=True, reread=True, show=True)
+    assert [r["read"] for r in again["rows"]] == ["こんにちは", "さようなら"] and not again["bar"]["met"]
+    script = tmp_path / "SFC-MADEUP.lua"
+    script.write_text(SFC_SCRIPT, encoding="utf-8")
+    snap = tmp_path / "scratch/snaps/p-000.ram.gz"
+    assert [e[1]["text"] for e in run(script, [snap], rom=made_up_sfc(True))[0].events if e[0] == "text"] == ["こんにちは"]
+    assert "another build" in (run(script, [snap])[0].error or "")                    # no file: no cartridge
+    s.close()
+    # Snaps of another game get no cartridge from the one loaded now.
+    t = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), Cartridge)
+    t.load("sfc/Other (Japan).sfc", "fake_libretro.so", "sfc")
+    out = t.compare(source=SFC_SCRIPT, name="SFC-MADEUP.lua", snaps=["p-000"], show=True)
+    assert "another build" in (out["rows"][0]["error"] or "")
+    t.close()
+
+
 def test_on_disc_finds_memory_that_lies_on_the_disc_as_it_is(session, tmp_path):
     line = bytes(range(40, 104))
     put(session, 0x300, line)
