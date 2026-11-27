@@ -14,9 +14,10 @@
  "sources": [
   "The harness alone, from the game's cartridge on mGBA (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The snaps were studied outside it",
   "Found in play: the script lies packed and no page stands in memory as codes (page_buffer found no buffer of one, nor did a search by the codes' order); each character is a 16-by-16 sprite of its own, its tiles in the sprites' video memory and its place in the sprite table",
-  "The dictionary: 94 pictures, each page's sprites beside its picture, read in play, since the font in the cartridge is packed too",
-  "Played from power-on through the opening at home and outside it, and to the friend who joins, with the script loaded from power-on",
-  "What the script said agreed with the rows read off 29 of 29 pictures, over 3 scenes (9, 11 and 9): one screen short of the bar's 30"
+  "The dictionary: 95 pictures, each page's sprites beside its picture, read in play, since the font in the cartridge is packed too",
+  "Played from power-on through the opening at home (both answers to the mother's question) and outside it, and to the friend who joins, with the script loaded from power-on",
+  "What the script said agreed with the rows read off 30 of 30 pictures, over 3 scenes (10, 11 and 9); each snap taken the frame the page was said, since a page said at a pause in its typing goes on typing",
+  "Calls: 134 of a budget of 150"
  ],
- "notes": "Read by the script games/gba/AGB-AGSJ.lua: the message window's rows off the characters' sprites, each by its picture, said once the page stands. It reads the sprite table and video memory at the console's addresses, which a snap doesn't keep: it reads in play only. Menus that show text in the same sprites are read too. A character not met in play comes out as U+FFFD."
+ "notes": "Read by the script games/gba/AGB-AGSJ.lua: the message window's rows off the characters' sprites, each by its picture, said once the page stands. It reads the sprite table and video memory at the console's addresses, which a snap doesn't keep: it reads in play only. Open: menus show text in the same sprites, and it is read as dialogue, with nothing yet to tell it from a page (no interface channel); no menu screen is among those compared. A character not met in play comes out as U+FFFD."
 }

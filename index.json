@@ -38,7 +38,7 @@
   },
   "AGB-AGSJ": {
    "path": "games/gba/AGB-AGSJ.json",
-   "sha256": "f75ab16b39d1a0607069d0bd4123dd0035503c3fd3785013044754680d25c888",
+   "sha256": "35d2c6931cb194cebfc6ce2aa1428b710272a69f3c15f1950191d65974a4b803",
    "platform": "gba",
    "encoding": "compressed",
    "status": "partial"
@@ -967,7 +967,7 @@
   },
   "AGB-AGSJ": {
    "path": "scripts/gba/AGB-AGSJ.lua",
-   "sha256": "442f3a19b9a7d1d4e53de9a4c30b76613335c40148cec486f946306c18324e01",
+   "sha256": "657c315d7f055b977a0b1752bf1a4c019672be80efec8ce074bac1087145cac1",
    "platform": "gba",
    "runtime": 1,
    "title": "黄金の太陽 開かれし封印 (Ougon no Taiyou: Hirakareshi Fuuin, Game Boy Advance)",
@@ -979,7 +979,7 @@
    "data": {
     "glyphs": {
      "path": "games/gba/AGB-AGSJ.glyphs",
-     "sha256": "07e308eda6294d21e83ccd7bba90ddd9ee0071c8fc4cc8da7e88d174f6054e2b"
+     "sha256": "5b3d9c044a30151b827977dfd2d055315f5c9800bc44fc25e6a576b95a24f701"
     }
    }
   },

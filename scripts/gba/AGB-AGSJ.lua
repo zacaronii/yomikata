@@ -23,7 +23,8 @@
 -- each page once, until another comes. It reads the sprite table and video memory at the console's own
 -- addresses: where a host doesn't give them, it reads nothing.
 --
--- Not covered: menus, fights' messages, the screens before the story.
+-- Not covered: fights' messages, the screens before the story. Open: a menu's text, drawn in the same sprites, is read as
+-- dialogue; nothing yet tells it from a page.
 
 local __loaded, __module = {}, {}
 local function require(name)
