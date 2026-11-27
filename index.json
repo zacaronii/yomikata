@@ -57,6 +57,13 @@
    "encoding": "shift_jis",
    "status": "partial"
   },
+  "AGCJ": {
+   "path": "games/nds/AGCJ.json",
+   "sha256": "7eb3969d2eda078431a706bbbf95846526d02ff1f2c3150b6bb9236879606d09",
+   "platform": "nds",
+   "encoding": "table",
+   "status": "partial"
+  },
   "CGB-AAUJ": {
    "path": "games/gbc/CGB-AAUJ.json",
    "sha256": "e3d1b85c887f110fd743bc59e65bc960a735ef3e37c51d764c2d19c717d022ab",
@@ -1034,6 +1041,24 @@
    ],
    "needs": [],
    "data": {}
+  },
+  "AGCJ": {
+   "path": "scripts/nds/AGCJ.lua",
+   "sha256": "7b5ca9799ae2de0076c4ea541f48ecdf34053f6b2540495f3b1898e6b834dfd4",
+   "platform": "nds",
+   "runtime": 1,
+   "title": "逆転裁判4 (Gyakuten Saiban 4)",
+   "reads": "a message window's page once the game has typed it out and waits",
+   "builds": [
+    "75928841"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/nds/AGCJ.tbl",
+     "sha256": "32b0e47bfe930a33c4b609862227a87d6c6c43e4d2a9b00789f95d7742ff52b1"
+    }
+   }
   },
   "CGB-AAUJ": {
    "path": "scripts/gbc/CGB-AAUJ.lua",

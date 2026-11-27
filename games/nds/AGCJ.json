@@ -1,0 +1,22 @@
+{
+ "id": "AGCJ",
+ "platform": "nds",
+ "title": "逆転裁判4",
+ "title_romaji": "Gyakuten Saiban 4",
+ "versions": [
+  {
+   "header_crc32": "75928841"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/nds/AGCJ.tbl"
+ ],
+ "unit": 2,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
+  "The table: the card's whole font (1,817 characters) read in code order, kanji by manga-ocr and by one reader on sheets beside the OCR's readings (377 corrected); the card's whole script read through in sentences with it"
+ ],
+ "notes": "Read by the script games/nds/AGCJ.lua. The section of the script being played lies unpacked in main memory; a word says where it has got to. A page is said when that stands on a wait. Who speaks is given as the script's number for the speaker only. Not looked at: choices, the court record, cross-examination, saved games. The id AGCJ is the card's game code."
+}
