@@ -4415,6 +4415,8 @@ def test_walk_3d_learns_the_camera_follows_it_turning_and_stops_at_a_wall(tmp_pa
     s.machine.wall = 450.0
     out = s.walk_3d(xa, za, x=900.0, z=250.0)
     assert not out["reached"] and "nearer" in out["stopped"] and s.machine.x == 450.0, out
+    patient = s.walk_3d(xa, za, x=900.0, z=250.0, patience=12)
+    assert "nearer" in patient["stopped"] and patient["frames"] > out["frames"], (out, patient)
     with pytest.raises(HarnessError):
         s.walk_3d("0xZZ", za, x=1.0, z=1.0)
     still = s.walk_3d(f"0x{BASE + 0x1004:X}", za, x=1.0, z=1.0)           # the height: a push moves only z
