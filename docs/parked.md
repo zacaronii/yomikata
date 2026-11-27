@@ -32,6 +32,44 @@ that needs its place on the map found first (for `walk_to`).
 - **Next**: find the party's place on the map (compare snaps a step apart), then `walk_to` between the story's
   beats, `advance_through` through the fights, and the table from the pages on the way.
 
+## Chrono Cross (PlayStation, SLPS-02364)
+
+Parked at 146 of 300 calls with a reader that works and no bar. The reader and its table are on the branch
+`chrono-cross-reader` (unmerged), to resume from.
+
+- **Load**: disc 1's `.chd`, pcsx_rearmed. On a PlayStation pad `a` is circle (confirm) and `b` cross. Naming:
+  `left` takes the cursor out of the grid into the side menu, `down` three times is the confirm item.
+- **The script lies in memory as it is**, the scene's messages in two copies (one at 0x80038000, one at
+  0x8010BC80 in the opening). `find`, `text_runs` and `find_relative` by sameness found nothing (two-byte kanji
+  among one-byte kana break it); `find_relative` with `order` gojuon on a kana-only stretch found it at once.
+- **No page is put together anywhere.** A message has slots, 0x12 and a number, that the game fills as it types
+  with the speaker's own words (endings, the hero's name): strings elsewhere (0x8006xxxx in the opening), each
+  ended by 0x00. The game types from the script a character at a time, a slot's string in its place.
+- **The reader's place**: READER, 0x80171B8C, is where the game reads next. In a slot it points into the slot's
+  string, often past its first characters by the time a frame sees it (so read the string from the 0x00 before
+  it), and the word at READER + 8 is where it goes back to in the message, just past the slot. Found offline in
+  snaps every frame across a page change: a word pointing into the script that moved every two frames.
+- **The script on the branch** follows the typing: each frame, what READER went over since the frame before,
+  and in a slot the slot's string; a page is said when READER stands on 0x02 (the button) or 0x00 (the
+  message's end). Over 90 per-frame snaps offline (`yomikata run --sequence`) a page came out right in its kana,
+  signs and three filled slots.
+- **Codes**: 0x01 a new row, 0x02 the button, 0x00 a message's end, 0x75 a space; 0x04, 0x08, 0x10, 0x18 and
+  0x12 take a byte (a pause, who speaks, the window, a slot). Kana by one plan, every point checked fitting:
+  hiragana in the order of the fifty sounds from 0x76, voiced from 0xA4, half-voiced from 0xB8, small from 0xBD;
+  katakana two bytes, the same from 0xF81A (voiced 0xF848, half-voiced 0xF85C, small 0xF861). Signs read in
+  play: 0xC6, 0xC7, 0xCA, 0xCC, 0xCD, 0xCE, 0xF5. Kanji are two bytes after 0xF8 to 0xFD, none in the table yet.
+- **Fights**: no one byte holds through a fight (0x8000E2C5 and 0x8000E2C7 follow the command menu and drop
+  between turns). The field's own data at 0x80037E52 reads 1 on the field and 0 while the fight's code lies
+  over it: `advance_through` with `differs` 1, and `begin` for a fight a walk runs into. Two fights went through
+  on `a` alone in one call each (84 and 83 presses, no backs). With the command cursor on the element command,
+  `a` went round several pictures for 300 presses and the stuck check never fired: a cycle longer than two.
+- **Missing**: the kanji (from pages beside their pictures, as Kaeru's); the speaker's name row (the message
+  names the speaker by a number, the name is a string in memory among the fill-ins, and no table of names may
+  be written into the catalog); and pages: the opening talk is about ten, the rooms walked after it had none,
+  and the next talk is further into the opening's dungeon.
+- **States** (harness scratch): `cc-a` the naming screen, `cc-b` after the opening talk, `cc-m2` the first
+  fight's menu, `cc-u` the furthest room reached.
+
 ## Tools to build when needed
 
 - **A proportional-font reader from video memory.** For a game that draws its text a character at a time into
