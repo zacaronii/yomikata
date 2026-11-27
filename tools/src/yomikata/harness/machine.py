@@ -77,6 +77,25 @@ def stretch(maps: list[tuple[int, int, int]], start: int) -> tuple[int, int, int
 WARM_UP = 300
 
 
+# The game's own screen inside a bigger picture, where the core's size for it can't be gone by: a Game Boy game
+# with a Super Game Boy border is 160x144 in the middle of 256x224.
+GAME_SCREEN = {"gb": (160, 144), "gbc": (160, 144)}
+
+
+def game_screen(frame, size):
+    """The part of `frame` the game itself draws: `size` (width, height) in its middle, where the frame is bigger
+    in a way a border makes it. A frame the size's whole multiple each way (a picture drawn twice as big), not
+    bigger, or no size known, is all of it."""
+    if frame is None or not size:
+        return frame
+    height, width = frame.shape[:2]
+    w, h = size
+    if not (0 < w <= width and 0 < h <= height) or (width % w == 0 and height % h == 0):
+        return frame
+    x, y = (width - w) // 2, (height - h) // 2
+    return frame[y:y + h, x:x + w]
+
+
 class Machine:
     """A core with a game loaded. `platform` is the catalog's name for the console."""
 
@@ -101,6 +120,11 @@ class Machine:
 
     def picture(self):
         return self.core.frame_rgb()
+
+    def screen(self):
+        """The game's own screen: the picture without a border around it (a Super Game Boy's), by the
+        platform's size for it or the core's."""
+        return game_screen(self.picture(), GAME_SCREEN.get(self.platform) or getattr(self.core, "base", None))
 
     def ram(self) -> tuple[int, bytes]:
         """Main memory: the address of its first byte, and its bytes."""
