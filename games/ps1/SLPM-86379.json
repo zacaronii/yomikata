@@ -1,0 +1,26 @@
+{
+ "id": "SLPM-86379",
+ "platform": "ps1",
+ "title": "ヴァルキリープロファイル",
+ "title_romaji": "Valkyrie Profile",
+ "versions": [
+  {
+   "exe_sha1": "33619ac1f19a4679b798a0f0a000a341a58eb748",
+   "note": "SLPM_863.79 (disc 1; disc 2, SLPM-86380, carries the same executable, not played)"
+  }
+ ],
+ "encoding": "compressed",
+ "status": "partial",
+ "sources": [
+  "The harness alone, from disc 1 on pcsx_rearmed (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The disc and snaps were studied outside it",
+  "Found in play: a pointer that walks while a page types (snaps every 20 frames over a talk) leads to the scene's script, whole in work RAM in codes of the scene's own, numbered in the order the scene first uses its characters",
+  "The window shown keeps its rows (where each is in the script, where its first cell lies), and the page's characters are drawn in order into cells in work RAM, which the script reads each by its picture",
+  "page_buffer, given two pages of a talk (with and without size), ranked the cells' stretch first without size and other stretches with it; the script itself was there before the pages and changes with none, so it is no page buffer to find",
+  "The dictionary: 190 pictures (a bit a pixel), each a cell beside the page's picture; four were first labelled wrong, found against the pictures, and corrected before the bar's run",
+  "Played from the opening's credits through the first talks: the balcony, the hall, and the cliff on landing, with the script loaded",
+  "What the script said agreed with the rows read off 35 of 35 pictures, over 3 scenes (7, 20 and 8)",
+  "Known limit: the bubbles over the flight after the cliff are drawn by another part of the game (no window at the pointer, no cells), and aren't read",
+  "Calls: 62 of a budget of 150"
+ ],
+ "notes": "Read by the script games/ps1/SLPM-86379.lua: the talk window's rows, their lengths from the scene's script and each character by its picture, said once the page has typed out. Not read: menus, fights, the bubbles over the flight. A character not met in play comes out as U+FFFD."
+}

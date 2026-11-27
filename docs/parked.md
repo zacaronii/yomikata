@@ -132,19 +132,6 @@ Parked at 146 of 300 calls with a reader that works and no bar. The reader and i
 - **States** (harness scratch): `cc-a` the naming screen, `cc-b` after the opening talk, `cc-m2` the first
   fight's menu, `cc-u` the furthest room reached.
 
-## Valkyrie Profile (PlayStation, SLPM-86379 / SLPM-86380): studied, not started
-
-Looked at outside the harness only (0 calls); not begun, as a job of Xenogears' or Final Fantasy IX's size.
-
-- **Discs**: two, with the same executable (SHA-1 `33619ac1…`). Disc 1 is the executable (128 KB), `SYSTEM.CNF` and
-  one archive, `VALKYRIE.BIN` (640 MB), that holds everything else.
-- **Text**: `yomikata scan` over the disc finds 22 Shift-JIS characters in one file, no UTF-16 or UTF-8, no
-  single-byte hiragana and no compression it knows: the game's text is in a code of its own, most likely packed
-  inside the archive.
-- **Next, if begun**: snaps over a page typing to find the text in work RAM (as for Xenogears and Final Fantasy IX),
-  then the table from play or from the font in video memory (`yomikata vram`, `font`); a budget with a point to park
-  at if the text isn't found in RAM early.
-
 ## Shining Force: Kamigami no Isan (Mega Drive, G-5512): checked, not started
 
 Parked at 7 of its 150 calls (and one `advancing` call made without the game loaded, which the record doesn't
