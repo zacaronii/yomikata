@@ -2499,7 +2499,7 @@ class Session:
         if not isinstance(fight, dict) or not fight.get("address"):
             raise HarnessError("fight is advance_through's mode: address, and equals or differs")
         known = {"address", "size", "equals", "differs", "also", "buttons", "hold", "wait", "most", "begin", "holds",
-                 "after", "first", "plan", "cycle", "menu", "heal", "game_over", "room", "said_ids"}
+                 "after", "first", "plan", "cycle", "menu", "heal", "game_over", "room", "said_ids", "idle"}
         if set(fight) - known:
             raise HarnessError(f"fight takes: {', '.join(sorted(known))}")
 
@@ -2556,6 +2556,11 @@ class Session:
         overs = [condition(spec, "a game_over mode") for spec in (fight.get("game_over") or [])]
         room = reading(fight["room"], "fight's room") if fight.get("room") is not None else None
         said_ids = {str(i) for i in (fight.get("said_ids") or [])}
+        idle = fight.get("idle")
+        if idle is not None and (not isinstance(idle, dict) or not idle.get("buttons")):
+            raise HarnessError("idle is {buttons, every}: pressed while the command menu isn't up")
+        idle_keys = sorted(self._buttons(idle["buttons"])) if idle else []
+        idle_every = max(10, int(idle.get("every", 60))) if idle else 0
         if said_ids and events is None:
             raise HarnessError("said_ids needs the script's sayings: the fight tool watches them, explore doesn't")
         play = run or (lambda n, held: machine.run(n, set(held), (0.0, 0.0)))
@@ -2608,7 +2613,7 @@ class Session:
                 moves += [[hold, once], [wait, []]]
                 if why:
                     return ended({"presses": 0}, why)
-            presses, turns, healed, idle = 0, 0, 0, 0
+            presses, turns, healed, idle_frames = 0, 0, 0, 0
             while mode() and presses < most and not self._late():
                 if plan is None:
                     why = step(hold, keys) or step(wait, [])
@@ -2629,12 +2634,15 @@ class Session:
                     healed += 1 if low else 0
                     turns += 0 if low else 1
                     presses += 1
-                    idle = 0
+                    idle_frames = 0
                 else:
-                    why = step(1, [])
-                    moves.append([1, []])
-                    idle += 1
-                    if idle >= 60 * 60:         # a minute with no menu: not this fight's way
+                    # No menu: a message in the fight may wait for a button (a talk, a game over's word), which
+                    # `idle` presses every so often; else a frame goes by.
+                    pressing = bool(idle_keys) and idle_frames >= idle_every and idle_frames % idle_every < hold
+                    why = step(hold, idle_keys) if pressing else step(1, [])
+                    moves.append([hold, idle_keys] if pressing else [1, []])
+                    idle_frames += hold if pressing else 1
+                    if idle_frames >= 60 * 60:         # a minute with no menu: not this fight's way
                         return ended({"turns": turns, "stopped": "no menu for a minute"}, why)
                 if why:
                     return ended({"presses": presses, **({"turns": turns, "healed": healed} if plan else {})}, why)
@@ -2665,7 +2673,9 @@ class Session:
                            "also; menu (the command menu's mode), plan (turns: lists of steps {buttons, hold, "
                            "wait}), cycle (true: round the turns again; false: keep to the last), heal ({hp: "
                            "{address, size}, below, turn}), game_over (modes), room ({address, size}), said_ids "
-                           "(ids of sayings that mean a game over: the title's or the opening's), after, most", True),
+                           "(ids of sayings that mean a game over: the title's or the opening's), idle ({buttons, every}: "
+                           "pressed while no command menu is up, for a talk in the fight that waits for a button), "
+                           "after, most", True),
           plans=("array", "other plans, tried in order from the kept state when one loses (each as fight's plan)", False),
           lead=("array", "buttons pressed every `every` frames while waiting for the fight (default: none)", False),
           every=("integer", "frames between lead's presses (default 60)", False),
@@ -2698,7 +2708,7 @@ class Session:
         kept = self._keep(keep)
         kept_route, kept_frames = json.loads(json.dumps(self.route)), machine.frames
         kept_state = machine.save_state()
-        tries = []
+        tries, shots = [], []
         for k, plan in enumerate(tries_plans):
             if k:
                 machine.load_state(kept_state)
@@ -2710,9 +2720,12 @@ class Session:
                                           else {**fight, "begin": 0}, run, events)
             _, outcome = through()
             tries.append({"plan": k, **(outcome or {"stopped": "no fight"})})
+            if machine.picture() is not None and len(shots) < MAX_SHOTS:
+                shots.append((f"try {k}", self._picture()))          # how each try ended, to see why
             if outcome is not None and not outcome.get("game_over") and outcome.get("stopped") == "mode ended":
-                return {"fought": True, "won": True, "kept": kept, "tries": tries, "frames": machine.frames,
-                        "said": self._said_texts(events)}
+                out = {"fought": True, "won": True, "kept": kept, "tries": tries, "frames": machine.frames,
+                       "said": self._said_texts(events)}
+                return ("both", out, self._png(self._sheet(shots, 4, 1.0))) if shots else out
             if self._late():
                 break
         machine.load_state(kept_state)
@@ -2720,9 +2733,9 @@ class Session:
         if self.reader is not None:
             self.reader.state_loaded()
             self.reader.take()
-        return {"fought": True, "won": False, "kept": kept, "tries": tries, "frames": machine.frames,
-                "said": self._said_texts(events),
-                **({"stopped": "time"} if self._late() else {})}
+        out = {"fought": True, "won": False, "kept": kept, "tries": tries, "frames": machine.frames,
+               "said": self._said_texts(events), **({"stopped": "time"} if self._late() else {})}
+        return ("both", out, self._png(self._sheet(shots, 4, 1.0))) if shots else out
 
     def _said_texts(self, events: list) -> list[str]:
         return [e["text"] for e in events if e.get("kind") == "text" and e.get("channel") != "interface"][:MAX_ROWS]

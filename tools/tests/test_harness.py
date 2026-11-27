@@ -3044,7 +3044,7 @@ def test_fight_stops_at_a_game_over_and_wins_by_the_next_plan_from_the_kept_stat
     wins. With a plain fight watch (no plan) a loss is said as a game over too."""
     fight = _made_up_fight(session)
     attack, magic = [[{"buttons": ["a"]}]], [[{"buttons": ["down"]}, {"buttons": ["a"]}]]
-    out = session.fight({**fight, "plan": attack}, plans=[magic], keep="boss")
+    out = session.fight({**fight, "plan": attack}, plans=[magic], keep="boss")[1]
     assert out["fought"] and out["won"], out
     assert out["tries"][0]["stopped"] == "game over" and "room" in out["tries"][0]["game_over"], out
     assert out["tries"][1]["stopped"] == "mode ended" and out["tries"][1]["turns"] == 2, out
@@ -3052,13 +3052,44 @@ def test_fight_stops_at_a_game_over_and_wins_by_the_next_plan_from_the_kept_stat
     assert (session.roots.scratch / "states" / "boss.state.gz").is_file()
     # Lost every way: the game stands at the kept state, before the fight.
     session.state_load("boss")
-    lost = session.fight({**fight, "plan": attack}, keep="boss2")
+    lost = session.fight({**fight, "plan": attack}, keep="boss2")[1]
     assert lost["won"] is False and session.machine.memory[0x7F5] == 1 and session.machine.memory[0x7F8] == 50, lost
     # A game_over mode stops the plain watch too.
     session.state_load("boss")
     plain = session.fight({k: v for k, v in fight.items() if k not in ("menu", "room")}
-                          | {"game_over": [{"address": f"0x{BASE + 0x7F0:X}", "equals": "0"}]}, keep="boss3")
+                          | {"game_over": [{"address": f"0x{BASE + 0x7F0:X}", "equals": "0"}]}, keep="boss3")[1]
     assert plain["tries"][0]["game_over"] == "game_over mode 0", plain
+
+
+def test_fight_presses_idle_through_a_talk_that_holds_the_menu(session):
+    """After the first command a talk in the fight holds the menu until a is pressed (0x7FC set): without idle
+    the menu never comes and the try ends; with idle (a every 30 frames) the talk is pressed through and the
+    fight is won, and the outcome comes with a picture of how it ended."""
+    fight = _made_up_fight(session)
+    machine, step = session.machine, session.machine._step
+    machine.memory[0x7FC] = machine.memory[0x7FD] = 0
+
+    def talky(buttons, stick):
+        m = machine.memory
+        before = m[0x7F6]
+        held = m[0x7FC]
+        step(buttons, stick)
+        m = machine.memory
+        if held == 1:
+            m[0x7F6] = 0                            # the talk holds the menu back
+            if "a" in buttons and not m[0x7FD]:
+                m[0x7FC] = 2
+        elif held == 0 and before == 1 and m[0x7F6] == 0:
+            m[0x7FC] = 1                            # the first command brings the talk
+        m[0x7FD] = 1 if "a" in buttons else 0
+    machine._step = talky
+    session.state_save("talk-start")
+    magic = [[{"buttons": ["down"]}, {"buttons": ["a"]}]]
+    stuck = session.fight({**fight, "plan": magic, "most": 20}, keep="talk-k")
+    assert stuck[1]["tries"][0]["stopped"] == "no menu for a minute" and stuck[2].startswith(b"\x89PNG"), stuck[1]
+    session.state_load("talk-start")
+    won = session.fight({**fight, "plan": magic, "idle": {"buttons": ["a"], "every": 30}}, keep="talk-k2")
+    assert won[1]["won"], won
 
 
 def test_fight_heals_when_the_hp_it_reads_is_low(session):
@@ -3066,7 +3097,7 @@ def test_fight_heals_when_the_hp_it_reads_is_low(session):
     fight = _made_up_fight(session, enemy=250)
     magic = [[{"buttons": ["down"]}, {"buttons": ["a"]}]]
     heal = {"hp": {"address": f"0x{BASE + 0x7F8:X}"}, "below": 25, "turn": [{"buttons": ["b"]}]}
-    out = session.fight({**fight, "plan": magic, "heal": heal}, keep="boss-h")
+    out = session.fight({**fight, "plan": magic, "heal": heal}, keep="boss-h")[1]
     assert out["won"] and out["tries"][0]["turns"] == 5 and out["tries"][0]["healed"] >= 1, out
     with pytest.raises(HarnessError):
         session.fight({**fight, "plan": magic, "menu": None})

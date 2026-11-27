@@ -112,6 +112,16 @@ pages, but the next talk is past the mines' fights, further than the calls went.
 - **Next**: the fight after (42, 5) is a boss's; `a` on its default target loses. A fight watch that notices a
   game over (the opening's narration said again) and stops, and a fight plan (a command and target chosen per
   turn), would get past it. 15 calls are left of the 320.
+- **The boss** (calls 306-320, with the `fight` tool): `ff-k6` was saved mid-fight with the party nearly down, a
+  loss whatever is pressed; `ff-k5`, at the second event place, is before it. The fight opens with a talk in its
+  own window (about a dozen presses, slowly typed). The command menu: `0x7E88B3` is 1 while a fighter's command
+  menu waits, 0 otherwise (found over two menu episodes and the frames between). A turn of `a`, `a`, `a`
+  (the second command, its first beam, the target the cursor offers: the head) did 159. State `ff-m1` stands at
+  the first command menu. The fight tool from `ff-m1` (that turn every time; the third beam as the other plan;
+  the map's word as the room): 8 and 7 turns, then no menu for a minute each time, most likely another talk in
+  the fight (or the party down, its word waiting): the tool then had no `idle` press. Spent at 320 of 320.
+- **Next**: the fight tool with `idle` (`a` every 60 frames) from `ff-m1`; the picture of each try's end says
+  what stood in the way. The talk warns against hitting the shell when the head withdraws.
 
 ## Final Fantasy V (Super Famicom, SFC-9EA60A02)
 

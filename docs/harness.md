@@ -810,8 +810,10 @@ and expedition's `fight`, and the `fight` tool) knows a lost fight: give it `gam
 A `plan` plays the fight instead of a button: turns, each the steps that pick a command and its target, played
 each time the command menu is up (`menu`, a mode the game sets while it waits for a command), round and round
 (`cycle`) or keeping to the last; `heal`, a turn played instead while an HP the game keeps is below a number.
-The `fight` tool keeps the state at the fight's start and, when a plan loses, tries the next of `plans` from
-there: a lost fight costs one try, not the way back from the title. What a game's menu, commands and HP are
+`idle` presses a button every so often while no command menu is up: a fight may stop for a talk that waits for
+it (Final Fantasy VI's first boss does, twice), and without it the try ends after a minute with no menu. The
+`fight` tool keeps the state at the fight's start and, when a plan loses, tries the next of `plans` from there:
+a lost fight costs one try, not the way back from the title. A picture of how each try ended comes back with it. What a game's menu, commands and HP are
 belongs in its notes; the tool takes only addresses and buttons.
 
 ### A call's time
