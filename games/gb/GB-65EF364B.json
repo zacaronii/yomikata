@@ -1,0 +1,29 @@
+{
+ "id": "GB-65EF364B",
+ "platform": "gb",
+ "title": "ポケットモンスター 青",
+ "title_romaji": "Pocket Monsters Ao",
+ "versions": [
+  {
+   "header_crc32": "65ef364b",
+   "note": "the Japanese Blue cartridge (POKEMON BLUE, header checksum 0xE5)"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/gb/GB-65EF364B.tbl"
+ ],
+ "unit": 1,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on mGBA (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
+  "From Pocket Monsters Aka (games/gb/GB-29D07340.lua): the script and the table, unchanged but for this cartridge's header. This cartridge's font, at 0x11B81, has Aka's glyphs under all 127 codes, found offline; Aka's presses, replayed here, reached the same stretches",
+  "Played from the opening's talk through the rival's naming and the end of the opening, the hero's mother at home, and the professor in the grass and his lab: four stretches, each replayed from a state with the script loaded",
+  "What the script said agreed with the rows read off 43 of 43 pictures, over 4 scenes; 2 pages said inside a press have no picture. No screen without text was among them",
+  "The rows were the script's pages, each held against its picture (compare's scrolls)",
+  "The rival's fight in the lab was played with advance_through on the fight's mode byte (0xD034: 0 on the field, 2 in a fight). The game shows a Super Game Boy border, so a page typing changes too little of the picture for still_share's default; at 0.002, A alone won the fight in 104 presses",
+  "With the fight's cursor first put on the items command, A opened that list over and over, and the cycle check stopped it after 33 presses",
+  "88 harness calls in all (by the record), none failed"
+ ],
+ "notes": "Read by the script games/gb/GB-65EF364B.lua: the message window's two rows while the window shows, when the page waits on its arrow or has stood half a second; and a page the game hides before that, when it hides it. Not read: who speaks but where the game writes it into the text, menus and other boxes, battles (their text not compared). Names chosen in play come out as typed."
+}
