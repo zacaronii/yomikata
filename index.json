@@ -143,7 +143,7 @@
   },
   "GZLJ01": {
    "path": "games/gc/GZLJ01.json",
-   "sha256": "05caf9f0656590602de9a1843205394c575e88c593fb8e3b65bcd38df19085df",
+   "sha256": "4cb77f1378d413114bea7e561b8a0f6db8822d63f96c3522d788458943e1a215",
    "platform": "gc",
    "encoding": "shift_jis",
    "status": "partial"
