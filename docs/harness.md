@@ -544,7 +544,11 @@ when it gets no nearer. A talk or a scene that begins on the way stops it too; t
 it that hold actors (a list of records a steady distance apart with the player's own among them, or, for a game
 that keeps them anywhere in its heap, every place with the same spacing of x and z: `loose`, with `least` to
 leave out the player's own parts), walks to each in turn from where it began, and presses there; what the
-script says after the press and not in a wait without it is an answer. A game that walks by the stick alone
+script says after the press and not in a wait without it is an answer. Where a game's stage files say where its
+people and doors stand, `targets` gives meet those places instead: `yomikata placements` reads them off the disc
+(GameCube Zelda stages first: the actors, doors and starting points of a stage's or a room's .dzs/.dzr, with
+their names and world x, y, z), and meet walks to each, nearest first, with `walk` passing walk_3d's ledge guard
+on. Wind Waker's Outset Island is res/Stage/sea/Room44.arc; its opening's people are the chunk ACT0. A game that walks by the stick alone
 (the pad does nothing) is mapped with `explore` and `expedition` given `stick`: eight pushes of the stick in
 place of the pad's, named n, ne, … (the stick's ways, which turn with the camera); a door found so is pushed
 through by the same way.

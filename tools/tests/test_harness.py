@@ -3321,6 +3321,14 @@ def test_meet_walks_to_the_nearest_people_and_finds_who_answers(session):
     struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)
     struct.pack_into(">3f", machine.memory, 0x9A4, 40.0, 1.0, 7.0)
     struct.pack_into(">3f", machine.memory, 0x700, 3.5, 1.0, -4.5)          # the sword
+    # Given the people's places (as read off the disc), meet goes to them without looking in memory.
+    struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)
+    given = session.meet(**player, targets=[{"x": -17.0, "z": 26.0, "name": "Ab1"}, {"x": 15.0, "z": 1.0, "name": "Cd2"}],
+                         reach=2.0, walk={"limit": 1500})
+    assert given["met"]["address"] == "Ab1" and given["said"] == ["おはなし"], given
+    with pytest.raises(HarnessError, match="walk takes"):
+        session.meet(**player, targets=[{"x": 1.0, "z": 1.0}], walk={"fly": True})
+    struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)            # back where the sword is beside
     loose = session.meet(**player, near=100, look=True, loose=True, least=2.0)
     assert (40.0, 7.0) in [(t["x"], t["z"]) for t in loose["things"]] and loose["stride"] is None
     assert (3.5, -4.5) not in [(t["x"], t["z"]) for t in loose["things"]]

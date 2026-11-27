@@ -3350,16 +3350,33 @@ class Session:
           loose=("boolean", "for actors kept anywhere in the heap, in no list: every place with the player's spacing "
                             "of x and z near it, once (the answer sorts the people from the things)", False),
           least=("number", "leave out places nearer the player than this: its own parts and what it carries", False),
-          keep=("string", "a state's name to save the game under where someone answered", False))
+          keep=("string", "a state's name to save the game under where someone answered", False),
+          targets=("array", "the people to go to, instead of looking for them in memory: [{x, z, name}, …] in the "
+                            "player's numbers, as `yomikata placements` reads them off the disc; tried nearest first",
+                   False),
+          walk=("object", "walk_3d's own options for each walk: height, fall, floor, settle, water, yaw, push, "
+                          "limit", False))
     def meet(self, x_address: str, z_address: str, near: float = 2000.0, stride: int = 0, reach: float = 0.0,
              button: str = "a", wait: int = 90, most: int = 6, look: bool = False, keep: str = "",
-             loose: bool = False, least: float = 0.0) -> dict:
+             loose: bool = False, least: float = 0.0, targets: list | None = None, walk: dict | None = None) -> dict:
         machine = self._need()
         try:
             ax, az = int(str(x_address), 16), int(str(z_address), 16)
         except ValueError:
             raise HarnessError("x_address and z_address are hex addresses") from None
-        found = self._things_3d(ax, az, float(near), int(stride), bool(loose), float(least))
+        if targets is not None:
+            import math
+            import struct
+            if not isinstance(targets, list) or not all(isinstance(t, dict) and "x" in t and "z" in t for t in targets):
+                raise HarnessError("targets is a list of {x, z, name}")
+            order = ">f" if machine.platform in BIG_ENDIAN else "<f"
+            px, pz = (struct.unpack(order, machine.read(a, 4))[0] for a in (ax, az))
+            people = sorted(({"x": float(t["x"]), "z": float(t["z"]), "address": str(t.get("name", "")),
+                              "distance": round(math.hypot(float(t["x"]) - px, float(t["z"]) - pz), 3)} for t in targets),
+                            key=lambda t: t["distance"])
+            found = {"player": {"x": round(px, 3), "z": round(pz, 3)}, "stride": None, "things": people}
+        else:
+            found = self._things_3d(ax, az, float(near), int(stride), bool(loose), float(least))
         people = found.get("things", [])
         if look or not people or self.reader is None:
             return {**found, "things": people[:MAX_ROWS],
@@ -3382,7 +3399,11 @@ class Session:
             if self._late():
                 break
             back()
-            walked = self.walk_3d(f"0x{ax:X}", f"0x{az:X}", person["x"], person["z"], near=float(reach) or 0.0)
+            allowed = {"height", "fall", "floor", "settle", "water", "yaw", "yaw_kind", "push", "limit"}
+            if walk and set(walk) - allowed:
+                raise HarnessError(f"walk takes: {', '.join(sorted(allowed))}")
+            walked = self.walk_3d(f"0x{ax:X}", f"0x{az:X}", person["x"], person["z"], near=float(reach) or 0.0,
+                                  **(walk or {}))
             row = {"x": person["x"], "z": person["z"], "address": person["address"],
                    "reached": bool(walked.get("reached"))}
             if not walked.get("reached"):
