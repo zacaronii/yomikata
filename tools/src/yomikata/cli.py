@@ -276,6 +276,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--reach", type=float, default=600.0, help="how far from each end a floor is looked for (default 600)")
     p.add_argument("--every", type=float, default=150.0, help="a waypoint at least this often along a long stretch (default 150; 0: corners only)")
     p.add_argument("--margin", type=int, default=3, help="cells from an edge (a drop, a wall) that cost more to walk (default 3)")
+    p.add_argument("--avoid", action="append", default=[], help="placed entries of these chunks (ACTR, SCOB, …; fnmatch) are gone round: things on the ground that aren't in its collision")
+    p.add_argument("--avoid-radius", type=float, default=100.0, help="how far round each (default 100)")
     p = sub.add_parser("disc-text", help="the stretches of a disc image that read as text through a table of the game's codes (the game's text: write it to scratch)")
     p.add_argument("disc", type=Path)
     p.add_argument("--table", type=Path, action="append", required=True, help="a .tbl of the game's codes; several are read as one")
@@ -712,8 +714,12 @@ def main(argv: list[str] | None = None) -> int:
             data = rvz.content(disc, found[args.archive])
             mesh = route.from_archive(data)
             places = [{"name": "", "x": x, "y": y, "z": z} for x, y, z in args.to]
+            placed = placements.from_archive(data) if args.name or args.avoid else []
             if args.name:
-                places += placements.select(placements.from_archive(data), args.name, args.chunk)
+                places += placements.select(placed, args.name, args.chunk)
+            chosen = {(p["x"], p["z"]) for p in places}
+            avoid = [(e["x"], e["z"], args.avoid_radius) for e in placements.select(placed, [], args.avoid)
+                     if (e["x"], e["z"]) not in chosen] if args.avoid else []
         except (OSError, rvz.RvzError, placements.PlacementError, route.RouteError) as e:
             print(f"route: {e}", file=sys.stderr)
             return 1
@@ -722,7 +728,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         for row in route.targets(mesh, tuple(args.frm), places, low=args.low, up=args.up, down=args.down,
                                  slope=args.slope, cell=args.cell, skip=args.skip, reach=args.reach,
-                                 every=args.every, margin=args.margin):
+                                 every=args.every, margin=args.margin, avoid=avoid):
             print(json.dumps(row, ensure_ascii=False))
         return 0
     if args.cmd == "disc-text":

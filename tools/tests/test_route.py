@@ -78,6 +78,15 @@ def test_a_way_goes_round_the_wall_and_not_onto_the_shelf():
             t = (500 - last[0]) / (x - last[0])
             assert last[1] + t * (z - last[1]) > 800 - 25
         last = (x, z)
+    # A thing placed on the way (not in the collision) is gone round.
+    blocked = route.ground(mesh, (-1000, 0, 1000, 1000), cell=25, low=-1, avoid=[(300, 100, 120)])
+    round_it = route.way(blocked, (100, 0, 100), (450, 0, 100), every=0)["way"]
+    start = (112.5, 112.5)
+    for x, z, _ in round_it:
+        for s in range(41):
+            px, pz = start[0] + (x - start[0]) * s / 40, start[1] + (z - start[1]) * s / 40
+            assert ((px - 300) ** 2 + (pz - 100) ** 2) ** 0.5 > 120 - 25
+        start = (x, z)
     # The shelf's top: no way up a step of 150, but there is one when steps that high are walked.
     assert "why" in route.way(g, (100, 0, 100), (800, 150, 100))
     tall = route.ground(mesh, (-1000, 0, 1000, 1000), cell=25, up=200, low=-1)
