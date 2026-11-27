@@ -1743,6 +1743,48 @@ def test_compare_with_what_the_script_said_in_play(session):
         session.compare(snaps=["before"], live=True)
 
 
+RUBY_SCRIPT = """-- reader: title つくりもの (Made Up)
+-- reader: no hooks
+if mem.u32be(0x80000040) ~= 0x80000100 then error("this script is for another build of the game", 0) end
+reader.on_state_loaded(function() reader.forget() end)
+reader.on_frame(function()
+    local bytes = mem.cstr(mem.u32be(0x80000040), 32)
+    if reader.changed("line", bytes) and #bytes > 0 then
+        local b = reader.builder()
+        b:add_ruby("今日", "きょう")
+        b:add("は")
+        reader.emit{ text = b:text(), ruby = b:ruby() }
+    end
+end)
+"""
+
+
+@needs_reader
+def test_compare_scores_furigana_read_off_the_picture(session):
+    """A script that gives furigana: what it said in play keeps them with the snap, snap_lines takes those read
+    off the picture as [base, reading] pairs, and compare scores each screen's and the bar counts them; a reading
+    read wrong, or one the script hasn't, lowers a screen's agreement."""
+    assert session.script_try(RUBY_SCRIPT)["loaded"]
+    session.steps([{"wait": 3, "snap": True}, {"wait": 3, "snap": True}, {"wait": 10, "snap": True}], prefix="r")
+    out = session.snap_lines(screens={"r-000": ["今日は"], "r-002": ["今日は"]},
+                             ruby={"r-000": [["今日", "きょう"]], "r-002": [["今日", "こんにち"]]})
+    assert out["with_ruby"] == 2
+    found = session.compare(scenes={"a": ["r-000"], "b": ["r-002"], "c": ["r-001"]}, live=True, show=True)
+    rows = {r["snap"]: r for r in found["rows"]}
+    assert rows["r-000"]["ruby_read"] == [["今日", "きょう"]] and rows["r-000"]["ruby_agreement"] == 1.0
+    assert rows["r-002"]["ruby_agreement"] == 0.0 and "ruby_agreement" not in rows["r-001"]
+    assert found["script"]["with furigana read off the screen"] == 2
+    assert found["bar"]["furigana"] == {"screens": 2, "agreeing": 1}
+    assert any("furigana" in why for why in found["bar"]["short_of_it"])
+    with pytest.raises(HarnessError, match="pairs"):
+        session.snap_lines("r-000", ocr=["今日は"], ruby=[["今日"]])
+    with pytest.raises(HarnessError, match="one of the screens"):
+        session.snap_lines(screens={"r-000": ["今日は"]}, ruby={"r-009": []})
+    from yomikata.harness.session import ruby_agreement
+    assert ruby_agreement([["今日", "きょう"], ["日", "ひ"]], [["今日", "きょう"]]) == 0.5      # one extra
+    assert ruby_agreement([], []) == 1.0
+
+
 @needs_reader
 def test_compare_reread_runs_the_script_over_snaps_taken_in_play_again(session):
     """After a fix to a script or its table, the snaps already taken in play are counted again by running the

@@ -31,6 +31,23 @@ BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "selec
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
 MAX_INFO = 50          # a script's info-level logs kept in a call's events, so that they can't crowd out its text
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
+
+
+def ruby_agreement(given: list, seen: list) -> float:
+    """How far a script's furigana agree with those read off the picture: the [base, reading] pairs both have
+    (spaces aside, each pair counted once), over the larger of the two counts, so that a reading missed and one
+    the screen hasn't both count against. A screen with none and a script with none agree."""
+    def key(pair):
+        return ("".join(str(pair[0]).split()), "".join(str(pair[1]).split()))
+    left = [key(p) for p in given]
+    matched = 0
+    for p in seen:
+        k = key(p)
+        if k in left:
+            left.remove(k)
+            matched += 1
+    most = max(len(given), len(seen))
+    return 1.0 if most == 0 else matched / most
 RECORDS = 64              # things_find: records of a list looked at each way from the party's own
 # Consoles whose games keep a place as whole numbers only (no numbers with a point): explore's grid needs whole.
 WHOLE_ONLY = ("fc", "fds", "gb", "gbc", "sfc", "pce", "pce-cd")
@@ -178,7 +195,10 @@ class Session:
                 else:
                     self.layouts[event["window"]] = event
             if kind == "text":
-                self.said.append({k: event.get(k) for k in ("channel", "speaker", "text")})
+                entry = {k: event.get(k) for k in ("channel", "speaker", "text")}
+                if event.get("ruby"):
+                    entry["ruby"] = event["ruby"]               # furigana, for compare to score
+                self.said.append(entry)
                 del self.said[:-MAX_EVENTS]
             if kind == "log" and str(event.get("message", "")).startswith(("glyph ", "glyph-line ")):
                 self._keep_glyph(event["message"])
@@ -1261,12 +1281,23 @@ class Session:
           no_text=("boolean", "true when the screen shows no text", False),
           screens=("object", "or many snaps at once: each snap's name to its lines (a list), or to false or "
                              "an empty list for a screen that shows no text. Nothing is written unless "
-                             "every one of them is a snap", False))
+                             "every one of them is a snap", False),
+          ruby=(["array", "object"], "the furigana on screen, read off the picture as the lines are: a list of [base, reading] "
+                       "pairs, each reading with the characters it stands over (with name), or each snap's name "
+                       "to its list (with screens; a snap left out has none read). compare scores them against "
+                       "the script's", False))
     def snap_lines(self, name: str = "", ocr: list | None = None, no_text: bool = False,
-                   screens: dict | None = None) -> dict:
+                   screens: dict | None = None, ruby=None) -> dict:
+        def pairs(value, snap):
+            if not isinstance(value, list) or not all(isinstance(p, (list, tuple)) and len(p) == 2 and all(
+                    isinstance(x, str) and x for x in p) for p in value):
+                raise HarnessError(f"{snap}: furigana as a list of [base, reading] pairs")
+            return [[p[0], p[1]] for p in value]
         if screens is not None:
             if name or ocr or no_text or not isinstance(screens, dict) or not screens:
                 raise HarnessError("give screens alone: a snap's name to its lines, or to false for no text")
+            if ruby is not None and (not isinstance(ruby, dict) or set(ruby) - set(screens)):
+                raise HarnessError("with screens, ruby is each snap's name (one of the screens) to its pairs")
             wanted = {}
             for snap, lines in screens.items():
                 if lines is not False and not isinstance(lines, list):
@@ -1274,29 +1305,36 @@ class Session:
                 path = self.roots.inside("scratch", f"snaps/{self._name(snap)}.json")
                 if not path.is_file():
                     raise HarnessError(f"no snap called {snap}")
-                wanted[snap] = (path, [str(line) for line in lines or []])
-            for path, lines in wanted.values():
-                self._lines(path, lines)
-            return {"snaps": len(wanted), "with_text": sum(1 for _, lines in wanted.values() if lines),
-                    "no_text": sum(1 for _, lines in wanted.values() if not lines)}
+                read = pairs(ruby[snap], snap) if ruby and snap in ruby else None
+                wanted[snap] = (path, [str(line) for line in lines or []], read)
+            for path, lines, read in wanted.values():
+                self._lines(path, lines, read)
+            return {"snaps": len(wanted), "with_text": sum(1 for _, lines, _ in wanted.values() if lines),
+                    "no_text": sum(1 for _, lines, _ in wanted.values() if not lines),
+                    **({"with_ruby": sum(1 for _, _, read in wanted.values() if read is not None)} if ruby else {})}
         path = self.roots.inside("scratch", f"snaps/{self._name(name)}.json") if name else None
         if path is None or not path.is_file():
             raise HarnessError(f"no snap called {name}")
         if bool(ocr) == bool(no_text):
             raise HarnessError("give the lines, or no_text: true")
         lines = [str(line) for line in ocr or []]
-        self._lines(path, lines)
-        return {"snap": name, "lines": len(lines), "no_text": bool(no_text)}
+        read = pairs(ruby, name) if ruby is not None else None
+        self._lines(path, lines, read)
+        return {"snap": name, "lines": len(lines), "no_text": bool(no_text),
+                **({"ruby": len(read)} if read is not None else {})}
 
     @staticmethod
-    def _lines(path: Path, lines: list[str]) -> None:
-        """What a snap's screen showed goes into the file beside it: its lines, or that it has none."""
+    def _lines(path: Path, lines: list[str], ruby: list | None = None) -> None:
+        """What a snap's screen showed goes into the file beside it: its lines, or that it has none; and its
+        furigana, when they were read (an empty list: the screen has none)."""
         meta = json.loads(path.read_text(encoding="utf-8"))
-        for key in ("ocr_unavailable", "no_text"):
+        for key in ("ocr_unavailable", "no_text", "ruby_seen"):
             meta.pop(key, None)
         meta["ocr"] = lines
         if not lines:
             meta["no_text"] = True
+        if ruby is not None:
+            meta["ruby_seen"] = ruby
         path.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
 
     @tool("The pictures of several snaps as one sheet, each under its name: many moments for one look.",
@@ -4153,7 +4191,8 @@ class Session:
                     raise HarnessError(f"{n} was taken with no script loaded: nothing was said on the way to it "
                                        "(give reread to run the script over every snap again)")
                 reading.events = [("text", {"channel": e.get("channel") or "dialogue", "speaker": e.get("speaker") or "",
-                                            "text": e.get("text") or ""}) for e in meta["said"]]
+                                            "text": e.get("text") or "", "ruby": e.get("ruby") or []})
+                                  for e in meta["said"]]
             try:
                 with (_NoReader() if played else rd.Reader(read, platform=platform, game_id=Path(name).stem,
                                                          regions=_regions(path), data=blobs)) as reader:
@@ -4180,9 +4219,15 @@ class Session:
                 keep = next((k for k in range(min(len(before), len(whole)), 0, -1)
                              if [tidy(r) for r in before[-k:]] == [tidy(r) for r in whole[:k]]), 0)
                 seen, left = whole[keep:], whole
+            # The furigana the script gave, as [base, reading] pairs, against those read off the picture.
+            given = [[e["text"][r[0]:r[0] + r[1]], r[2]] for e in reading.story() for r in (e.get("ruby") or [])
+                     if isinstance(r, (list, tuple)) and len(r) == 3]
+            ruby_seen = meta.get("ruby_seen")
             rows.append({"snap": n, "read": said, "seen": seen, "error": reading.error,
                          "written": bool(meta.get("memory_writes")), "reread": reread,
-                         "agreement": None if seen is None else round(agreement(said, seen), 2)})
+                         "agreement": None if seen is None else round(agreement(said, seen), 2),
+                         **({"ruby_read": given, "ruby_seen": ruby_seen,
+                             "ruby_agreement": round(ruby_agreement(given, ruby_seen), 2)} if ruby_seen is not None else {})})
         lined, empty = [r for r in rows if r["seen"]], [r for r in rows if r["seen"] == []]
         out = {"script": {"snapshots": len(rows),
                           "reading something": sum(1 for r in rows if r["read"]),
@@ -4193,6 +4238,10 @@ class Session:
                           "marked as showing no text": len(empty),
                           "of those, reading nothing": sum(1 for r in empty if not r["read"]),
                           "taken after a memory write": sum(1 for r in rows if r["written"])}}
+        with_ruby = [r for r in rows if "ruby_agreement" in r]
+        if with_ruby:
+            out["script"]["with furigana read off the screen"] = len(with_ruby)
+            out["script"]["of those, furigana agreeing 80% or more"] = sum(1 for r in with_ruby if r["ruby_agreement"] >= 0.8)
         if live:
             out["script"]["re-read offline"] = sum(1 for r in rows if r["reread"])
         if scenes:
@@ -4216,9 +4265,13 @@ class Session:
                 short.append(f"{agreeing} of {len(lined)} screens with text agree: nine in ten are wanted")
             if quiet < len(empty):
                 short.append(f"something was read on {len(empty) - quiet} screen(s) that show no text")
+            ruby_agreeing = sum(1 for r in with_ruby if r["ruby_agreement"] >= 0.8)
+            if with_ruby and ruby_agreeing < 0.9 * len(with_ruby):
+                short.append(f"the furigana of {ruby_agreeing} of {len(with_ruby)} screens agree: nine in ten are wanted")
             by = {r["snap"]: r for r in rows}
             out["bar"] = {"met": not short, "short_of_it": short,
                           "screens with text": len(lined), "screens showing none": len(empty),
+                          **({"furigana": {"screens": len(with_ruby), "agreeing": ruby_agreeing}} if with_ruby else {}),
                           "re-read offline": sum(1 for r in rows if r["reread"]),
                           "scenes": {scene: {"screens": sum(1 for n in group if by[n]["seen"] is not None),
                                              "agreeing": sum(1 for n in group if by[n]["seen"] and by[n]["agreement"] >= 0.8)
