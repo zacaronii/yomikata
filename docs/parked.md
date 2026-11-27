@@ -138,6 +138,27 @@ Looked at outside the harness only (0 calls); not begun, as a job of Xenogears' 
   then the table from play or from the font in video memory (`yomikata vram`, `font`); a budget with a point to park
   at if the text isn't found in RAM early.
 
+## Shining Force: Kamigami no Isan (Mega Drive, G-5512): checked, not started
+
+Parked at 7 of its 150 calls (and one `advancing` call made without the game loaded, which the record doesn't
+count under it): the text is drawn only into the VDP's tiles, which genesis_plus_gx doesn't give out.
+
+- **Core**: genesis_plus_gx, which gives the 64 KB of work RAM (as 16-bit words, put back by the harness) and no
+  video memory: every snap is work RAM alone, no `vram` part. The cartridge is given at `0x01000000` (#230).
+- **The text** isn't in the cartridge in any standard encoding (`runs`: no Shift-JIS, UTF-16 or UTF-8), and no
+  place in work RAM fits a narration row as codes of the game's own (`find_relative` offline, unit 1 and 2, stride
+  1 and 2, either byte order, spaces as characters or not, one row or three moments together; rows read off
+  full-size pictures).
+- **While a line types** (snaps every 2 frames over the intro's line after the 21st press of A every 120 frames
+  from power-on), no number walks the script (`advancing`, unit 2 and 4; unit 1 offline): what climbs is the
+  palette at `0xFF0000`-`0xFF007F` fading in, in steps of 2. So no pointer, count or buffer of codes follows the
+  typing: the line goes straight into tiles.
+- **States**: `sf-a` (power-on plus 40 presses: the intro's narration).
+- **Open (tools)**: whether genesis_plus_gx gives the VDP's memory out at all: a core option, or a newer build that
+  answers `RETRO_MEMORY_VIDEO_RAM` (it keeps the VRAM internally). Genkan's built-in Mega Drive core is also
+  genesis_plus_gx, so the answer matters there too. With VRAM, the game would be read off its tiles (lib/cells
+  and a dictionary, as Tales of Phantasia is). Not built: to be decided first.
+
 ## Tools to build when needed
 
 - **A proportional-font reader from video memory.** For a game that draws its text a character at a time into
