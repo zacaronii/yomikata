@@ -622,6 +622,45 @@ def test_rom_font_finds_glyphs_drawn_a_few_bits_into_rows_of_16(tmp_path, capsys
     assert all((glyphs[n][:, 3:15] == shapes[n]).all() for n in range(30))
 
 
+def test_rom_font_writes_a_dictionary_of_its_glyphs_pictures(tmp_path, capsys):
+    """--glyphs: each glyph --chars has, cut to --cut's columns and trimmed to its ink (a proportional font), by
+    the FNV-1a hash of its rows a bit a pixel, and the widths in a comment; with --fixed kept whole. A glyph
+    without a character, a blank one and a second with the same picture aren't written."""
+    import numpy as np
+    from yomikata import cli, romfont
+    rng = np.random.default_rng(3)
+    cells, shapes = [], []
+    for width in (5, 9, 9, 0, 5):
+        shape = (rng.random((12, width)) < 0.5).astype(np.uint8)
+        if width:
+            shape[:, 0] = shape[:, -1] = 1
+        shapes.append(shape)
+        cell = np.zeros((12, 24), dtype=np.uint8)
+        cell[:, 1:1 + width] = shape
+        cell[:, 12:] = 1                                                  # another picture beside it, not drawn
+        cells.append(np.packbits(cell, axis=1).tobytes())
+    shapes[4] = shapes[0]
+    rom = bytes(0x100) + b"".join(cells[:4]) + np.packbits(np.pad(np.pad(shapes[0], ((0, 0), (1, 6))), ((0, 0), (0, 12)),
+                                                                 constant_values=1), axis=1).tobytes()
+    (tmp_path / "game.sfc").write_bytes(rom)
+    (tmp_path / "chars.txt").write_text("# made up\n0=あ\n1=い\n3=う\n4=え\n", encoding="utf-8")
+    out = tmp_path / "game.glyphs"
+    assert cli.main(["rom-font", str(tmp_path / "game.sfc"), "--at", "100", "--count", "5", "--form", "rows1",
+                     "--width", "24", "--height", "12", "--glyphs", str(out), "--chars", str(tmp_path / "chars.txt"),
+                     "--cut", "0:12"]) == 0
+    lines = out.read_text(encoding="utf-8").splitlines()
+    want = [f"{romfont.text_hash(np.packbits(shapes[n], axis=1).tobytes())}={ch}" for n, ch in ((0, "あ"), (1, "い"))]
+    assert lines == ["# widths 9 5", *want]                     # 2 has no character, 3 is blank, 4 is 0's picture
+    assert cli.main(["rom-font", str(tmp_path / "game.sfc"), "--at", "100", "--count", "2", "--form", "rows1",
+                     "--width", "24", "--height", "12", "--glyphs", str(out), "--chars", str(tmp_path / "chars.txt"),
+                     "--cut", "0:12", "--fixed"]) == 0
+    whole = np.zeros((12, 12), dtype=np.uint8)
+    whole[:, 1:6] = shapes[0]
+    assert out.read_text(encoding="utf-8").splitlines()[:2] == [
+        "# widths 12", f"{romfont.text_hash(np.packbits(whole, axis=1).tobytes())}=あ"]
+    assert cli.main(["rom-font", str(tmp_path / "game.sfc"), "--at", "100", "--glyphs", str(out)]) == 2
+
+
 def test_rom_font_reads_and_finds_super_famicom_tiles_and_packed_rows(tmp_path, capsys):
     """Made-up fonts in the new forms, each encoded here on its own: the Super Famicom's planar tiles of 2 and
     4 bits a pixel (16x16 glyphs, their tiles in reading order), 12x12 glyphs of a bit a pixel with the rows

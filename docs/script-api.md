@@ -87,6 +87,8 @@ end)
   picture it hasn't got (once, as `glyph <hash> <width>x<height>x<bits> <hex>`) and the row of text it stood in
   (`glyph-line <hash> …`): what `yomikata unread` draws for reading (docs/harness.md, "A game's own font"). A
   host may show such a line to a player who wants to report it, or drop it.
+  A game that keeps only its window's pixels is read with `lib/cells.lua`, which cuts the window's tiles into
+  cells (a fixed grid, or a proportional font's glyphs one after another) and asks the same dictionary.
 - A script may `require` a module from `lib/` (walking tags, tiles, reading a `.tbl`). What is run and published
   is one file per game with its modules put in (`yomikata bundle`, which `yomikata run` does by itself), header
   lines still first, so a host never loads anything but the script and its data.

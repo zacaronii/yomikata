@@ -558,6 +558,20 @@ one colour (`Super Famicom tiles of 2 bits, colour 1`), and for 12-pixel glyphs 
 packed with nothing between them (`packed rows of 12 bits`). Draw them with `--form snes2` or `snes4` (a
 glyph's 8x8 tiles in reading order: `--width 16 --height 16` is four) and `--form bits1 --width 12 --height 12`.
 
+A game that keeps no code of what it shows, only the pixels of its window, is read off those pixels with the font
+the cartridge holds. `--glyphs` writes the font as a dictionary of pictures, each glyph `--chars` gives a
+character (a line a glyph: its code as on the sheet, `=`, the character), hashed as `lib/cells.lua` cuts a cell:
+trimmed to its ink for a proportional font (`--fixed` keeps a glyph whole), `--cut X0:X1` for a font that keeps
+two pictures of each glyph side by side, and a `# widths` line. The script reads its window as tiles
+(`cells.picture`), cuts a row (`cells.fixed`, or `cells.proportional`, which takes the widest picture the
+dictionary has at each glyph's first column with ink) and asks the dictionary (`lib/glyphs.lua`); a cell it
+hasn't got is logged for `yomikata unread`, so kanji not given by `--chars` are read off the logged pictures:
+
+```sh
+yomikata rom-font game.zip --at 0x781D5 --count 1500 --form rows1 --width 24 --height 12 \
+    --glyphs games/sfc/SHVC-AMXJ.glyphs --chars font-chars.txt --cut 0:12
+```
+
 A disc is read as its data track's sectors end to end (a .chd, .cue or .iso, or a raw track), so a place on it is
 sector x 2048 + offset. Look for the font in a memory snap first (`rom-font snap.ram --find picture.png`: a
 PlayStation game loads its font into memory as the disc has it), then `--locate snap.ram@ADDRESS` says where
