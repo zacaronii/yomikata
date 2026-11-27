@@ -28,6 +28,9 @@ JOINED = {"pce-cd": (0xD0000, 0x100000)}
 # same way: after its 16-byte iNES header (and a trainer), the program then the CHR. A Disk System's disk image
 # after its fwNES header, side after side. A Mega Drive's whole: genesis_plus_gx gives out no map of it.
 CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000, "fc": 0x01000000, "fds": 0x01000000, "md": 0x01000000}
+# Consoles whose core gives the cartridge in play at the console's own address (so the harness needn't), which a
+# read over a snap must give there too: a Game Boy Advance's file, byte for byte, at 0x08000000.
+NATIVE_CARTRIDGE = {"gba": 0x08000000}
 
 
 def cartridge_image(platform: str, data: bytes) -> bytes:
@@ -46,13 +49,16 @@ def cartridge_image(platform: str, data: bytes) -> bytes:
 def rom_reader(platform: str, data: bytes):
     """The cartridge as a script reads it, for reading over snaps (which keep memory, not the cartridge): a
     function of a console address and a size giving the bytes there, b"" where the cartridge isn't. For the
-    consoles in CARTRIDGE, the image at that address. A Super Famicom's as docs/script-api.md promises a script:
+    consoles in CARTRIDGE, the image at that address; for those in NATIVE_CARTRIDGE, the file at the console's own
+    address, as the core gives it in play. A Super Famicom's as docs/script-api.md promises a script:
     a HiROM cartridge at 0xC00000 on, byte for byte, and no more (not its mirrors, which a host may not give
     truly, nor a LoROM cartridge, which isn't dependable yet), so that what reads over a snap reads in play.
     None for a console it doesn't cover."""
     platform = PLATFORM_ALIASES.get(platform, platform)
     if platform in CARTRIDGE:
         image, start = cartridge_image(platform, data), CARTRIDGE[platform]
+    elif platform in NATIVE_CARTRIDGE:
+        image, start = data, NATIVE_CARTRIDGE[platform]
     elif platform == "sfc":
         from ..identify import DiscError, sfc_layout
         try:

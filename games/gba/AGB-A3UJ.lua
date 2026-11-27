@@ -20,11 +20,15 @@
 --   0xFFFF      the text's end
 -- the others (0xFF00, 0xFF03 and more: waits, the window's clearing) say nothing.
 --
--- Characters: hiragana and katakana are numbered in Unicode's order (hiragana from 0x011A, katakana from
--- 0x0178); the signs and kanji are in the table beside this script, read in play.
+-- Characters: the game's font (in the cartridge from 0xCE39FC, 11 rows of 16 bits a character) is in JIS X 0208's
+-- order, a number for each cell: rows 1-8, the NEC row 13 at 752, the kanji's rows 16-84 from 846. Hiragana and
+-- katakana fall in Unicode's order (hiragana from 0x011A, katakana from 0x0178) and are taken by rule; the signs,
+-- letters and kanji are in the table beside this script, made from that order and read through in sentences in
+-- the cartridge's own texts.
 --
--- Not covered: who speaks (the window's tab takes a name from a list by a number not found yet); menus, the fights' windows, signs and chapter titles drawn over the picture; a number the
--- table hasn't got comes out as U+FFFD.
+-- Not covered: who speaks (the window's tab takes a name from a list by a number not found yet); menus, the
+-- fights' windows, signs and chapter titles drawn over the picture; a number the table hasn't got (an empty
+-- JIS cell) comes out as U+FFFD.
 
 local AT = 0x020196B8 -- word: the next character to be typed
 local TEXT, SIZE = 0x02019ABC, 0x1000 -- the buffer a talk's text is put into

@@ -117,8 +117,8 @@ def keep(scratch: Path, games: Path, catalog: Path, identify=None) -> tuple[int,
 
 def _rom(games: Path, game: str, platform: str) -> bytes | None:
     """The game's file as a cartridge, for the platforms whose script may read one; None for the others."""
-    from .harness.machine import CARTRIDGE
-    if platform not in (*CARTRIDGE, "sfc"):
+    from .harness.machine import CARTRIDGE, NATIVE_CARTRIDGE
+    if platform not in (*CARTRIDGE, *NATIVE_CARTRIDGE, "sfc"):
         return None
     path = games / game
     if path.suffix.lower() == ".zip":

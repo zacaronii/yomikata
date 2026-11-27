@@ -1800,6 +1800,8 @@ def test_rom_reader_gives_the_cartridge_at_the_consoles_own_addresses():
     assert rom_reader("sfc", bytes(512) + hi)(0xC0FFC0, 7) == b"MADE UP"              # a copier's header
     assert rom_reader("sfc", made_up_sfc(False)) is None                              # LoROM: not dependable yet
     assert rom_reader("gb", b"GB" * 8)(CARTRIDGE["gb"] + 2, 2) == b"GB"
+    assert rom_reader("gba", b"AGB!" * 4)(0x08000004, 4) == b"AGB!"                   # where the core gives it
+    assert rom_reader("gba", b"AGB!")(0x02000000, 4) == b""
     assert rom_reader("ps1", b"x") is None and rom_reader("sfc", b"short") is None
 
 

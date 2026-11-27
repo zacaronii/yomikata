@@ -944,7 +944,7 @@
   },
   "AGB-A3UJ": {
    "path": "scripts/gba/AGB-A3UJ.lua",
-   "sha256": "4130bc93fbd05a3fa180596230fbaee4105b03f56c669a3d9e8b8a67a2dd9662",
+   "sha256": "24f838be8fded43308c09e65bb46dc526f4a34487ef33f2582a521b900d32e62",
    "platform": "gba",
    "runtime": 1,
    "title": "MOTHER3",
@@ -956,7 +956,7 @@
    "data": {
     "tbl": {
      "path": "games/gba/AGB-A3UJ.tbl",
-     "sha256": "2970ee29018d7317cb4b4073f7437bb8403019d9f0f43e96e7660d0ceb539882"
+     "sha256": "131002563fd9b4e3c64de1c89e25d1b207b945a8a13d669734a805cc42446980"
     }
    }
   },
