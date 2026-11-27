@@ -3326,6 +3326,34 @@ def test_meet_walks_to_the_nearest_people_and_finds_who_answers(session):
     assert (3.5, -4.5) not in [(t["x"], t["z"]) for t in loose["things"]]
 
 
+def test_explore_with_the_stick_in_three_dimensions(session):
+    """A game that walks by the stick alone (the pad does nothing), the camera turned: explore with stick maps by
+    pushing the stick eight ways, finds the way round a wall, and a door (the place leaps) found so is listed by
+    the stick's way that went through it."""
+    machine, plain = session.machine, session.machine._step
+    struct.pack_into(">3f", machine.memory, 0x300, 10.0, 2.5, -40.0)
+
+    def walked(buttons, stick):
+        plain(buttons, stick)
+        x, h, z = struct.unpack_from(">3f", machine.memory, 0x300)
+        sx, sy = stick
+        nx, nz = x + 1.5 * sx - 0.5 * sy, z + 0.5 * sx + 1.5 * sy
+        if nx > 30.0 and nz < 0.0:                       # a wall at x = 30, open from z = 0 on
+            nx, nz = x, z
+        if nx < 2.0 and nz < -38.0:                      # a door at the far left: the place leaps to another
+            nx, nz = 500.0, 500.0
+        struct.pack_into(">3f", machine.memory, 0x300, nx, h, nz)
+    machine._step = walked
+    cells = {"x_address": f"0x{BASE + 0x300:08X}", "y_address": f"0x{BASE + 0x308:08X}", "grid": 2.0, "step": 4,
+             "most": 400, "stick": True}
+    out = session.explore(**cells, within=[-5, -40, 40, 10])
+    assert out["places"] > 50 and out["doors"], out.get("doors")
+    assert all(d["push"] in ("n", "ne", "e", "se", "s", "sw", "w", "nw") for d in out["doors"])
+    struct.pack_into(">3f", machine.memory, 0x300, 10.0, 2.5, -40.0)
+    there = session.explore(**cells, within=[-5, -40, 40, 10], to=[19, 3], near=1)
+    assert there["reached"] is True                       # round the wall's end, by the stick
+
+
 def test_place_find_and_explore_by_whole_numbers(session):
     """A console without floats: the place is three whole numbers, many units a frame, the camera turned.
     place_find with a kind gives them and leaves out a number that leaps; explore counts them in cells of
