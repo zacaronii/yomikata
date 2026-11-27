@@ -753,6 +753,8 @@ class Session:
             if before_hook is not None:
                 before_hook()
             if before:
+                if kept and machine.frames <= kept[-1][0]:
+                    kept.clear()                # a state was loaded: what was kept is of another moment
                 base, ram = machine.ram()
                 kept.append((machine.frames, base, ram, machine.regions()))
                 while kept and kept[0][0] < machine.frames - before[0]:
@@ -762,11 +764,18 @@ class Session:
                     # The page's sequence: memory as it was those frames before the saying (as far as kept), named
                     # after the snap the saying will have (docs/regress.md: <bar>-seq-NN).
                     name = f"{prefix}-said-{len(taken) + len(due):02d}"
-                    for k, back in enumerate(before):
+                    # Each frame kept once: where the frames asked for reach back past what is kept (the run, or
+                    # the state loaded, began later), the earliest isn't written over and over, which a script
+                    # counting still frames would take for the page standing.
+                    chosen = {}
+                    for back in before:
                         at = next((m for m in kept if m[0] >= machine.frames - back), None)
                         if at is not None:
-                            self._write_snap(f"{name}-seq-{k:02d}", at[1], at[2], at[3], at[0], picture=False,
-                                             said=False)
+                            chosen[at[0]] = at
+                    for k, frame in enumerate(sorted(chosen)):
+                        at = chosen[frame]
+                        self._write_snap(f"{name}-seq-{k:02d}", at[1], at[2], at[3], at[0], picture=False,
+                                         said=False)
                     due.append(machine.frames + after)
             seen[0] = len(events)
             while due and machine.frames >= due[0]:

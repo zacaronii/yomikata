@@ -175,3 +175,28 @@ def test_a_reader_that_says_a_page_once_its_typing_stops_is_read_across_its_sequ
     assert "1 of 2 screens read across their typing" in told and "1 screens kept still" in told
     assert "ありがとう" not in told
     assert not run().failed
+
+
+STRAY = TYPING.replace("""        reader.emit{ text = text.sjis(bytes) }
+    end""", """        reader.emit{ text = text.sjis(bytes) }
+    elseif said and stood == 6 then
+        reader.emit{ text = "メニュー" }            -- something else said while the page stands (a menu's name)
+    end""")
+
+
+@needs_reader
+def test_a_sequence_is_judged_on_the_page_said_by_its_bar_snap(world):
+    """Over a sequence the script may say more than the bar's page: a stray line while the bar snap is held,
+    or an earlier page the sequence's first frames still showed. The page judged is the one said by the bar
+    snap's first tick (the last saying up to it), or the first after it for a script that waits."""
+    from yomikata.regress import regress
+    snaps = world.scratch / "snaps"
+    for p in snaps.iterdir():
+        p.unlink()
+    (world.catalog / "games" / "gc" / "GXXJ01.lua").write_text(STRAY, encoding="utf-8")
+    for k, at in enumerate((1, 2, 3, 4)):
+        _typed(snaps, f"typed-seq-{k:02d}", "ありがとう", at)
+    _typed(snaps, "typed", "ありがとう", 4, ["ありがとう"])
+    first = regress(world.scratch, world.games, world.catalog, identify=world.identify, day="d")
+    row = next(r for r in first.rows if r.snap == "typed")
+    assert row.agreement == 1.0 and row.how == "sequence", row
