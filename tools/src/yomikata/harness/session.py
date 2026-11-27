@@ -213,11 +213,13 @@ class Session:
         return {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "session": self.session_id,
                 "game": game, "tool": tool, "arguments": {str(k): short(v) for k, v in (arguments or {}).items()}}
 
-    def record_call(self, tool: str, arguments: dict, ok: bool, seconds: float, outcome: dict | None = None) -> None:
+    def record_call(self, tool: str, arguments: dict, ok: bool, seconds: float, outcome: dict | None = None,
+                    game: str | None = None) -> None:
         """A line for this call in scratch's record (record/calls.jsonl): when, which session and game, the tool
         and its arguments in short. `yomikata calls` sums them by game. A record that can't be written is no
-        reason for a call to fail. After begin_call with the tool, it is the call's second line."""
-        entry = {**self._entry(tool, arguments, self.game), "ok": bool(ok), "seconds": round(seconds, 2),
+        reason for a call to fail. After begin_call with the tool, it is the call's second line, under the same
+        game as the first: the loaded one, else the one the call names (`budget` or `load` before a game is up)."""
+        entry = {**self._entry(tool, arguments, self.game or game), "ok": bool(ok), "seconds": round(seconds, 2),
                  **({"outcome": outcome} if outcome else {})}
         call, self._call_id = getattr(self, "_call_id", None), None
         if call is None:

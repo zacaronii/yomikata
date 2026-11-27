@@ -447,6 +447,35 @@ def test_a_budget_is_counted_from_the_record_and_stops_calls_past_it(session, tm
     assert session.budget_of("sfc/Other.sfc") is None
 
 
+def test_every_counted_call_ends_in_the_record_under_its_own_game(tmp_path):
+    """Each call the record counts has two lines, its start and its end, both under the same game: `budget` and
+    `load` before any game is up too (the end line once named no game), and an errored call. A refused call ran
+    nothing and has neither."""
+    for name in ("games/ngc", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/ngc/Made Up (Japan).iso").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), FakeMachine)
+    game = "ngc/Made Up (Japan).iso"
+
+    def ask(name, arguments=None):
+        return mcp.handle(s, {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                              "params": {"name": name, "arguments": arguments or {}}})["result"].get("isError", False)
+    assert not ask("budget", {"calls": 4, "game": game})                               # before any game is up
+    assert not ask("load", {"game": game, "core": "fake_libretro.so", "platform": "ngc"})
+    assert ask("run", {"frames": 0})                                                   # an error: still a call
+    assert not ask("run", {"frames": 1})
+    assert ask("run", {"frames": 1})                                                   # refused: the budget is spent
+    lines = [json.loads(line) for line in (tmp_path / "scratch/record/calls.jsonl").read_text().splitlines()]
+    begun = {e["call"]: e for e in lines if e.get("begun")}
+    ended = {e["call"]: e for e in lines if not e.get("begun")}
+    assert begun.keys() == ended.keys() and len(begun) == 4 and len(lines) == 8
+    assert all(begun[c]["game"] == ended[c]["game"] == game for c in begun)
+    assert [ended[c]["tool"] for c in begun] == ["budget", "load", "run", "run"]
+    assert s.calls_so_far(game) == 4
+    s.close()
+
+
 def test_load_with_a_state_starts_the_game_there_in_one_call(session, tmp_path):
     """A run of the harness that begins at a kept state is one call, not load, run, state_load, run."""
     session.run(7)
