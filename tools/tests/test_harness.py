@@ -1952,6 +1952,42 @@ def test_page_buffer_finds_where_a_packed_page_is_written_whole(tmp_path):
     s.close()
 
 
+class Scenery(Unpacker):
+    """Unpacker with what made Tales of Phantasia's first pages go wrong: two long stretches of a scene's
+    graphics, unpacked anew for each page and standing while it does (each page's own bytes, all of them
+    different), as long as a whole block of tiles."""
+    GRAPHICS = ((0x1000, 6000), (0x3000, 6500))
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.memory += bytearray(0x8000 - len(self.memory))
+
+    def run(self, frames, buttons, stick):
+        super().run(frames, buttons, stick)
+        for at, length in self.GRAPHICS:
+            seed = (self.page + 1) * 7919 + at
+            self.memory[at:at + length] = bytes((seed + i * 131 + (i >> 3) * 17) & 0xFF for i in range(length))
+
+
+def test_page_buffer_ranks_against_the_size_a_page_takes(tmp_path):
+    """Long stretches of graphics stand and differ per page as a buffer does, and by length alone they came first.
+    Held to the size a page takes, given or estimated from the stretches that stood (those longer than cap left
+    out of it), the buffer comes first."""
+    s = unpacker_session(tmp_path, Scenery)
+    buffer = f"0x{BASE + Unpacker.BUFFER:08X}"
+    graphics = {f"0x{BASE + at:08X}" for at, _ in Scenery.GRAPHICS}
+    out = s.page_buffer(PAGES)
+    assert out["stretches"][0]["address"] == buffer and out["expected"]["from"] == "estimated"
+    assert out["expected"]["size"] == out["stretches"][0]["length"]
+    lengths = {r["address"]: r["length"] for r in out["stretches"]}
+    assert graphics <= set(lengths) and all(lengths[g] > 40 * lengths[buffer] for g in graphics)   # by length, they'd win
+    given = s.page_buffer(PAGES, size=48)
+    assert given["stretches"][0]["address"] == buffer and given["expected"] == {"size": 48, "from": "given"}
+    loose = s.page_buffer(PAGES, cap=10000)                  # graphics counted in the estimate: it goes wrong
+    assert loose["expected"]["size"] > 1000
+    s.close()
+
+
 def test_page_buffer_gives_both_halves_of_a_buffer_kept_twice(tmp_path):
     """Pages that alternate between two buffers: both are given, side by side at the top, each said to alternate
     with the other."""

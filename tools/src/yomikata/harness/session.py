@@ -1530,7 +1530,9 @@ class Session:
           "into before its window shows it, for a game whose script lies packed in the cartridge or on the disc. "
           "Snap a few pages (three or more, two snaps or more while each stands, and if you can one just before "
           "each opens): it gives the stretches the pages' bytes differ in, those that held still while each page "
-          "stood first (one that moves while a page stands, a tile copy or text scrolled through, is ranked down; "
+          "stood first, ranked against the size a page takes (`size`, or estimated: one far longer, graphics or a "
+          "whole unpacked block, goes down), and one that moves while a page stands (a tile copy, text scrolled "
+          "through) ranked down; "
           "one that never stands is left out), and a buffer kept twice as two stretches that alternate. With "
           "each, when each page's bytes were first there, and whether pages shown twice hold the same. Bytes "
           "only: read them with find_relative or a table after.",
@@ -1539,9 +1541,14 @@ class Session:
           before=("array", "for each page, a snap taken just before it opened (or null)", False),
           repeats=("array", "pairs of page indices (from 0) that show the same page: [[0, 3]]", False),
           least=("integer", "the shortest stretch kept, in bytes (default 16)", False),
-          within=("array", "only stretches from one address to another, hex", False))
+          within=("array", "only stretches from one address to another, hex", False),
+          size=("integer", "the bytes a page is expected to take: the most characters a page shows times the bytes "
+                           "a character takes (2 for 16-bit codes). Stretches are ranked against it; without it, "
+                           "against the middle length of those that stood (estimated), which the answer says", False),
+          cap=("integer", "with no size: stretches longer than this (default 4096) count as graphics or whole "
+                          "unpacked blocks, left out of the estimate", False))
     def page_buffer(self, pages: list, before: list | None = None, repeats: list | None = None, least: int = 16,
-                    within: list | None = None) -> dict:
+                    within: list | None = None, size: int = 0, cap: int = 4096) -> dict:
         if not isinstance(pages, list) or len(pages) < 2 or not all(isinstance(p, list) and p for p in pages):
             raise HarnessError("pages is a list of pages, each a list of snaps taken while it stood: two pages or more")
         if before is not None and (not isinstance(before, list) or len(before) > len(pages)):
@@ -1561,9 +1568,10 @@ class Session:
         if len(bases) != 1 or len({len(m) for m in memories.values()}) != 1:
             raise HarnessError("these snaps aren't all of the same memory")
         base = bases.pop()
-        found = search.page_buffers([[memories[n] for n in page] for page in pages],
-                                    [memories[n] if n else None for n in before] if before else None,
-                                    pairs, least=max(1, int(least)), most=10 ** 6)
+        found, expected = search.page_buffers([[memories[n] for n in page] for page in pages],
+                                              [memories[n] if n else None for n in before] if before else None,
+                                              pairs, least=max(1, int(least)), most=10 ** 6, size=max(0, int(size)),
+                                              cap=max(16, int(cap)))
         if within is not None:
             low, high = (int(str(v), 16) for v in within)
             found = [f for f in found if low <= base + f["offset"] < high]
@@ -1573,7 +1581,7 @@ class Session:
             if "alternates_with" in row:
                 row["alternates_with"] = f"0x{base + row['alternates_with']:08X}"
             rows.append(row)
-        return {"count": len(found), "stretches": rows}
+        return {"count": len(found), "expected": expected, "stretches": rows}
 
     @tool("Reads a name off a naming screen. Snap the empty name, enter a character, snap, enter another, "
           "snap, and so on: this finds the places that took a value one after the other, which are the name, "

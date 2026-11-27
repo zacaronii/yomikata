@@ -652,18 +652,25 @@ def group_cells(groups):
     return firsts, stands, kinds
 
 
-def page_buffers(pages, before=None, repeats=(), least: int = 16, gap: int = 8, most: int = 20) -> list[dict]:
+def page_buffers(pages, before=None, repeats=(), least: int = 16, gap: int = 8, most: int = 20, size: int = 0,
+                 cap: int = 4096) -> tuple[list[dict], dict]:
     """Stretches of memory a page of text is written into whole (a decompressor's output): given, for each page
     shown, the memory of moments while it stood (arrays of bytes, two or more a page is best), and optionally a
     moment just before it opened. A place is touched where the pages' values differ; touched places with fewer
     than `gap` untouched ones between them make one stretch, kept from `least` bytes. A stretch is ranked by its
     length times the share of its places that stood through every page, squared (a copy that moves while a page
     stands, or text scrolled through a buffer, goes down, not out; one that stood nowhere, a counter or a stack, is
-    left out), and down again where it holds few values.
+    left out), and down again where it holds few values. Its length counts against the size a page is expected to
+    take: `size` (the characters on screen times the bytes a character takes), or else the snaps' own estimate, the
+    middle length of the stretches that stood through every page and are no longer than `cap`; a stretch of that
+    size scores its size, a longer or shorter one less (min(length, size)^2 / max(length, size)), so the long
+    stretches a scene's graphics or other unpacked blocks make (they stand and differ per page too) no longer win
+    with one snap a page.
     Two stretches each written on every other page (a buffer kept twice, the pages alternating) are both kept and
     said to alternate. Each gives its offset, length, the share that stood, its values, each page's first bytes,
     when each page's bytes were first there (`before`, or the index of the moment), and whether repeated pages
-    (pairs of page indices that show one page) hold the same."""
+    (pairs of page indices that show one page) hold the same. Gives the stretches and the size they were held to,
+    with where it came from (given, estimated, or none to be had)."""
     import numpy as np
     cells = [[np.frombuffer(m, dtype=np.uint8).reshape(-1, 1) for m in page] for page in pages]
     firsts, stands, kinds = group_cells(cells)
@@ -710,13 +717,22 @@ def page_buffers(pages, before=None, repeats=(), least: int = 16, gap: int = 8, 
                         when = n
                         break
             written.append(when)
-        score = (hi - lo) * stood * stood * (1.0 if values >= 4 else 0.25)
-        row = {"offset": lo, "length": hi - lo, "stood": round(stood, 2), "values": values, "score": round(score, 1),
+        row = {"offset": lo, "length": hi - lo, "stood": round(stood, 2), "values": values,
                "pages": [f[lo:min(hi, lo + 32)].tobytes().hex() for f in finals], "written": written,
                "changes": changes}
         if repeats:
             row["repeats"] = all((finals[a][lo:hi] == finals[b][lo:hi]).all() for a, b in repeats)
         out.append(row)
+    # The size a page is held to: given, or the middle length of the stretches that stood through every page and
+    # aren't longer than cap (graphics and whole unpacked blocks run longer).
+    expected = {"size": int(size), "from": "given"} if size and size > 0 else None
+    if expected is None:
+        fit = sorted(r["length"] for r in out if r["stood"] >= 0.9 and r["length"] <= cap)
+        expected = {"size": fit[len(fit) // 2], "from": "estimated"} if fit else {"size": 0, "from": "none"}
+    for row in out:
+        length, want = row["length"], expected["size"]
+        held = (min(length, want) ** 2 / max(length, want)) if want else (length if length <= cap else cap * cap / length)
+        row["score"] = round(held * row["stood"] ** 2 * (1.0 if row["values"] >= 4 else 0.25), 1)
     # A buffer kept twice: two stretches of a length, each changing on the pages the other doesn't.
     for a in out:
         for b in out:
@@ -728,4 +744,4 @@ def page_buffers(pages, before=None, repeats=(), least: int = 16, gap: int = 8, 
             partner = next(r for r in out if r["offset"] == row["alternates_with"])
             row["score"] = max(row["score"], partner["score"])      # ranked together, one beside the other
     out.sort(key=lambda r: (-r["score"], r["offset"]))
-    return out[:most]
+    return out[:most], expected
