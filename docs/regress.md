@@ -33,8 +33,11 @@ Some scripts say a page only once they have watched it type: its typing position
 no Tame ni Kane wa Naru), each character drawn in turn (a Super Famicom game that draws its window a character
 at a time), a pointer set while it types and cleared at its end (a Dreamcast game). Over a still snap nothing
 moves, and they say nothing. Their entries say `"regress": "sequence"`, and each bar snap is taken with the
-snaps across its page's typing, named `<bar>-seq-00`, `-01`, … (a `steps` wait with `every` and `snap:
-"<bar>-seq"` takes them: one every frame or few, from before the page begins to type to the bar snap). The check
+snaps across its page's typing, named `<bar>-seq-00`, `-01`, …. The harness takes them with the bar snaps:
+`said: {"after": 2, "before": [12, 8, 4, 2]}` on `steps` or `replay` keeps memory those frames before each
+saying and writes it as the saying's snap's sequence; or a `steps` wait with `every` and `snap: "<bar>-seq"`
+takes one every frame or few (as many as come to 512 MB of memory in a call: frame by frame on a console with
+little memory); `replay`'s `marks` place snaps at given frames of a recorded route. The check
 keeps the group with its bar, and reads it as a run: one reader, the group's snaps one tick each, then the bar
 snap held 40 ticks; what is judged is the last page it says. Still offline, with no core: only memory, a frame
 at a time. A sequence entry's bar kept still is named in the report, to be taken again with its sequence.
