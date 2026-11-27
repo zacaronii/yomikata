@@ -3453,7 +3453,9 @@ class Session:
             row = {"x": person["x"], "z": person["z"], "address": person["address"],
                    "reached": bool(walked.get("reached"))}
             if not walked.get("reached"):
-                tried.append({**row, "stopped": walked.get("stopped") or walked.get("why")})
+                tried.append({**row, "stopped": walked.get("stopped") or walked.get("why"), "at": walked.get("at"),
+                              **({"waypoints": walked["waypoints"]} if "waypoints" in walked else {}),
+                              **({"refused": len(walked["refused"])} if walked.get("refused") else {})})
                 continue
             there = machine.save_state()
             quiet: list = []

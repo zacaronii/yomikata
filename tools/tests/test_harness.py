@@ -3326,6 +3326,15 @@ def test_meet_walks_to_the_nearest_people_and_finds_who_answers(session):
     given = session.meet(**player, targets=[{"x": -17.0, "z": 26.0, "name": "Ab1"}, {"x": 15.0, "z": 1.0, "name": "Cd2"}],
                          reach=2.0, walk={"limit": 1500})
     assert given["met"]["address"] == "Ab1" and given["said"] == ["おはなし"], given
+    # A target's way is walked to it; a walk that doesn't get there says where it stopped.
+    struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)
+    short = session.meet(**player, targets=[{"x": -17.0, "z": 26.0, "name": "Ab1", "way": [[3.0, 20.0, 0.0]]}],
+                         reach=2.0, walk={"limit": 8})
+    assert short["met"] is None and len(short["tried"][0]["at"]) == 2, short
+    struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)
+    by_way = session.meet(**player, targets=[{"x": -17.0, "z": 26.0, "name": "Ab1", "way": [[3.0, 20.0, 0.0]]}],
+                          reach=2.0, walk={"limit": 1500, "way_near": 2.0})
+    assert by_way["met"]["address"] == "Ab1", by_way
     with pytest.raises(HarnessError, match="walk takes"):
         session.meet(**player, targets=[{"x": 1.0, "z": 1.0}], walk={"fly": True})
     struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)            # back where the sword is beside
