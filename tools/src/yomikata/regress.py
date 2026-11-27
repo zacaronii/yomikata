@@ -191,7 +191,14 @@ def reread(scratch: Path, games: Path, catalog: Path, frames: int = FRAMES) -> l
         readings = [readings[s] for s in stems]
         for stem, reading in zip(stems, readings):
             meta = json.loads((into / f"{stem}.json").read_text(encoding="utf-8"))
-            story = reading.story()[-1:] if groups[stem] else reading.story()      # a sequence: the page it ends on
+            story = reading.story()
+            if groups[stem]:
+                # A sequence: the page said by the bar snap's first tick (the last saying up to it), or, for a
+                # script that says it once it has stood, the first after; not what the held snap says later, nor
+                # an earlier page the sequence's first frames still showed.
+                at = len(groups[stem]) + 1
+                upto = [e for e in story if e.get("frame", 0) <= at]
+                story = upto[-1:] or story[:1]
             said = "\n".join(part for e in story for part in (e.get("speaker") or "", e["text"]) if part)
             how = "sequence" if groups[stem] else ("still, sequence wanted" if sequence_entry else "still")
             rows.append(Row(gid, stem, None if reading.error else round(agreement(said, meta.get("ocr") or []), 2),
