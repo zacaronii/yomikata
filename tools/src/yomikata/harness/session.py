@@ -3118,13 +3118,18 @@ class Session:
                     heard += got.get("events", [])
                     if got.get("reached"):
                         self._advance(max(through, 240), set(), (0.0, 0.0), heard)
-                    tried_events.append({"at": list(place), "reached": bool(got.get("reached"))})
+                    tried_events.append({"at": list(place), "reached": bool(got.get("reached")),
+                                         "places": got.get("places"), "stopped_at": got.get("stopped_at")})
                     if said(heard):
                         found = {"room": str(room_now()), "legs": there_legs, "event_at": list(place),
                                  "said": said(heard)[:3]}
                         break
                 if found:
                     graph[here] = {"events": tried_events}
+                    break
+                if self._late():
+                    graph[here] = {"events": tried_events}
+                    stopped = "time"
                     break
                 machine.load_state(state)
                 machine.frames, self.route = there_frames, json.loads(json.dumps(there_route))
