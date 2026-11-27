@@ -210,6 +210,25 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--mine", type=Path, help="your readings: a table (HEX=character lines); codes as in the glyphs file")
     p.add_argument("--text", type=Path, help="the game's text, a line a message (scratch): each differing reading is shown in a sentence")
     p.add_argument("--out", type=Path, required=True, help="where to write the second reader's readings (code, a tab, the reading)")
+    p = sub.add_parser("font-read", help="read a whole font glyph by glyph: a second reader's readings (manga-ocr, from a scratch environment), sheets of each glyph beside its reading and of each correction beside its glyph, the table, and the characters given to two glyphs")
+    p.add_argument("font", type=Path, help="the cartridge, disc, or a font file taken out of a card (nitro)")
+    p.add_argument("--at", required=True, help="where the font's first glyph is (hex), as rom-font draws it")
+    p.add_argument("--first", default="0", help="its code (hex)")
+    p.add_argument("--count", type=int, required=True, help="glyphs")
+    p.add_argument("--form", default="tiles4", help="the glyphs' form, as rom-font's --form (default tiles4)")
+    p.add_argument("--width", type=int, default=16)
+    p.add_argument("--height", type=int, default=16)
+    p.add_argument("--lead", help="as rom-font's: codes below this (hex) are one byte")
+    p.add_argument("--ocr", type=Path, help="read every glyph with the second reader now and write its readings here (code, a tab, the reading); needs manga-ocr")
+    p.add_argument("--readings", type=Path, help="the second reader's readings written by --ocr before")
+    p.add_argument("--rows", type=Path, help="readings off rom-font's sheets as rows (a code and the characters from it on), given before the second reader's: for signs and kana")
+    p.add_argument("--fix", type=Path, help="corrections: HEX=character a line, HEX= for a glyph that is no character")
+    p.add_argument("--pairs", type=Path, help="a scratch folder: sheets of every glyph beside its reading, to find what is wrong")
+    p.add_argument("--check", type=Path, help="a scratch folder: sheets of each correction beside its glyph, and of the characters given to two glyphs")
+    p.add_argument("--draw", type=Path, help="a font file (TTF/OTF) with the characters to draw the readings on the sheets in (without one, Pillow's own, which has no kanji)")
+    p.add_argument("--tbl", type=Path, help="write the table (HEX=character a line; codes as rom-font's --tbl writes them)")
+    p.add_argument("--unit", type=int, default=2, help="table: bytes a code (default 2)")
+    p.add_argument("--big-endian", action="store_true", help="table: codes are high byte first in memory")
     p = sub.add_parser("unread", help="the pictures a script logged for want of a reading (lib/glyphs.lua; the harness keeps them in scratch): a sheet of those the dictionary hasn't got, the second reader's readings, and readings written into the dictionary")
     p.add_argument("logs", type=Path, nargs="+", help="files with the logged lines: scratch's glyphs/<script>.log, or a host's log")
     p.add_argument("--dictionary", type=Path, required=True, help="the script's dictionary: games/<platform>/<id>.glyphs")
@@ -474,6 +493,47 @@ def main(argv: list[str] | None = None) -> int:
         counts = {k: sum(1 for r in rows if r["status"] == k) for k in ("agree", "differ", "unread")}
         print(f"{len(rows)} glyphs: {counts['agree']} read the same two ways, {counts['differ']} that differ (read those in a "
               f"sentence), {counts['unread']} you haven't read", file=sys.stderr)
+        return 0
+    if args.cmd == "font-read":
+        from . import fontread
+        from . import romfont as fonts
+        lead = int(args.lead, 16) if args.lead else None
+        glyphs = fonts.glyphs(fonts.cartridge(args.font), int(args.at, 16), int(args.first, 16), args.count, args.form,
+                              args.width, args.height, lead)
+        if args.ocr:
+            from .glyphread import second_reader
+            try:
+                reader = second_reader()
+            except RuntimeError as e:
+                print(e, file=sys.stderr)
+                return 2
+            readings = fontread.ocr(glyphs, reader)
+            fontread.write_readings(args.ocr, readings)
+            print(f"{len(readings)} glyphs read, written to {args.ocr}", file=sys.stderr)
+        else:
+            readings = fontread.load_readings(args.readings) if args.readings else {}
+        rows = fonts.readings(args.rows.read_text(encoding="utf-8"), lead=lead) if args.rows else {}
+        fixes = fontread.corrections(args.fix.read_text(encoding="utf-8")) if args.fix else {}
+        table = fontread.resolved({c: t for c, t in readings.items() if c in glyphs}, rows, fixes)
+        if args.pairs:
+            pages = fontread.sheets(glyphs, [c for c in sorted(glyphs) if glyphs[c].any()], table, args.draw, args.pairs, "pairs")
+            print(f"{len(pages)} sheets of glyphs beside their readings in {args.pairs}", file=sys.stderr)
+        twice = fontread.doubles(table)
+        if args.check:
+            fixed = [c for c in sorted(fixes) if fixes[c] and c in glyphs]
+            pages = fontread.sheets(glyphs, fixed, table, args.draw, args.check, "corrections")
+            both = [c for ch in twice for c in twice[ch]]
+            pages += fontread.sheets(glyphs, both, table, args.draw, args.check, "twice")
+            print(f"{len(fixed)} corrections and {len(both)} glyphs given a character another has, on {len(pages)} sheets "
+                  f"in {args.check}", file=sys.stderr)
+        if args.tbl:
+            order = "big" if args.big_endian or lead is not None else "little"
+            key = lambda code: code.to_bytes(1 if lead is not None and code < lead else args.unit, order).hex().upper()  # noqa: E731
+            args.tbl.write_text("".join(f"{key(c)}={table[c]}\n" for c in sorted(table)), encoding="utf-8")
+        inked = sum(1 for g in glyphs.values() if g.any())
+        print(json.dumps({"glyphs": len(glyphs), "inked": inked, "read": len(table), "by_the_second_reader": len(readings),
+                          "rows": len(rows), "corrections": len(fixes), "characters_given_twice": len(twice),
+                          "not_read": inked - len([c for c in table if c in glyphs])}))
         return 0
     if args.cmd == "unread":
         from . import glyphs as gl

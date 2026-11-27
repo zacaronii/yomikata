@@ -669,6 +669,28 @@ The order of reading a font, then:
    text: `glyph-read --text` prints one for each, from a dump (`yomikata disc-text`, or `run --dump`), or
    read it in play. A reading none of this settles is left out of the table.
 
+For a font of a thousand kanji or more, `yomikata font-read` turns that round: the second reader reads first,
+and you check its readings against the glyphs. It takes the font as rom-font does (a cartridge, a disc, or a
+file taken out of a card with `nitro`):
+
+```sh
+yomikata font-read fonts.imb --at 0 --first 90 --count 1840 --ocr work/ocr.tsv          # from manga-ocr's environment
+yomikata font-read fonts.imb --at 0 --first 90 --count 1840 --readings work/ocr.tsv \
+    --rows work/rows.txt --pairs work/pairs --draw ZenKakuGothicNew-Medium.ttf            # each glyph beside its reading
+yomikata font-read ... --readings work/ocr.tsv --rows work/rows.txt --fix work/fix.txt \
+    --check work/check --draw ... --tbl work/table.tbl                                    # the corrections, again
+```
+
+From each reading of a glyph alone it takes a pick: its first kanji (alone, a glyph often comes back as a word:
+a kanji and the kana after it), else the reading when it is one character, else nothing. `--rows` gives readings
+of your own first, rom-font's rows (signs and kana, which the second reader gets wrong more than kanji). On the
+`--pairs` sheets each glyph stands beside its reading in a real font, so one that is wrong shows at a glance;
+write what is wrong into `--fix` (`HEX=character`, `HEX=` for an icon). `--check` draws the corrections alone,
+each beside its glyph, and the glyphs the table gives one character to between them: read those again,
+against the glyph and not the sheet, and settle the twice-given in a sentence. Gyakuten Saiban 4: 1,840 glyphs
+in no calls; of 377 corrections, 12 were a column off on the sheet they came from, which the check found; the
+table rebuilt with the tool is the one merged.
+
 Where a game brings its kanji as pictures with each scene (Metal Gear Solid: 36 bytes a picture, after the
 scene's lines), there is no font to read once: let the script, in a copy for trying, log each picture it has no
 reading for as it plays, draw those on a sheet, and read them with the lines they came up in beside you. Its
