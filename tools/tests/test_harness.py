@@ -789,6 +789,10 @@ def test_a_game_boy_advances_sprite_table_and_video_memory_are_kept_and_read_at_
     assert region_starts("fc")["vram"] == 0x80002000 and region_starts("fds")["vram"] == 0x80002000
     over = with_regions(lambda a, n: b"", "fc", {"vram": bytes(range(8)) * 0x100})
     assert over(0x80002002, 3) == b"\x02\x03\x04" and over(0x80002800, 1) == b"" and over(0x2000, 1) == b""
+    # A Game Boy's main memory as mGBA gives it runs past 0xFF00 (32 KB from 0xC000): the `io` region answers
+    # there, not the zeros main memory has.
+    gb = with_regions(lambda a, n: bytes(n) if 0xC000 <= a < 0x14000 else b"", "gb", {"io": bytes(0x40) + b"\xE3"})
+    assert gb(0xFF40, 1) == b"\xE3" and gb(0xC000, 2) == b"\x00\x00" and gb(0xFF41, 1) == b"\x00"   # past it: main
 
 
 def test_a_game_boys_io_is_read_across_the_stretches_of_the_cores_map():

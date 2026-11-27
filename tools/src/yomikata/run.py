@@ -74,22 +74,21 @@ def _regions(snapshot: Path) -> dict[str, bytes]:
 
 
 def with_regions(read, platform: str | None, regions: dict[str, bytes]):
-    """A read over main memory that also answers at a region's own addresses, for the regions a platform keeps
-    at console addresses (a Game Boy's `io` at 0xFF00; harness/machine.py's region_starts)."""
+    """A read over main memory that answers at a region's own addresses from the region, for the regions a
+    platform keeps at console addresses (a Game Boy's `io` at 0xFF00; harness/machine.py's region_starts)."""
     from .harness.machine import region_starts
     starts = {name: start for name, start in region_starts(platform or "").items() if name in regions}
     if not starts:
         return read
 
     def both(address: int, size: int) -> bytes:
-        got = read(address, size)
-        if got:
-            return got
+        # A region first, at its own addresses: a core's main memory may run past them with something else there
+        # (mGBA's Game Boy work RAM is 32 KB from 0xC000, and its last 256 bytes aren't the I/O registers).
         for name, start in starts.items():
             at = address - start
             if 0 <= at < len(regions[name]):
                 return regions[name][at:at + size]
-        return b""
+        return read(address, size)
     return both
 
 
