@@ -629,3 +629,103 @@ def text_before(data: bytes, at: int, encoding: str = "shift_jis", most: int = 2
             break
         count, at = count + 1, at - 2
     return count
+
+
+def group_cells(groups):
+    """For groups of moments' memory (each a list of arrays of cells, one cell a row of `unit` bytes): each group's
+    first moment, whether each place stands (holds its first moment's value) through each group, and how many
+    different values the groups' first moments show at each place. What `grouped` and `page_buffer` share."""
+    import numpy as np
+    firsts = [group[0] for group in groups]
+    stands = []
+    for group in groups:
+        still = np.ones(len(group[0]), dtype=bool)
+        for other in group[1:]:
+            still &= (other == group[0]).all(axis=1)
+        stands.append(still)
+    kinds = np.zeros(len(firsts[0]), dtype=np.int64)
+    for i, first in enumerate(firsts):
+        new = np.ones(len(first), dtype=bool)
+        for earlier in firsts[:i]:
+            new &= (first != earlier).any(axis=1)
+        kinds += new
+    return firsts, stands, kinds
+
+
+def page_buffers(pages, before=None, repeats=(), least: int = 16, gap: int = 8, most: int = 20) -> list[dict]:
+    """Stretches of memory a page of text is written into whole (a decompressor's output): given, for each page
+    shown, the memory of moments while it stood (arrays of bytes, two or more a page is best), and optionally a
+    moment just before it opened. A place is touched where the pages' values differ; touched places with fewer
+    than `gap` untouched ones between them make one stretch, kept from `least` bytes. A stretch is ranked by its
+    length times the share of its places that stood through every page, squared (a copy that moves while a page
+    stands, or text scrolled through a buffer, goes down, not out; one that stood nowhere, a counter or a stack, is
+    left out), and down again where it holds few values.
+    Two stretches each written on every other page (a buffer kept twice, the pages alternating) are both kept and
+    said to alternate. Each gives its offset, length, the share that stood, its values, each page's first bytes,
+    when each page's bytes were first there (`before`, or the index of the moment), and whether repeated pages
+    (pairs of page indices that show one page) hold the same."""
+    import numpy as np
+    cells = [[np.frombuffer(m, dtype=np.uint8).reshape(-1, 1) for m in page] for page in pages]
+    firsts, stands, kinds = group_cells(cells)
+    touched = kinds >= 2
+    if before:
+        for k, moment in enumerate(before):
+            if moment is not None and k < len(firsts):
+                touched |= np.frombuffer(moment, dtype=np.uint8) != firsts[k].reshape(-1)
+    where = np.nonzero(touched)[0]
+    stretches, start, last = [], None, None
+    for i in (int(v) for v in where):
+        if start is not None and i - last <= gap:
+            last = i
+            continue
+        if start is not None:
+            stretches.append((start, last + 1))
+        start = last = i
+    if start is not None:
+        stretches.append((start, last + 1))
+    stood_all = np.ones(len(touched), dtype=bool)
+    for still in stands:
+        stood_all &= still
+    finals = [f.reshape(-1) for f in firsts]
+    lasts = [np.frombuffer(page[-1], dtype=np.uint8) for page in pages]
+    out = []
+    for lo, hi in stretches:
+        if hi - lo < least:
+            continue
+        stood = float(stood_all[lo:hi].mean())
+        if stood == 0:
+            continue                    # moves through every page wherever it changes: a counter, a stack
+        values = int(len(np.unique(np.concatenate([f[lo:hi] for f in finals]))))
+        changes = [bool((finals[k][lo:hi] != finals[k - 1][lo:hi]).any()) for k in range(1, len(finals))]
+        written = []
+        for k, page in enumerate(pages):
+            final = lasts[k][lo:hi]
+            when = None
+            if before and k < len(before) and before[k] is not None and \
+                    (np.frombuffer(before[k], dtype=np.uint8)[lo:hi] == final).all():
+                when = "before"
+            else:
+                for n, m in enumerate(page):
+                    if (np.frombuffer(m, dtype=np.uint8)[lo:hi] == final).all():
+                        when = n
+                        break
+            written.append(when)
+        score = (hi - lo) * stood * stood * (1.0 if values >= 4 else 0.25)
+        row = {"offset": lo, "length": hi - lo, "stood": round(stood, 2), "values": values, "score": round(score, 1),
+               "pages": [f[lo:min(hi, lo + 32)].tobytes().hex() for f in finals], "written": written,
+               "changes": changes}
+        if repeats:
+            row["repeats"] = all((finals[a][lo:hi] == finals[b][lo:hi]).all() for a, b in repeats)
+        out.append(row)
+    # A buffer kept twice: two stretches of a length, each changing on the pages the other doesn't.
+    for a in out:
+        for b in out:
+            if a is not b and abs(a["length"] - b["length"]) <= max(4, a["length"] // 8) and len(a["changes"]) >= 2 \
+                    and all(x != y for x, y in zip(a["changes"], b["changes"])) and any(a["changes"]) and any(b["changes"]):
+                a["alternates_with"] = b["offset"]
+    for row in out:
+        if "alternates_with" in row:
+            partner = next(r for r in out if r["offset"] == row["alternates_with"])
+            row["score"] = max(row["score"], partner["score"])      # ranked together, one beside the other
+    out.sort(key=lambda r: (-r["score"], r["offset"]))
+    return out[:most]

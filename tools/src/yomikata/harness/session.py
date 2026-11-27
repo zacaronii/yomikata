@@ -1441,17 +1441,12 @@ class Session:
             data = np.frombuffer(memories[name], dtype=np.uint8)
             return data[:len(data) // unit * unit].reshape(-1, unit)
         names = list(groups)
-        firsts = [cells(groups[g][0]) for g in names]
+        # The same within each group, and how many different values the groups show (search.group_cells, which
+        # page_buffer shares).
+        firsts, stands, kinds = search.group_cells([[cells(n) for n in groups[g]] for g in names])
         keep = np.ones(len(firsts[0]), dtype=bool)
-        for g, first in zip(names, firsts):                 # the same within each group
-            for other in groups[g][1:]:
-                keep &= (cells(other) == first).all(axis=1)
-        kinds = np.zeros(len(keep), dtype=np.int64)         # how many different values the groups show
-        for i, first in enumerate(firsts):
-            new = np.ones(len(keep), dtype=bool)
-            for earlier in firsts[:i]:
-                new &= (first != earlier).any(axis=1)
-            kinds += new
+        for still in stands:
+            keep &= still
         least = len(names) if not least else max(2, min(int(least), len(names)))
         keep &= kinds >= least
         if values is not None:
@@ -1497,6 +1492,55 @@ class Session:
             out["cut"] = (f"{len(places)} places fit, {MAX_HITS} given (those the most groups differ at, then by "
                           "address): narrow it with `values` (\"flag\", or each group's value) or `within`")
         return out
+
+    @tool("Where a page of text is written whole into memory: the buffer a game decompresses or unpacks each page "
+          "into before its window shows it, for a game whose script lies packed in the cartridge or on the disc. "
+          "Snap a few pages (three or more, two snaps or more while each stands, and if you can one just before "
+          "each opens): it gives the stretches the pages' bytes differ in, those that held still while each page "
+          "stood first (one that moves while a page stands, a tile copy or text scrolled through, is ranked down; "
+          "one that never stands is left out), and a buffer kept twice as two stretches that alternate. With "
+          "each, when each page's bytes were first there, and whether pages shown twice hold the same. Bytes "
+          "only: read them with find_relative or a table after.",
+          pages=("array", "for each page shown, the snaps taken while it stood: [[\"p1-a\", \"p1-b\"], ...], two "
+                          "pages or more", True),
+          before=("array", "for each page, a snap taken just before it opened (or null)", False),
+          repeats=("array", "pairs of page indices (from 0) that show the same page: [[0, 3]]", False),
+          least=("integer", "the shortest stretch kept, in bytes (default 16)", False),
+          within=("array", "only stretches from one address to another, hex", False))
+    def page_buffer(self, pages: list, before: list | None = None, repeats: list | None = None, least: int = 16,
+                    within: list | None = None) -> dict:
+        if not isinstance(pages, list) or len(pages) < 2 or not all(isinstance(p, list) and p for p in pages):
+            raise HarnessError("pages is a list of pages, each a list of snaps taken while it stood: two pages or more")
+        if before is not None and (not isinstance(before, list) or len(before) > len(pages)):
+            raise HarnessError("before has a snap (or null) for each page, no more")
+        pairs = []
+        for pair in repeats or ():
+            if not (isinstance(pair, list) and len(pair) == 2 and all(isinstance(k, int) and 0 <= k < len(pages)
+                                                                      for k in pair)):
+                raise HarnessError("repeats is pairs of page indices, from 0: [[0, 3]]")
+            pairs.append(tuple(pair))
+        if within is not None and (len(within) != 2 or int(str(within[0]), 16) > int(str(within[1]), 16)):
+            raise HarnessError("within is two addresses, the lower first")
+        memories, bases = {}, set()
+        for name in {n for page in pages for n in page} | {n for n in (before or ()) if n}:
+            _, base, memories[name] = self._memories([name])[0]
+            bases.add(base)
+        if len(bases) != 1 or len({len(m) for m in memories.values()}) != 1:
+            raise HarnessError("these snaps aren't all of the same memory")
+        base = bases.pop()
+        found = search.page_buffers([[memories[n] for n in page] for page in pages],
+                                    [memories[n] if n else None for n in before] if before else None,
+                                    pairs, least=max(1, int(least)), most=10 ** 6)
+        if within is not None:
+            low, high = (int(str(v), 16) for v in within)
+            found = [f for f in found if low <= base + f["offset"] < high]
+        rows = []
+        for f in found[:20]:
+            row = {"address": f"0x{base + f.pop('offset'):08X}", **f}
+            if "alternates_with" in row:
+                row["alternates_with"] = f"0x{base + row['alternates_with']:08X}"
+            rows.append(row)
+        return {"count": len(found), "stretches": rows}
 
     @tool("Reads a name off a naming screen. Snap the empty name, enter a character, snap, enter another, "
           "snap, and so on: this finds the places that took a value one after the other, which are the name, "

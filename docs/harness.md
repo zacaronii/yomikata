@@ -117,21 +117,28 @@ In the order to try them:
    line's, the whole doesn't fit and its rows are tried by twos and alone (`parts`). A window that keeps tiles
    often has a second cell for each character (`stride`: 2) and rows that aren't next to each other: give one
    row.
-4. Surer than one line: `lines`, two or more snaps each with what its screen shows at the same place. One
+4. A game whose script lies packed (compressed, or in codes of its own with dictionary words) may unpack each
+   page whole into a buffer before its window shows it. Snap three pages or more, two snaps or more while each
+   stands and one just before each opens: `page_buffer` gives the stretches the pages differ in that held still
+   while each stood, a buffer kept twice as two stretches that alternate, and when each page was written. A
+   stretch that also moves while a page stands (a tile copy, text scrolled through) is ranked down, one that never
+   stands left out. It gives bytes only: `find_relative` on its address, or a table, reads them. Final Fantasy V's
+   page buffer (4 rows of 16 cells, `0x7E19D3`) is such a one.
+5. Surer than one line: `lines`, two or more snaps each with what its screen shows at the same place. One
    place must fit them all, and the characters the lines share must have the same code, so lines without a
    repeat will do.
-5. A script read where it lies keeps each line somewhere else, so two moments share no place: `apart`, several
+6. A script read where it lies keeps each line somewhere else, so two moments share no place: `apart`, several
    lines of one scene looked for together in one memory, each wherever it is. Two of them must share three
    characters or more. Give kana stretches: a game may keep kanji in two bytes, and a name the player chose
    as a code that stands for it, and either breaks a line that is taken as one code a character.
-6. A game that lets the player enter a name tells its codes outright. On the naming screen, snap, enter one
+7. A game that lets the player enter a name tells its codes outright. On the naming screen, snap, enter one
    character, snap, enter another, snap: the places that took a value one after the other are the name, and
    the values are those characters' codes. `entered` does this from the snaps and the characters. A few kana give the rule the rest follow (a row, an offset between
    hiragana and katakana), and with a handful of codes a plain `find` by bytes finds the dialogue. This is what
    found Final Fantasy IX's text, after every search by the line itself had failed.
-7. The codes it gives are the start of the game's table. With them as a table, `find` (`table`) looks for
+8. The codes it gives are the start of the game's table. With them as a table, `find` (`table`) looks for
    other lines, and each new line adds characters.
-8. A game may hold nothing that says which line is on screen once the line stands: it points at the line only
+9. A game may hold nothing that says which line is on screen once the line stands: it points at the line only
    while it types. Press, then snap through the typing (`steps` with `wait`, `every` and `snap`), and ask
    `refs` over those snaps for what points into the line: a word that does in some moments only is the one
    that follows it. `pointed` then reads the record or stack that word is in as strings. This is what found
