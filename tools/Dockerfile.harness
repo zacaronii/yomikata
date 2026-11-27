@@ -4,6 +4,25 @@
 #   docker build -t yomikata-harness -f tools/Dockerfile.harness --build-arg BASE=yomikata-tools .
 # Run it with tools/scripts/harness.sh, which gives it no network and only the folders it may see.
 ARG BASE=ghcr.io/zacaronii/yomikata-tools:latest
+
+# Cores built here with a patch of ours (tools/cores, never sent upstream), for what the official builds don't give
+# out. genesis_plus_gx with genesis_plus_gx-video-ram.patch answers RETRO_MEMORY_VIDEO_RAM with the VDP's 64 KB of
+# video memory (the official build gives a Mega Drive's work RAM alone). Built at a pinned commit, on the same
+# Debian as the image below, and kept under a name of its own, genesis_plus_gx_vram_libretro.so: a state made by
+# the official build is never taken for one of this build's. The harness finds these when the cores folder hasn't
+# the name asked for. Fetching the source needs the network while the image is built, never while it runs.
+FROM python:3.12-slim AS cores
+ARG GPGX_COMMIT=51348f65738b0c75f4b8b4488fbc67645e3769af
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates make gcc g++ libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+COPY tools/cores /src/patches
+RUN git clone --filter=blob:none https://github.com/libretro/Genesis-Plus-GX /src/gpgx \
+    && cd /src/gpgx && git checkout -q "$GPGX_COMMIT" \
+    && git apply /src/patches/genesis_plus_gx-video-ram.patch \
+    && make -f Makefile.libretro -j"$(nproc)" \
+    && mkdir -p /out && cp genesis_plus_gx_libretro.so /out/genesis_plus_gx_vram_libretro.so \
+    && sha256sum /out/*.so
+
 FROM ${BASE}
 USER 0
 # Mesa's software OpenGL through EGL, for cores that draw with the graphics card (the CPU does the drawing);
@@ -13,6 +32,8 @@ USER 0
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libegl1 libegl-mesa0 libgl1 libgl1-mesa-dri libgomp1 libopengl0 libcurl4t64 libusb-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
+COPY --from=cores /out/ /opt/yomikata/cores/
+ENV YOMIKATA_BUILT_CORES=/opt/yomikata/cores
 ENV EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe HOME=/scratch/home
 USER 99:100
 WORKDIR /scratch

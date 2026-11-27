@@ -108,6 +108,11 @@ WORDS = {"saturn": ((0x06000000, 0x100000, 0x100000, None), (0x00200000, 0, 0x10
          "n64": ((0x80000000, 0, 0x800000, None),),
          "md": ((0xFF0000, 0, 0x10000, None),)}       # genesis_plus_gx: the 64 KB of work RAM, no map
 WORD_SIZE = {"saturn": 2, "n64": 4, "md": 2}
+# Video memory a core keeps as words in the host's order: genesis_plus_gx (built with tools/cores'
+# genesis_plus_gx-video-ram.patch, which gives its VDP's 64 KB out) writes the VDP's VRAM a 16-bit word at a time
+# through a uint16 pointer, so on a little-endian host each word's two bytes are swapped against the console's.
+# They are put back, as the work RAM's are: a script reads a tile's bytes in the console's order.
+VIDEO_WORDS = {"md": 2}
 
 
 def _flip(raw: bytes, size: int) -> bytes:
@@ -284,6 +289,8 @@ class Machine:
             video = self._ps1_video()
         if not video and self.platform in MAPPED_VIDEO:
             video = self._paged(*MAPPED_VIDEO[self.platform]) or None
+        if video and self.platform in VIDEO_WORDS:
+            video = _flip(video, VIDEO_WORDS[self.platform])
         out = {"vram": video} if video else {}
         for _, at, length, name in WORDS.get(self.platform, ())[1:]:
             out[name] = self._words(at, length)

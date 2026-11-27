@@ -1,0 +1,2 @@
+# A patch to a libretro core applies to its source byte for byte, line ends included (Genesis-Plus-GX's are CRLF).
+tools/cores/*.patch -text

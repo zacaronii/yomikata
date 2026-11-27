@@ -792,7 +792,13 @@ claude mcp add yomikata-harness -- "$PWD/tools/scripts/harness.sh"
 ```
 
 The image is `tools/Dockerfile.harness`: the tools image with Mesa's software OpenGL and the libraries the
-Dolphin core needs. A core that needs a BIOS looks for it in `system/` under scratch, or in a folder of its own
+Dolphin core needs, and cores built with a patch of ours where the official build doesn't give out what a script
+needs (`tools/cores`, never sent upstream). Today that is one: `genesis_plus_gx_vram_libretro.so`,
+genesis_plus_gx at a pinned commit with `genesis_plus_gx-video-ram.patch`, which answers `RETRO_MEMORY_VIDEO_RAM`
+with the VDP's 64 KB (a snap then keeps a `vram` part, its words put back in the console's order). `load` takes a
+core from the cores folder first and from the image's built ones (`/opt/yomikata/cores`, or
+`YOMIKATA_BUILT_CORES`) where the folder hasn't the name. The built core has a name of its own, so a state made
+with the official build is never loaded into it, nor one of its own into the official build. Genkan's Mega Drive core carries the same patch; the two are kept the same. A core that needs a BIOS looks for it in `system/` under scratch, or in a folder of its own
 given as `YOMIKATA_SYSTEM` (mounted read-only): your own console's, never one from elsewhere. PCSX ReARMed plays
 most games without one; some show nothing until it has one.
 

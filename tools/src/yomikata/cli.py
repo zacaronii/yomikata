@@ -26,6 +26,12 @@ def romfont_forms() -> tuple:
     return FORMS
 
 
+def built_cores() -> Path | None:
+    """The cores built into the harness image (tools/Dockerfile.harness), where it has them."""
+    folder = Path(os.environ.get("YOMIKATA_BUILT_CORES", "/opt/yomikata/cores"))
+    return folder if folder.is_dir() else None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="yomikata", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -261,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
         from .harness import mcp
         from .harness.machine import Machine
         from .harness.session import Roots, Session
-        session = Session(Roots(args.games, args.cores, args.inbox, args.scratch, args.system), Machine)
+        session = Session(Roots(args.games, args.cores, args.inbox, args.scratch, args.system, built_cores()), Machine)
         session.call_seconds = max(1.0, args.call_seconds)
         session.allow_poke = args.allow_poke
         mcp.serve(session)
@@ -275,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         from .harness import play
         from .harness.machine import Machine
         from .harness.session import HarnessError, Roots, Session
-        session = Session(Roots(args.games, args.cores, args.inbox, args.scratch, args.system), Machine)
+        session = Session(Roots(args.games, args.cores, args.inbox, args.scratch, args.system, built_cores()), Machine)
         session.call_seconds = max(1.0, args.call_seconds)
         from .harness.mcp import finish
         try:
