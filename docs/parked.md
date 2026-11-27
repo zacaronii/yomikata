@@ -224,6 +224,25 @@ dictionary are on the branch `chrono-cross-reader` (unmerged, opened as a draft 
   the pad answering), `cc-v` the walkway, `cc-z` the stairwell's foot, `cc-z6` its top, `cc-z7` the gate room
   entered from there.
 
+## Sakura Taisen (Saturn, GS-9037-D1)
+
+Parked at 37 of 300 calls, for a wall in the tools, not the game. Its route: power-on, Start three times from
+frame 3600, B on the disc-1 choice, then B every 240 frames through the opening (states st-b, st-c, st-d in the
+opening's dialogue).
+
+- **How it shows text.** Each page is drawn as VDP1 sprites, one a character, from glyphs it puts in VDP1's
+  memory. Its line is in no encoding in work RAM, nor on the disc (searched in Shift-JIS and EUC-JP). What goes
+  up as a page types are the sprite list's counters (in the 2 MB dump of work RAM, the command entries near
+  0x165FF2 and 0x1661CE; per-character counters at 0x165052, 0x101FC2 and 0x168514). Its font (16x16, 1 or 4
+  bits a pixel) was found neither in work RAM nor on the disc: likely packed.
+- **The wall.** A script can read neither VDP1's memory (0x05C00000) nor VDP2's: mednafen_saturn gives the work
+  RAM (2 MB, low then high, 16-bit words) and the save RAM, no memory map, no video memory. yabasanshiro
+  wouldn't load then (it wants `libGL.so.1`, which the harness image has had since #170: worth trying again).
+- **What would take it on.** A harness region for VDP1's memory (from a core that gives it), and a glyph
+  dictionary over the sprites' glyphs (the `.glyphs` way), the sprite list giving the order. Yu-No, the next
+  Saturn game, shows what reading a Saturn proves out: whether its text keeps codes in work RAM, and whether
+  yabasanshiro now loads and what it gives.
+
 ## Tools to build when needed
 
 - **A proportional-font reader from video memory.** For a game that draws its text a character at a time into
