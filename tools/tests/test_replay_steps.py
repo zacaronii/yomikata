@@ -176,3 +176,17 @@ def test_a_core_gets_its_options_defaults_and_a_log():
     assert core._env(libretro.ENV_GET_LOG_INTERFACE, C.cast(C.pointer(where), C.c_void_p)) and where.value
     libretro.LOG_CB(where.value)(1, b"Loading %s...\n")
     assert core.log == ["Loading %s..."]
+
+
+def test_touch_answers_the_pointer_at_the_sticks_place():
+    """A DS's touch screen is libretro's pointer: while "touch" is held, it is pressed at the stick's place, -1 to 1
+    across the picture as -0x7FFF to 0x7FFF; the pad's buttons are unchanged by it."""
+    from yomikata.replay import libretro
+    core = libretro.Core.__new__(libretro.Core)
+    core.asked, core.held, core.stick = set(), {"touch", "a"}, (0.5, -0.25)
+    P = libretro.DEVICE_POINTER
+    assert core._input(0, P, 0, 2) == 1 and core._input(0, P, 0, 0) == round(0.5 * 0x7FFF)
+    assert core._input(0, P, 0, 1) == round(-0.25 * 0x7FFF)
+    assert core._input(0, libretro.DEVICE_JOYPAD, 0, libretro.JOYPAD_MASK) == 1 << libretro.JOYPAD["a"]
+    core.held = {"a"}
+    assert core._input(0, P, 0, 2) == 0 and core._input(0, P, 0, 0) == 0

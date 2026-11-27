@@ -24,7 +24,11 @@ LOG_CB = C.CFUNCTYPE(None, C.c_int, C.c_char_p)
 ENV_SET_HW_RENDER, ENV_SET_MEMORY_MAPS, ENV_GET_PREFERRED_HW_RENDER = 14, 36, 56
 HW_OPENGL, HW_OPENGL_CORE = 1, 3
 HW_FRAME = C.c_void_p(-1).value                 # the frame is in the framebuffer, not in memory
-DEVICE_JOYPAD, DEVICE_ANALOG, JOYPAD_MASK = 1, 5, 256
+DEVICE_JOYPAD, DEVICE_ANALOG, DEVICE_POINTER, JOYPAD_MASK = 1, 5, 6, 256
+# A touch screen (a DS's lower screen) answers as libretro's pointer: while the pseudo-button "touch" is held, the
+# pointer is pressed at the stick's place, -1 to 1 across the core's whole picture each way (as the pointer's
+# -0x7FFF to 0x7FFF), so a touch goes into the record of the way as a button and a place, as a push does.
+TOUCH = "touch"
 MEMORY_SYSTEM_RAM, MEMORY_VIDEO_RAM = 2, 3
 JOYPAD = {"b": 0, "y": 1, "select": 2, "start": 3, "up": 4, "down": 5, "left": 6, "right": 7,
           "a": 8, "x": 9, "l": 10, "r": 11,       # libretro RetroPad ids (PS1: a = circle, b = cross)
@@ -239,17 +243,28 @@ class Core:
         self.asked.add((port, device, index, button))
         if port != 0:
             return 0
+        if device == DEVICE_POINTER:
+            if index != 0:
+                return 0
+            touching = TOUCH in self.held
+            if button in (0, 1):                    # x, y
+                return max(-0x7FFF, min(0x7FFF, round(self.stick[button] * 0x7FFF))) if touching else 0
+            if button == 2:                         # pressed
+                return 1 if touching else 0
+            if button == 3:                         # how many pointers are down
+                return 1 if touching else 0
+            return 0
         if device == DEVICE_ANALOG:
             if index == 0 and button in (0, 1):
                 return max(-0x7FFF, min(0x7FFF, round(self.stick[button] * 0x7FFF)))
             if index == 2:                          # a button, as how far it is pressed
-                return 0x7FFF if any(JOYPAD[b] == button for b in self.held) else 0
+                return 0x7FFF if any(JOYPAD.get(b) == button for b in self.held) else 0
             return 0
         if device != DEVICE_JOYPAD:
             return 0
         if button == JOYPAD_MASK:
-            return sum(1 << JOYPAD[b] for b in self.held)
-        return 1 if any(JOYPAD[b] == button for b in self.held) else 0
+            return sum(1 << JOYPAD[b] for b in self.held if b in JOYPAD)
+        return 1 if any(JOYPAD.get(b) == button for b in self.held) else 0
 
     # --- control
     def load_game(self, path: Path) -> None:
