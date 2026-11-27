@@ -2956,6 +2956,138 @@ class Session:
             back()
         return answer({"tried": tried, "frames": machine.frames})
 
+    @tool("Walks a game's rooms one after another until something is said: maps the room it is in (explore), "
+          "walks to each door found there and pushes through it, maps the room beyond, and so on, the rooms "
+          "kept as a graph by the game's room value (`room`), fights pressed through (`fight`, with `holds`). "
+          "It stops at the first text the loaded script says (and leaves the game there, its moves in the record "
+          "of the way), or when `rooms` rooms are mapped or the call's time runs out (and leaves the game where "
+          "it began). Gives the graph (each room's doors and where they lead) and the legs from where it began to "
+          "where it stopped: given back as `legs`, they are walked again without mapping, to reach the same "
+          "place cheaply in a later call.",
+          room=("string", "where the game keeps which room it is in, hex (required)", True),
+          room_size=("integer", "bytes of room (default 1)", False),
+          x_address=("string", "where the game keeps the party's place across, hex (default: as cursor_find found)", False),
+          y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
+          step=("integer", "frames a push is held, as explore's (default 8)", False),
+          grid=("number", "as explore's", False), whole=("boolean", "as explore's", False),
+          diagonals=("boolean", "as explore's", False),
+          fight=("object", "as explore's (address, equals or differs, holds, …)", False),
+          through=("integer", "frames a door's push is held, and then waited for the room to change (default 60)", False),
+          rooms=("integer", "rooms mapped at most (default 8)", False),
+          most=("integer", "places mapped in a room at most (default 400)", False),
+          legs=("array", "legs an earlier call gave, walked again in order instead of searching: [{at, push}, …]", False))
+    def expedition(self, room: str, room_size: int = 1, x_address: str = "", y_address: str = "", size: int = 2,
+                   step: int = 8, grid: float = 0.0, whole: bool = False, diagonals: bool = False,
+                   fight: dict | None = None, through: int = 60, rooms: int = 8, most: int = 400,
+                   legs: list | None = None) -> dict:
+        machine = self._need()
+        at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
+        x_address, y_address = f"0x{at_x:X}", f"0x{at_y:X}"
+        room_at = int(str(room), 16)
+        through = max(4, min(int(through), 600))
+        fighter = self._fight_through(fight) if fight else None
+        mapping = dict(x_address=x_address, y_address=y_address, size=size, step=step, grid=grid, whole=whole,
+                       diagonals=diagonals, room=room, room_size=room_size, fight=fight)
+
+        def room_now():
+            return self._cell(room_at, room_size)
+
+        def said(events):
+            return [e["text"] for e in events if e.get("kind") == "text" and e.get("channel") != "interface"]
+
+        def push_through(push: str, events: list) -> bool:
+            """Holds the door's push, then waits for the room to change (a fight on the way pressed through)."""
+            before = room_now()
+            self._advance(through, set(push.split("+")), (0.0, 0.0), events)
+            waited = 0
+            while room_now() == before and waited < through:
+                self._advance(4, set(), (0.0, 0.0), events)
+                waited += 4
+            if fighter is not None:
+                for n, keys in fighter()[0]:
+                    self._moved(n, set(keys), (0.0, 0.0))
+            return room_now() != before
+
+        def walk(leg: dict, events: list) -> bool:
+            """To the leg's place in the room it is in, then through its door."""
+            got = self.explore(to=list(leg["at"]), near=0, most=most, **mapping)
+            if not got.get("reached"):
+                return False
+            for e in got.get("events", []):
+                events.append(e)
+            return push_through(leg["push"], events)
+
+        if legs is not None:
+            events, done = [], 0
+            for leg in legs:
+                if self._late() or not walk(leg, events):
+                    break
+                done += 1
+                if said(events):
+                    break
+            out = {"legs_walked": done, "of": len(legs), "room": room_now(), "frames": machine.frames}
+            if said(events):
+                out["said"] = said(events)[:3]
+            return out
+
+        start, route, frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
+        first = room_now()
+        graph: dict[str, dict] = {}
+        # Each room reached: its entry (the state, the record's route and frames, the legs that led there).
+        entries = {str(first): (start, route, frames, [])}
+        queue, stopped, found = [str(first)], None, None
+        while queue and not found:
+            if self._late():
+                stopped = "time"
+                break
+            if len(graph) >= max(1, min(int(rooms), 64)):
+                stopped = "rooms"
+                break
+            here = queue.pop(0)
+            state, there_route, there_frames, there_legs = entries[here]
+            machine.load_state(state)
+            machine.frames, self.route = there_frames, json.loads(json.dumps(there_route))
+            if self.reader is not None:
+                self.reader.state_loaded()
+                self.reader.take()
+            mapped = self.explore(most=most, **mapping)
+            if mapped.get("stopped") == "time":
+                stopped = "time"
+                break
+            node = graph.setdefault(here, {"entered": [mapped.get("x"), mapped.get("y")], "places": mapped["places"],
+                                           "doors": []})
+            for door in mapped.get("doors", []):
+                if self._late():
+                    stopped = "time"
+                    break
+                machine.load_state(state)
+                machine.frames, self.route = there_frames, json.loads(json.dumps(there_route))
+                if self.reader is not None:
+                    self.reader.state_loaded()
+                    self.reader.take()
+                events: list = []
+                leg = {"at": door["at"], "push": door["push"]}
+                went = walk(leg, events)
+                beyond = str(room_now()) if went else None
+                node["doors"].append({**leg, "to": beyond})
+                if went and said(events):
+                    found = {"room": beyond, "legs": there_legs + [leg], "said": said(events)[:3]}
+                    break
+                if went and beyond not in entries:
+                    entries[beyond] = (machine.save_state(), json.loads(json.dumps(self.route)), machine.frames,
+                                       there_legs + [leg])
+                    queue.append(beyond)
+        graph_out = {k: {**v, "doors": v["doors"][:MAX_ROWS]} for k, v in graph.items()}
+        if found:
+            return {"stopped": "said", **found, "rooms": graph_out, "frames": machine.frames}
+        machine.load_state(start)
+        machine.frames, self.route = frames, route
+        if self.reader is not None:
+            self.reader.state_loaded()
+            self.reader.take()
+        return {"stopped": stopped or "every door tried", "rooms": graph_out,
+                "legs": {k: v[3] for k, v in entries.items()}, "frames": machine.frames}
+
     @tool("The picture on screen with a grid over it in the game's own numbers for where the character stands, "
           "the numbers along the top and the left, and the character's own tile marked: so that a door, a "
           "person or stairs seen in the picture can be given to walk_to as a place. For a map the game keeps "

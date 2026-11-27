@@ -2803,6 +2803,52 @@ def test_things_find_finds_the_people_a_map_keeps_and_interact_tries_each(sessio
     assert kept["kept"] == 0 and machine.frames > frames                 # left after the try that was kept
 
 
+@needs_reader
+def test_expedition_walks_room_to_room_until_something_is_said_and_its_legs_walk_again(session):
+    """Four made-up rooms (a byte at 0x7F0 says which): from the first, a door west leads to a dead end and a door
+    east to a second room, whose door south leads to a third where something is said on arriving. expedition maps
+    each room, goes through each door, and stops at the saying with the legs that led there; the legs, walked
+    again from the start, reach the same room and the same saying without mapping."""
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+    walls = {1: (90, 112, 78, 82), 2: (20, 40, 60, 100), 3: (200, 220, 50, 60), 4: (150, 160, 10, 20)}
+
+    def rooms(buttons, stick):
+        m = machine.memory
+        plain(buttons, stick)
+        x, y = struct.unpack_from(">hh", m, 0x30)
+        here = m[0x7F0]
+        x0, x1, y0, y1 = walls[here]
+        if here == 1 and x > x1 and y <= 80:
+            m[0x7F0], x, y = 2, 20, 80
+        elif here == 1 and x < x0:
+            m[0x7F0], x, y = 4, 155, 15
+        elif here == 2 and y > y1:
+            m[0x7F0], x, y = 3, 210, 55
+        else:
+            x, y = max(x0, min(x, x1)), max(y0, min(y, y1))
+        struct.pack_into(">hh", m, 0x30, x, y)
+        line = "とうちゃく".encode("cp932") if m[0x7F0] == 3 else b""
+        m[0x100:0x120] = line + bytes(0x20 - len(line))
+    machine._step = rooms
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    machine.memory[0x7F0] = 1
+    machine.memory[0x100:0x120] = bytes(0x20)
+    assert session.script_try(SCRIPT, "GXXJ01.lua")["loaded"]
+    room = f"0x{BASE + 0x7F0:X}"
+    start = machine.save_state()
+    out = session.expedition(room=room, step=1, rooms=6)
+    assert out["stopped"] == "said" and out["room"] == "3" and out["said"] == ["とうちゃく"], out
+    assert [leg["push"] for leg in out["legs"]][-1] == "down" and len(out["legs"]) == 2, out
+    assert machine.memory[0x7F0] == 3
+    doors = {d["to"] for d in out["rooms"]["1"]["doors"]}
+    assert "2" in doors, out
+    machine.load_state(start)
+    session.reader.state_loaded()
+    again = session.expedition(room=room, step=1, legs=out["legs"])
+    assert again["legs_walked"] == 2 and again["room"] == 3 and again["said"] == ["とうちゃく"], again
+
+
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
     """`yomikata calls --trend`: for each game, the calls, runs and minutes from its first call to the first
     comparison by scenes that met the bar; a comparison's outcome is kept with its call (counts only)."""
