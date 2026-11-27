@@ -10,7 +10,7 @@ from ..run import MIRRORS, PLATFORM_ALIASES
 
 RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 # Consoles whose memory is big-endian, as a script reads it here.
-BIG_ENDIAN = ("gc", "wii", "saturn", "n64")
+BIG_ENDIAN = ("gc", "wii", "saturn", "n64", "md")
 # Where a core's "system RAM" isn't the console's main memory: the stretch of the core's memory map that is,
 # by its start, and others worth having beside it, as regions. mGBA gives the 32 KB in the CPU as system RAM;
 # a Game Boy Advance game's data is in the 256 KB on the board (as a snapshot of one has it, inbox.py).
@@ -24,13 +24,80 @@ JOINED = {"pce-cd": (0xD0000, 0x100000)}
 # A Game Boy's cartridge, whole: a core shows only the two banks switched in now, and a game that draws its text
 # straight from the cartridge has switched to others by the time a line stands. The file is given to scripts
 # at this address on, byte for byte (docs/script-api.md).
-CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000}
+# A Famicom's program ROM isn't in fceumm's map at all (0x8000-0xFFFF reads nothing), so its image is given the
+# same way: after its 16-byte iNES header (and a trainer), the program then the CHR. A Disk System's disk image
+# after its fwNES header, side after side. A Mega Drive's whole: genesis_plus_gx gives out no map of it.
+CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000, "fc": 0x01000000, "fds": 0x01000000, "md": 0x01000000}
+
+
+def cartridge_image(platform: str, data: bytes) -> bytes:
+    """The bytes a script finds at CARTRIDGE: a Game Boy's file as it is; a Famicom's without its iNES header and
+    trainer; a Disk System's without its fwNES header; a Mega Drive's as the console sees it (an SMD dump put back in
+    order). A file without a header is taken as it is."""
+    from ..identify import FWNES_MAGIC, INES_MAGIC
+    if platform == "fc" and data[:4] == INES_MAGIC:
+        return data[16 + (512 if data[6] & 0x04 else 0):]
+    if platform == "fds" and data[:4] == FWNES_MAGIC:
+        return data[16:]
+    if platform == "md":
+        from ..identify import md_unpack
+        return md_unpack(data)
+    return data
+def rom_reader(platform: str, data: bytes):
+    """The cartridge as a script reads it, for reading over snaps (which keep memory, not the cartridge): a
+    function of a console address and a size giving the bytes there, b"" where the cartridge isn't. For the
+    consoles in CARTRIDGE, the image at that address. A Super Famicom's as docs/script-api.md promises a script:
+    a HiROM cartridge at 0xC00000 on, byte for byte, and no more (not its mirrors, which a host may not give
+    truly, nor a LoROM cartridge, which isn't dependable yet), so that what reads over a snap reads in play.
+    None for a console it doesn't cover."""
+    platform = PLATFORM_ALIASES.get(platform, platform)
+    if platform in CARTRIDGE:
+        image, start = cartridge_image(platform, data), CARTRIDGE[platform]
+    elif platform == "sfc":
+        from ..identify import DiscError, sfc_layout
+        try:
+            image, _, hirom = sfc_layout(data)
+        except DiscError:
+            return None
+        if not hirom:
+            return None
+        image, start = image[:0x400000], 0xC00000
+    else:
+        return None
+
+    def read(address: int, size: int) -> bytes:
+        at = address - start
+        return image[at:at + size] if 0 <= at < len(image) else b""
+    return read
+
+
+def with_rom(read, rom):
+    """A read over a snap's memory that answers from the cartridge (rom_reader) where the memory has nothing."""
+    if rom is None:
+        return read
+
+    def both(address: int, size: int) -> bytes:
+        return read(address, size) or rom(address, size)
+    return both
+
+
 # A Game Boy's I/O registers and high RAM (0xFF00-0xFFFF), where the core maps them (mGBA does): the LCD's
 # registers say what the screen shows (LCDC at 0xFF40: the window on or off, which map; WY and WX at 0xFF4A
 # where it is), which the game's copy of the screen in work RAM doesn't. Read through the core's map, and kept
 # in a snap as the region `io`, answering at its own addresses there too (docs/script-api.md).
 IO = {"gb": (0xFF00, 0x100), "gbc": (0xFF00, 0x100)}
+# A Game Boy Advance's sprite table (OAM: 128 sprites, 8 bytes each), where a game that draws each character as a
+# sprite of its own places them (Ougon no Taiyou); a stretch of the core's map, kept in a snap as the region
+# `oam`. Its video memory, the region `vram` already, answers at the console's address over a snap as well.
+SPRITE_TABLE = {"gba": (0x07000000, 0x400)}
+VIDEO_AT = {"gba": 0x06000000}
 IO_REGISTERS = 0x80                     # the I/O registers' part of it, without which the region isn't kept
+# Stretches a core maps in pages, read whole across them and kept as a region: fceumm gives 0x6000-0x7FFF in
+# 1 KB pages, a cartridge's work RAM on a Famicom and the first 8 KB of the Disk System's 32 KB (its 0x8000-
+# 0xDFFF it doesn't give). And the Famicom's video memory, which the core doesn't give out as such: its two
+# nametables (the screen's tiles, 2 KB) where its map puts them, at an address of the core's own.
+PAGED = {"fc": {"wram": (0x6000, 0x2000)}, "fds": {"wram": (0x6000, 0x2000)}}
+MAPPED_VIDEO = {"fc": (0x80002000, 0x800), "fds": (0x80002000, 0x800)}
 # A core whose "system RAM" is more than one of the console's stretches, kept as 16-bit words in the host's
 # order: mednafen_saturn gives the Saturn's work RAM so, the low 1 MB (0x00200000) and then the high 1 MB
 # (0x06000000), each pair of bytes swapped; mupen64plus_next gives the N64's RDRAM (8 MB, 0x80000000 on) as
@@ -38,8 +105,9 @@ IO_REGISTERS = 0x80                     # the I/O registers' part of it, without
 # order (big-endian): the first stretch as main memory, the others as regions ("lwram" on a Saturn). Each
 # entry: the console's address, where it starts in the core's system RAM, its length, its region's name.
 WORDS = {"saturn": ((0x06000000, 0x100000, 0x100000, None), (0x00200000, 0, 0x100000, "lwram")),
-         "n64": ((0x80000000, 0, 0x800000, None),)}
-WORD_SIZE = {"saturn": 2, "n64": 4}
+         "n64": ((0x80000000, 0, 0x800000, None),),
+         "md": ((0xFF0000, 0, 0x10000, None),)}       # genesis_plus_gx: the 64 KB of work RAM, no map
+WORD_SIZE = {"saturn": 2, "n64": 4, "md": 2}
 
 
 def _flip(raw: bytes, size: int) -> bytes:
@@ -56,6 +124,11 @@ def region_starts(platform: str) -> dict[str, int]:
     out.update({name: start for start, _, _, name in WORDS.get(platform, ())[1:]})
     if platform in IO:
         out["io"] = IO[platform][0]
+    if platform in SPRITE_TABLE:
+        out["oam"] = SPRITE_TABLE[platform][0]
+    if platform in VIDEO_AT:
+        out["vram"] = VIDEO_AT[platform]
+    out.update({name: start for name, (start, _) in PAGED.get(platform, {}).items()})
     return out
 
 
@@ -70,6 +143,25 @@ def stretch(maps: list[tuple[int, int, int]], start: int) -> tuple[int, int, int
 WARM_UP = 300
 
 
+# The game's own screen inside a bigger picture, where the core's size for it can't be gone by: a Game Boy game
+# with a Super Game Boy border is 160x144 in the middle of 256x224.
+GAME_SCREEN = {"gb": (160, 144), "gbc": (160, 144)}
+
+
+def game_screen(frame, size):
+    """The part of `frame` the game itself draws: `size` (width, height) in its middle, where the frame is bigger
+    in a way a border makes it. A frame the size's whole multiple each way (a picture drawn twice as big), not
+    bigger, or no size known, is all of it."""
+    if frame is None or not size:
+        return frame
+    height, width = frame.shape[:2]
+    w, h = size
+    if not (0 < w <= width and 0 < h <= height) or (width % w == 0 and height % h == 0):
+        return frame
+    x, y = (width - w) // 2, (height - h) // 2
+    return frame[y:y + h, x:x + w]
+
+
 class Machine:
     """A core with a game loaded. `platform` is the catalog's name for the console."""
 
@@ -78,7 +170,10 @@ class Machine:
         self.platform = PLATFORM_ALIASES.get(platform, platform)
         self.core = Core(core_path, system_dir, options)
         self.core.load_game(game)
-        self.cartridge = Path(game).read_bytes() if self.platform in CARTRIDGE else b""
+        data = Path(game).read_bytes() if self.platform in CARTRIDGE or self.platform == "sfc" else b""
+        self.cartridge = cartridge_image(self.platform, data) if self.platform in CARTRIDGE else b""
+        # The cartridge for reading over snaps of this game (compare): they keep memory, not the cartridge.
+        self.rom = rom_reader(self.platform, data) if data else None
         self.frames = 0
         # A core that draws with the card can't be loaded a second time in one process: the second load never
         # comes back (seen with Dolphin).
@@ -94,6 +189,11 @@ class Machine:
 
     def picture(self):
         return self.core.frame_rgb()
+
+    def screen(self):
+        """The game's own screen: the picture without a border around it (a Super Game Boy's), by the
+        platform's size for it or the core's."""
+        return game_screen(self.picture(), GAME_SCREEN.get(self.platform) or getattr(self.core, "base", None))
 
     def ram(self) -> tuple[int, bytes]:
         """Main memory: the address of its first byte, and its bytes."""
@@ -182,6 +282,8 @@ class Machine:
         video = self.core.video_ram()
         if not video and self.platform == "ps1":
             video = self._ps1_video()
+        if not video and self.platform in MAPPED_VIDEO:
+            video = self._paged(*MAPPED_VIDEO[self.platform]) or None
         out = {"vram": video} if video else {}
         for _, at, length, name in WORDS.get(self.platform, ())[1:]:
             out[name] = self._words(at, length)
@@ -203,7 +305,27 @@ class Machine:
                 at += len(piece)
             if len(io) >= IO_REGISTERS:             # the registers at least
                 out["io"] = bytes(io) + bytes(length - len(io))
+        for name, (start, length) in PAGED.get(self.platform, {}).items():
+            data = self._paged(start, length)
+            if len(data) == length:
+                out[name] = data
+        if self.platform in SPRITE_TABLE:
+            start, length = SPRITE_TABLE[self.platform]
+            table = stretch(self.core.maps, start)
+            if table and table[1] >= length:
+                out["oam"] = C.string_at(table[2], length)
         return out
+
+    def _paged(self, start: int, length: int) -> bytes:
+        """`length` bytes from `start` through the core's map, a page at a time; as many as it gives."""
+        out, at = bytearray(), start
+        while len(out) < length:
+            piece = self.read(at, length - len(out))
+            if not piece:
+                break
+            out += piece
+            at += len(piece)
+        return bytes(out)
 
     def _ps1_video(self) -> bytes | None:
         """A PlayStation core gives out no video memory, but its savestate holds it (vram.py): 1024x512 16-bit

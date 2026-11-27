@@ -190,11 +190,13 @@ def identify_gb(head: bytes) -> Release:
 SFC_SUFFIXES = (".sfc", ".smc", ".swc", ".fig")
 
 
-def sfc_header(rom: bytes) -> bytes:
-    """The 48 header bytes of a Super Famicom image (bus addresses 0xFFB0-0xFFDF), by the rule in docs/format.md."""
+def sfc_layout(rom: bytes) -> tuple[bytes, bytes, bool]:
+    """A Super Famicom image without a copier's header, its 48 header bytes (bus addresses 0xFFB0-0xFFDF) and
+    whether it is laid out HiROM (its header at 0xFFB0 in the file) or LoROM (at 0x7FB0), by the rule in
+    docs/format.md."""
     if len(rom) % 0x8000 == 512:                                        # a copier's own header comes first
         rom = rom[512:]
-    best, best_score = b"", -1
+    best, best_score, best_hirom = b"", -1, False
     for offset, hirom in ((0x7FB0, 0), (0xFFB0, 1)):
         h = rom[offset:offset + 0x30]
         if len(h) < 0x30:
@@ -202,10 +204,15 @@ def sfc_header(rom: bytes) -> bytes:
         complement, checksum = struct.unpack("<HH", h[0x2C:0x30])
         score = 2 * (complement ^ checksum == 0xFFFF) + ((h[0x25] & 1) == hirom)
         if score > best_score:                                          # on a tie, the first (0x7FB0)
-            best, best_score = h, score
+            best, best_score, best_hirom = h, score, bool(hirom)
     if not best:
         raise DiscError("too short for a Super Famicom image")
-    return best
+    return rom, best, best_hirom
+
+
+def sfc_header(rom: bytes) -> bytes:
+    """The 48 header bytes of a Super Famicom image (bus addresses 0xFFB0-0xFFDF), by the rule in docs/format.md."""
+    return sfc_layout(rom)[1]
 
 
 def identify_sfc(rom: bytes) -> Release:
@@ -249,10 +256,90 @@ def identify_hucard(rom: bytes) -> Release:
     return Release("pce", f"PCE-{crc.upper()}", header_crc32=crc)
 
 
+INES_MAGIC, FWNES_MAGIC, FDS_SIDE = b"NES\x1a", b"FDS\x1a", 65500
+FDS_BLOCK1 = b"\x01*NINTENDO-HVC*"
+
+
+def identify_nes(rom: bytes) -> Release:
+    """A Famicom (NES) cartridge: "FC-" and the CRC-32 of its PRG and CHR ROM, as No-Intro counts it: without
+    the 16-byte iNES or NES 2.0 header, and without the 512-byte trainer a header may say is there. A file
+    with no header is taken as PRG and CHR already, so every header variant of one dump gives one id."""
+    if rom[:4] == INES_MAGIC:
+        rom = rom[16 + (512 if rom[6] & 0x04 else 0):]
+    crc = f"{zlib.crc32(rom):08x}"
+    return Release("fc", f"FC-{crc.upper()}", header_crc32=crc)
+
+
+def identify_fds(disk: bytes) -> Release:
+    """A Famicom Disk System disk, by the disk-info block that begins each side: "FDS-", the maker's code (two
+    hex digits) and the game's name code (four characters, ones not A-Z or 0-9 as "-", spaces at the end left
+    out); for the second disk of a set or later, "-D" and its number from 1 (the first disk has none). The build
+    is the id and the revision as two hex digits, header_crc32 the CRC-32 of the first side's info block (56
+    bytes). A file with the 16-byte fwNES header and one without give the same release."""
+    if disk[:4] == FWNES_MAGIC:
+        disk = disk[16:]
+    if disk[:15] != FDS_BLOCK1:
+        raise ValueError("not a Famicom Disk System image: its first side has no disk-info block")
+    block = disk[:0x38]
+    maker, name, revision, number = block[0x0F], block[0x10:0x14], block[0x15], block[0x17]
+    code = re.sub(r"[^A-Z0-9]", "-", name.decode("ascii", "replace").rstrip(" ")) or "----"
+    ident = f"FDS-{maker:02X}{code}" + (f"-D{number + 1}" if number else "")
+    return Release("fds", ident, header_crc32=f"{zlib.crc32(block):08x}", build=f"{ident}-{revision:02X}")
+
+
+MD_SUFFIXES = (".md", ".gen", ".smd", ".bin")
+SMD_BLOCK = 0x4000
+
+
+def md_unpack(data: bytes) -> bytes:
+    """A Mega Drive image as the console sees it: an SMD dump (a 512-byte header, then 16 KB blocks, each the odd
+    bytes' 8 KB and then the even bytes') put back in order; any other image as it is."""
+    if len(data) % SMD_BLOCK == 0x200 and data[0x300:0x304] != b"SEGA":
+        body, out = data[0x200:], bytearray()
+        for at in range(0, len(body) - SMD_BLOCK + 1, SMD_BLOCK):
+            block = body[at:at + SMD_BLOCK]
+            pairs = bytearray(SMD_BLOCK)
+            pairs[0::2], pairs[1::2] = block[SMD_BLOCK // 2:], block[:SMD_BLOCK // 2]
+            out += pairs
+        return bytes(out)
+    return data
+
+
+def is_md(head: bytes) -> bool:
+    """Whether an image's first bytes are a Mega Drive cartridge's ("SEGA" at 0x100, as "SEGA MEGA DRIVE" or
+    "SEGA GENESIS" begin), an SMD dump's once put back in order too."""
+    return head[0x100:0x104] == b"SEGA" or md_unpack(head + bytes(-len(head) % SMD_BLOCK))[0x100:0x104] == b"SEGA"
+
+
+def identify_md(data: bytes) -> Release:
+    """A Mega Drive cartridge: its header at 0x100 ("SEGA MEGA DRIVE" or "SEGA GENESIS"). The id is the serial of
+    the product code at 0x180 ("GM G-5512   00": the kind, the serial, the revision at 0x18C), as the console's
+    discs are named; a header without one gives "MD-" and the CRC-32 of the whole ROM. The build is the id and the
+    revision; header_crc32 the ROM's CRC-32. An SMD dump is put back in order first."""
+    rom = md_unpack(data)
+    if rom[0x100:0x104] != b"SEGA":
+        raise ValueError("not a Mega Drive cartridge: no SEGA header at 0x100")
+    crc = f"{zlib.crc32(rom):08x}"
+    code = rom[0x180:0x18E].decode("ascii", "replace")
+    serial = re.sub(r"[^A-Z0-9-]", "", code[3:12].strip().upper().replace(" ", "-")).strip("-")
+    revision = re.sub(r"[^A-Z0-9]", "", code[12:14].upper()) or "00"
+    if re.fullmatch(r"[A-Z0-9][A-Z0-9-]{3,19}", serial):
+        return Release("md", serial, header_crc32=crc, build=f"{serial}-{revision}")
+    ident = f"MD-{crc.upper()}"
+    return Release("md", ident, header_crc32=crc, build=ident)
+
+
 def identify(path: Path, scratch: Path | None = None) -> Release:
     path = Path(path)
     if _cart_name(path).lower().endswith(".pce"):
         return identify_hucard(_cart_bytes(path, 0x800000))
+    if _cart_name(path).lower().endswith(".nes"):
+        return identify_nes(_cart_bytes(path, 0x1000000))
+    if _cart_name(path).lower().endswith(".fds"):
+        return identify_fds(_cart_bytes(path, 16 + 0x38))
+    name = _cart_name(path).lower()
+    if name.endswith(MD_SUFFIXES) and (not name.endswith(".bin") or is_md(_cart_bytes(path, 0x4400))):
+        return identify_md(_cart_bytes(path, 0x1000000))
     if path.suffix.lower() in (".rvz", ".wia", ".gcm", ".iso"):
         with open(path, "rb") as f:
             head = f.read(0xD8)

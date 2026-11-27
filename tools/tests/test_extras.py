@@ -121,6 +121,99 @@ def test_snapshots_of_saturn_pce_cd_dreamcast_and_wii_with_their_region_parts(tm
         assert r.status_code == 200, (platform, r.json())
 
 
+def test_snapshots_of_the_n64_at_its_8_mb_and_the_uncached_mirror(tmp_path):
+    """Genkan's N64 core sends n64 snapshots: 8 MB of RAM at 0x80000000, in the console's byte order. One that
+    size is kept as sent (bytes in that order, not swapped); one larger, or outside RAM and its uncached mirror at
+    0xA0000000, is refused; a sample is taken at either."""
+    c = TestClient(create_app("secret", tmp_path / "data"))
+
+    def post(base, ram):
+        meta = {"id": "NUS-NAFJ", "platform": "n64", "base_address": base, "ocr": ["こんにちは"]}
+        return c.post("/api/snapshots", data={"meta": json.dumps(meta)}, headers=AUTH, files={"ram": ("ram", ram)})
+    ram = b"\x80\x37\x12\x40" + os.urandom(4092) + bytes(0x800000 - 4096)       # a word as the console holds it
+    r = post("0x80000000", gzip.compress(ram, 1))
+    assert r.status_code == 200, r.json()
+    kept = tmp_path / "data/snapshots/n64/NUS-NAFJ" / f"{r.json()['sha1']}.ram.gz"
+    assert gzip.decompress(kept.read_bytes()) == ram
+    assert post("0x80000000", os.urandom(0x800001)).status_code == 400
+    assert post("0x80800000", os.urandom(16)).status_code == 400
+    for address in ("0x80400000", "0xA0400000"):
+        r = c.post("/api/samples", json={"id": "NUS-NAFJ", "platform": "n64",
+                                         "samples": [{"ocr": "こんにちは", "bytes_hex": "82b182f182c982bf82cd",
+                                                      "address": address}]}, headers=AUTH)
+        assert r.status_code == 200, (address, r.json())
+    r = c.post("/api/samples", json={"id": "NUS-NAFJ", "platform": "n64",
+                                     "samples": [{"ocr": "こんにちは", "bytes_hex": "82b1", "address": "0x90000000"}]},
+               headers=AUTH)
+    assert r.status_code == 400 and "outside n64 main RAM" in r.json()["detail"]
+
+
+def test_snapshots_of_the_famicom_and_its_disk_system_with_their_work_ram(tmp_path):
+    """fc and fds snapshots: the 2 KB at 0x0000, and the work RAM at 0x6000 as the part `wram` (8 KB on a
+    cartridge, up to the Disk System's 32 KB); samples in the 2 KB, its mirrors and the work RAM are taken, others
+    refused."""
+    c = TestClient(create_app("secret", tmp_path / "data"))
+
+    def post(game, platform, ram, **parts):
+        meta = {"id": game, "platform": platform, "base_address": "0x0000", "ocr": ["こんにちは"]}
+        files = {"ram": ("ram", ram), **{k: (k, v) for k, v in parts.items()}}
+        return c.post("/api/snapshots", data={"meta": json.dumps(meta)}, headers=AUTH, files=files)
+    for game, platform, wram in (("FC-12345678", "fc", 0x2000), ("FDS-01ZEL", "fds", 0x8000)):
+        r = post(game, platform, os.urandom(0x800), wram=os.urandom(wram), vram=os.urandom(0x800))
+        assert r.status_code == 200 and r.json()["parts"] == ["ram", "vram", "wram"], (platform, r.json())
+        r = post(game, platform, os.urandom(0x800), wram=os.urandom(wram + 1))
+        assert r.status_code == 400 and r.json()["detail"].startswith(f"wram is larger than {platform}'s"), r.json()
+        assert post(game, platform, os.urandom(0x801)).status_code == 400
+
+    def sample(game, platform, address):
+        return c.post("/api/samples", json={"id": game, "platform": platform, "samples": [
+            {"ocr": "こんにちは", "bytes_hex": "82b182f182c982bf82cd", "address": address}]}, headers=AUTH)
+    for address in ("0x0300", "0x1300", "0x6100"):
+        assert sample("FC-12345678", "fc", address).status_code == 200, address
+    assert sample("FDS-01ZEL", "fds", "0xC000").status_code == 200
+    assert sample("FC-12345678", "fc", "0xC000").status_code == 400                 # the cartridge's ROM
+
+
+def test_snapshots_of_the_mega_drive_and_its_alias_genesis(tmp_path):
+    """md snapshots: the 64 KB of work RAM at 0xFF0000, as `genesis` too (RomM's name); samples in it taken, ones
+    in the cartridge refused."""
+    c = TestClient(create_app("secret", tmp_path / "data"))
+
+    def post(platform, ram):
+        meta = {"id": "G-5512", "platform": platform, "base_address": "0xFF0000", "ocr": ["こんにちは"]}
+        return c.post("/api/snapshots", data={"meta": json.dumps(meta)}, headers=AUTH, files={"ram": ("ram", ram)})
+    for platform in ("md", "genesis"):
+        r = post(platform, os.urandom(0x10000))
+        assert r.status_code == 200 and r.json()["parts"] == ["ram"], (platform, r.json())
+    assert post("md", os.urandom(0x10001)).status_code == 400
+
+    def sample(address):
+        return c.post("/api/samples", json={"id": "G-5512", "platform": "genesis", "samples": [
+            {"ocr": "こんにちは", "bytes_hex": "82b182f182c982bf82cd", "address": address}]}, headers=AUTH)
+    assert sample("0xFF1000").status_code == 200
+    assert sample("0x001000").status_code == 400                                      # the cartridge
+
+
+def test_snapshots_of_a_pc_engine_hucard(tmp_path):
+    """pce snapshots (a HuCard): the console's 8 KB at 0x1F0000, and its video memory; samples there taken, ones
+    in the HuCard's ROM refused."""
+    c = TestClient(create_app("secret", tmp_path / "data"))
+
+    def post(ram, **parts):
+        meta = {"id": "PCE-D9E1549A", "platform": "pce", "base_address": "0x1F0000", "ocr": ["こんにちは"]}
+        files = {"ram": ("ram", ram), **{k: (k, v) for k, v in parts.items()}}
+        return c.post("/api/snapshots", data={"meta": json.dumps(meta)}, headers=AUTH, files=files)
+    r = post(os.urandom(0x2000), vram=os.urandom(0x10000))
+    assert r.status_code == 200 and r.json()["parts"] == ["ram", "vram"], r.json()
+    assert post(os.urandom(0x2001)).status_code == 400
+
+    def sample(address):
+        return c.post("/api/samples", json={"id": "PCE-D9E1549A", "platform": "pce", "samples": [
+            {"ocr": "こんにちは", "bytes_hex": "82b182f182c982bf82cd", "address": address}]}, headers=AUTH)
+    assert sample("0x1F0100").status_code == 200
+    assert sample("0x0E0000").status_code == 400                                      # the HuCard's ROM
+
+
 def test_offline_reads_take_a_snapshots_regions_but_not_its_savestate(tmp_path):
     """yomikata run's regions beside a snapshot: lwram and the like, not the savestate kept with it."""
     from yomikata.run import _regions

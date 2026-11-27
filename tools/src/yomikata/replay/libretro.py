@@ -15,6 +15,7 @@ from pathlib import Path
 ENV_GET_OVERSCAN, ENV_GET_CAN_DUPE, ENV_SET_PIXEL_FORMAT = 2, 3, 10
 ENV_GET_SYSTEM_DIRECTORY, ENV_GET_VARIABLE, ENV_GET_VARIABLE_UPDATE = 9, 15, 17
 ENV_GET_SAVE_DIRECTORY = 31
+ENV_SET_GEOMETRY = 37
 ENV_SET_VARIABLES = 16
 ENV_GET_LOG_INTERFACE = 27
 # A core's log function: printf-like, (level, format, ...). The arguments after the format aren't read: the
@@ -43,6 +44,11 @@ class SystemAvInfo(C.Structure):
     _fields_ = [("base_width", C.c_uint), ("base_height", C.c_uint), ("max_width", C.c_uint),
                 ("max_height", C.c_uint), ("aspect_ratio", C.c_float), ("fps", C.c_double),
                 ("sample_rate", C.c_double)]
+
+
+class GameGeometry(C.Structure):
+    _fields_ = [("base_width", C.c_uint), ("base_height", C.c_uint), ("max_width", C.c_uint),
+                ("max_height", C.c_uint), ("aspect_ratio", C.c_float)]
 
 
 class Variable(C.Structure):
@@ -121,6 +127,7 @@ class Core:
         self.frame: tuple[bytes, int, int, int] | None = None
         self.pixel_format = 0
         self.fps = 60.0
+        self.base: tuple[int, int] | None = None            # the game's own picture's size, as the core says it
         self.log: list[str] = []                             # what the core has logged (formats only), the last 200
         self._defaults: dict[bytes, bytes] = {}             # each option's default, as the core declared it
         self._cbs = [ENV_CB(self._env), VIDEO_CB(self._video), AUDIO_CB(lambda l, r: None),
@@ -149,6 +156,11 @@ class Core:
         cmd &= 0xFFFF
         if cmd in (ENV_GET_SYSTEM_DIRECTORY, ENV_GET_SAVE_DIRECTORY):
             C.cast(data, C.POINTER(C.c_char_p))[0] = self.system_dir
+            return True
+        if cmd == ENV_SET_GEOMETRY:                    # the game's picture changed its size (a border came)
+            geometry = C.cast(data, C.POINTER(GameGeometry))[0]
+            if geometry.base_width and geometry.base_height:
+                self.base = (geometry.base_width, geometry.base_height)
             return True
         if cmd == ENV_SET_PIXEL_FORMAT:
             self.pixel_format = C.cast(data, C.POINTER(C.c_int))[0]
@@ -253,6 +265,8 @@ class Core:
         av = SystemAvInfo()
         self.lib.retro_get_system_av_info(C.byref(av))
         self.fps = av.fps
+        if av.base_width and av.base_height:
+            self.base = (av.base_width, av.base_height)
         self.lib.retro_set_controller_port_device(0, DEVICE_JOYPAD)
         if getattr(self, "hw", None) is not None:
             self.gl.make_framebuffer(max(av.max_width, av.base_width, 640), max(av.max_height, av.base_height, 480))

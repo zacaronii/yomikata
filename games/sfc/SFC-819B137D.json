@@ -1,0 +1,29 @@
+{
+ "id": "SFC-819B137D",
+ "platform": "sfc",
+ "title": "真・女神転生II",
+ "title_romaji": "Shin Megami Tensei II",
+ "versions": [
+  {
+   "header_crc32": "819b137d",
+   "note": "the cartridge DIGITAL DEVIL STORY 2"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/sfc/SFC-819B137D.tbl"
+ ],
+ "unit": 2,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on bsnes (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
+  "From Shin Megami Tensei (games/sfc/SFC-56A9AAB6.lua): the font's numbering (hiragana from 0x25 in the order of the fifty sounds, digits and capitals) and its rules.",
+  "Not carried: its way of reading (a list of writes to video memory, not kept here), its header, its voicing marks (here flag bits of the number), and its table; katakana stand one number earlier",
+  "Found in play: the script lies packed in the cartridge and no page stands anywhere; in snaps every frame through a page's typing, the number of the character just drawn (0x7E0504), where it was drawn (0x7E0808) and its row (0x7E0818). The script follows the typing, a character at a time",
+  "The table: the small kana and katakana's place by the font's plan; the signs and 46 kanji read in play, the number of each character drawn beside the picture of its page",
+  "Played from a new game through the wake-up talk, a day of rest and its save, and going out refused: two stretches, each replayed from a state with the script loaded",
+  "What the script said agreed with the rows read off 31 of 31 pictures, over 3 scenes (30 wholly; one lost a repeated sign, 90%). No screen without text was among them",
+  "The kanji and signs were read off the same pictures the comparison holds the script to"
+ ],
+ "notes": "Read by the script games/sfc/SFC-819B137D.lua: the message window's page, followed as it types, said once nothing has been added for half a second. A repeated character can still be missed now and then. Not read: menus and status boxes (drawn at other places), choices' answers, fights' messages. Kanji not met in play come out as U+FFFD."
+}

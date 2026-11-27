@@ -1,0 +1,30 @@
+{
+ "id": "SHVC-AMXJ",
+ "platform": "sfc",
+ "title": "真・女神転生if...",
+ "title_romaji": "Shin Megami Tensei if...",
+ "versions": [
+  {
+   "header_crc32": "91ae6c0b",
+   "note": "the Japanese cartridge (DIGITAL DEVIL STORY X, checksum 0x259E)"
+  }
+ ],
+ "encoding": "compressed",
+ "tables": [
+  "tables/sfc/SHVC-AMXJ.tbl"
+ ],
+ "unit": 2,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on bsnes-mercury (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
+  "Shin Megami Tensei II's script doesn't carry: no code of a character drawn stands in work RAM, frame by frame (snaps of every frame over a page typing). What stands is the message window's picture, at 0x7E2900, 24 tiles across, 2 bits a pixel",
+  "The font was found in the cartridge with rom-font --find on a picture cut out of that window: 12x12, a glyph to 36 bytes from 0x78001, numbered as Shin Megami Tensei's font (code = glyph + 0x0D); the game draws a glyph's columns 3-14, proportionally",
+  "From the font: digits, letters and kana by its order (the fifty sounds), none read by eye; the voiced kana composed with their mark as the game draws it (held against じ and ぼ on screen)",
+  "Read in play: 14 signs and 112 kanji, each against the picture of its page; a kanji cut apart by a gap inside it found as the one glyph whose picture begins and ends with the pieces",
+  "Played from the fortune-teller's questions through the dream to the classroom and the corridor: one stretch from a state with the script loaded, its pages in three scenes",
+  "What the script said agreed with the rows read off 37 of 37 pictures (9, 8 and 20); 1 page said inside a press has no picture. No screen without text was among them",
+  "The kanji's readings came from the same pages, so the comparison checks the cutting, the pages and their order more than the kanji; one kanji (願) was added after run 1, and run 1's record of that page made to match: the reader doesn't change play, and run 2 then said the same pages",
+  "48 harness calls in all (by the record), none failed; the tools it needed (lib/cells.lua, rom-font --glyphs) are #220"
+ ],
+ "notes": "Read by the script games/sfc/SHVC-AMXJ.lua off the message window's pixels: each glyph known by its picture in games/sfc/SHVC-AMXJ.glyphs (the cartridge's font with tables/sfc/SHVC-AMXJ.tbl's characters), a page said once the window stands. Not read: menus and choices, the name entry, fights, the screens before the story; who speaks only where the game writes it into the text. Kanji not met in play come out as U+FFFD and are logged for yomikata unread. Names chosen in play come out as typed."
+}

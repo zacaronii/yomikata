@@ -22,6 +22,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "AGB-AE7J": {
+   "path": "games/gba/AGB-AE7J.json",
+   "sha256": "b443f333f1a4d9b8be375c3291d2bd2029f5b8b567921484b8476c08ea5f9919",
+   "platform": "gba",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "AGB-AFEJ": {
    "path": "games/gba/AGB-AFEJ.json",
    "sha256": "f003bcbbc3a87965ec8807feef51b3870d9e2ef445f2abf62be9e151e7a3b5cc",
@@ -29,11 +36,25 @@
    "encoding": "shift_jis",
    "status": "partial"
   },
+  "AGB-AGSJ": {
+   "path": "games/gba/AGB-AGSJ.json",
+   "sha256": "35d2c6931cb194cebfc6ce2aa1428b710272a69f3c15f1950191d65974a4b803",
+   "platform": "gba",
+   "encoding": "compressed",
+   "status": "partial"
+  },
   "AGB-ASBJ": {
    "path": "games/gba/AGB-ASBJ.json",
    "sha256": "ac9bc21808950dcd5c852966c2ce9259e0324d59b9dfb6c0df2f09d2cb0d0491",
    "platform": "gba",
    "encoding": "table",
+   "status": "partial"
+  },
+  "AGB-BE8J": {
+   "path": "games/gba/AGB-BE8J.json",
+   "sha256": "7ab5f31ae181f335014519f103c793e5371c25209f675ac5402f143a0a106c10",
+   "platform": "gba",
+   "encoding": "shift_jis",
    "status": "partial"
   },
   "CGB-AAUJ": {
@@ -64,6 +85,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "FC-20CC079D": {
+   "path": "games/fc/FC-20CC079D.json",
+   "sha256": "eaeec44b4af93659063fdd9d3f876f7e9696874deb7304f40466ca11f6302231",
+   "platform": "fc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "G8MJ01": {
    "path": "games/gc/G8MJ01.json",
    "sha256": "0a0b5ced378fa1085a750324ae1bea4e26c36a3558566f5faad6802ba3dab3db",
@@ -78,9 +106,23 @@
    "encoding": "table",
    "status": "partial"
   },
+  "GB-65EF364B": {
+   "path": "games/gb/GB-65EF364B.json",
+   "sha256": "c34d5ce4266d80339509b2e5d3a431ce20577004c5025e34b888c9c247bc58e0",
+   "platform": "gb",
+   "encoding": "table",
+   "status": "partial"
+  },
   "GB-7F805941": {
    "path": "games/gb/GB-7F805941.json",
    "sha256": "4aea0fe41f14d03fcb426a8ade727fbb4334509bb089b9fcdaf3e6ae7c3e6982",
+   "platform": "gb",
+   "encoding": "table",
+   "status": "partial"
+  },
+  "GB-923D46DD": {
+   "path": "games/gb/GB-923D46DD.json",
+   "sha256": "370e72dd3fb05fad5c7e2d93c8efe8173637449a89597e19dd0dc55cc776d80f",
    "platform": "gb",
    "encoding": "table",
    "status": "partial"
@@ -125,6 +167,13 @@
    "sha256": "cd54991e4c7d9c6d461886563733f833c2fa2ee2797ed4365c3af9532cc4e344",
    "platform": "n64",
    "encoding": "table",
+   "status": "partial"
+  },
+  "PCE-D9E1549A": {
+   "path": "games/pce/PCE-D9E1549A.json",
+   "sha256": "9dd044a3ca99a130da8c96f2021a60c7498ffb2b6ecdd11e73b9534e2d8eeda1",
+   "platform": "pce",
+   "encoding": "unknown",
    "status": "partial"
   },
   "PCECD-92261ECE": {
@@ -237,6 +286,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "SFC-819B137D": {
+   "path": "games/sfc/SFC-819B137D.json",
+   "sha256": "d48354d144066d931f7d56d9d418f83d799a14ca6d11583c07cc510fb665c332",
+   "platform": "sfc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "SFC-A07624CD": {
    "path": "games/sfc/SFC-A07624CD.json",
    "sha256": "8a5d2ce176fee4c926b35aa55d82e9545431406e308df5aca2b0fc6e513d25db",
@@ -256,6 +312,20 @@
    "sha256": "ab0b5807c447edd9bcc210b849c3a150d87ed3fa4f29a49133007eaea9e06c53",
    "platform": "sfc",
    "encoding": "table",
+   "status": "partial"
+  },
+  "SHVC-AMXJ": {
+   "path": "games/sfc/SHVC-AMXJ.json",
+   "sha256": "65197d0a8365fb7109815880714738cb771ae5106bc3f5c4b9de2d64050d0bca",
+   "platform": "sfc",
+   "encoding": "compressed",
+   "status": "partial"
+  },
+  "SHVC-ATVJ": {
+   "path": "games/sfc/SHVC-ATVJ.json",
+   "sha256": "76493de591310bab9ce9f0741008dda9c2534ab350b21c34ca08f1d0926723d0",
+   "platform": "sfc",
+   "encoding": "compressed",
    "status": "partial"
   },
   "SHVC-MB": {
@@ -376,6 +446,13 @@
    "sha256": "cb63ebff43f71b0df9550f768f8a2cd016d578975bfbe6655f428e84d5dac53e",
    "platform": "ps1",
    "encoding": "table",
+   "status": "partial"
+  },
+  "SLPM-86379": {
+   "path": "games/ps1/SLPM-86379.json",
+   "sha256": "f1488a24942e4e1ff16404accaccc0946162be69141644f5860124c2e4b4c63d",
+   "platform": "ps1",
+   "encoding": "compressed",
    "status": "partial"
   },
   "SLPM-86500": {
@@ -578,6 +655,13 @@
    "sha256": "6ab450204f082ab65135dc55a22dd4b95e08ff58c939be9079fbb5cdac072293",
    "platform": "ps1",
    "encoding": "table",
+   "status": "partial"
+  },
+  "SLPS-02274": {
+   "path": "games/ps1/SLPS-02274.json",
+   "sha256": "25f365e5c603032e7d16c6cb4d61fc47f47f28979e8fc95f0dd68f06effda6c8",
+   "platform": "ps1",
+   "encoding": "compressed",
    "status": "partial"
   },
   "SLPS-02296": {
@@ -869,6 +953,19 @@
     }
    }
   },
+  "AGB-AE7J": {
+   "path": "scripts/gba/AGB-AE7J.lua",
+   "sha256": "77e12be96beb432148d50be370ef1c7d0817331aaabe612fc27988f3860513b1",
+   "platform": "gba",
+   "runtime": 1,
+   "title": "ファイアーエムブレム 烈火の剣 (Fire Emblem: Rekka no Ken, Game Boy Advance)",
+   "reads": "the message window's or speech bubble's page once it has typed out",
+   "builds": [
+    "9dc30368"
+   ],
+   "needs": [],
+   "data": {}
+  },
   "AGB-AFEJ": {
    "path": "scripts/gba/AGB-AFEJ.lua",
    "sha256": "8d4cb2ecc96c2c530a8dd6ea5b05069179ab2686fb77f49df029d0cd5ab02d78",
@@ -881,6 +978,24 @@
    ],
    "needs": [],
    "data": {}
+  },
+  "AGB-AGSJ": {
+   "path": "scripts/gba/AGB-AGSJ.lua",
+   "sha256": "657c315d7f055b977a0b1752bf1a4c019672be80efec8ce074bac1087145cac1",
+   "platform": "gba",
+   "runtime": 1,
+   "title": "黄金の太陽 開かれし封印 (Ougon no Taiyou: Hirakareshi Fuuin, Game Boy Advance)",
+   "reads": "the message window's rows off the sprites that draw them once the page stands, each by its picture",
+   "builds": [
+    "81fab74a"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/gba/AGB-AGSJ.glyphs",
+     "sha256": "5b3d9c044a30151b827977dfd2d055315f5c9800bc44fc25e6a576b95a24f701"
+    }
+   }
   },
   "AGB-ASBJ": {
    "path": "scripts/gba/AGB-ASBJ.lua",
@@ -899,6 +1014,19 @@
      "sha256": "6b429bbd822f523c99234fbf68e0ace11c5bf283e9a2211b9df20220d1f3ca36"
     }
    }
+  },
+  "AGB-BE8J": {
+   "path": "scripts/gba/AGB-BE8J.lua",
+   "sha256": "63aa57a5e296feb4ae434fac2f241dbbef10fb88e4f8c1607367e457cf284939",
+   "platform": "gba",
+   "runtime": 1,
+   "title": "ファイアーエムブレム 聖魔の光石 (Fire Emblem: Seima no Kouseki, Game Boy Advance)",
+   "reads": "the message window's or speech bubble's page once it has typed out",
+   "builds": [
+    "105761d9"
+   ],
+   "needs": [],
+   "data": {}
   },
   "CGB-AAUJ": {
    "path": "scripts/gbc/CGB-AAUJ.lua",
@@ -976,6 +1104,24 @@
     }
    }
   },
+  "FC-20CC079D": {
+   "path": "scripts/fc/FC-20CC079D.lua",
+   "sha256": "c67022248805722f00269aa3e02e56e94993333e57e8d54b662cbde7d4a15fec",
+   "platform": "fc",
+   "runtime": 1,
+   "title": "マザー (Mother, Famicom)",
+   "reads": "the message window's rows off the screen's tiles once they have typed out and stand",
+   "builds": [
+    "20cc079d"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/fc/FC-20CC079D.tbl",
+     "sha256": "d0bd4647ce6863cc07db3089011bd57cfa89d1e07656792013829055a61abd86"
+    }
+   }
+  },
   "G8MJ01": {
    "path": "scripts/gc/G8MJ01.lua",
    "sha256": "a73c619b404340eccad4bd1a87170c4f682d75fc31ff98053df61b18a525a199",
@@ -1007,6 +1153,24 @@
     }
    }
   },
+  "GB-65EF364B": {
+   "path": "scripts/gb/GB-65EF364B.lua",
+   "sha256": "558f962b7dfc327ce0356989841fbed267cf51f5e8c6df4d38a6ef472412feda",
+   "platform": "gb",
+   "runtime": 1,
+   "title": "ポケットモンスター 青 (Pocket Monsters Ao, Game Boy)",
+   "reads": "the message window's two rows once they have typed out and stand",
+   "builds": [
+    "65ef364b"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gb/GB-65EF364B.tbl",
+     "sha256": "3a5789f93cf34851165e6c274b3e75a1e12511eb9ae01e79226db76d5161b63f"
+    }
+   }
+  },
   "GB-7F805941": {
    "path": "scripts/gb/GB-7F805941.lua",
    "sha256": "e105ccba1f84425ad1554b3ab17d8d9ec6c16d5fdbb5dde9c6b0651ebbd17acf",
@@ -1022,6 +1186,24 @@
     "tbl": {
      "path": "games/gb/GB-7F805941.tbl",
      "sha256": "17048a37f4508fe0fb1da7096cff73602d91b2293a77f0150da3e89ead026ec9"
+    }
+   }
+  },
+  "GB-923D46DD": {
+   "path": "scripts/gb/GB-923D46DD.lua",
+   "sha256": "ab3846745890a9b53e50ee5e1518de7db48e0d313f8db9561bd94861ec604ae1",
+   "platform": "gb",
+   "runtime": 1,
+   "title": "ポケットモンスター 緑 (Pocket Monsters Midori, Game Boy)",
+   "reads": "the message window's two rows once they have typed out and stand",
+   "builds": [
+    "923d46dd"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gb/GB-923D46DD.tbl",
+     "sha256": "90554ff4ec279a2f1e836508064d9f0a7a3a54f3d3cbf891e15a3d25b1b1d1c7"
     }
    }
   },
@@ -1068,6 +1250,19 @@
      "sha256": "1ec7a5b698b780066b31df6683133f1575a6e1633939bc3209368ba80a25e0eb"
     }
    }
+  },
+  "PCE-D9E1549A": {
+   "path": "scripts/pce/PCE-D9E1549A.lua",
+   "sha256": "928a2b103f93e6854181cefb254175589d5dbd27c8ffb407493b89e8ccd7054b",
+   "platform": "pce",
+   "runtime": 1,
+   "title": "桃太郎伝説II (Momotarou Densetsu II, PC Engine)",
+   "reads": "the message window's rows off the screen's tile map once they have typed out and stand",
+   "builds": [
+    "d9e1549a"
+   ],
+   "needs": [],
+   "data": {}
   },
   "PCECD-92261ECE": {
    "path": "scripts/pce-cd/PCECD-92261ECE.lua",
@@ -1144,6 +1339,24 @@
     }
    }
   },
+  "SFC-819B137D": {
+   "path": "scripts/sfc/SFC-819B137D.lua",
+   "sha256": "da3baa602da700a9e8bd056164ed9f3a6e86735333e370a306ed3c98f4b85697",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "真・女神転生II (Shin Megami Tensei II)",
+   "reads": "a page of the message window as the game types it, a character at a time",
+   "builds": [
+    "819b137d"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/sfc/SFC-819B137D.tbl",
+     "sha256": "5e8d993f76fb3cdf2523feed6310e1147cfdcaf465f0517c0031f725287f73d2"
+    }
+   }
+  },
   "SFC-A07624CD": {
    "path": "scripts/sfc/SFC-A07624CD.lua",
    "sha256": "2585e97b0f00615cdca29cfed0a4c794078014811c67919c42852186675007a4",
@@ -1195,6 +1408,42 @@
     "tbl": {
      "path": "games/sfc/SHVC-ACTJ.tbl",
      "sha256": "f24781d8b53c5232ad581cc0cb981a999d673d290703d5fc4f800f8a170197ba"
+    }
+   }
+  },
+  "SHVC-AMXJ": {
+   "path": "scripts/sfc/SHVC-AMXJ.lua",
+   "sha256": "ab32a957dbba196a88d58bb387798e98c74f249cd60c755e3187247be5a1ab01",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "真・女神転生if... (Shin Megami Tensei if..., Super Famicom)",
+   "reads": "the message window's rows off its pixels once the page stands, each glyph by its picture",
+   "builds": [
+    "91ae6c0b"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/sfc/SHVC-AMXJ.glyphs",
+     "sha256": "cab0c43feef6152cf30c87a161303a36244b7c7451978fb03d04249d56597074"
+    }
+   }
+  },
+  "SHVC-ATVJ": {
+   "path": "scripts/sfc/SHVC-ATVJ.lua",
+   "sha256": "bb39acbaeac23ac1535ea79ae9f17e71ce4c91069fea7762427dc1c17589d052",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "テイルズ オブ ファンタジア (Tales of Phantasia, Super Famicom)",
+   "reads": "the message window's rows off video memory once the page stands, each character by its picture",
+   "builds": [
+    "8fc7e4e3"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/sfc/SHVC-ATVJ.glyphs",
+     "sha256": "69a02d4fd5bf730d5f66cc4aefab6fbcaa5348682694188de2b6c0a26ca35b8e"
     }
    }
   },
@@ -1297,6 +1546,24 @@
     "tbl": {
      "path": "games/ps1/SLPM-86168.tbl",
      "sha256": "788a00efcd430b52b0c5417bdd1d17f87f627db3d7430e40feb79e3d86e91cf7"
+    }
+   }
+  },
+  "SLPM-86379": {
+   "path": "scripts/ps1/SLPM-86379.lua",
+   "sha256": "38fa9c7b6561ffba62fe216a4475c29ad3712636971b356b17cbcdb20f952f67",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "ヴァルキリープロファイル (Valkyrie Profile, disc 1)",
+   "reads": "the talk window's rows once a page has typed out, each character by its picture",
+   "builds": [
+    "33619ac1f19a4679b798a0f0a000a341a58eb748"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/ps1/SLPM-86379.glyphs",
+     "sha256": "bdcb633563af8ac672116b6330cf7125dff843ffda0029b90d9d92ae9fceac65"
     }
    }
   },
@@ -1579,6 +1846,24 @@
     "tbl": {
      "path": "games/ps1/SLPS-02100.tbl",
      "sha256": "24340765c7af5b001df00e734b42dcf505fc7fb7e3fd4d71248af7678e41cc2f"
+    }
+   }
+  },
+  "SLPS-02274": {
+   "path": "scripts/ps1/SLPS-02274.lua",
+   "sha256": "d076dd223b251d4ad5224feda01c42340ccbfc8b04d779ee65b6958026f82774",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "夕闇通り探検隊 (Yuuyami Doori Tankentai)",
+   "reads": "the subtitle on screen: the page from the scene's script, each character by its picture in video memory",
+   "builds": [
+    "1b2eee02e9ae542620be83a142532dc39c468886"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/ps1/SLPS-02274.glyphs",
+     "sha256": "cd94c2b450b1b6a8de4f3966773124ba97bf6dc83c6d2ba2e6119db8a080f5dc"
     }
    }
   },

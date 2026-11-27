@@ -1,0 +1,28 @@
+{
+ "id": "FC-20CC079D",
+ "platform": "fc",
+ "title": "マザー",
+ "title_romaji": "Mother",
+ "versions": [
+  {
+   "header_crc32": "20cc079d",
+   "note": "the Japanese cartridge (MMC3, 256 KB program, 128 KB CHR; MOTHER-1.00 at the end of its program)"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/fc/FC-20CC079D.tbl"
+ ],
+ "unit": 1,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on fceumm (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
+  "The table: read off the naming screen, whose grid shows each kana under its tile in the nametables; digits from the party's status row; the opening's lines and a fight's pages held against their pictures",
+  "The message window: found in snaps of a page typing, by its frame of tiles in the nametables (read at 0x80002000); a fight's window, three rows and scrolling, from snaps of a fight",
+  "The cartridge's program isn't in fceumm's map, so the build check waited for the harness to give a Famicom cartridge whole at 0x01000000 (#215)",
+  "Played through the hero's first fight, a talk in the sister's room and a second fight: three stretches, each replayed from a state with the script loaded",
+  "What the script said agreed with the rows read off 32 of 32 pictures, over 3 scenes; 4 pages said inside a press have no picture. No screen without text was among them. Each snap's tiles, decoded apart from the script, gave the same rows",
+  "150 harness calls in all (by the record), the budget: most went on finding the way about the house"
+ ],
+ "notes": "Read by the script games/fc/FC-20CC079D.lua: the message window's rows, found by its frame in the nametables, once they have stood a third of a second; in a fight, each row as the window scrolls. Not read: who speaks (the game doesn't show it), the opening's lines (not in a window), menus and other windows, the naming screen. Names chosen in play come out as typed."
+}
