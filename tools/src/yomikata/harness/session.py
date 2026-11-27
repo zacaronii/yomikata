@@ -546,8 +546,9 @@ class Session:
           watch_size=("integer", "its bytes: 1, 2, 3 or 4 (default 1)", False),
           most=("integer", f"presses at most (default 300, at most {MAX_FRAMES // 8})", False),
           stuck=("integer", "presses with no change in the picture that count as stuck (default 8; 0: no check)", False),
-          still_share=("number", "the share of the picture's pixels that may change in a press that still counts "
-                                 "as no change, against the picture a press back or two (default 0.01)", False),
+          still_share=("number", "the share of the game screen's pixels that may change in a press that still "
+                                 "counts as no change, against the picture a press back or two (default 0.01); "
+                                 "a border around the game's screen (a Super Game Boy's) isn't counted", False),
           back=("array", "the buttons that back out of a stuck menu (default b)", False),
           cycle=("integer", "a press counts as no change when its picture is any of the last so many presses' "
                             "(default 6): a menu that goes round a few pictures and never on", False),
@@ -596,7 +597,8 @@ class Session:
             return self._read(watched, watch_size) if watched is not None else None
 
         def picture():
-            frame = machine.picture()
+            # The game's own screen, without a border around it: a page typing is a small share of a big frame.
+            frame = machine.screen() if hasattr(machine, "screen") else machine.picture()
             return None if frame is None else np.array(frame, copy=True)
 
         def same(a, b) -> bool:

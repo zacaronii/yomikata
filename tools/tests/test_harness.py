@@ -939,6 +939,103 @@ def test_advance_through_takes_a_blinking_cursor_for_still_and_presses_a_sequenc
         s.advance_through(flag, equals="1", buttons=["a", ["b"]])
     s.close()
 
+class BorderedTyping(FakeMachine):
+    """A Game Boy game with a Super Game Boy border: a 256x224 picture whose middle 160x144 is the game's screen.
+    A fight (0x50 = 1) whose page types 400 more pixels each 36 frames (one press's hold and wait): 1.7% of the
+    game's screen, 0.7% of the whole picture. A menu (0x51 = 1) stops the typing and shows a blinking cursor,
+    4 pixels; b doesn't close it. The real Machine.screen finds the game's screen in it."""
+    from yomikata.harness.machine import Machine
+    screen = Machine.screen
+
+    class core:
+        base = (256, 224)                           # mGBA may say the bordered size: the platform's size counts
+
+    def __init__(self, *a):
+        super().__init__(*a)
+        self.memory[0x50], self.typed = 1, 0
+
+    def run(self, frames, buttons, stick):
+        super().run(frames, buttons, stick)
+        if not self.memory[0x51]:
+            self.typed = (self.frames // 36) * 400 % (160 * 144)
+
+    def picture(self):
+        frame = np.full((224, 256, 3), 90, dtype=np.uint8)            # the border
+        game = np.zeros((144, 160, 3), dtype=np.uint8)
+        game.reshape(-1, 3)[:self.typed] = 255
+        if self.memory[0x51] and (self.frames // 8) % 2:
+            game[0:2, 0:2] = 128
+        frame[40:184, 48:208] = game
+        return frame
+
+
+def test_advance_through_measures_still_over_the_game_screen_inside_a_border(tmp_path):
+    """A page typing inside a Super Game Boy border isn't still (it would be, as a share of the whole picture);
+    a menu that takes no press, its cursor blinking, still is, and is reported stuck."""
+    from yomikata.harness.machine import Machine
+    for name in ("games/gb", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/gb/Made Up (Japan).gb").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), BorderedTyping)
+    s.load("gb/Made Up (Japan).gb", "fake_libretro.so", "gb")
+    flag = f"0x{BASE + 0x50:X}"
+    out = s.advance_through(flag, equals="1", wait=30, stuck=4, most=20)
+    assert (out["stopped"], out["backs"], out["presses"]) == ("most", 0, 20), out
+    s.machine.memory[0x51] = 1                                          # the menu: nothing types
+    out = s.advance_through(flag, equals="1", wait=30, stuck=4, most=40)
+    assert (out["stopped"], out["backs"]) == ("stuck", 3), out
+    s.close()
+    # Without the border taken off, the typing is too small a share: what a whole picture would have said.
+    whole = BorderedTyping.picture
+    BorderedTyping.screen = lambda self: whole(self)
+    try:
+        s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), BorderedTyping)
+        s.load("gb/Made Up (Japan).gb", "fake_libretro.so", "gb")
+        out = s.advance_through(flag, equals="1", wait=30, stuck=4, most=20)
+        assert out["stopped"] == "stuck", out
+        s.close()
+    finally:
+        BorderedTyping.screen = Machine.screen
+
+
+def test_a_game_screen_is_the_middle_of_a_bordered_picture_and_the_core_says_its_size():
+    """game_screen takes the size's middle from a bigger picture, but not from one drawn a whole multiple bigger;
+    the Core keeps its base size from the AV info and from SET_GEOMETRY; Machine.screen goes by the platform's
+    size, then the core's."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine, game_screen
+    from yomikata.replay import libretro
+    frame = np.arange(224 * 256 * 3, dtype=np.uint32).reshape(224, 256, 3)
+    assert (game_screen(frame, (160, 144)) == frame[40:184, 48:208]).all()
+    assert game_screen(frame, (256, 224)) is frame and game_screen(frame, None) is frame
+    assert game_screen(frame, (128, 112)) is frame                     # twice as big: not a border
+    assert game_screen(frame, (320, 240)) is frame                     # smaller than said: all of it
+    assert game_screen(None, (160, 144)) is None
+
+    class Lib:
+        def retro_get_system_info(self, info): info._obj.need_fullpath = True
+        def retro_load_game(self, info): return True
+        def retro_get_system_av_info(self, av): av._obj.base_width, av._obj.base_height = 256, 224
+        def retro_set_controller_port_device(self, port, device): pass
+    core = libretro.Core.__new__(libretro.Core)
+    core.lib, core.base = Lib(), None
+    core.load_game(Path("made-up.gb"))
+    assert core.base == (256, 224)
+    geometry = libretro.GameGeometry(160, 144, 256, 224, 0.0)
+    assert core._env(libretro.ENV_SET_GEOMETRY, C.cast(C.pointer(geometry), C.c_void_p)) and core.base == (160, 144)
+
+    machine = Machine.__new__(Machine)
+    machine.core = core
+    core.frame_rgb = lambda: frame
+    machine.platform = "gb"
+    assert machine.screen().shape == (144, 160, 3)
+    machine.platform, core.base = "sfc", (240, 200)
+    assert (machine.screen() == frame[12:212, 8:248]).all()
+    core.base = None
+    assert machine.screen() is frame
+
+
 def test_a_cores_end_unloads_the_game_then_ends_the_core_once():
     from yomikata.replay.libretro import Core
     did = []
