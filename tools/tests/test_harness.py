@@ -2472,6 +2472,24 @@ def test_place_find_and_explore_by_whole_numbers(session):
     assert near["reached"] is True and near["places"] < out["places"] // 2     # it stopped once it was there
 
 
+def test_explore_with_grid_on_a_console_of_whole_numbers_asks_for_whole(session):
+    """A Famicom game keeps its place as whole numbers (Mother: x at 0x18, y at 0x1A, 64 a push): grid without
+    whole would read them as numbers with a point, so explore says to give whole; where the place can't be read
+    as such numbers, it says why."""
+    machine = session.machine
+    struct.pack_into(">3i", machine.memory, 0x300, 160, 0, -640)
+    cells = {"x_address": f"0x{BASE + 0x300:08X}", "y_address": f"0x{BASE + 0x308:08X}", "size": 4, "grid": 16}
+    machine.platform = "fc"
+    try:
+        with pytest.raises(HarnessError, match="give whole as well"):
+            session.explore(**cells)
+    finally:
+        machine.platform = "ngc"
+    struct.pack_into("<I", machine.memory, 0x300, 0x7FC00000)                  # not a number, read with a point
+    with pytest.raises(HarnessError, match="for whole numbers give whole"):
+        session.explore(**cells)
+
+
 def test_explore_gives_the_same_map_each_time_and_a_ruler_for_its_columns(session):
     """Two runs from one state agree, place for place. And the map comes with a ruler: a mark at every fifth
     column with its number, so that a place isn't read a column's offset out."""

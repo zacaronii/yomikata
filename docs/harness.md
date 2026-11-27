@@ -212,6 +212,18 @@ In the order to try them:
    found by eye. Give `walk_to` the map's numbers with `near` (a step there is 16, and a walk never lands on
    the very place), and `map_picture` the screen's as well (`screen_x_address`, `screen_y_address`), since the
    picture doesn't keep the character in the middle at a map's edge.
+   Find the place in the first room you walk, before any walking by hand: on Mother (Famicom) 35 calls went
+   on walks by eye about one house. There `cursor_find` gave where the hero is drawn (0x3B and 0x8E, a byte
+   each), which hardly moves while the picture scrolls with him, and `explore` on them saw six places. The map's
+   numbers came from one `steps` call of eight pushes (right, right, down, down, left, left, up, up; 16 frames
+   each) with a snap after each, read outside the harness for the words that follow the pushes: x at 0x18 and
+   y at 0x1A, little-endian, 64 a push. `explore` on them (`size` 2, `grid` 64 with `whole`, `step` 16) gave the
+   upstairs hall, 43 places, in one call. A Famicom keeps no numbers with a point, so `grid` there needs
+   `whole` (explore says so). To tell the rooms apart, hold snaps kept in each room against each other (or
+   `grouped` with a state in each): in Mother none of the bytes that stand within a room and differ between
+   them is a room's number; the rooms lie apart in one space of numbers (the hall's y is about 55 x 256, the
+   sister's room's 251 x 256), so a door is a jump in the numbers, where `walk_to` stops, and no `map_address`
+   is needed.
 9. When `find_relative` finds nothing it tries the other ways a game may keep a line and gives those that fit
    (`other_ways`): codes of two bytes, the other byte order, kana as far apart as in an order, counting up or
    down. A line with three or four different kana is enough.
