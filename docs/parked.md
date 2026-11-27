@@ -151,6 +151,3 @@ Looked at outside the harness only (0 calls); not begun, as a job of Xenogears' 
 - **`page_buffer`'s ranking.** With one snap a page, long stretches that stand and differ between pages (tile
   graphics, other unpacked blocks) win over a page's buffer, as on Tales of Phantasia's first pages: rank them
   against the page's expected size (its characters on screen), or cap the length.
-- **A Game Boy Advance's sprites.** A game that draws each character as a sprite of its own (Ougon no Taiyou)
-  is read through the sprite table at `0x07000000` and the sprites' tiles at `0x06010000`, which mGBA's map gives
-  in play; script-api.md doesn't list them, and a snap doesn't keep the table, so such a script reads only live.

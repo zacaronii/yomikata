@@ -86,6 +86,11 @@ def with_rom(read, rom):
 # where it is), which the game's copy of the screen in work RAM doesn't. Read through the core's map, and kept
 # in a snap as the region `io`, answering at its own addresses there too (docs/script-api.md).
 IO = {"gb": (0xFF00, 0x100), "gbc": (0xFF00, 0x100)}
+# A Game Boy Advance's sprite table (OAM: 128 sprites, 8 bytes each), where a game that draws each character as a
+# sprite of its own places them (Ougon no Taiyou); a stretch of the core's map, kept in a snap as the region
+# `oam`. Its video memory, the region `vram` already, answers at the console's address over a snap as well.
+SPRITE_TABLE = {"gba": (0x07000000, 0x400)}
+VIDEO_AT = {"gba": 0x06000000}
 IO_REGISTERS = 0x80                     # the I/O registers' part of it, without which the region isn't kept
 # Stretches a core maps in pages, read whole across them and kept as a region: fceumm gives 0x6000-0x7FFF in
 # 1 KB pages, a cartridge's work RAM on a Famicom and the first 8 KB of the Disk System's 32 KB (its 0x8000-
@@ -119,6 +124,10 @@ def region_starts(platform: str) -> dict[str, int]:
     out.update({name: start for start, _, _, name in WORDS.get(platform, ())[1:]})
     if platform in IO:
         out["io"] = IO[platform][0]
+    if platform in SPRITE_TABLE:
+        out["oam"] = SPRITE_TABLE[platform][0]
+    if platform in VIDEO_AT:
+        out["vram"] = VIDEO_AT[platform]
     out.update({name: start for name, (start, _) in PAGED.get(platform, {}).items()})
     return out
 
@@ -300,6 +309,11 @@ class Machine:
             data = self._paged(start, length)
             if len(data) == length:
                 out[name] = data
+        if self.platform in SPRITE_TABLE:
+            start, length = SPRITE_TABLE[self.platform]
+            table = stretch(self.core.maps, start)
+            if table and table[1] >= length:
+                out["oam"] = C.string_at(table[2], length)
         return out
 
     def _paged(self, start: int, length: int) -> bytes:
