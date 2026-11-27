@@ -6,8 +6,8 @@ the harness's scratch (`states/`), where it may or may not still be.
 
 ## Final Fantasy VI (Super Famicom, SFC-0ACC8D36)
 
-Parked at 111 of its 300 calls: the story's next long talk needs the party walked through the first town, and
-that needs its place on the map found first (for `walk_to`).
+Parked at 111 of its 300 calls, resumed and parked again at 153: the story's next long talk needs the party walked
+through the first town, and the way on wasn't found (below).
 
 - **Core**: bsnes_mercury_balanced. HiROM: a script reads the cartridge at `0xC00000` + its file offset.
 - **The text** is never in work RAM. A 24-bit pointer at `0x7E00C9` (low), `0x7E00CA`, `0x7E00CB` (bank) walks the
@@ -31,6 +31,25 @@ that needs its place on the map found first (for `walk_to`).
   after it; `ff-m` walked north into the town's edge.
 - **Next**: find the party's place on the map (compare snaps a step apart), then `walk_to` between the story's
   beats, `advance_through` through the fights, and the table from the pages on the way.
+- **Resumed (calls 112-153).** A reader works: each frame it reads the pointer, and once it has stood 20 frames just
+  past a wait (`16 xx`, or `11` and a byte) it reads the page back to its `12`, then forward, kanji as two bytes,
+  `14`/`16` and their byte skipped, rows at `01` (branch `final-fantasy-6`, script and table, not for merging).
+  The first page of a message has no `12` before it: the start has to be where the pointer jumped to, or the read
+  runs back into the bank before. Offline on the cartridge and live from the title it said the opening's pages.
+- **The table so far**: 112 codes, from six pages of the opening held against their pictures (the pictures are
+  sharp; the intro's 2nd and 4th pages were taken mid-fade and are dark). Digits are full width on screen
+  (`0x53` + n is `０` + n). Dictionary words met: `DB` った, `DC` 幻獣, `DE` して, `DF` 世界, `E3` から, `E5` 魔導,
+  `E8` 兵士, `EB` の力, `EC` じゃ.
+- **The party's place**: the tile numbers, a byte each, x at `0x7E00AF` and y at `0x7E00B0` (found from one call of
+  pushes with a snap after each, read outside the harness; `cursor_find` gave other words). `explore` on them, with
+  `fight` on `0x7E0002`, maps a street in one call.
+- **The town, from ff-l**: the street is 31 places, x 33-38, rows 1-17. Up at (37, 1) the map changes (state ff-q):
+  a way of 13 places, x 25-26, rows 43-52, that ends under a house; up there doesn't move the party. The side way
+  west at rows 10-12 ends at x 34 on a bridge, a steam pipe beside it (ff-t); left doesn't move. With `diagonals`
+  the maps are the same. What isn't known: whether a guard or an event must come first, or a door that `explore`
+  can't see (a change of map takes longer than a push) leads on. **Next**: `map_picture` on both maps and a long
+  push at each edge, by eye, before more exploring.
+- **States**: ff-p1 after the opening's talk (from the title, 60 presses), ff-q the second map, ff-t on the bridge.
 
 ## Chrono Cross (PlayStation, SLPS-02364)
 
