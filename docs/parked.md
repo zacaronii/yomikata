@@ -6,9 +6,9 @@ the harness's scratch (`states/`), where it may or may not still be.
 
 ## Final Fantasy VI (Super Famicom, SFC-0ACC8D36)
 
-Parked at 111 of its 300 calls, resumed and parked again at 153, and again at 180 (a last stretch of 40, stopped
-at 193; 13 left unspent): the way through the first town is found now (below), but the talk on it came too late in
-the stretch for a bar.
+Parked at 111 of its 300 calls, resumed and parked again at 153 and at 180, and again at 220 (a stretch of 60,
+for the event finder's first real test, stopped at 240; 20 left unspent): the reader now says the opening's
+pages, but the next talk is past the mines' fights, further than the calls went.
 
 - **Core**: bsnes_mercury_balanced. HiROM: a script reads the cartridge at `0xC00000` + its file offset.
 - **The text** is never in work RAM. A 24-bit pointer at `0x7E00C9` (low), `0x7E00CA`, `0x7E00CB` (bank) walks the
@@ -64,6 +64,27 @@ the stretch for a bar.
   soldiers' page offline on a snap before the next run.
 - **States** (this stretch): `ff-u1` at (30, 37) with the guard's window open, `ff-u2` after the guards' fight,
   `ff-u3` past the soldiers' page at the north end.
+- **The people** (calls 181-220): `things_find` from the party's place in pixels (words at `0x7E086A` across and
+  `0x7E086D` down, three bytes apart: an object record) finds the object list by itself, 41 bytes a record, the
+  party's first. At `ff-u3` the four things near the party pressed `a` to no effect against not pressing (the
+  party's own escort): the story moves by walking here. The door on, north at (31, 21), leads to the mines,
+  where random fights come every few steps (`explore`'s fight watch presses through them, and the map grows
+  slowly).
+- **The reader fixed** (branch `final-fantasy-6`): a message's last page ends on its 0x00, where the pointer
+  stands, and was never said; a message's first page has no 0x12 before it, and the search back ran into what
+  lies before the message (bank 0xCD opens with a table of every byte). The reader now notes where the pointer
+  jumps to when a message begins (one byte past its start, its 「) and reads no further back. Live from the
+  title it says the opening's nine pages (four of narration, said as they fade in: snaps 30 frames after the
+  saying are readable, brightened), the soldiers' talk among them. The table has 29 more codes (8 from the
+  town's soldiers' page, 21 from the opening). A narration page opens with code 07, not in the table.
+- **Where the bar stands**: the opening (4 pages), the soldiers on the cliff (5), the town (the guard's page and
+  the soldiers' page): 11 screens over 3 scenes, where 30 are needed. The rest is past the mines.
+- **Tool that would get past it**: `explore` maps one room; the mines are several, with fights on the way. A walk
+  that goes through each door it finds into the next room, maps that one, and keeps going (the rooms as a graph,
+  by the room value), stopping as soon as the loaded script says something, would reach the next talk in a few
+  calls instead of one call a room by hand.
+- **States**: `ff-p2` after the opening's run of presses, `ff-u4` past the north door (the mines' edge), `ff-u5`
+  after a fight there.
 
 ## Final Fantasy V (Super Famicom, SFC-9EA60A02)
 
