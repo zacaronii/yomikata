@@ -2164,15 +2164,29 @@ def test_map_picture_puts_the_games_numbers_over_the_screen(session):
 @needs_reader
 def test_pictures_a_script_logs_for_want_of_a_reading_are_kept_in_scratch(session, tmp_path):
     """lib/glyphs.lua logs a picture its dictionary hasn't got, and the row it stood in: the harness keeps
-    those lines for `yomikata unread`, and they aren't among a call's events."""
+    those lines for `yomikata unread`, and they aren't among a call's events; another log line is."""
     script = SCRIPT.replace("reader.on_frame(function()", "reader.on_frame(function(frame)\n"
                             "    if frame == 3 then reader.log('glyph 00AA000000000001 4x2x2 1be4') "
                             "reader.log('glyph-line 00AA000000000001 _ 00AA000000000001') reader.log('other') end")
     assert session.script_try(script, "GXXJ01.lua")["loaded"]
     out = session.run(6)
-    assert not [e for e in out["events"] if e["kind"] == "log"]
+    assert [e["message"] for e in out["events"] if e["kind"] == "log"] == ["other"]
     assert (tmp_path / "scratch/glyphs/GXXJ01.log").read_text(encoding="utf-8").splitlines() == [
         "glyph 00AA000000000001 4x2x2 1be4", "glyph-line 00AA000000000001 _ 00AA000000000001"]
+
+
+def test_a_scripts_info_logs_reach_a_calls_events_capped_below_its_text(session):
+    """reader.log lines (info) come back among a call's events, as warnings do, but at most MAX_INFO of them, so a
+    script that logs every frame doesn't crowd out what it says; warnings and text aren't held by that cap."""
+    from yomikata.harness.session import MAX_INFO
+    script = SCRIPT.replace("reader.on_frame(function()", "reader.on_frame(function(frame)\n"
+                            "    reader.log('info ' .. frame) if frame % 10 == 0 then reader.warn('warn ' .. frame) end")
+    assert session.script_try(script, "GXXJ01.lua")["loaded"]
+    out = session.run(120)
+    infos = [e for e in out["events"] if e["kind"] == "log" and e.get("level") == "info"]
+    warns = [e for e in out["events"] if e["kind"] == "log" and e.get("level") != "info"]
+    assert len(infos) == MAX_INFO and infos[0]["message"] == "info 1"
+    assert len(warns) == 12 and [e for e in out["events"] if e["kind"] == "text"]
 
 
 def test_the_second_shoulder_buttons_and_the_sticks_pressed_in_are_buttons_too(session):

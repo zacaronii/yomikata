@@ -28,6 +28,7 @@ from . import search
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "select", "up", "down", "left", "right")
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
+MAX_INFO = 50          # a script's info-level logs kept in a call's events, so that they can't crowd out its text
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
 # Consoles whose games keep a place as whole numbers only (no numbers with a point): explore's grid needs whole.
 WHOLE_ONLY = ("fc", "fds", "gb", "gbc", "sfc", "pce", "pce-cd")
@@ -170,7 +171,11 @@ class Session:
             if kind == "log" and str(event.get("message", "")).startswith(("glyph ", "glyph-line ")):
                 self._keep_glyph(event["message"])
                 continue
-            if len(out) < MAX_EVENTS and not (kind == "log" and event.get("level") == "info"):
+            if kind == "log" and event.get("level") == "info":
+                infos = sum(1 for e in out if e["kind"] == "log" and e.get("level") == "info")
+                if infos >= MAX_INFO:
+                    continue
+            if len(out) < MAX_EVENTS:
                 out.append({"kind": kind, "frame": self.machine.frames, **event})
 
     def _keep_glyph(self, line: str) -> None:
