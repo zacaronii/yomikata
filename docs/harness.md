@@ -122,7 +122,10 @@ In the order to try them:
    stands and one just before each opens: `page_buffer` gives the stretches the pages differ in that held still
    while each stood, a buffer kept twice as two stretches that alternate, and when each page was written. A
    stretch that also moves while a page stands (a tile copy, text scrolled through) is ranked down, one that never
-   stands left out. It gives bytes only: `find_relative` on its address, or a table, reads them. Final Fantasy V's
+   stands left out. Stretches are held to the size a page takes: give `size` (the most characters a page shows
+   times the bytes a character takes), or it is estimated from the stretches that stood, those longer than `cap`
+   left out; with one snap a page, a scene's graphics stand and differ per page too, and by length alone they
+   came first (Tales of Phantasia's first pages). It gives bytes only: `find_relative` on its address, or a table, reads them. Final Fantasy V's
    page buffer (4 rows of 16 cells, `0x7E19D3`) is such a one.
 5. Surer than one line: `lines`, two or more snaps each with what its screen shows at the same place. One
    place must fit them all, and the characters the lines share must have the same code, so lines without a

@@ -188,7 +188,3 @@ count under it): the text is drawn only into the VDP's tiles, which genesis_plus
   its picture so the dictionary is quick to build. Kaeru no Tame ni Kane wa Naru draws so, but keeps its page
   unpacked in work RAM, so it didn't need one. Build it as its own pull request, with synthetic tests, when a
   game does.
-
-- **`page_buffer`'s ranking.** With one snap a page, long stretches that stand and differ between pages (tile
-  graphics, other unpacked blocks) win over a page's buffer, as on Tales of Phantasia's first pages: rank them
-  against the page's expected size (its characters on screen), or cap the length.
