@@ -2851,6 +2851,11 @@ def test_expedition_walks_room_to_room_until_something_is_said_and_its_legs_walk
     session.reader.state_loaded()
     again = session.expedition(room=room, step=1, legs=out["legs"])
     assert again["legs_walked"] == 2 and again["room"] == 3 and again["said"] == ["とうちゃく"], again
+    # Heading right then down (as far as each room goes that way) finds the same doors without mapping all.
+    machine.load_state(start)
+    session.reader.state_loaded()
+    headed = session.expedition(room=room, step=1, heading="right", rooms=6)
+    assert headed["stopped"] in ("said", "every door tried") and "1" in headed["rooms"], headed
 
 
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):

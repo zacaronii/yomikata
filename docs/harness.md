@@ -249,8 +249,9 @@ In the order to try them:
    nobody, so the map took each place a fight ended on for a dead end: the watch now waits `after` frames (60) once
    a fight ends. And where a fight comes every few steps, a whole room doesn't map within a call's two minutes:
    `explore` with `to` far off in the way the story goes (it tries the places nearest the goal first) crossed the
-   same room in one call, fourteen fights pressed through. A walk that heads for a room's unmapped edge, instead of
-   mapping all of it, is the next step for `expedition`.
+   same room in one call, fourteen fights pressed through. So `expedition` takes `heading` (up, down, left or
+   right): it crosses each room towards that side the same way, the places nearest it first, and tries the doors
+   met on the way, instead of mapping every room whole.
    The words a place is read from may hold only on some maps: in Dragon Quest I & II they did in the first room
    and read 0xF8 and 0 after the stairs. After a change of map, push once by hand and read them before trusting
    a walk; `cursor_find` again where they don't move.

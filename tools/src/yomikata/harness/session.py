@@ -2989,12 +2989,17 @@ class Session:
           rooms=("integer", "rooms mapped at most (default 8)", False),
           most=("integer", "places mapped in a room at most (default 400)", False),
           legs=("array", "legs an earlier call gave, walked again in order instead of searching: [{at, push}, …]", False),
-          avoid=("array", "room values not to map (the way back, rooms already known): a door into one is noted only", False))
+          avoid=("array", "room values not to map (the way back, rooms already known): a door into one is noted only", False),
+          heading=("string", "up, down, left or right: cross each room towards that side instead of mapping all of it "
+                             "(explore with a far `to`, the places nearest it first), for rooms where fights come "
+                             "every few steps; the doors met on the way are tried", False))
     def expedition(self, room: str, room_size: int = 1, x_address: str = "", y_address: str = "", size: int = 2,
                    step: int = 8, grid: float = 0.0, whole: bool = False, diagonals: bool = False,
                    fight: dict | None = None, through: int = 60, rooms: int = 8, most: int = 400,
-                   legs: list | None = None, avoid: list | None = None) -> dict:
+                   legs: list | None = None, avoid: list | None = None, heading: str = "") -> dict:
         machine = self._need()
+        if heading and heading not in ("up", "down", "left", "right"):
+            raise HarnessError("heading is up, down, left or right")
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
         x_address, y_address = f"0x{at_x:X}", f"0x{at_y:X}"
         room_at = int(str(room), 16)
@@ -3064,7 +3069,17 @@ class Session:
             if self.reader is not None:
                 self.reader.state_loaded()
                 self.reader.take()
-            mapped = self.explore(most=most, **mapping)
+            if heading:
+                here_at = self.explore(most=1, **mapping)          # where the party stands, in the map's numbers
+                x0, y0, far = here_at["x"], here_at["y"], 10_000
+                goal = {"up": [x0, y0 - far], "down": [x0, y0 + far], "left": [x0 - far, y0],
+                        "right": [x0 + far, y0]}[heading]
+                mapped = self.explore(most=most, to=goal, near=0, **mapping)
+                mapped.setdefault("places", 0)
+                machine.load_state(state)
+                machine.frames, self.route = there_frames, json.loads(json.dumps(there_route))
+            else:
+                mapped = self.explore(most=most, **mapping)
             if mapped.get("stopped") == "time":
                 stopped = "time"
                 break
