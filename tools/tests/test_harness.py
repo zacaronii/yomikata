@@ -2759,6 +2759,10 @@ def test_explore_tells_a_fade_from_a_fight_by_how_long_the_mode_holds_or_by_a_se
         assert all(f["at"][0] == 104 and (f["presses"], f["stopped"]) == (3, "mode ended") for f in out["fought"]), out
     with pytest.raises(HarnessError, match="also"):
         session.explore(step=1, fight={**mode, "also": {"address": "0x10"}})
+    # `first`: pressed once as a fight begins, before the presses that end it (a menu's cursor set first).
+    way = len(session.route["moves"])
+    out = session.explore(step=1, within=box, fight={**mode, "holds": 6, "first": [["b"]]}, to=[110, 80], near=0)
+    assert out["reached"] is True and any(m[1] == ["b"] for m in session.route["moves"][way:] if isinstance(m, list))
 
 
 @needs_reader

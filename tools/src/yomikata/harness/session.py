@@ -2503,6 +2503,8 @@ class Session:
         hold, wait = max(1, int(fight.get("hold", 6))), max(0, int(fight.get("wait", 30)))
         most, begin = max(1, min(int(fight.get("most", 300)), MAX_FRAMES // 8)), max(0, int(fight.get("begin", 0)))
         holds = max(0, min(int(fight.get("holds", 0)), 600))
+        after = max(0, min(int(fight.get("after", 60)), 600))
+        first = [sorted(self._buttons(list(p) if isinstance(p, (list, tuple)) else [p])) for p in (fight.get("first") or [])]
 
         def through():
             moves, waited = [], 0
@@ -2523,12 +2525,21 @@ class Session:
                 moves.append([stood, []])
             if not mode() or (second is not None and not second()):
                 return moves, None
+            for once in first:                  # pressed once as the fight begins (a menu's cursor set first)
+                machine.run(hold, set(once), (0.0, 0.0))
+                machine.run(wait, set(), (0.0, 0.0))
+                moves += [[hold, once], [wait, []]]
             presses = 0
             while mode() and presses < most:
                 machine.run(hold, set(keys), (0.0, 0.0))
                 machine.run(wait, set(), (0.0, 0.0))
                 moves += [[hold, keys], [wait, []]]
                 presses += 1
+            if after and not mode():
+                # The field takes a moment to come back after a fight (a fade): a push made at once moves
+                # nobody, and the map would take the place for a dead end.
+                machine.run(after, set(), (0.0, 0.0))
+                moves.append([after, []])
             return moves, {"presses": presses, "stopped": "mode ended" if not mode() else "most"}
         return through
 
@@ -2566,6 +2577,8 @@ class Session:
                            "no push moves the character from where it stands, not even a longer one (a message "
                            "open takes the pad). Without it such a start is only said (`still`)", False),
           fight=("object", "where walking brings fights at random: the fight's mode as advance_through takes it "
+                           "(`first`: presses made once as a fight begins, as advance_through's; `after`: frames waited "
+                           "once it ends for the field to come back, default 60) "
                            "(address, size, equals or differs, buttons, hold, wait, most) and `begin`, frames "
                            "after a step for the fight to begin (0: the mode is set at once). A fight a push "
                            "starts is pressed through there and the map goes on from where it ended; the "
@@ -2975,11 +2988,12 @@ class Session:
           through=("integer", "frames a door's push is held, and then waited for the room to change (default 60)", False),
           rooms=("integer", "rooms mapped at most (default 8)", False),
           most=("integer", "places mapped in a room at most (default 400)", False),
-          legs=("array", "legs an earlier call gave, walked again in order instead of searching: [{at, push}, …]", False))
+          legs=("array", "legs an earlier call gave, walked again in order instead of searching: [{at, push}, …]", False),
+          avoid=("array", "room values not to map (the way back, rooms already known): a door into one is noted only", False))
     def expedition(self, room: str, room_size: int = 1, x_address: str = "", y_address: str = "", size: int = 2,
                    step: int = 8, grid: float = 0.0, whole: bool = False, diagonals: bool = False,
                    fight: dict | None = None, through: int = 60, rooms: int = 8, most: int = 400,
-                   legs: list | None = None) -> dict:
+                   legs: list | None = None, avoid: list | None = None) -> dict:
         machine = self._need()
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
         x_address, y_address = f"0x{at_x:X}", f"0x{at_y:X}"
@@ -3073,7 +3087,7 @@ class Session:
                 if went and said(events):
                     found = {"room": beyond, "legs": there_legs + [leg], "said": said(events)[:3]}
                     break
-                if went and beyond not in entries:
+                if went and beyond not in entries and beyond not in {str(a) for a in (avoid or [])}:
                     entries[beyond] = (machine.save_state(), json.loads(json.dumps(self.route)), machine.frames,
                                        there_legs + [leg])
                     queue.append(beyond)

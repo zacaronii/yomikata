@@ -241,7 +241,16 @@ In the order to try them:
    `fight` says (with `holds`). It stops at the first text the loaded script says, with the game left there and
    its moves in the record, and gives the `legs` from where it began: each a door's place and its push. Given
    back as `legs`, they are walked again without mapping, so a later call reaches the same place in a few
-   seconds. Without a saying it gives the graph and the legs to each room, and puts the game back.
+   seconds. Without a saying it gives the graph and the legs to each room, and puts the game back. `avoid` names
+   rooms not to map (the way back): a door into one is noted only.
+   Final Fantasy VI's mines were its first real test, and taught three things. A fight's command cursor may sit on
+   an empty list: the fight watch takes `first`, presses made once as a fight begins (`[["up"]]` there), as
+   `advance_through` does. After a fight the field takes a moment to come back, and a push made at once moves
+   nobody, so the map took each place a fight ended on for a dead end: the watch now waits `after` frames (60) once
+   a fight ends. And where a fight comes every few steps, a whole room doesn't map within a call's two minutes:
+   `explore` with `to` far off in the way the story goes (it tries the places nearest the goal first) crossed the
+   same room in one call, fourteen fights pressed through. A walk that heads for a room's unmapped edge, instead of
+   mapping all of it, is the next step for `expedition`.
    The words a place is read from may hold only on some maps: in Dragon Quest I & II they did in the first room
    and read 0xF8 and 0 after the stairs. After a change of map, push once by hand and read them before trusting
    a walk; `cursor_find` again where they don't move.
