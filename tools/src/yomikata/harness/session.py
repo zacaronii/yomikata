@@ -2289,6 +2289,8 @@ class Session:
                             "degrees either side, then 45, … then shorter pushes): a pier or a ramp is followed, "
                             "not fallen off", False),
           fall=("number", "with height: a drop of more than this, in the game's units, is a fall (default 30)", False),
+          floor=("number", "with height: a push that ends lower than this is refused too: a way down by small steps "
+                           "into water stands below the land (Wind Waker: swimming at 30, its pier at 180)", False),
           water=("object", "with the guard: a mode that means the character is in water or has fallen (address, "
                            "size, equals or differs): a push that sets it is undone too", False),
           yaw=("string", "the camera's turn, hex, where the stick's ways turn with it: the way the stick moves the "
@@ -2297,7 +2299,7 @@ class Session:
           yaw_kind=("string", "s16 (a turn is 65536: most consoles' angles) or float (radians) (default s16)", False))
     def walk_3d(self, x_address: str, z_address: str, x: float | None = None, z: float | None = None,
                 near: float = 0.0, push: int = 8, limit: int = 1200, height: str = "", fall: float = 30.0,
-                water: dict | None = None, yaw: str = "", yaw_kind: str = "s16") -> dict:
+                water: dict | None = None, yaw: str = "", yaw_kind: str = "s16", floor: float | None = None) -> dict:
         import math
         import struct
         machine = self._need()
@@ -2451,7 +2453,8 @@ class Session:
                     if why:
                         break
                     h1 = float_at(at_h) if at_h is not None else None
-                    fell = h0 is not None and h1 is not None and h0 - h1 > float(fall)
+                    fell = h0 is not None and h1 is not None and (h0 - h1 > float(fall)
+                                                                   or (floor is not None and h1 < float(floor)))
                     if fell or (wet is not None and wet()):
                         machine.load_state(before_state)
                         machine.frames, self.route = before_frames, before_route
