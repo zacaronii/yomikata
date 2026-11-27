@@ -141,6 +141,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "GZLJ01": {
+   "path": "games/gc/GZLJ01.json",
+   "sha256": "05caf9f0656590602de9a1843205394c575e88c593fb8e3b65bcd38df19085df",
+   "platform": "gc",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "HDR-0152-D1": {
    "path": "games/dc/HDR-0152-D1.json",
    "sha256": "a3ad020b75c13f6131643b3b498496406ce42c7752cc61023ccb55c7ebbc2707",
@@ -1256,6 +1263,19 @@
      "sha256": "90554ff4ec279a2f1e836508064d9f0a7a3a54f3d3cbf891e15a3d25b1b1d1c7"
     }
    }
+  },
+  "GZLJ01": {
+   "path": "scripts/gc/GZLJ01.lua",
+   "sha256": "a81d47d6bd0159dbacf77cb50e0cbde87471f4711cbde0c45073d19cf4215d83",
+   "platform": "gc",
+   "runtime": 1,
+   "title": "ゼルダの伝説 風のタクト (Zelda no Densetsu: Kaze no Takt)",
+   "reads": "the message window's page each time it changes, with the game's own furigana kept on their words",
+   "builds": [
+    "GZLJ01-00"
+   ],
+   "needs": [],
+   "data": {}
   },
   "HDR-0152-D1": {
    "path": "scripts/dc/HDR-0152-D1.lua",

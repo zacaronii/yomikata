@@ -1,0 +1,22 @@
+{
+ "id": "GZLJ01",
+ "platform": "gc",
+ "title": "ゼルダの伝説 風のタクト",
+ "title_romaji": "Zelda no Densetsu: Kaze no Takt",
+ "versions": [
+  {
+   "header_crc32": "c697e4bb",
+   "note": "disc version 0 (the build GZLJ01-00)"
+  }
+ ],
+ "encoding": "shift_jis",
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's file (an RVZ image, read with yomikata rvz offline): no reader's snapshots, no memory written",
+  "Characters are Shift-JIS; furigana taken from the message file in memory (zel_00.bmg), where each reading stands inline before its base",
+  "Played from power-on through the opening's legend and the sister on the lookout: what the script said agreed with the rows read off 32 of 32 pictures, over 2 scenes (3 are wanted: the bar isn't met)",
+  "The rows are the base text; each page's furigana were checked by eye against its picture, all on their words",
+  "Four sayings were left out of the comparison: two before the opening's first page (a buffer left from the name entry, said again once its page came), one with no window on screen, and one page said again at the start of the second run"
+ ],
+ "notes": "Read by the script games/gc/GZLJ01.lua: the page in the talk window or the opening's narration, with its furigana from the message file. Not looked at: who speaks, choices, menus, signs and item screens. The build is the disc's id and its version (docs/format.md)."
+}

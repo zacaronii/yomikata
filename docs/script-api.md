@@ -242,6 +242,23 @@ hosts count what was read. A text that types out is emitted when it starts, whol
 | `window` | A name or number for what the text is shown in. Needed for `reader.layout`; a later text in the same window takes this one's place |
 | `meta` | A flat table of strings, numbers and booleans, kept with the event and not shown |
 
+### Furigana
+
+A game's own furigana go in `ruby`, never into `text`: each reading kept on the characters it stands over, and
+only those. `start` and `length` count code points of `text` (its `\n` included) and cover the base exactly: in
+`今日は` with `きょう` over the first two characters, the span is `{0, 2, "きょう"}`, the `は` outside it; a word whose
+okurigana are kana (`集まる` with `あつ` over `集`) has a span of one. Two readings never share a character, and a
+reading is never split across rows. `reader.builder()` gives these counts: `b:add` for text without a reading,
+`b:add_ruby(base, reading)` for a base and its reading, then `b:text()` and `b:ruby()`.
+
+The readings come from the game, as it keeps them, never from a dictionary: a script that can't find a page's
+furigana says the page without them. Where the game draws its furigana by place from another buffer, the
+readings are best taken where the game keeps them with their words: Wind Waker (games/gc/GZLJ01.lua) keeps its
+whole message file in memory, each reading inline before its base (an escape, how many characters it covers,
+the reading), and reads the page's furigana from the message the page is found in. Paper Mario
+(games/gc/G8MJ01.lua) keeps them as small glyphs after their word in the window's list, and takes them from
+there.
+
 ### The `interface` channel
 
 **Added.** A game shows text that isn't its story: menu labels, the names of items and skills, their
