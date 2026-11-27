@@ -20,7 +20,11 @@
   "From Final Fantasy VI (its table on that game's branch): the single-byte codes of the kana and signs, held against this game's pages, where every one met agrees",
   "Found in play: the script lies in the cartridge with its own codes (kanji as 0x1E or 0x1F and a byte, dictionary words, a name inserted); the game unpacks each page whole into work RAM as the window shows it, 4 rows of 16 cells, a kanji's second byte in the cell and its lead in a parallel array",
   "The table: the kana and signs Final Fantasy VI hasn't got, and every kanji, read in play, each page's codes in snaps beside its picture",
-  "Played from a new game through the opening at the castle and the meteor's fall, with the script loaded"
+  "Found in play: the buffer keeps the last page after its window closes, and a state loaded keeps it too; a byte (0x7E0BB5) is 0 while no message window is up, seen over every snap with a window and without one, and a page is said only while it isn't",
+  "Played from power-on through the opening at the castle, the wind's stopping, and the meteor's fall and the rescue after it: three stretches, each played from power-on or a state with the script loaded",
+  "What the script said agreed with the rows read off 19 of 20 pictures with text, over 3 scenes; the one short of it was the name entry's prompt, before its two kanji were in the table. The bar's 30 screens weren't reached: a third stretch past the meteor wasn't found",
+  "On 2 screens without text it said a page (one left in the buffer after a state's load, one after a window that closes by itself): the window byte was added for them; over the same snaps offline it then read all 20 and nothing on the 2, and a run with it said the self-closing page as before",
+  "The kanji and signs were read off the same pictures the comparison holds the script to"
  ],
  "notes": "Read by the script games/sfc/SFC-9EA60A02.lua: the message window's page, from the game's page buffer once it stands. Not read: menus, the name entry, fights' messages, the screens before the story. Kanji not met in play come out as U+FFFD."
 }

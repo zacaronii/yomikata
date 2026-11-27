@@ -3,6 +3,7 @@
 # codes (tables/sfc of that game's branch), held against this game's pages, where every one met agrees; the rest,
 # and every kanji, were read in play: a page's codes in the game's page buffer beside its picture.
 21=ば
+25=ぶ
 27=べ
 28=ボ
 2B=が
@@ -68,6 +69,7 @@
 9F=み
 A0=ム
 A1=む
+A3=め
 A5=も
 A7=ら
 A8=リ
@@ -126,7 +128,9 @@ FF=　
 1E88=礼
 1E9C=配
 1EA9=身
+1EC9=名
 1EFA=感
+1EFE=決
 1F2C=爆
 1F39=失
 1F40=追
