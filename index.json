@@ -286,6 +286,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "SFC-9EA60A02": {
+   "path": "games/sfc/SFC-9EA60A02.json",
+   "sha256": "f96d48f11c848ed8221aab2015df9967d2798c5312928e890864794c869b1848",
+   "platform": "sfc",
+   "encoding": "table",
+   "status": "partial"
+  },
   "SFC-A07624CD": {
    "path": "games/sfc/SFC-A07624CD.json",
    "sha256": "8a5d2ce176fee4c926b35aa55d82e9545431406e308df5aca2b0fc6e513d25db",
@@ -1308,6 +1315,24 @@
     "tbl": {
      "path": "games/sfc/SFC-819B137D.tbl",
      "sha256": "5e8d993f76fb3cdf2523feed6310e1147cfdcaf465f0517c0031f725287f73d2"
+    }
+   }
+  },
+  "SFC-9EA60A02": {
+   "path": "scripts/sfc/SFC-9EA60A02.lua",
+   "sha256": "8d45af203b36381f2710d3383cbaa8f960966b3714e3900c54ac332ff736c9b5",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "ファイナルファンタジーV (Final Fantasy V, Super Famicom)",
+   "reads": "the message window's page from the game's own page buffer once it stands",
+   "builds": [
+    "9ea60a02"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/sfc/SFC-9EA60A02.tbl",
+     "sha256": "97e3d54705d3620561ea70478e0ddce2186624fb73e38664367da1ef119b028e"
     }
    }
   },
