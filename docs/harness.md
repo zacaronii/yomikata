@@ -64,6 +64,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `walk_3d` | Walks the character of a game of three dimensions to a place on the ground with the left stick: learns from two pushes which way the stick moves the two numbers `place_find` gave (the camera may be turned), pushes toward the place, learning again from its own pushes as the camera turns, and stops when near, when a push no longer brings it nearer (a wall, a talk begun), or at the limit |
 | `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read. With `fight`, presses through the fights its steps bring and maps on; `holds` or `also` tell a fight from a fade. With `room`, a push that changes the room is a door, however far it moved |
 | `things_find` | Finds the people and things a map holds by where the game keeps them: records like the party's own, a steady distance apart, each with its place at the same offsets. Gives each one's place, nearest first, the list's stride and address |
+| `meet` | In a game of three dimensions, goes to the people near the player and talks to them, the nearest first, until one answers: finds them by the player's x and z (place_find's floats; an actors' list a steady stride apart, or with `loose` every place with the same spacing), walks to each with `walk_3d`, and holds the script's sayings after a press against a wait without one |
 | `interact` | Tries each thing near the party in turn (things_find's, or places given): walks next to it by explore's way, faces it, presses a button, waits, and says what came (text the script said, the picture changed, the room changed); puts the game back after each try, or keeps one |
 | `expedition` | Walks the rooms one after another until something is said: maps the room (explore), goes through each door found there (by the room value), maps the room beyond, fights pressed through; stops at the first saying with the legs that led there, or gives the rooms as a graph. Given `legs`, walks them again without mapping |
 | `events` | Where an event still waits in the room the game is in, as the loaded script's `events` function says (docs/script-api.md): places ready for explore's `to`. `expedition` with `events` walks to them in each room before its doors, and stops at the first that says something |
@@ -539,6 +540,12 @@ height (several copies of one place are usual: the character, the camera's targe
 and a place in them: two pushes teach it which way the stick moves them, and it steers there, refitting the way
 from its last pushes as the camera turns, and leaving out pushes that didn't move (a wall). It stops and says so
 when it gets no nearer. A talk or a scene that begins on the way stops it too; the script's events are counted.
+`meet` puts the two together to find someone to talk to: from the player's x and z it finds the places near
+it that hold actors (a list of records a steady distance apart with the player's own among them, or, for a game
+that keeps them anywhere in its heap, every place with the same spacing of x and z: `loose`, with `least` to
+leave out the player's own parts), walks to each in turn from where it began, and presses there; what the
+script says after the press and not in a wait without it is an answer. Wind Waker's player is the floats at
+0x80ACF694 (x) and 0x80ACF69C (z), its actors in the heap.
 
 ### Waypoints
 
