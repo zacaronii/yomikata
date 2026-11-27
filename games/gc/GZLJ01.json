@@ -1,0 +1,23 @@
+{
+ "id": "GZLJ01",
+ "platform": "gc",
+ "title": "ゼルダの伝説 風のタクト",
+ "title_romaji": "Zelda no Densetsu: Kaze no Takt",
+ "versions": [
+  {
+   "header_crc32": "c697e4bb",
+   "note": "disc version 0 (the build GZLJ01-00)"
+  }
+ ],
+ "encoding": "shift_jis",
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's file (an RVZ image, read with yomikata rvz offline): no reader's snapshots, no memory written",
+  "Characters are Shift-JIS; furigana taken from the message file in memory (zel_00.bmg), where each reading stands inline before its base",
+  "Played from power-on through the opening's legend and the sister on the lookout, then across the island to a villager: what the script said agreed with the rows read off 43 of 43 pictures, over 3 scenes (21, 11 and 11 screens), compared live",
+  "The furigana are measured (compare with ruby): each screen's [base, reading] pairs read off its picture; 42 of the 43 screens agree. On the one that doesn't, the script gave no furigana where the picture shows two: its page, which begins with a stammer, isn't found in the message index",
+  "The villager was reached by a route over the island's own collision (yomikata route, round its placed actors, through its grass) from the people's places on the disc (yomikata placements); their talk shows in a second window, found from two saved states with yomikata state-text",
+  "Left out of the comparison: four sayings in the first two scenes (before the opening's first page, no window on screen, or said again), and the villager's last three pages said again when the talk started over"
+ ],
+ "notes": "Read by the script games/gc/GZLJ01.lua: the page in the talk window, in the second window villagers' talks use, or the opening's narration, with its furigana from the message file. Not looked at: who speaks, choices, menus, signs and item screens. The build is the disc's id and its version (docs/format.md)."
+}
