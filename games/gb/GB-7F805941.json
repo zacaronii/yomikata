@@ -15,6 +15,7 @@
  ],
  "unit": 2,
  "status": "partial",
+ "regress": "sequence",
  "sources": [
   "The harness alone, from the game's cartridge on mGBA (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
   "From scratch: `entered` on the naming screen gave the name's kana codes (another set than the story's). find_relative, advancing (unit 1 and 2) and rom-font --find found nothing: the script is packed in the cartridge and drawn in a proportional font into fresh tiles",

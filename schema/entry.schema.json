@@ -106,6 +106,8 @@
     },
     "status": {"enum": ["verified", "auto", "partial"],
                "description": "verified: a person confirmed it in play. auto: built by the pipeline and passed validation. partial: known gaps."},
+    "regress": {"enum": ["sequence"],
+      "description": "How the nightly check (docs/regress.md) reads this entry's bar screens. sequence: the script says a page as it types, which a still snap never shows; each bar snap is read with the snaps taken across its page's typing (<bar>-seq-00, -01, ...), one tick each, then held."},
     "coverage": {
       "type": "object", "additionalProperties": false,
       "properties": {"chars_in_table": {"type": "integer", "minimum": 0}, "chars_seen_in_script": {"type": "integer", "minimum": 0}}

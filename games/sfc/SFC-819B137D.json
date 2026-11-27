@@ -15,6 +15,7 @@
  ],
  "unit": 2,
  "status": "partial",
+ "regress": "sequence",
  "sources": [
   "The harness alone, from the game's cartridge on bsnes (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
   "From Shin Megami Tensei (games/sfc/SFC-56A9AAB6.lua): the font's numbering (hiragana from 0x25 in the order of the fifty sounds, digits and capitals) and its rules.",

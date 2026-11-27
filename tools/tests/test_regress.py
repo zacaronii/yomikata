@@ -119,3 +119,59 @@ def test_a_script_that_cant_be_bundled_is_a_fall_not_a_crash(world):
                                                                encoding="utf-8")
     broken = run()
     assert broken.failed and all(r.agreement is None and "can't run" in r.error for r in broken.rows)
+
+
+TYPING = """-- reader: title つくりもの (Made Up)
+-- reader: no hooks
+-- A page is said once its typing position (the byte at 0x80000080) has moved, and then stood for two ticks.
+local last, moved, stood, said = nil, false, 0, nil
+reader.on_frame(function()
+    local at = mem.u8(0x80000080)
+    if last ~= nil and at ~= last then moved, stood = true, 0 else stood = stood + 1 end
+    last = at
+    local bytes = mem.cstr(0x80000100, 32)
+    if moved and stood >= 2 and bytes and #bytes > 0 and bytes ~= said then
+        said = bytes
+        reader.emit{ text = text.sjis(bytes) }
+    end
+end)
+"""
+
+
+def _typed(snaps: Path, name: str, line: str, at: int, ocr: list[str] | None = None):
+    memory = bytearray(0x1000)
+    raw = line.encode("shift_jis")
+    memory[0x100:0x100 + len(raw)] = raw
+    memory[0x80] = at
+    snapfile.write(snaps / f"{name}.ram.gz", bytes(memory))
+    meta = {"platform": "gc", "game": GAME, "base_address": "0x80000000", "frame": 1, **({"ocr": ocr} if ocr else {})}
+    (snaps / f"{name}.json").write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+
+
+@needs_reader
+def test_a_reader_that_says_a_page_once_its_typing_stops_is_read_across_its_sequence(world):
+    """A script that says a page only once its typing position has moved and then stood says nothing over a
+    still snap. Kept with the snaps across its typing (<bar>-seq-NN), the bar is read as in play: the sequence
+    one tick each, then the bar snap held, and it agrees; the entry's `regress: sequence` asks for that, and a
+    bar of such an entry still kept still is named in the report."""
+    from yomikata.regress import markdown, regress
+    snaps = world.scratch / "snaps"
+    for p in snaps.iterdir():
+        p.unlink()
+    (world.catalog / "games" / "gc" / "GXXJ01.lua").write_text(TYPING, encoding="utf-8")
+    (world.catalog / "games" / "gc" / "GXXJ01.json").write_text(json.dumps({"regress": "sequence"}), encoding="utf-8")
+    for k, at in enumerate((1, 2, 3, 4)):                       # the page typing: its position moving
+        _typed(snaps, f"typed-seq-{k:02d}", "ありがとう", at)
+    _typed(snaps, "typed", "ありがとう", 4, ["ありがとう"])        # the bar snap: the page typed out
+    _typed(snaps, "still", "ありがとう", 4, ["ありがとう"])        # the same page kept still
+    run = lambda: regress(world.scratch, world.games, world.catalog, identify=world.identify, day="d")  # noqa: E731
+    first = run()
+    rows = {r.snap: r for r in first.rows}
+    assert rows["typed"].agreement == 1.0 and rows["typed"].how == "sequence", rows
+    assert rows["still"].agreement == 0.0 and rows["still"].how == "still, sequence wanted"
+    kept = world.scratch / "regress" / "keep" / "GXXJ01"
+    assert sorted(p.name for p in kept.glob("typed-seq-*.json")) == [f"typed-seq-{k:02d}.json" for k in range(4)]
+    told = markdown(first, "d")
+    assert "1 of 2 screens read across their typing" in told and "1 screens kept still" in told
+    assert "ありがとう" not in told
+    assert not run().failed

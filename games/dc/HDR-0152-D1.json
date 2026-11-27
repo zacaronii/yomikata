@@ -11,6 +11,7 @@
  ],
  "encoding": "shift_jis",
  "status": "partial",
+ "regress": "sequence",
  "sources": [
   "The harness alone, from the game's first disc on flycast (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. Snaps were studied outside it",
   "Characters are Shift-JIS as the game keeps them, but for two codes its font draws otherwise (0x81B8 as \"!!\", 0x81AC as \"!?\"), read off the pictures where they stood",
