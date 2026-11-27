@@ -96,9 +96,9 @@ scene after the rescue in the meteor's field wasn't set off. Script, table and e
 
 ## Chrono Cross (PlayStation, SLPS-02364)
 
-Parked again at 210 of 300 calls (64 this stretch) with a reader that reads the opening talk right and no bar: the
-next talk is further into the opening dungeon than this stretch could walk. The reader and its dictionary are on
-the branch `chrono-cross-reader` (unmerged), to resume from.
+Parked for good at 238 of 300 calls (92 over the last two stretches) with a reader that reads the opening talk
+right and no bar: the next talk is further into the opening dungeon than any exit found leads. The reader and its
+dictionary are on the branch `chrono-cross-reader` (unmerged, opened as a draft for reference).
 
 - **Load**: disc 1's `.chd`, pcsx_rearmed. On a PlayStation pad `a` is circle (confirm) and `b` cross. Naming:
   `left` takes the cursor out of the grid into the side menu, `down` three times is the confirm item.
@@ -123,13 +123,25 @@ the branch `chrono-cross-reader` (unmerged), to resume from.
   place_find gave first didn't map). `explore` with `whole`, `grid` 64, `step` 26 (a step counts once it's over)
   and `diagonals` maps a room: 165 places of the walkway at `cc-v`, 526 of the stairwell at `cc-z`. It found no
   doors with `jump` 5, though the party walks out of both by hand: a room change here isn't seen as a jump.
-- **Fights**: the field's own data at 0x80037E52 reads 1 on the field and 0 while a fight's code lies over it
-  (`advance_through` with `differs` 1). In `explore` it also fires on a room's fade (16 false fights at `cc-v`).
+- **The room**: u16 at 0x8006AFEE names the room (81 the gate room, 89 the walkway, 104 the stairwell; 7 for a
+  moment in the fade between). `explore` with `room` 0x8006AFEE, `room_size` 2 finds the doors the place's
+  jump doesn't (the walkway's into the stairwell, the stairwell's at its foot and its top, the gate room's).
+  The gate room wants `step` 52 and a wait after `cc-b` loads before a push moves anyone (`cc-b3` is after it).
+- **The loop**: the gate room of the opening talk (its round platform at the top of the stairwell's right-hand
+  stairs is the same room, 534 places) has two ways out: its upper-left doors, to the rooms walked before
+  (`cc-c` to `cc-u`) and on to the walkway, and the corridor at its foot, to the top of the stairwell. The
+  walkway's one doorway leads into the stairwell's foot. No other door showed in any of the four rooms, and A at
+  the platform's top brought no talk. The way on (an event, a lever, a door that wants a key) isn't found.
+- **Fights**: none come at random (enemies walk the field). The field's own data at 0x80037E52 reads 1 on the
+  field and 0 while a fight's code lies over it (`advance_through` with `differs` 1). In `explore` it also fires
+  on a room's fade (16 false fights at `cc-v`): give `fight` `holds` (90 here) where fights are wanted, or leave
+  `fight` out.
 - **Where play stands**: the opening talk is one scene of 7 pages. The rooms walked after it have no talk; from
   the walkway (`cc-v`) the stairs up and the bridge lead round to the gate room of the opening talk. The next
   talk is further on, by a way not found.
-- **States** (harness scratch): `cc-a` the naming screen, `cc-b` after the opening talk, `cc-v` the walkway,
-  `cc-z` the stairwell above it, `cc-z7` the landing at the top of its right-hand stairs.
+- **States** (harness scratch): `cc-a` the naming screen, `cc-b` after the opening talk (`cc-b3` 90 frames on,
+  the pad answering), `cc-v` the walkway, `cc-z` the stairwell's foot, `cc-z6` its top, `cc-z7` the gate room
+  entered from there.
 
 ## Shining Force: Kamigami no Isan (Mega Drive, G-5512): checked, not started
 
