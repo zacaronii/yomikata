@@ -2303,13 +2303,16 @@ class Session:
                         "a way round what a straight line runs into, as `yomikata route` gives it from the stage's "
                         "collision", False),
           way_near=("number", "how near a waypoint is near enough to go on to the next (default 50)", False),
+          patience=("integer", "pushes in a row that bring it no nearer before it stops (default 6): more for a "
+                               "character that starts each push from a standstill or turns slowly", False),
           lag=("integer", "frames at the start of each push that aren't learnt from: a character that turns and "
                           "speeds up slowly (swimming) moves the way it was going before the stick, at first; the "
                           "pushes that teach the way are this much longer (default 0)", False))
     def walk_3d(self, x_address: str, z_address: str, x: float | None = None, z: float | None = None,
                 near: float = 0.0, push: int = 8, limit: int = 1200, height: str = "", fall: float = 30.0,
                 water: dict | None = None, yaw: str = "", yaw_kind: str = "s16", floor: float | None = None,
-                settle: int = 0, way: list | None = None, way_near: float = 50.0, lag: int = 0) -> dict:
+                settle: int = 0, way: list | None = None, way_near: float = 50.0, lag: int = 0,
+                patience: int = 6) -> dict:
         import math
         import struct
         machine = self._need()
@@ -2535,7 +2538,7 @@ class Session:
                 best, stuck = dist, 0
             else:
                 stuck += 1
-                if stuck >= 6:
+                if stuck >= max(1, min(int(patience), 200)):
                     why = "it stopped getting nearer: something is in the way, or a talk has begun"
                     break
         px, pz = where()
@@ -3399,7 +3402,7 @@ class Session:
                             "the player's numbers, as `yomikata placements` reads them off the disc (and `yomikata "
                             "route` gives each a way round what is between); tried nearest first", False),
           walk=("object", "walk_3d's own options for each walk: height, fall, floor, settle, water, yaw, push, "
-                          "limit, lag, way_near", False))
+                          "limit, lag, way_near, patience", False))
     def meet(self, x_address: str, z_address: str, near: float = 2000.0, stride: int = 0, reach: float = 0.0,
              button: str = "a", wait: int = 90, most: int = 6, look: bool = False, keep: str = "",
              loose: bool = False, least: float = 0.0, targets: list | None = None, walk: dict | None = None) -> dict:
@@ -3445,7 +3448,7 @@ class Session:
                 break
             back()
             allowed = {"height", "fall", "floor", "settle", "water", "yaw", "yaw_kind", "push", "limit", "lag",
-                       "way_near"}
+                       "way_near", "patience"}
             if walk and set(walk) - allowed:
                 raise HarnessError(f"walk takes: {', '.join(sorted(allowed))}")
             walked = self.walk_3d(f"0x{ax:X}", f"0x{az:X}", person["x"], person["z"], near=float(reach) or 0.0,
