@@ -59,7 +59,7 @@
   },
   "AGCJ": {
    "path": "games/nds/AGCJ.json",
-   "sha256": "7eb3969d2eda078431a706bbbf95846526d02ff1f2c3150b6bb9236879606d09",
+   "sha256": "9bb86a68c9210081e44f5cf988ee51d6974b0e438924ce67aafc5618d41561a2",
    "platform": "nds",
    "encoding": "table",
    "status": "partial"

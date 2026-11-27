@@ -15,8 +15,10 @@
  "unit": 2,
  "status": "partial",
  "sources": [
-  "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
-  "The table: the card's whole font (1,817 characters) read in code order, kanji by manga-ocr and by one reader on sheets beside the OCR's readings (377 corrected); the card's whole script read through in sentences with it"
+  "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written; the DS core is melonDS DS",
+  "The table: the card's whole font (1,817 characters) read in code order, kanji by manga-ocr and by one reader on sheets beside the OCR's readings (377 corrected); the card's whole script read through in sentences with it",
+  "Played from power-on through the first episode's waiting room and the trial's opening. What the script said in play agreed with the rows read off 42 of 42 pictures, over 3 scenes (one at 96%: a mark read as 、 on the picture is 。 in the table). No screen without text was among them",
+  "A command's argument counts are the first game's and one more found by stepping through the whole script; others aren't known, so a stray character may come where an unknown command's argument is in the characters' range"
  ],
- "notes": "Read by the script games/nds/AGCJ.lua. The section of the script being played lies unpacked in main memory; a word says where it has got to. A page is said when that stands on a wait. Who speaks is given as the script's number for the speaker only. Not looked at: choices, the court record, cross-examination, saved games. The id AGCJ is the card's game code."
+ "notes": "Read by the script games/nds/AGCJ.lua. The section of the script being played lies unpacked in main memory; a word says where it has got to. A page is said when that stands on a wait, or on the pause before a page that goes on by itself. Who speaks is given as the script's number for the speaker only. Not looked at: choices, the court record, cross-examination, saved games. The id AGCJ is the card's game code."
 }
