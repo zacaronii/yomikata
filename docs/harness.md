@@ -555,7 +555,9 @@ up becomes floors in cells, walls shut the floors they stand in, steps up to `--
 and A* finds the way, pulled straight to a few corners; `--low` leaves out floors under water (Wind Waker: 1).
 Each line it prints is one of meet's `targets` with its `way`, which walk_3d walks in turn (`way`, `way_near`).
 A character that turns and speeds up slowly, as one swimming does, moves the way it was going at the start of a
-push: walk_3d's `lag` leaves those first frames out of what it learns of the stick's way. A game that walks by the stick alone
+push: walk_3d's `lag` leaves those first frames out of what it learns of the stick's way. A game that hops
+the character up a step reads high for a moment: when the ledge guard refuses every way, it stands still for 30
+frames and tries them once more from where the character landed (its refusals give the two heights). A game that walks by the stick alone
 (the pad does nothing) is mapped with `explore` and `expedition` given `stick`: eight pushes of the stick in
 place of the pad's, named n, ne, … (the stick's ways, which turn with the camera); a door found so is pushed
 through by the same way.

@@ -2303,13 +2303,16 @@ class Session:
                         "a way round what a straight line runs into, as `yomikata route` gives it from the stage's "
                         "collision", False),
           way_near=("number", "how near a waypoint is near enough to go on to the next (default 50)", False),
+          patience=("integer", "pushes in a row that bring it no nearer before it stops (default 6): more for a "
+                               "character that starts each push from a standstill or turns slowly", False),
           lag=("integer", "frames at the start of each push that aren't learnt from: a character that turns and "
                           "speeds up slowly (swimming) moves the way it was going before the stick, at first; the "
                           "pushes that teach the way are this much longer (default 0)", False))
     def walk_3d(self, x_address: str, z_address: str, x: float | None = None, z: float | None = None,
                 near: float = 0.0, push: int = 8, limit: int = 1200, height: str = "", fall: float = 30.0,
                 water: dict | None = None, yaw: str = "", yaw_kind: str = "s16", floor: float | None = None,
-                settle: int = 0, way: list | None = None, way_near: float = 50.0, lag: int = 0) -> dict:
+                settle: int = 0, way: list | None = None, way_near: float = 50.0, lag: int = 0,
+                patience: int = 6) -> dict:
         import math
         import struct
         machine = self._need()
@@ -2491,33 +2494,45 @@ class Session:
                 moved_to = None
                 tries = [(f, t) for f in dict.fromkeys((frames, max(2, frames // 2), max(2, frames // 4)))
                          for t in (0, 22.5, -22.5, 45, -45, 67.5, -67.5, 90, -90, 135, -135)]
-                for frames, turn in tries:
-                    a = math.radians(turn)
-                    tx, ty = sx * math.cos(a) - sy * math.sin(a), sx * math.sin(a) + sy * math.cos(a)
-                    before_state, before_route, before_frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
-                    h0 = float_at(at_h) if at_h is not None else None
-                    move, felt, felt_frames, why = pushed((tx, ty), frames)
-                    if not why and settle:
-                        done, why = self._advance(max(0, min(int(settle), 120)), set(), (0.0, 0.0), events)
+                for attempt in (0, 1):
+                    if attempt:
+                        # Every way refused: the height may have been read mid-hop (a game that hops the character
+                        # up a step), so every push lands "lower". Stand still a moment, then once more from there.
+                        done, why = self._advance(30, set(), (0.0, 0.0), events)
                         ran += done
-                    if why:
+                        if why:
+                            break
+                    for frames, turn in tries:
+                        a = math.radians(turn)
+                        tx, ty = sx * math.cos(a) - sy * math.sin(a), sx * math.sin(a) + sy * math.cos(a)
+                        before_state, before_route, before_frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
+                        h0 = float_at(at_h) if at_h is not None else None
+                        move, felt, felt_frames, why = pushed((tx, ty), frames)
+                        if not why and settle:
+                            done, why = self._advance(max(0, min(int(settle), 120)), set(), (0.0, 0.0), events)
+                            ran += done
+                        if why:
+                            break
+                        h1 = float_at(at_h) if at_h is not None else None
+                        fell = h0 is not None and h1 is not None and (h0 - h1 > float(fall)
+                                                                       or (floor is not None and h1 < float(floor)))
+                        if fell or (wet is not None and wet()):
+                            machine.load_state(before_state)
+                            machine.frames, self.route = before_frames, before_route
+                            if self.reader is not None:
+                                self.reader.state_loaded()
+                                self.reader.take()
+                            if len(refused) < MAX_ROWS:
+                                px0, pz0 = where()
+                                refused.append({"at": [round(px0, 1), round(pz0, 1)], "turn": turn,
+                                                "why": "fell" if fell else "water",
+                                                **({"height": [round(h0, 1), round(h1, 1)]}
+                                                   if h0 is not None and h1 is not None else {})})
+                            continue
+                        moved_to = (tx, ty)
                         break
-                    h1 = float_at(at_h) if at_h is not None else None
-                    fell = h0 is not None and h1 is not None and (h0 - h1 > float(fall)
-                                                                   or (floor is not None and h1 < float(floor)))
-                    if fell or (wet is not None and wet()):
-                        machine.load_state(before_state)
-                        machine.frames, self.route = before_frames, before_route
-                        if self.reader is not None:
-                            self.reader.state_loaded()
-                            self.reader.take()
-                        if len(refused) < MAX_ROWS:
-                            px0, pz0 = where()
-                            refused.append({"at": [round(px0, 1), round(pz0, 1)], "turn": turn,
-                                            "why": "fell" if fell else "water"})
-                        continue
-                    moved_to = (tx, ty)
-                    break
+                    if why or moved_to is not None:
+                        break
                 if why:
                     break
                 if moved_to is None:
@@ -2535,7 +2550,7 @@ class Session:
                 best, stuck = dist, 0
             else:
                 stuck += 1
-                if stuck >= 6:
+                if stuck >= max(1, min(int(patience), 200)):
                     why = "it stopped getting nearer: something is in the way, or a talk has begun"
                     break
         px, pz = where()
@@ -3399,7 +3414,7 @@ class Session:
                             "the player's numbers, as `yomikata placements` reads them off the disc (and `yomikata "
                             "route` gives each a way round what is between); tried nearest first", False),
           walk=("object", "walk_3d's own options for each walk: height, fall, floor, settle, water, yaw, push, "
-                          "limit, lag, way_near", False))
+                          "limit, lag, way_near, patience", False))
     def meet(self, x_address: str, z_address: str, near: float = 2000.0, stride: int = 0, reach: float = 0.0,
              button: str = "a", wait: int = 90, most: int = 6, look: bool = False, keep: str = "",
              loose: bool = False, least: float = 0.0, targets: list | None = None, walk: dict | None = None) -> dict:
@@ -3445,7 +3460,7 @@ class Session:
                 break
             back()
             allowed = {"height", "fall", "floor", "settle", "water", "yaw", "yaw_kind", "push", "limit", "lag",
-                       "way_near"}
+                       "way_near", "patience"}
             if walk and set(walk) - allowed:
                 raise HarnessError(f"walk takes: {', '.join(sorted(allowed))}")
             walked = self.walk_3d(f"0x{ax:X}", f"0x{az:X}", person["x"], person["z"], near=float(reach) or 0.0,
