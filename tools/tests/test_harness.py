@@ -3059,6 +3059,13 @@ def test_replay_plays_the_way_to_a_saved_state_and_goes_on_from_what_it_kept(ses
     assert "said" not in seq and not (session.roots.scratch / f"snaps/rpm-said-{last:02d}-seq-00.png").exists()
     with pytest.raises(HarnessError, match="before"):
         session.replay("rp-b", said={"before": [0]})
+    import yomikata.harness.session as hs
+    was, hs.MAX_SNAP_BYTES = hs.MAX_SNAP_BYTES, 4096
+    try:
+        with pytest.raises(HarnessError, match="at most"):
+            session.replay("rp-b", said={"before": [200]})              # more frames than memory allows
+    finally:
+        hs.MAX_SNAP_BYTES = was
     with pytest.raises(HarnessError, match="marks"):
         session.replay("rp-b", marks=[["x"]])
     # The call's time runs out after a few frames: where it got to is kept, and a replay from there ends the way.

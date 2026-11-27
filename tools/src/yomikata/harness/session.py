@@ -31,7 +31,7 @@ BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "selec
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
 MAX_INFO = 50          # a script's info-level logs kept in a call's events, so that they can't crowd out its text
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
-MAX_BEFORE = 120                    # frames said's `before` keeps memory for
+MAX_BEFORE = 300                    # frames said's `before` keeps memory for (as memory allows: MAX_SNAP_BYTES)
 MAX_SNAP_BYTES = 512 * 1024 * 1024  # memory snapped during waits (every) in a call: many small snaps, or few large
 
 
@@ -741,6 +741,11 @@ class Session:
         if not isinstance(before, list) or not all(isinstance(b, int) and 0 < b <= MAX_BEFORE for b in before):
             raise HarnessError(f"before is a list of frames before each saying, each 1 to {MAX_BEFORE}")
         before = sorted(set(before), reverse=True)
+        if before:
+            size = len(machine.ram()[1]) + sum(len(v) for v in machine.regions().values())
+            if (before[0] + 1) * size > MAX_SNAP_BYTES:
+                raise HarnessError(f"before keeps memory for {before[0]} frames, {size} bytes each: more than "
+                                   f"{MAX_SNAP_BYTES // (1024 * 1024)} MB; at most {MAX_SNAP_BYTES // size - 1} frames here")
         taken, due, seen = [], [], [0]
         kept: list = []                         # memory of the last frames, for `before`: (frame, base, ram, regions)
 
