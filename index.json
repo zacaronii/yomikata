@@ -650,6 +650,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "SLPS-02274": {
+   "path": "games/ps1/SLPS-02274.json",
+   "sha256": "68c5fe8d8a535500baa7b85185f53fecf96a647d0557ca556879bc5cd96b20ba",
+   "platform": "ps1",
+   "encoding": "compressed",
+   "status": "partial"
+  },
   "SLPS-02296": {
    "path": "games/ps1/SLPS-02296.json",
    "sha256": "2eeeed1fbc811b9407dc10a4031bc7f2c6e0237fe2b70a63710e0850d9cd695c",
@@ -1814,6 +1821,24 @@
     "tbl": {
      "path": "games/ps1/SLPS-02100.tbl",
      "sha256": "24340765c7af5b001df00e734b42dcf505fc7fb7e3fd4d71248af7678e41cc2f"
+    }
+   }
+  },
+  "SLPS-02274": {
+   "path": "scripts/ps1/SLPS-02274.lua",
+   "sha256": "d076dd223b251d4ad5224feda01c42340ccbfc8b04d779ee65b6958026f82774",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "夕闇通り探検隊 (Yuuyami Doori Tankentai)",
+   "reads": "the subtitle on screen: the page from the scene's script, each character by its picture in video memory",
+   "builds": [
+    "1b2eee02e9ae542620be83a142532dc39c468886"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/ps1/SLPS-02274.glyphs",
+     "sha256": "cd94c2b450b1b6a8de4f3966773124ba97bf6dc83c6d2ba2e6119db8a080f5dc"
     }
    }
   },
