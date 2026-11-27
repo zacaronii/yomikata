@@ -2783,6 +2783,43 @@ def test_a_game_boy_cartridge_is_read_whole_at_its_own_address(tmp_path):
     assert machine.read(0x01000000, 4) == b""
 
 
+def test_a_pc_engine_hucard_machine_reads_the_consoles_ram_at_its_own_address():
+    """beetle pce_fast maps a HuCard game's 8 KB at 0x1F0000 (and its backup RAM at 0x1EE000) and gives the same
+    8 KB as system RAM (seen with a made-up HuCard): main memory is read from 0x1F0000."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine
+    work = (C.c_char * 0x2000)(*([7] * 0x2000))
+    work[0x10] = b"\x42"
+
+    class Lib:
+        def retro_get_memory_data(self, which):
+            return C.addressof(work) if which == 2 else None
+
+        def retro_get_memory_size(self, which):
+            return 0x2000 if which == 2 else 0
+
+    class Core:
+        lib = Lib()
+        maps = [(0x1F0000, 0x2000, C.addressof(work))]
+
+        def read(self, address, size):
+            for start, length, ptr in self.maps:
+                if start <= address < start + length:
+                    return C.string_at(ptr + address - start, min(size, start + length - address))
+            return b""
+
+        def ram(self):
+            return C.string_at(C.addressof(work), 0x2000)
+
+        def ram_base(self):
+            return None
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core, machine.cartridge = "pce", Core(), b""
+    base, ram = machine.ram()
+    assert (base, len(ram), ram[0x10]) == (0x1F0000, 0x2000, 0x42)
+    assert machine.read(0x1F0010, 2) == bytes([0x42, 7])
+
+
 def test_a_famicom_cartridge_and_a_disk_are_read_whole_after_their_headers(tmp_path):
     """fceumm's map has no program ROM: the harness gives a Famicom image after its iNES header (and trainer) at
     0x01000000, the program then the CHR; a Disk System image after its fwNES header; a file without one as is."""

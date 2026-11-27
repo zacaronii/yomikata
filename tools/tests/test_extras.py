@@ -194,6 +194,26 @@ def test_snapshots_of_the_mega_drive_and_its_alias_genesis(tmp_path):
     assert sample("0x001000").status_code == 400                                      # the cartridge
 
 
+def test_snapshots_of_a_pc_engine_hucard(tmp_path):
+    """pce snapshots (a HuCard): the console's 8 KB at 0x1F0000, and its video memory; samples there taken, ones
+    in the HuCard's ROM refused."""
+    c = TestClient(create_app("secret", tmp_path / "data"))
+
+    def post(ram, **parts):
+        meta = {"id": "PCE-D9E1549A", "platform": "pce", "base_address": "0x1F0000", "ocr": ["こんにちは"]}
+        files = {"ram": ("ram", ram), **{k: (k, v) for k, v in parts.items()}}
+        return c.post("/api/snapshots", data={"meta": json.dumps(meta)}, headers=AUTH, files=files)
+    r = post(os.urandom(0x2000), vram=os.urandom(0x10000))
+    assert r.status_code == 200 and r.json()["parts"] == ["ram", "vram"], r.json()
+    assert post(os.urandom(0x2001)).status_code == 400
+
+    def sample(address):
+        return c.post("/api/samples", json={"id": "PCE-D9E1549A", "platform": "pce", "samples": [
+            {"ocr": "こんにちは", "bytes_hex": "82b182f182c982bf82cd", "address": address}]}, headers=AUTH)
+    assert sample("0x1F0100").status_code == 200
+    assert sample("0x0E0000").status_code == 400                                      # the HuCard's ROM
+
+
 def test_offline_reads_take_a_snapshots_regions_but_not_its_savestate(tmp_path):
     """yomikata run's regions beside a snapshot: lwram and the like, not the savestate kept with it."""
     from yomikata.run import _regions
