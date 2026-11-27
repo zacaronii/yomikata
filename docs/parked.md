@@ -51,6 +51,42 @@ through the first town, and the way on wasn't found (below).
   push at each edge, by eye, before more exploring.
 - **States**: ff-p1 after the opening's talk (from the title, 60 presses), ff-q the second map, ff-t on the bridge.
 
+## Final Fantasy V (Super Famicom, SFC-9EA60A02)
+
+Parked for good at 178 calls (a budget of 150, extended to 180 for the bar alone: 28 over the first budget). The
+script reads right everywhere it was compared (22 of 22 screens over 3 scenes, live), short of the bar's 30: the
+scene after the rescue in the meteor's field wasn't set off. Script, table and entry on branch `final-fantasy-5`
+(draft pull request #228).
+
+- **Core**: bsnes_mercury_balanced. HiROM: the build check reads the cartridge's title at `0xC0FFC0`, which the
+  harness now gives over snaps too (`compare`, `yomikata run --rom`).
+- **The page** is unpacked whole into work RAM at `0x7E19D3`, laid out as the window shows it: 4 rows of 16 cells,
+  a byte a cell, the dictionary's words and the names written out. A kanji is its second byte in the cell, with a
+  lead byte for each cell at `0x7E1A13` (1 for `0x1E`, 2 for `0x1F`, 0 for a single-byte code). `0xFF` a blank
+  cell; a row's text ends at `0x01` or `0x00`; `0x17` ends the page; `0x0C` a pause. The script in the cartridge
+  has its own codes (dictionary words, a name inserted with `0x19`, indents): the buffer is the place to read.
+- **The window**: `0x7E0BB5` is 5 while the message window shows its page; 0 with none, 1 and 2 as it opens or
+  closes. The page is in the buffer before the window opens and stays after it closes (and through a state's
+  load), so a page stands only while that byte is 5 (over 6 frames).
+- **Windows that close by themselves** (two pages in the opening): said rightly, but a snap taken on the script's
+  text comes at the step's end, after they are gone. Snap them in a second run, 2 frames after the frame the first
+  run said them, as the bar's opening screens were.
+- **The table**: 132 codes. The kana and signs are Final Fantasy VI's single-byte codes, held against this game's
+  pages; the rest and every kanji were read in play, each page's cells in a snap beside its picture.
+- **The party's place**: x at `0x7E0AD8`, y at `0x7E0AD9`, a byte each, on the world map and on the field maps
+  (`explore` with `whole`). An `explore` that sets off a scene in a branch it drops says nothing of it: where a
+  scene is wanted, walk there for real.
+- **The way**: the first field is entered from the world map at (175, 142) with a push up. The rescue scene starts
+  at the field's far east corner (27, 21) after its first two pages at the clearing's top (16, 21). A name entry
+  follows a page of it: leave its grid by up to the bar above it, right to the end choice, and the confirm button.
+  After the scene's last page the second party member joins, and the field opens east and south (177 places).
+- **States**: `f5-a` power-on plus 40 presses (the opening's castle pages are before it); `f5-k` the rescue
+  scene's fight; `f5-q` the field after the rescue; `f5-s` the same from the latest run; `f5-u` beside a figure on
+  the crater's top-right rim.
+- **Next**: from `f5-u`, face the figure (up and to the right of the party) and press the confirm button. That
+  scene should give the 8 or more screens the bar still wants; then the bar over it and the 22 screens (snaps
+  `f5r2-00` to `f5r2-08` and `f5y-*-on01` to `on13`).
+
 ## Chrono Cross (PlayStation, SLPS-02364)
 
 Parked at 146 of 300 calls with a reader that works and no bar. The reader and its table are on the branch
