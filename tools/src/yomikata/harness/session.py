@@ -29,6 +29,8 @@ NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "select", "up", "down", "left", "right")
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
+# Consoles whose games keep a place as whole numbers only (no numbers with a point): explore's grid needs whole.
+WHOLE_ONLY = ("fc", "fds", "gb", "gbc", "sfc", "pce", "pce-cd")
 # Options a core is loaded with unless the call gives its own. mupen64plus_next draws with GLideN64 unless told
 # otherwise, and here (Mesa, no window) GLideN64 gives a black picture on many frames once a game has used the
 # framebuffer for an effect, until the core is loaded again (Doubutsu no Mori after its name keyboard: 19 of 50
@@ -2453,6 +2455,9 @@ class Session:
         grid = float(grid)
         if grid < 0:
             raise HarnessError("grid is how many of the game's units make a cell: above 0")
+        if grid and not whole and machine.platform in WHOLE_ONLY:
+            raise HarnessError(f"a {machine.platform} game keeps its place as whole numbers, and grid without whole "
+                               "reads numbers with a point: give whole as well")
 
         def signed(value):
             return value - (1 << 8 * size) if value is not None and size > 1 and value >> (8 * size - 1) else value
@@ -2472,7 +2477,8 @@ class Session:
             return signed(self._cell(at_x, size)), signed(self._cell(at_y, size))
         origin = now()
         if None in origin:
-            raise HarnessError("the place can't be read")
+            raise HarnessError("the place can't be read" + (": with grid and without whole it is read as numbers with "
+                                                             "a point; for whole numbers give whole" if grid and not whole else ""))
         import zlib
         ways = ("up", "down", "left", "right") + (("up+left", "up+right", "down+left", "down+right") if diagonals else ())
 
