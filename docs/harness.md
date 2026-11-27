@@ -657,6 +657,21 @@ twice, once in a sentence and once alone. Gyakuten Saiban: 1,351 characters from
 calls; the 276 read in play all agree; the other 1,075 are read once. A font packed in the cartridge, or one
 whose codes aren't glyph numbers, wants its own way in (`yomikata font` from video memory, `glyphs`).
 
+A DS game keeps its font and its script as files on the card, often packed (LZ77, types 0x10 and 0x11), not at
+an address. `yomikata nitro` lists a card's files (NitroFS: by their paths, with the two programs and their
+overlays) with each one's size and packing, takes out those asked for into a scratch folder, unpacked, and with
+`--streams` finds the packed sections inside a file that holds many (an archive of a game's whole script):
+
+```
+yomikata nitro game.zip                                          # every file: path, size, packing (JSON lines)
+yomikata nitro game.zip --only "*.imb" --extract /scratch/work/ds --unpack
+yomikata nitro game.zip --only mes_all.bin --streams --extract /scratch/work/ds --unpack   # each section too
+```
+
+A font file taken out so is drawn with `rom-font` on it as on a cartridge. Gyakuten Saiban 4: `fonts.imb`, 1,840
+glyphs of 16x16 in four 4-bit tiles, in code order from 0x90 (`rom-font fonts.imb --at 0 --first 90 --form
+tiles4`); `mes_all.bin`, the whole script in 113 sections, each found by `--streams`.
+
 The order of reading a font, then:
 
 1. your own reading of each glyph, off a sheet (`yomikata glyphs`, or the harness's `glyph_pairs` for a font
