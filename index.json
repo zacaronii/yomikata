@@ -286,6 +286,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "SHVC-AMXJ": {
+   "path": "games/sfc/SHVC-AMXJ.json",
+   "sha256": "65197d0a8365fb7109815880714738cb771ae5106bc3f5c4b9de2d64050d0bca",
+   "platform": "sfc",
+   "encoding": "compressed",
+   "status": "partial"
+  },
   "SHVC-MB": {
    "path": "games/sfc/SHVC-MB.json",
    "sha256": "832d8ba03d41755d518558e64470454f154cd7976463c7e4896677257e811a69",
@@ -1295,6 +1302,24 @@
     "tbl": {
      "path": "games/sfc/SHVC-ACTJ.tbl",
      "sha256": "f24781d8b53c5232ad581cc0cb981a999d673d290703d5fc4f800f8a170197ba"
+    }
+   }
+  },
+  "SHVC-AMXJ": {
+   "path": "scripts/sfc/SHVC-AMXJ.lua",
+   "sha256": "ab32a957dbba196a88d58bb387798e98c74f249cd60c755e3187247be5a1ab01",
+   "platform": "sfc",
+   "runtime": 1,
+   "title": "真・女神転生if... (Shin Megami Tensei if..., Super Famicom)",
+   "reads": "the message window's rows off its pixels once the page stands, each glyph by its picture",
+   "builds": [
+    "91ae6c0b"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/sfc/SHVC-AMXJ.glyphs",
+     "sha256": "cab0c43feef6152cf30c87a161303a36244b7c7451978fb03d04249d56597074"
     }
    }
   },
