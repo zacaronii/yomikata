@@ -2695,6 +2695,72 @@ def test_explore_presses_through_the_fights_its_steps_bring(session):
         session.explore(step=1, fight={"address": "0x10"})
 
 
+def test_explore_counts_a_push_that_changes_the_room_as_a_door_however_little_the_place_moved(session):
+    """A doorway at x 106: stepping through it changes the room (a byte at 0x7F0) and moves the place no more
+    than any step, so at the default jump it is a place like any other and the next room is mapped as if it were
+    this one; given `room`, the push through is a door, and the map stops at it."""
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+
+    def rooms(buttons, stick):
+        plain(buttons, stick)
+        x = struct.unpack_from(">h", machine.memory, 0x30)[0]
+        machine.memory[0x7F0] = 2 if x > 106 else 1
+    machine._step = rooms
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    machine.memory[0x7F0] = 1
+    box = [96, 78, 112, 82]
+    out = session.explore(step=1, within=box)
+    assert out["columns"] == [96, 112] and out["doors"] == [], out
+    out = session.explore(step=1, within=box, room=f"0x{BASE + 0x7F0:X}")
+    assert out["columns"] == [96, 106] and {"at": [106, 80], "push": "right"} in out["doors"], out
+    with pytest.raises(HarnessError, match="room_size"):
+        session.explore(step=1, room=f"0x{BASE + 0x7F0:X}", room_size=3)
+
+
+def test_explore_tells_a_fade_from_a_fight_by_how_long_the_mode_holds_or_by_a_second_mode(session):
+    """Stepping onto x 100 fades the screen: the fight's flag (0x7F2) is set for two frames and drops by itself.
+    Grass at x 104 starts a fight that holds the flag, and a second flag (0x7F5), until a is pressed three times.
+    Without `holds` every fade is pressed through as a fight; with it, or with `also`, only the grass's are."""
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+
+    def fades(buttons, stick):
+        m = machine.memory
+        pressed = "a" in buttons and not m[0x7F4]
+        m[0x7F4] = 1 if "a" in buttons else 0
+        if m[0x7F6]:                                   # a fade: the flag stands for two frames
+            m[0x7F6] -= 1
+            if not m[0x7F6]:
+                m[0x7F2] = 0
+        if m[0x7F2] and m[0x7F5]:                      # in a fight: the pad walks nobody
+            if pressed:
+                m[0x7F3] += 1
+                if m[0x7F3] >= 3:
+                    m[0x7F2], m[0x7F3], m[0x7F5] = 0, 0, 0
+            plain(set(), stick)
+            return
+        before = struct.unpack_from(">hh", m, 0x30)
+        plain(buttons, stick)
+        x, y = struct.unpack_from(">hh", m, 0x30)
+        if (x, y) != before and x == 100:
+            m[0x7F2], m[0x7F6] = 1, 2
+        if (x, y) != before and x == 104:
+            m[0x7F2], m[0x7F5] = 1, 1
+    machine._step = fades
+    struct.pack_into(">hh", machine.memory, 0x30, 102, 80)
+    box = [96, 78, 112, 82]
+    mode = {"address": f"0x{BASE + 0x7F2:X}", "equals": "1", "wait": 4, "begin": 1}
+    out = session.explore(step=1, within=box, fight=mode)
+    assert any(f["at"][0] == 100 for f in out["fought"]), out                      # the fades counted
+    for watch in ({"holds": 6}, {"also": {"address": f"0x{BASE + 0x7F5:X}", "equals": "1"}}):
+        out = session.explore(step=1, within=box, fight={**mode, **watch})
+        assert out["columns"] == [96, 112] and out["fights"] >= 1, out
+        assert all(f["at"][0] == 104 and (f["presses"], f["stopped"]) == (3, "mode ended") for f in out["fought"]), out
+    with pytest.raises(HarnessError, match="also"):
+        session.explore(step=1, fight={**mode, "also": {"address": "0x10"}})
+
+
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
     """`yomikata calls --trend`: for each game, the calls, runs and minutes from its first call to the first
     comparison by scenes that met the bar; a comparison's outcome is kept with its call (counts only)."""

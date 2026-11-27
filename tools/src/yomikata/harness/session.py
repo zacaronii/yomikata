@@ -2463,23 +2463,34 @@ class Session:
 
     def _fight_through(self, fight: dict):
         """For explore: a function that, after a step, waits up to `begin` frames for a fight's mode and presses
-        through it as advance_through does (no stuck check: a menu that holds the fight runs to `most`). It gives
+        through it as advance_through does (no stuck check: a menu that holds the fight runs to `most`). A mode
+        that comes and goes within `holds` frames (a screen's fade on a room change), or comes without `also` (a
+        second mode, the same keys), is no fight: the frames it took are kept and nothing is pressed. It gives
         the moves made, as [frames, buttons], and the fight's outcome, or None when no fight came."""
         machine = self.machine
         if not isinstance(fight, dict) or not fight.get("address"):
             raise HarnessError("fight is advance_through's mode: address, and equals or differs")
-        size = int(fight.get("size", 1))
-        equals, differs = str(fight.get("equals", "")), str(fight.get("differs", ""))
-        if size not in (1, 2, 4) or (equals == "") == (differs == ""):
-            raise HarnessError("fight: size 1, 2 or 4, and equals or differs, one of them")
-        at, want = int(str(fight["address"]), 16), int(equals or differs, 0)
+
+        def condition(spec: dict, what: str):
+            size = int(spec.get("size", 1))
+            equals, differs = str(spec.get("equals", "")), str(spec.get("differs", ""))
+            if size not in (1, 2, 4) or (equals == "") == (differs == "") or not spec.get("address"):
+                raise HarnessError(f"{what}: address, size 1, 2 or 4, and equals or differs, one of them")
+            at, want = int(str(spec["address"]), 16), int(equals or differs, 0)
+
+            def holds_now() -> bool:
+                value = self._cell(at, size)
+                return value is not None and (value == want if equals != "" else value != want)
+            return holds_now
+        mode = condition(fight, "fight")
+        also = fight.get("also")
+        if also is not None and not isinstance(also, dict):
+            raise HarnessError("fight's also is a second mode: address, and equals or differs")
+        second = condition(also, "fight's also") if also is not None else None
         keys = sorted(self._buttons(fight.get("buttons", ["a"])))
         hold, wait = max(1, int(fight.get("hold", 6))), max(0, int(fight.get("wait", 30)))
         most, begin = max(1, min(int(fight.get("most", 300)), MAX_FRAMES // 8)), max(0, int(fight.get("begin", 0)))
-
-        def mode() -> bool:
-            value = self._cell(at, size)
-            return value is not None and (value == want if equals != "" else value != want)
+        holds = max(0, min(int(fight.get("holds", 0)), 600))
 
         def through():
             moves, waited = [], 0
@@ -2489,6 +2500,16 @@ class Session:
             if waited:
                 moves.append([waited, []])
             if not mode():
+                return moves, None
+            # A fight holds its mode; a fade sets it for a few frames and drops it. Watched frame by frame, and
+            # the frames kept in the moves whatever they show.
+            stood = 0
+            while stood < holds and mode():
+                machine.run(1, set(), (0.0, 0.0))
+                stood += 1
+            if stood:
+                moves.append([stood, []])
+            if not mode() or (second is not None and not second()):
                 return moves, None
             presses = 0
             while mode() and presses < most:
@@ -2537,13 +2558,25 @@ class Session:
                            "after a step for the fight to begin (0: the mode is set at once). A fight a push "
                            "starts is pressed through there and the map goes on from where it ended; the "
                            "fights are counted and listed, and a walk with `to` keeps their presses in the "
-                           "record of the way", False))
+                           "record of the way. `holds`: frames the mode must stand before it is a fight (a "
+                           "screen's fade on a room change may set it for a few); `also`: a second mode, the "
+                           "same keys, that must hold with it", False),
+          room=("string", "where the game keeps which room it is in, hex: a push that changes it is a door, "
+                          "however far the place moved (a game whose rooms share their numbers, or whose door "
+                          "moves the place less than jump)", False),
+          room_size=("integer", "bytes of room: 1, 2 or 4 (default 1)", False))
     def explore(self, x_address: str = "", y_address: str = "", size: int = 2, step: int = 8, most: int = 400,
                 to: list | None = None, near: int = 1, jump: int = 8, within: list | None = None,
                 grid: float = 0.0, diagonals: bool = False, whole: bool = False, close: str = "",
-                fight: dict | None = None) -> dict:
+                fight: dict | None = None, room: str = "", room_size: int = 1) -> dict:
         machine = self._need()
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
+        if room_size not in (1, 2, 4):
+            raise HarnessError("room_size is 1, 2 or 4 bytes")
+        room_at = int(str(room), 16) if room else None
+
+        def room_now():
+            return self._cell(room_at, room_size) if room_at is not None else None
         step, most, jump = max(1, min(int(step), 60)), max(2, min(int(most), 1500)), max(2, int(jump))
         if within is not None and (len(within) != 4 or within[0] > within[2] or within[1] > within[3]):
             raise HarnessError("within is [x0, y0, x1, y1]")
@@ -2631,6 +2664,7 @@ class Session:
                     late = True
                     break
                 machine.load_state(zlib.decompress(places[here][0]))
+                room_before = room_now()
                 machine.run(step, set(push.split("+")), (0.0, 0.0))
                 there, fought = now(), []
                 if through is not None and None not in there and there != here:
@@ -2639,6 +2673,10 @@ class Session:
                     if outcome is not None:
                         fights.append({"at": list(there), **outcome})
                         there = now()
+                if room_at is not None and room_now() != room_before:
+                    # The room changed: a door, however far (or little) the place moved.
+                    doors.setdefault(here, push)
+                    continue
                 if None in there or there == here:
                     continue
                 # Counted for the hint (a place kept in pixels) whether or not it reads as a change of map: a push
