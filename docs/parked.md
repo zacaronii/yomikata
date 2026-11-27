@@ -122,6 +122,15 @@ pages, but the next talk is past the mines' fights, further than the calls went.
   the fight (or the party down, its word waiting): the tool then had no `idle` press. Spent at 320 of 320.
 - **Next**: the fight tool with `idle` (`a` every 60 frames) from `ff-m1`; the picture of each try's end says
   what stood in the way. The talk warns against hitting the shell when the head withdraws.
+- **The boss beaten** (calls 321-347; the owner raised the budget to 353): with `idle` the fight tool's first try
+  from `ff-m1` played 8 turns and called it won, but pressing on brought back the opening: the fight was lost,
+  and the room changed only after a word and a fade, later than the tool looked (fixed: `over_wait`). In battle
+  memory the party's HP are words at `0x7E3BF4`, `0x7E3BF6`, `0x7E3BF8`, the boss's at `0x7E3BFE` (1600; a
+  beam does about 159). From `ff-boss2` (the fight's start): the beam every turn with a heal (the beam list's
+  third row) when the third member is below 20 lost (the loss seen this time, room 41 became 5); the beam and
+  the heal in turn won, in 33 turns and 5 more heals. State `ff-boss4-won` after it. North of the gate's map,
+  from (42, 4) a push up enters map 42 (state `ff-e2`, the party free at (86, 28)); its waiting place is
+  (87, 12), sixteen rows up. 100 presses there said nothing: the walk is next. 6 calls are kept of the 353.
 
 ## Final Fantasy V (Super Famicom, SFC-9EA60A02)
 
