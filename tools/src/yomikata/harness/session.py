@@ -3233,9 +3233,10 @@ class Session:
                               "that says each line once is meant to say", False),
           reread=("boolean", "with live, for snaps already taken from play: run this script over each snap's "
                              "memory again (as without live) instead of counting what was said on the way to it, "
-                             "so that a fix to a script or its table is counted without playing the stretch "
-                             "again. Every snap is re-read the same way, those taken with no script loaded too; "
-                             "the answer and the record say how many were re-read", False))
+                             "to check a fix to a script or its table before spending calls on a fresh run. "
+                             "Every snap is re-read the same way, those taken with no script loaded too; the "
+                             "answer and the record say how many were re-read. The bar is never met by it: the "
+                             "bar counts what was said in play", False))
     def compare(self, source: str = "", name: str = "script.lua", data: dict | None = None, snaps: list | None = None,
                 frames: int = 40, entry: dict | None = None, tables: dict | None = None, version: str = "",
                 show: bool = False, live: bool = False,
@@ -3331,6 +3332,8 @@ class Session:
                 short.append(f"{len(scenes)} scene(s): 3 are wanted")
             if not live:
                 short.append("not counted from play: give live")
+            if reread:
+                short.append("re-read offline: the bar counts what was said in play; run the stretch again")
             if any(r["written"] for r in rows):
                 short.append("some snaps were taken after a memory write")
             if lined and agreeing < 0.9 * len(lined):

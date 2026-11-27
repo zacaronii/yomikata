@@ -95,12 +95,14 @@ to `compare` (with the script) counts the agreement and says whether the bar is 
 from play (those that show none are counted beside them, not among the thirty), three scenes or more, nine in
 ten of those with text read as shown, nothing read where there is none, and no snap taken after a memory write. Where the game has an entry with a layout, give `compare` the entry as well.
 
-After a fix to the script or its table, the snaps already taken in play need not be played again: `"reread":
-true` beside `"live": true` runs the script as it now is over each snap's memory, as without `live`, instead of
-counting what was said on the way to it. Every snap is re-read the same way, those taken with no script loaded
-too (without `reread` those are refused); the answer and the record say how many were re-read, and the pull
-request should say so. A re-read reads a still snap, so a script that says a line only as it appears reads nothing
-there, and `scrolls` doesn't go with it.
+After a fix to the script or its table, `"reread": true` beside `"live": true` checks the fix on the snaps
+already taken before you spend calls on a fresh run: it runs the script as it now is over each snap's memory, as
+without `live`, instead of counting what was said on the way to it. Every snap is re-read the same way, those
+taken with no script loaded too (without `reread` those are refused); the answer gives the agreement by scene and
+the counts, and says how many were re-read. It never meets the bar: a script can read a still snap right and
+still fail in play (when a page is said, or said twice), and the bar counts play, so run the stretch again with
+the fixed script for it. A re-read reads a still snap, so a script that says a line only as it appears reads
+nothing there, and `scrolls` doesn't go with it.
 
 Also: `repeat` a few steps to see that the core repeats itself here; load a state and see that the script says
 the line that is up, once; and `script_try` it on the earliest snap's moment (`waypoint_go` with `replay`, or a

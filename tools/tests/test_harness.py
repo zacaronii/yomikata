@@ -1693,7 +1693,8 @@ def test_compare_with_what_the_script_said_in_play(session):
 def test_compare_reread_runs_the_script_over_snaps_taken_in_play_again(session):
     """After a fix to a script or its table, the snaps already taken in play are counted again by running the
     script as it now is over each one's memory: every snap the same way, those taken with no script loaded too;
-    how many were re-read is in the answer, the bar and the record."""
+    how many were re-read is in the answer, the bar and the record. The bar is never met so: it counts what was
+    said in play, and a script can read a still snap right and still fail there."""
     session.snap("before")                                            # no script yet
     broken = SCRIPT.replace("text = text.sjis(bytes)", 'text = "?"')
     assert session.script_try(broken)["loaded"]
@@ -1708,6 +1709,9 @@ def test_compare_reread_runs_the_script_over_snaps_taken_in_play_again(session):
     assert all(r["reread"] for r in again["rows"])
     assert again["script"]["re-read offline"] == 2 and again["bar"]["re-read offline"] == 2
     assert again["bar"]["scenes"]["one"] == {"screens": 1, "agreeing": 1}
+    assert not again["bar"]["met"]
+    assert "re-read offline: the bar counts what was said in play; run the stretch again" in again["bar"]["short_of_it"]
+    assert not any("re-read" in line for line in said["bar"]["short_of_it"])
     assert session.compare(source=SCRIPT, snaps=["before"], live=True, reread=True)["script"]["re-read offline"] == 1
     with pytest.raises(HarnessError, match="give reread"):
         session.compare(source=SCRIPT, snaps=["before"], live=True)
