@@ -76,6 +76,9 @@ RAM = {
     "dc": [(0x8C000000, 0x8D000000), (0x0C000000, 0x0D000000), (0xAC000000, 0xAD000000)],   # 16 MB, two mirrors
     # The Super System Card's 192 KB and the CD's own 64 KB after it, read as one (the console's 8 KB: `wram`).
     "pce-cd": [(0x0D0000, 0x110000)],
+    # The 8 MB of RAM (the Expansion Pak's included), and the same uncached. Kept in the console's byte order
+    # (big-endian), as the harness reads it.
+    "n64": [(0x80000000, 0x80800000), (0xA0000000, 0xA0800000)],
 }
 
 
@@ -93,7 +96,7 @@ REGION_NAMES = sorted({name for parts in REGION_PARTS.values() for name in parts
 # The largest RAM snapshot accepted per platform (main RAM size), and how many are kept per game.
 SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000, "sfc": 0x20000, "gba": 0x40000,
                 "gb": 0x2000, "gbc": 0x2000, "nds": 0x400000, "gc": 0x1800000, "wii": 0x1800000,
-                "saturn": 0x100000, "dc": 0x1000000, "pce-cd": 0x40000}
+                "saturn": 0x100000, "dc": 0x1000000, "pce-cd": 0x40000, "n64": 0x800000}
 # Video memory is smaller than the general limit on most consoles; a part larger than the console has is refused.
 # (A core may hand out a Game Boy game the Color's 16 KB: the cap is the larger.)
 VRAM_MAX = {"ps1": 0x100000, "sfc": 0x10000, "gba": 0x18000, "gb": 0x4000, "gbc": 0x4000, "nds": 0xA4000,
