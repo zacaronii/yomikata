@@ -2307,3 +2307,76 @@ def test_mother_3_what_the_window_gains_each_time_the_typing_stops():
         with rd.Reader(mother3_memory(words, 0, header=header), platform="gba", game_id="AGB-A3UJ", data={"tbl": table}) as r:
             with pytest.raises(rd.ScriptError, match="another build"):
                 r.load(bundle(ROOT / "games/gba/AGB-A3UJ.lua"))
+
+
+def test_cells_reads_a_fixed_grid_and_a_proportional_row_through_a_dictionary_from_a_font(tmp_path):
+    """lib/cells.lua over a made-up window of Super Famicom tiles (2 bits a pixel, ink the values 2 and 3 on a
+    background of 1): a fixed grid of 8x8 cells, and a row of a proportional font with glyphs of three widths,
+    some touching, a space between words. The dictionary is rom-font's, from a made-up font that keeps each glyph
+    twice side by side (the game draws the left one); a glyph it lacks is U+FFFD and logged for `yomikata unread`."""
+    import numpy as np
+    from yomikata import romfont
+    rng = np.random.default_rng(7)
+    shapes = {}
+    for code, width in ((1, 5), (2, 7), (3, 7), (4, 3), (5, 6)):            # inked edge columns: trimmed widths
+        g = (rng.random((12, width)) < 0.5).astype(np.uint8)
+        g[:, 0] = g[:, -1] = 1
+        shapes[code] = g
+    font = {}
+    for code, g in shapes.items():                       # a 12x12 glyph, then another picture beside it
+        glyph = np.zeros((12, 24), np.uint8)
+        glyph[:, 2:2 + g.shape[1]] = g
+        glyph[:, 12:] = 1
+        font[code] = glyph
+    lines, widths = romfont.dictionary(font, {1: "あ", 2: "い", 3: "う", 4: "え"}, cut=(0, 12))
+    assert widths == [7, 5, 3] and len(lines) == 4                       # 5 has no character: not written
+    source = f"# widths {' '.join(map(str, widths))}\n" + "\n".join(lines) + "\n"
+    # The window: 16 tiles across (128 pixels), 2 rows of tiles; background 1, ink 3.
+    pixels = np.ones((16, 128), np.uint8)
+    x = 2
+    for code, gap in ((1, 1), (2, 0), (3, 6), (4, 1), (5, 2), (1, 0)):    # あ い (touching) う, a space, え, ?, あ
+        g = shapes[code]
+        pixels[1:13, x:x + g.shape[1]][g == 1] = 3
+        x += g.shape[1] + gap
+    grid = np.ones((8, 128), np.uint8)
+    grid[0:8, 8:16] = 3                                  # a fixed cell all ink, the others blank
+    def tiles(p, across):
+        out = bytearray()
+        for ty in range(p.shape[0] // 8):
+            for tx in range(across):
+                block = p[8 * ty:8 * ty + 8, 8 * tx:8 * tx + 8]
+                for row in block:
+                    lo = sum(((v & 1) << (7 - i)) for i, v in enumerate(row))
+                    hi = sum((((v >> 1) & 1) << (7 - i)) for i, v in enumerate(row))
+                    out += bytes([lo, hi])
+        return bytes(out)
+    window, cells_row = tiles(pixels, 16), tiles(grid, 16)
+    script = """
+local cells = require("lib.cells")
+local glyphs = require("lib.glyphs")
+local source = reader.data("glyphs")
+local dictionary = glyphs.open(source)
+local widths = cells.widths(source)
+local ink = function(v) return v ~= nil and v >= 2 end
+reader.on_frame(function()
+    local pic = cells.picture(mem.read(0x7E2000, %d), "snes2", 16)
+    local row = cells.proportional(pic, 1, 12, 0, pic.width, dictionary, widths, 6, ink)
+    reader.emit{ text = row, channel = "dialogue" }
+    local grid = cells.picture(mem.read(0x7E4000, %d), "snes2", 16)
+    local blanks = {}
+    for _, c in ipairs(cells.fixed(grid, 0, 0, 8, 8, 3, ink)) do blanks[#blanks + 1] = c.blank and "." or "#" end
+    reader.emit{ text = table.concat(blanks), channel = "interface" }
+end)
+""" % (len(window), len(cells_row))
+    header = ("-- reader: title 題 (Title)\n-- reader: reads a row\n-- reader: version SFC-00000000\n"
+              "-- reader: build 00000000\n-- reader: no hooks\n-- reader: no layout none\n")
+    memory = sparse({0x7E2000: window, 0x7E4000: cells_row})
+    with rd.Reader(memory, platform="sfc", game_id="SFC-00000000", data={"glyphs": source.encode()}) as r:
+        r.load(bundle_text(header + script), "SFC-00000000.lua")
+        r.frame(1)
+        events = r.take()
+    texts = [e["text"] for kind, e in events if kind == "text"]
+    logs = [e["message"] for kind, e in events if kind == "log"]
+    assert texts == ["あいう　え�あ", ".#."], texts
+    assert len([m for m in logs if m.startswith("glyph ")]) == 1                      # the glyph it lacks
+    assert any(m.startswith("glyph ") and " 6x12x1 " in m for m in logs)

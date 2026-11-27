@@ -28,7 +28,10 @@ from . import search
 NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 BUTTONS = ("a", "b", "x", "y", "l", "r", "l2", "r2", "l3", "r3", "start", "select", "up", "down", "left", "right")
 MAX_FRAMES, MAX_READ, MAX_HITS, MAX_EVENTS = 36000, 4096, 200, 300
+MAX_INFO = 50          # a script's info-level logs kept in a call's events, so that they can't crowd out its text
 MAX_STEPS, MAX_SHOTS, MAX_ROWS = 200, 48, 60
+# Consoles whose games keep a place as whole numbers only (no numbers with a point): explore's grid needs whole.
+WHOLE_ONLY = ("fc", "fds", "gb", "gbc", "sfc", "pce", "pce-cd")
 # Options a core is loaded with unless the call gives its own. mupen64plus_next draws with GLideN64 unless told
 # otherwise, and here (Mesa, no window) GLideN64 gives a black picture on many frames once a game has used the
 # framebuffer for an effect, until the core is loaded again (Doubutsu no Mori after its name keyboard: 19 of 50
@@ -168,7 +171,11 @@ class Session:
             if kind == "log" and str(event.get("message", "")).startswith(("glyph ", "glyph-line ")):
                 self._keep_glyph(event["message"])
                 continue
-            if len(out) < MAX_EVENTS and not (kind == "log" and event.get("level") == "info"):
+            if kind == "log" and event.get("level") == "info":
+                infos = sum(1 for e in out if e["kind"] == "log" and e.get("level") == "info")
+                if infos >= MAX_INFO:
+                    continue
+            if len(out) < MAX_EVENTS:
                 out.append({"kind": kind, "frame": self.machine.frames, **event})
 
     def _keep_glyph(self, line: str) -> None:
@@ -206,11 +213,13 @@ class Session:
         return {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "session": self.session_id,
                 "game": game, "tool": tool, "arguments": {str(k): short(v) for k, v in (arguments or {}).items()}}
 
-    def record_call(self, tool: str, arguments: dict, ok: bool, seconds: float, outcome: dict | None = None) -> None:
+    def record_call(self, tool: str, arguments: dict, ok: bool, seconds: float, outcome: dict | None = None,
+                    game: str | None = None) -> None:
         """A line for this call in scratch's record (record/calls.jsonl): when, which session and game, the tool
         and its arguments in short. `yomikata calls` sums them by game. A record that can't be written is no
-        reason for a call to fail. After begin_call with the tool, it is the call's second line."""
-        entry = {**self._entry(tool, arguments, self.game), "ok": bool(ok), "seconds": round(seconds, 2),
+        reason for a call to fail. After begin_call with the tool, it is the call's second line, under the same
+        game as the first: the loaded one, else the one the call names (`budget` or `load` before a game is up)."""
+        entry = {**self._entry(tool, arguments, self.game or game), "ok": bool(ok), "seconds": round(seconds, 2),
                  **({"outcome": outcome} if outcome else {})}
         call, self._call_id = getattr(self, "_call_id", None), None
         if call is None:
@@ -689,10 +698,19 @@ class Session:
                         "a conversation of unknown length", False),
           prefix=("string", "names snaps taken with snap: true, as <prefix>-000, -001, … (default: step)", False),
           columns=("integer", "pictures across the sheet (default 4)", False),
-          scale=("number", "each picture's scale on the sheet (default 1: text stays readable)", False))
+          scale=("number", "each picture's scale on the sheet (default 1: text stays readable)", False),
+          said=("object", "a snap the moment the script says text, wherever in a step that falls: {\"after\": "
+                          "frames after the saying (default 2), \"shot\": true for a picture too}. Named "
+                          "<prefix>-said-00, -01, …; for a page that gives way to the next within a step, which a "
+                          "snap at the step's end (on) misses", False))
     def steps(self, steps: list, prefix: str = "step", columns: int = 4, scale: float = 1.0,
-              on: dict | None = None):
+              on: dict | None = None, said: dict | None = None):
         machine, prefix = self._need(), self._name(prefix)
+        if said is not None:
+            if self.reader is None:
+                raise HarnessError("no script is loaded to say anything: call script_try first")
+            if not isinstance(said, dict) or set(said) - {"after", "shot"} or int(said.get("after", 2)) < 0:
+                raise HarnessError("said is an object: after (frames, 0 or more) and shot")
         if not isinstance(steps, list) or not steps or not all(isinstance(s, dict) for s in steps):
             raise HarnessError("steps is a list of objects")
         known = {"buttons", "stick", "hold", "wait", "until", "times", "snap", "shot", "every", "until_event",
@@ -731,71 +749,95 @@ class Session:
         events, done, shots, why, left = [], [], [], None, 0
         queue, number, skipping, extra, answers = list(plan), -1, None, 0, 0
         quiet: dict[int, int] = {}
-        while queue:
-            step = queue.pop(0)
-            answer = step.get("_answer")
-            if not answer:
-                number += 1
-            if not answer and skipping is not None:
-                if step is skipping:                        # the rest of a repetition whose event has come
-                    continue
-                skipping = None
-            held, where, before = self._buttons(step.get("buttons")), self._stick(step.get("stick")), len(events)
-            row, why = {"step": number, **({"on": answer} if answer else {})}, None
-            answers = answers + 1 if answer else answers
-            label = f"{prefix}-{number:03d}" + (f"-on{answers:02d}" if answer else "")
-            if held or where != (0.0, 0.0):
-                _, why = self._advance(max(1, min(int(step.get("hold", 4)), MAX_FRAMES)), held, where, events)
-            if not why and "until" in step:
-                until = dict(step["until"])
-                limit = max(1, min(int(until.pop("limit")), MAX_FRAMES))
-                try:
-                    watch = self._watch(events, **until)
-                except TypeError:
-                    raise HarnessError("until takes: limit, address, size, equals, event, still") from None
-                _, why = self._advance(limit, set(), (0.0, 0.0), events, watch)
-                row["stopped"], why = why or "limit", why if why == "time" else None
-            elif not why and "every" in step:
-                # A snap each few frames of the wait: for what memory holds only while a line types or a
-                # window opens, which a snap after the wait never sees.
-                name = step["snap"] if isinstance(step["snap"], str) else label
-                left_frames, every, taken = min(int(step["wait"]), MAX_FRAMES), int(step["every"]), []
-                while left_frames >= every and not why:
-                    _, why = self._advance(every, set(), (0.0, 0.0), events)
-                    left_frames -= every
-                    if not why:
-                        taken.append(self.snap(f"{name}-{len(taken):02d}")["snap"])
-                if left_frames and not why:
-                    _, why = self._advance(left_frames, set(), (0.0, 0.0), events)
-                row["snaps"] = taken
-            elif not why and int(step.get("wait", 0)) > 0:
-                _, why = self._advance(min(int(step["wait"]), MAX_FRAMES), set(), (0.0, 0.0), events)
-            row["frames"] = machine.frames
-            if len(events) > before:
-                row["events"] = len(events) - before
-            if why == "time":
-                done.append({**row, "stopped": "time"})
-                left = len(queue) + 1               # this step and those after it
-                break
-            if step.get("snap") and "every" not in step:
-                name = step["snap"] if isinstance(step["snap"], str) else label
-                row["snap"] = self.snap(name)["snap"]
-            if step.get("shot") and len(shots) < MAX_SHOTS and machine.picture() is not None:
-                shots.append((str(number), self._picture()))
-            done.append(row)
-            if not answer:
-                if "until_event" in step and came(step["until_event"], before):
-                    row["stopped"], skipping = "event", step
-                if "until_quiet" in step:                   # so many times in a row with nothing said
-                    quiet[id(step)] = 0 if came("any", before) else quiet.get(id(step), 0) + 1
-                    if quiet[id(step)] >= max(1, int(step["until_quiet"])):
-                        row["stopped"], skipping = "quiet", step
-                # What the script said in this step decides what comes next: the first kind of `on` it fits.
-                kind = next((k for k in on if came(k, before)), None)
-                if kind and extra < MAX_STEPS:
-                    extra += len(on[kind])
-                    queue[:0] = [{**x, "_answer": kind} for x in on[kind]]
+        # A snap the moment text is said: each frame (the hook _advance calls) looks at what has come since, and
+        # takes the snap `after` frames on, mid-wait or mid-press as it falls.
+        taken_said, due, seen_said, before_hook = [], [], [0], self.each_frame
+        if said is not None:
+            after, said_shot = int(said.get("after", 2)), bool(said.get("shot"))
+
+            def on_frame():
+                if before_hook is not None:
+                    before_hook()
+                for e in events[seen_said[0]:]:
+                    if e["kind"] == "text" and len(taken_said) + len(due) < MAX_STEPS:
+                        due.append(machine.frames + after)
+                seen_said[0] = len(events)
+                while due and machine.frames >= due[0]:
+                    due.pop(0)
+                    name = self.snap(f"{prefix}-said-{len(taken_said):02d}")["snap"]
+                    taken_said.append({"snap": name, "frame": machine.frames})
+                    if said_shot and len(shots) < MAX_SHOTS and machine.picture() is not None:
+                        shots.append((f"s{len(taken_said) - 1}", self._picture()))
+            self.each_frame = on_frame
+        try:
+            while queue:
+                step = queue.pop(0)
+                answer = step.get("_answer")
+                if not answer:
+                    number += 1
+                if not answer and skipping is not None:
+                    if step is skipping:                        # the rest of a repetition whose event has come
+                        continue
+                    skipping = None
+                held, where, before = self._buttons(step.get("buttons")), self._stick(step.get("stick")), len(events)
+                row, why = {"step": number, **({"on": answer} if answer else {})}, None
+                answers = answers + 1 if answer else answers
+                label = f"{prefix}-{number:03d}" + (f"-on{answers:02d}" if answer else "")
+                if held or where != (0.0, 0.0):
+                    _, why = self._advance(max(1, min(int(step.get("hold", 4)), MAX_FRAMES)), held, where, events)
+                if not why and "until" in step:
+                    until = dict(step["until"])
+                    limit = max(1, min(int(until.pop("limit")), MAX_FRAMES))
+                    try:
+                        watch = self._watch(events, **until)
+                    except TypeError:
+                        raise HarnessError("until takes: limit, address, size, equals, event, still") from None
+                    _, why = self._advance(limit, set(), (0.0, 0.0), events, watch)
+                    row["stopped"], why = why or "limit", why if why == "time" else None
+                elif not why and "every" in step:
+                    # A snap each few frames of the wait: for what memory holds only while a line types or a
+                    # window opens, which a snap after the wait never sees.
+                    name = step["snap"] if isinstance(step["snap"], str) else label
+                    left_frames, every, taken = min(int(step["wait"]), MAX_FRAMES), int(step["every"]), []
+                    while left_frames >= every and not why:
+                        _, why = self._advance(every, set(), (0.0, 0.0), events)
+                        left_frames -= every
+                        if not why:
+                            taken.append(self.snap(f"{name}-{len(taken):02d}")["snap"])
+                    if left_frames and not why:
+                        _, why = self._advance(left_frames, set(), (0.0, 0.0), events)
+                    row["snaps"] = taken
+                elif not why and int(step.get("wait", 0)) > 0:
+                    _, why = self._advance(min(int(step["wait"]), MAX_FRAMES), set(), (0.0, 0.0), events)
+                row["frames"] = machine.frames
+                if len(events) > before:
+                    row["events"] = len(events) - before
+                if why == "time":
+                    done.append({**row, "stopped": "time"})
+                    left = len(queue) + 1               # this step and those after it
+                    break
+                if step.get("snap") and "every" not in step:
+                    name = step["snap"] if isinstance(step["snap"], str) else label
+                    row["snap"] = self.snap(name)["snap"]
+                if step.get("shot") and len(shots) < MAX_SHOTS and machine.picture() is not None:
+                    shots.append((str(number), self._picture()))
+                done.append(row)
+                if not answer:
+                    if "until_event" in step and came(step["until_event"], before):
+                        row["stopped"], skipping = "event", step
+                    if "until_quiet" in step:                   # so many times in a row with nothing said
+                        quiet[id(step)] = 0 if came("any", before) else quiet.get(id(step), 0) + 1
+                        if quiet[id(step)] >= max(1, int(step["until_quiet"])):
+                            row["stopped"], skipping = "quiet", step
+                    # What the script said in this step decides what comes next: the first kind of `on` it fits.
+                    kind = next((k for k in on if came(k, before)), None)
+                    if kind and extra < MAX_STEPS:
+                        extra += len(on[kind])
+                        queue[:0] = [{**x, "_answer": kind} for x in on[kind]]
+        finally:
+            self.each_frame = before_hook
         out = {"frames": machine.frames, "steps": done, **({"stopped": "time", "left": left} if why == "time" else {}),
+               **({"said": taken_said} if said is not None else {}),
                **({"events": events} if self.reader is not None else {})}
         return ("both", out, self._png(self._sheet(shots, columns, scale))) if shots else out
 
@@ -1432,17 +1474,12 @@ class Session:
             data = np.frombuffer(memories[name], dtype=np.uint8)
             return data[:len(data) // unit * unit].reshape(-1, unit)
         names = list(groups)
-        firsts = [cells(groups[g][0]) for g in names]
+        # The same within each group, and how many different values the groups show (search.group_cells, which
+        # page_buffer shares).
+        firsts, stands, kinds = search.group_cells([[cells(n) for n in groups[g]] for g in names])
         keep = np.ones(len(firsts[0]), dtype=bool)
-        for g, first in zip(names, firsts):                 # the same within each group
-            for other in groups[g][1:]:
-                keep &= (cells(other) == first).all(axis=1)
-        kinds = np.zeros(len(keep), dtype=np.int64)         # how many different values the groups show
-        for i, first in enumerate(firsts):
-            new = np.ones(len(keep), dtype=bool)
-            for earlier in firsts[:i]:
-                new &= (first != earlier).any(axis=1)
-            kinds += new
+        for still in stands:
+            keep &= still
         least = len(names) if not least else max(2, min(int(least), len(names)))
         keep &= kinds >= least
         if values is not None:
@@ -1488,6 +1525,63 @@ class Session:
             out["cut"] = (f"{len(places)} places fit, {MAX_HITS} given (those the most groups differ at, then by "
                           "address): narrow it with `values` (\"flag\", or each group's value) or `within`")
         return out
+
+    @tool("Where a page of text is written whole into memory: the buffer a game decompresses or unpacks each page "
+          "into before its window shows it, for a game whose script lies packed in the cartridge or on the disc. "
+          "Snap a few pages (three or more, two snaps or more while each stands, and if you can one just before "
+          "each opens): it gives the stretches the pages' bytes differ in, those that held still while each page "
+          "stood first, ranked against the size a page takes (`size`, or estimated: one far longer, graphics or a "
+          "whole unpacked block, goes down), and one that moves while a page stands (a tile copy, text scrolled "
+          "through) ranked down; "
+          "one that never stands is left out), and a buffer kept twice as two stretches that alternate. With "
+          "each, when each page's bytes were first there, and whether pages shown twice hold the same. Bytes "
+          "only: read them with find_relative or a table after.",
+          pages=("array", "for each page shown, the snaps taken while it stood: [[\"p1-a\", \"p1-b\"], ...], two "
+                          "pages or more", True),
+          before=("array", "for each page, a snap taken just before it opened (or null)", False),
+          repeats=("array", "pairs of page indices (from 0) that show the same page: [[0, 3]]", False),
+          least=("integer", "the shortest stretch kept, in bytes (default 16)", False),
+          within=("array", "only stretches from one address to another, hex", False),
+          size=("integer", "the bytes a page is expected to take: the most characters a page shows times the bytes "
+                           "a character takes (2 for 16-bit codes). Stretches are ranked against it; without it, "
+                           "against the middle length of those that stood (estimated), which the answer says", False),
+          cap=("integer", "with no size: stretches longer than this (default 4096) count as graphics or whole "
+                          "unpacked blocks, left out of the estimate", False))
+    def page_buffer(self, pages: list, before: list | None = None, repeats: list | None = None, least: int = 16,
+                    within: list | None = None, size: int = 0, cap: int = 4096) -> dict:
+        if not isinstance(pages, list) or len(pages) < 2 or not all(isinstance(p, list) and p for p in pages):
+            raise HarnessError("pages is a list of pages, each a list of snaps taken while it stood: two pages or more")
+        if before is not None and (not isinstance(before, list) or len(before) > len(pages)):
+            raise HarnessError("before has a snap (or null) for each page, no more")
+        pairs = []
+        for pair in repeats or ():
+            if not (isinstance(pair, list) and len(pair) == 2 and all(isinstance(k, int) and 0 <= k < len(pages)
+                                                                      for k in pair)):
+                raise HarnessError("repeats is pairs of page indices, from 0: [[0, 3]]")
+            pairs.append(tuple(pair))
+        if within is not None and (len(within) != 2 or int(str(within[0]), 16) > int(str(within[1]), 16)):
+            raise HarnessError("within is two addresses, the lower first")
+        memories, bases = {}, set()
+        for name in {n for page in pages for n in page} | {n for n in (before or ()) if n}:
+            _, base, memories[name] = self._memories([name])[0]
+            bases.add(base)
+        if len(bases) != 1 or len({len(m) for m in memories.values()}) != 1:
+            raise HarnessError("these snaps aren't all of the same memory")
+        base = bases.pop()
+        found, expected = search.page_buffers([[memories[n] for n in page] for page in pages],
+                                              [memories[n] if n else None for n in before] if before else None,
+                                              pairs, least=max(1, int(least)), most=10 ** 6, size=max(0, int(size)),
+                                              cap=max(16, int(cap)))
+        if within is not None:
+            low, high = (int(str(v), 16) for v in within)
+            found = [f for f in found if low <= base + f["offset"] < high]
+        rows = []
+        for f in found[:20]:
+            row = {"address": f"0x{base + f.pop('offset'):08X}", **f}
+            if "alternates_with" in row:
+                row["alternates_with"] = f"0x{base + row['alternates_with']:08X}"
+            rows.append(row)
+        return {"count": len(found), "expected": expected, "stretches": rows}
 
     @tool("Reads a name off a naming screen. Snap the empty name, enter a character, snap, enter another, "
           "snap, and so on: this finds the places that took a value one after the other, which are the name, "
@@ -2369,23 +2463,34 @@ class Session:
 
     def _fight_through(self, fight: dict):
         """For explore: a function that, after a step, waits up to `begin` frames for a fight's mode and presses
-        through it as advance_through does (no stuck check: a menu that holds the fight runs to `most`). It gives
+        through it as advance_through does (no stuck check: a menu that holds the fight runs to `most`). A mode
+        that comes and goes within `holds` frames (a screen's fade on a room change), or comes without `also` (a
+        second mode, the same keys), is no fight: the frames it took are kept and nothing is pressed. It gives
         the moves made, as [frames, buttons], and the fight's outcome, or None when no fight came."""
         machine = self.machine
         if not isinstance(fight, dict) or not fight.get("address"):
             raise HarnessError("fight is advance_through's mode: address, and equals or differs")
-        size = int(fight.get("size", 1))
-        equals, differs = str(fight.get("equals", "")), str(fight.get("differs", ""))
-        if size not in (1, 2, 4) or (equals == "") == (differs == ""):
-            raise HarnessError("fight: size 1, 2 or 4, and equals or differs, one of them")
-        at, want = int(str(fight["address"]), 16), int(equals or differs, 0)
+
+        def condition(spec: dict, what: str):
+            size = int(spec.get("size", 1))
+            equals, differs = str(spec.get("equals", "")), str(spec.get("differs", ""))
+            if size not in (1, 2, 4) or (equals == "") == (differs == "") or not spec.get("address"):
+                raise HarnessError(f"{what}: address, size 1, 2 or 4, and equals or differs, one of them")
+            at, want = int(str(spec["address"]), 16), int(equals or differs, 0)
+
+            def holds_now() -> bool:
+                value = self._cell(at, size)
+                return value is not None and (value == want if equals != "" else value != want)
+            return holds_now
+        mode = condition(fight, "fight")
+        also = fight.get("also")
+        if also is not None and not isinstance(also, dict):
+            raise HarnessError("fight's also is a second mode: address, and equals or differs")
+        second = condition(also, "fight's also") if also is not None else None
         keys = sorted(self._buttons(fight.get("buttons", ["a"])))
         hold, wait = max(1, int(fight.get("hold", 6))), max(0, int(fight.get("wait", 30)))
         most, begin = max(1, min(int(fight.get("most", 300)), MAX_FRAMES // 8)), max(0, int(fight.get("begin", 0)))
-
-        def mode() -> bool:
-            value = self._cell(at, size)
-            return value is not None and (value == want if equals != "" else value != want)
+        holds = max(0, min(int(fight.get("holds", 0)), 600))
 
         def through():
             moves, waited = [], 0
@@ -2395,6 +2500,16 @@ class Session:
             if waited:
                 moves.append([waited, []])
             if not mode():
+                return moves, None
+            # A fight holds its mode; a fade sets it for a few frames and drops it. Watched frame by frame, and
+            # the frames kept in the moves whatever they show.
+            stood = 0
+            while stood < holds and mode():
+                machine.run(1, set(), (0.0, 0.0))
+                stood += 1
+            if stood:
+                moves.append([stood, []])
+            if not mode() or (second is not None and not second()):
                 return moves, None
             presses = 0
             while mode() and presses < most:
@@ -2412,9 +2527,12 @@ class Session:
           "the next push changed the map: a door, stairs) with a `ruler` to hold over it (a mark at every fifth "
           "column and its number; the first row is `rows`[0]), and the game is left where it was. Given `to`, the "
           "game is then put at that place as it was reached while trying (the pushes go into the record of the "
-          "way), or it says that the place wasn't among those reached; the trying ends as soon as the place is "
-          "reached, and tries the places nearest to it first, so a walk is quick even far off; the map given is "
-          "only what was tried till then.",
+          "way); not reached, it is put at the place it got to nearest the one asked for, and says where it "
+          "stopped and why (`reached` false, `stopped_at`), so the next call goes on from there. The trying ends "
+          "as soon as the place is reached, and tries the places nearest to it first, so a walk is quick even "
+          "far off; the map given is only what was tried till then. A place kept in pixels (a push moves it "
+          "several) makes every pixel a place, and the call's time runs out: give `grid` and `whole` (a `hint` "
+          "says so).",
           x_address=("string", "where the game keeps the place across, hex (default: as cursor_find found)", False),
           y_address=("string", "and down", False), size=("integer", "bytes of each: 1, 2 or 4 (default 2)", False),
           step=("integer", "frames a push is held (default 8): about one of the game's numbers a push is best", False),
@@ -2426,11 +2544,12 @@ class Session:
           diagonals=("boolean", "push the four slanting ways too: for a passage that runs aslant of the pad's "
                                 "ways and is narrower than a push (a camera turned, as in most games of three "
                                 "dimensions)", False),
-          whole=("boolean", "with grid: the place is whole numbers of `size` bytes, not floats (a console "
-                            "without floats, where a push moves the number by many)", False),
-          grid=("number", "for a place kept as numbers with a point (place_find): read both as 32-bit floats and "
-                          "count in cells of this many of the game's units, so that places a hair apart are "
-                          "one. About what one push moves the character is best", False),
+          whole=("boolean", "with grid: the place is whole numbers of `size` bytes, not floats: pixels, or any "
+                            "place a push moves by many (a console without floats)", False),
+          grid=("number", "count in cells of this many of the game's units, so that places a hair apart are one: "
+                          "with whole, the pixels a push moves (16, 32) for a place kept in pixels; without, "
+                          "for a place kept as numbers with a point (place_find), read as 32-bit floats. About "
+                          "what one push moves the character is best; jump and to are then in cells", False),
           close=("string", "a button that closes a window (a, b): pressed once first, and the press kept, when "
                            "no push moves the character from where it stands, not even a longer one (a message "
                            "open takes the pad). Without it such a start is only said (`still`)", False),
@@ -2439,13 +2558,25 @@ class Session:
                            "after a step for the fight to begin (0: the mode is set at once). A fight a push "
                            "starts is pressed through there and the map goes on from where it ended; the "
                            "fights are counted and listed, and a walk with `to` keeps their presses in the "
-                           "record of the way", False))
+                           "record of the way. `holds`: frames the mode must stand before it is a fight (a "
+                           "screen's fade on a room change may set it for a few); `also`: a second mode, the "
+                           "same keys, that must hold with it", False),
+          room=("string", "where the game keeps which room it is in, hex: a push that changes it is a door, "
+                          "however far the place moved (a game whose rooms share their numbers, or whose door "
+                          "moves the place less than jump)", False),
+          room_size=("integer", "bytes of room: 1, 2 or 4 (default 1)", False))
     def explore(self, x_address: str = "", y_address: str = "", size: int = 2, step: int = 8, most: int = 400,
                 to: list | None = None, near: int = 1, jump: int = 8, within: list | None = None,
                 grid: float = 0.0, diagonals: bool = False, whole: bool = False, close: str = "",
-                fight: dict | None = None) -> dict:
+                fight: dict | None = None, room: str = "", room_size: int = 1) -> dict:
         machine = self._need()
         at_x, at_y, size = self._cursor_cells(x_address, y_address, size)
+        if room_size not in (1, 2, 4):
+            raise HarnessError("room_size is 1, 2 or 4 bytes")
+        room_at = int(str(room), 16) if room else None
+
+        def room_now():
+            return self._cell(room_at, room_size) if room_at is not None else None
         step, most, jump = max(1, min(int(step), 60)), max(2, min(int(most), 1500)), max(2, int(jump))
         if within is not None and (len(within) != 4 or within[0] > within[2] or within[1] > within[3]):
             raise HarnessError("within is [x0, y0, x1, y1]")
@@ -2453,6 +2584,9 @@ class Session:
         grid = float(grid)
         if grid < 0:
             raise HarnessError("grid is how many of the game's units make a cell: above 0")
+        if grid and not whole and machine.platform in WHOLE_ONLY:
+            raise HarnessError(f"a {machine.platform} game keeps its place as whole numbers, and grid without whole "
+                               "reads numbers with a point: give whole as well")
 
         def signed(value):
             return value - (1 << 8 * size) if value is not None and size > 1 and value >> (8 * size - 1) else value
@@ -2472,7 +2606,8 @@ class Session:
             return signed(self._cell(at_x, size)), signed(self._cell(at_y, size))
         origin = now()
         if None in origin:
-            raise HarnessError("the place can't be read")
+            raise HarnessError("the place can't be read" + (": with grid and without whole it is read as numbers with "
+                                                             "a point; for whole numbers give whole" if grid and not whole else ""))
         import zlib
         ways = ("up", "down", "left", "right") + (("up+left", "up+right", "down+left", "down+right") if diagonals else ())
 
@@ -2516,6 +2651,7 @@ class Session:
         # A place: the state there, where it was reached from, the push, and the moves of a fight it brought.
         places = {origin: (zlib.compress(start, 1), None, None, [])}
         doors, queue, held, late = {}, [origin], len(places[origin][0]), False
+        moved: list[int] = []                               # how far each push that moved moved the place
         near, found = max(0, int(near)), False             # with `to`, the trying ends once the place is reached
         while queue and not late and not found:
             # Towards a place asked for, the nearest known place is tried next (and so on round what is in
@@ -2528,6 +2664,7 @@ class Session:
                     late = True
                     break
                 machine.load_state(zlib.decompress(places[here][0]))
+                room_before = room_now()
                 machine.run(step, set(push.split("+")), (0.0, 0.0))
                 there, fought = now(), []
                 if through is not None and None not in there and there != here:
@@ -2536,9 +2673,16 @@ class Session:
                     if outcome is not None:
                         fights.append({"at": list(there), **outcome})
                         there = now()
+                if room_at is not None and room_now() != room_before:
+                    # The room changed: a door, however far (or little) the place moved.
+                    doors.setdefault(here, push)
+                    continue
                 if None in there or there == here:
                     continue
-                if max(abs(there[0] - here[0]), abs(there[1] - here[1])) >= jump:
+                # Counted for the hint (a place kept in pixels) whether or not it reads as a change of map: a push
+                # of many pixels is a "door" at the default jump, every way.
+                moved.append(max(abs(there[0] - here[0]), abs(there[1] - here[1])))
+                if moved[-1] >= jump:
                     doors.setdefault(here, push)
                     continue
                 inside = within is None or (within[0] <= there[0] <= within[2] and within[1] <= there[1] <= within[3])
@@ -2581,12 +2725,26 @@ class Session:
                **({"still": still()} if len(places) == 1 and not doors and not late else {}),
                **({"more": "places beyond these weren't tried: raise most, or give within"}
                   if not late and len(places) >= most else {})}
+        if moved and not grid:
+            # A push that moves the place several of its numbers: they are most likely pixels, and every pixel
+            # a push can end on is a place of its own, so the map grows by thousands and the call's time runs
+            # out before it gets anywhere. In steps of a push, it is one place a push.
+            typical = sorted(moved)[len(moved) // 2]
+            if typical >= 4:
+                out["hint"] = (f"a push moves the place {typical} of its numbers: they look like pixels; give grid "
+                               f"{typical} and whole to count a push as one step (and jump in those steps)"
+                               + ("; every push read as a change of map at this jump" if len(places) == 1 and doors
+                                  else ""))
         if to is None:
             return out
         fits = [p for p in places if abs(p[0] - to[0]) <= near and abs(p[1] - to[1]) <= near]
-        if not fits:
-            return {**out, "reached": False, "why": "the place isn't among those it got to"}
-        goal = min(fits, key=lambda p: abs(p[0] - to[0]) + abs(p[1] - to[1]))
+        reached = bool(fits)
+        # Not reached: it walks as far as it got, to the place nearest the one asked for, and says so, so that
+        # the next call goes on from there instead of trying the same places again.
+        goal = min(fits or places, key=lambda p: abs(p[0] - to[0]) + abs(p[1] - to[1]))
+        if not reached and goal == origin:
+            return {**out, "reached": False, "stopped_at": list(origin),
+                    "why": "no place it got to is nearer the one asked for than where it stands"}
         pushes, at = [], goal
         while places[at][1] is not None:
             pushes.append((places[at][2], places[at][3]))
@@ -2606,6 +2764,12 @@ class Session:
             self._collect(self.reader.take(), events)
         self._advance(2, set(), (0.0, 0.0), events)
         cx, cy = now()
+        if not reached:
+            why = ("the call's time ran out" if late else "it tried as many places as most allows" if len(places) >= most
+                   else "the way on wasn't found among the places it could reach")
+            return {**{k: v for k, v in out.items() if k != "map"}, "x": cx, "y": cy, "pushes": len(pushes),
+                    "reached": False, "stopped_at": [cx, cy],
+                    "why": f"didn't reach {list(to)}: {why}; walked to the nearest place it got to"}
         return {**{k: v for k, v in out.items() if k != "map"}, "x": cx, "y": cy, "pushes": len(pushes),
                 "reached": (cx, cy) == goal, "frames": machine.frames,
                 **({"events": events} if self.reader is not None and events else {})}
@@ -3219,12 +3383,23 @@ class Session:
           scrolls=("boolean", "with scenes and live, for a window that scrolls and keeps old rows: give each "
                               "screen all its rows as usual (snap_lines), and a screen is held to the rows it "
                               "gained, those after what the screen before it in its scene left. What a script "
-                              "that says each line once is meant to say", False))
+                              "that says each line once is meant to say", False),
+          reread=("boolean", "with live, for snaps already taken from play: run this script over each snap's "
+                             "memory again (as without live) instead of counting what was said on the way to it, "
+                             "to check a fix to a script or its table before spending calls on a fresh run. "
+                             "Every snap is re-read the same way, those taken with no script loaded too; the "
+                             "answer and the record say how many were re-read. The bar is never met by it: the "
+                             "bar counts what was said in play", False))
     def compare(self, source: str = "", name: str = "script.lua", data: dict | None = None, snaps: list | None = None,
                 frames: int = 40, entry: dict | None = None, tables: dict | None = None, version: str = "",
                 show: bool = False, live: bool = False,
-                scenes: dict | None = None, scrolls: bool = False) -> dict:
+                scenes: dict | None = None, scrolls: bool = False, reread: bool = False) -> dict:
         first_of_scene, left = set(), []
+        if reread and not live:
+            raise HarnessError("reread goes with live: without live every snap is run over as it stands already")
+        played = live and not reread        # what was said in play counts, not a reading of the still snap
+        if reread and scrolls:
+            raise HarnessError("scrolls counts the rows said in play: a snap re-read gives its whole window")
         if scrolls and not (scenes and live):
             raise HarnessError("scrolls goes with scenes and live: the rows a screen gained are counted from play")
         if scenes:
@@ -3249,14 +3424,19 @@ class Session:
             platform = PLATFORM_ALIASES.get(meta.get("platform"), meta.get("platform"))
             read = with_regions(rd.memory(int(meta["base_address"], 16), _load(path), MIRRORS.get(platform, ())),
                                 platform, _regions(path))
+            if meta.get("game") and meta.get("game") == self.game:
+                # A snap keeps memory, not the cartridge: the loaded game's, where the snap is of that game.
+                from .machine import with_rom
+                read = with_rom(read, getattr(self.machine, "rom", None))
             reading = Reading(n)
-            if live:
+            if played:
                 if "said" not in meta:
-                    raise HarnessError(f"{n} was taken with no script loaded: nothing was said on the way to it")
+                    raise HarnessError(f"{n} was taken with no script loaded: nothing was said on the way to it "
+                                       "(give reread to run the script over every snap again)")
                 reading.events = [("text", {"channel": e.get("channel") or "dialogue", "speaker": e.get("speaker") or "",
                                             "text": e.get("text") or ""}) for e in meta["said"]]
             try:
-                with (_NoReader() if live else rd.Reader(read, platform=platform, game_id=Path(name).stem,
+                with (_NoReader() if played else rd.Reader(read, platform=platform, game_id=Path(name).stem,
                                                          regions=_regions(path), data=blobs)) as reader:
                     try:
                         reader.load(source, name)
@@ -3264,7 +3444,7 @@ class Session:
                             reader.frame(tick + 1)
                     except rd.ScriptError as e:
                         reading.error = str(e)
-                    if not live:
+                    if not played:
                         reading.events = reader.take()
             except rd.ReaderUnavailable as e:
                 raise HarnessError(str(e)) from None
@@ -3282,7 +3462,7 @@ class Session:
                              if [tidy(r) for r in before[-k:]] == [tidy(r) for r in whole[:k]]), 0)
                 seen, left = whole[keep:], whole
             rows.append({"snap": n, "read": said, "seen": seen, "error": reading.error,
-                         "written": bool(meta.get("memory_writes")),
+                         "written": bool(meta.get("memory_writes")), "reread": reread,
                          "agreement": None if seen is None else round(agreement(said, seen), 2)})
         lined, empty = [r for r in rows if r["seen"]], [r for r in rows if r["seen"] == []]
         out = {"script": {"snapshots": len(rows),
@@ -3294,6 +3474,8 @@ class Session:
                           "marked as showing no text": len(empty),
                           "of those, reading nothing": sum(1 for r in empty if not r["read"]),
                           "taken after a memory write": sum(1 for r in rows if r["written"])}}
+        if live:
+            out["script"]["re-read offline"] = sum(1 for r in rows if r["reread"])
         if scenes:
             # The bar for calling a script checked (docs/first-script.md): thirty screens from play, over three
             # scenes or more, none after a memory write; nine in ten of those with text read as shown, and
@@ -3307,6 +3489,8 @@ class Session:
                 short.append(f"{len(scenes)} scene(s): 3 are wanted")
             if not live:
                 short.append("not counted from play: give live")
+            if reread:
+                short.append("re-read offline: the bar counts what was said in play; run the stretch again")
             if any(r["written"] for r in rows):
                 short.append("some snaps were taken after a memory write")
             if lined and agreeing < 0.9 * len(lined):
@@ -3316,6 +3500,7 @@ class Session:
             by = {r["snap"]: r for r in rows}
             out["bar"] = {"met": not short, "short_of_it": short,
                           "screens with text": len(lined), "screens showing none": len(empty),
+                          "re-read offline": sum(1 for r in rows if r["reread"]),
                           "scenes": {scene: {"screens": sum(1 for n in group if by[n]["seen"] is not None),
                                              "agreeing": sum(1 for n in group if by[n]["seen"] and by[n]["agreement"] >= 0.8)
                                              + sum(1 for n in group if by[n]["seen"] == [] and not by[n]["read"])}

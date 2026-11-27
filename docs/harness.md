@@ -36,7 +36,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `run` | N frames with buttons and the left stick held. With a script loaded, what it emitted on the way |
 | `run_until` | Runs until a place in memory changes or holds a value, the script emits something, or the picture has stood still; at most a given number of frames. Says how far it ran and why it stopped |
 | `advance_through` | Presses a pattern of buttons over and over while a place in memory says the game is in a mode (a fight, a menu), to get through it between story pages: stops when the mode ends, a watched place changes (the text pointer), at a number of presses, or on time. A picture that stays the same for some presses, or comes again within the last `cycle` presses (6: a menu that takes no button, or one that goes round a few pictures under it, as Chrono Cross's element command does; a blinking cursor, under `still_share` of the pixels, doesn't count; the share is of the game's own screen, without a border around it: a Game Boy game's 160x144 inside a Super Game Boy's 256x224, or else the core's size for it) is backed out of with `back` up to three times, then reported as `stuck`. `buttons` may be a list of presses made in turn, and `first` a few made once before (to set a menu's cursor). `begin` waits so many frames for the mode to begin (a fight's opening plays before its flag is set); a mode that doesn't hold is said to have never begun. Its presses, backs and why it stopped go into the record of calls |
-| `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap (also every few frames of a wait), take pictures. The pictures come back as one sheet. With a script loaded: stop repeating when it says something (`until_event`) or has said nothing for some presses (`until_quiet`), and steps to do whenever it does (`on`: press down and confirm at each choice) |
+| `steps` | Several moves in one call: hold buttons, then wait (frames, or until something as `run_until`), repeat, snap (also every few frames of a wait), take pictures. The pictures come back as one sheet. With a script loaded: stop repeating when it says something (`until_event`) or has said nothing for some presses (`until_quiet`), steps to do whenever it does (`on`: press down and confirm at each choice), and a snap the moment it says text (`said`) |
 | `screenshot` | The picture now |
 | `read` | Memory by address, a region by offset; also as text in the game's own codes, through a table and rules as `code_rule` words them; or as a script with text among its commands (`mixed`: text as text, other bytes as numbers, pointers marked). 4,096 bytes at most: a larger size is cut, and the answer says so (`cut`) |
 | `find` | Where a text or bytes stand, in live memory or in snaps. A text is looked for in Shift-JIS, EUC-JP, UTF-16 either way, UTF-8, Shift-JIS as 16-bit little-endian numbers, and the game's own table when one is given; in parts too, when the whole isn't found. A hit with two characters or more of text standing right before it is said to be the middle of a line, with where the line begins (`mid_line`) |
@@ -62,7 +62,7 @@ catalog's rule stands, nothing of a game goes into the repository.
 | `press_at` | Presses a button when a number in memory comes to a value, several in turn: a press in time (a ring's hand over its mark, a bar that fills). With `tries`, lists of values are tried from this moment, the game put back after each, and what the game held afterwards is given for each |
 | `place_find` | Where a game of three dimensions keeps the character's place: floats that stand while the pad is let go, move with a push and come back with the push the other way, grouped three on end |
 | `walk_3d` | Walks the character of a game of three dimensions to a place on the ground with the left stick: learns from two pushes which way the stick moves the two numbers `place_find` gave (the camera may be turned), pushes toward the place, learning again from its own pushes as the camera turns, and stops when near, when a push no longer brings it nearer (a wall, a talk begun), or at the limit |
-| `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read. With `fight`, presses through the fights its steps bring and maps on |
+| `explore` | Finds where the character can walk by trying it: pushes each way from where it stands, goes back, and does the same from every place it got to. Gives the places as rows of a map in the game's numbers, with the doors it met, and leaves the game where it was; given a place, puts the game there as it was reached while trying, the pushes going into the record of the way. For ledges, fences and mazes, and for a map too dark to read. With `fight`, presses through the fights its steps bring and maps on; `holds` or `also` tell a fight from a fade. With `room`, a push that changes the room is a door, however far it moved |
 | `map_picture` | The picture on screen under a grid in those numbers, the character's tile marked: a door or a person seen there can be given to `walk_to`. Takes where the game draws the character, for a picture that doesn't keep it in the middle |
 | `visit` | Goes round a picture's spots with the cursor, presses at each until the script is quiet, and says what it read there: a point-and-click room in one call |
 | `follows` | Places that take given values one after the other over snaps in order: the character being drawn, in a game that keeps no line of text |
@@ -117,21 +117,31 @@ In the order to try them:
    line's, the whole doesn't fit and its rows are tried by twos and alone (`parts`). A window that keeps tiles
    often has a second cell for each character (`stride`: 2) and rows that aren't next to each other: give one
    row.
-4. Surer than one line: `lines`, two or more snaps each with what its screen shows at the same place. One
+4. A game whose script lies packed (compressed, or in codes of its own with dictionary words) may unpack each
+   page whole into a buffer before its window shows it. Snap three pages or more, two snaps or more while each
+   stands and one just before each opens: `page_buffer` gives the stretches the pages differ in that held still
+   while each stood, a buffer kept twice as two stretches that alternate, and when each page was written. A
+   stretch that also moves while a page stands (a tile copy, text scrolled through) is ranked down, one that never
+   stands left out. Stretches are held to the size a page takes: give `size` (the most characters a page shows
+   times the bytes a character takes), or it is estimated from the stretches that stood, those longer than `cap`
+   left out; with one snap a page, a scene's graphics stand and differ per page too, and by length alone they
+   came first (Tales of Phantasia's first pages). It gives bytes only: `find_relative` on its address, or a table, reads them. Final Fantasy V's
+   page buffer (4 rows of 16 cells, `0x7E19D3`) is such a one.
+5. Surer than one line: `lines`, two or more snaps each with what its screen shows at the same place. One
    place must fit them all, and the characters the lines share must have the same code, so lines without a
    repeat will do.
-5. A script read where it lies keeps each line somewhere else, so two moments share no place: `apart`, several
+6. A script read where it lies keeps each line somewhere else, so two moments share no place: `apart`, several
    lines of one scene looked for together in one memory, each wherever it is. Two of them must share three
    characters or more. Give kana stretches: a game may keep kanji in two bytes, and a name the player chose
    as a code that stands for it, and either breaks a line that is taken as one code a character.
-6. A game that lets the player enter a name tells its codes outright. On the naming screen, snap, enter one
+7. A game that lets the player enter a name tells its codes outright. On the naming screen, snap, enter one
    character, snap, enter another, snap: the places that took a value one after the other are the name, and
    the values are those characters' codes. `entered` does this from the snaps and the characters. A few kana give the rule the rest follow (a row, an offset between
    hiragana and katakana), and with a handful of codes a plain `find` by bytes finds the dialogue. This is what
    found Final Fantasy IX's text, after every search by the line itself had failed.
-7. The codes it gives are the start of the game's table. With them as a table, `find` (`table`) looks for
+8. The codes it gives are the start of the game's table. With them as a table, `find` (`table`) looks for
    other lines, and each new line adds characters.
-8. A game may hold nothing that says which line is on screen once the line stands: it points at the line only
+9. A game may hold nothing that says which line is on screen once the line stands: it points at the line only
    while it types. Press, then snap through the typing (`steps` with `wait`, `every` and `snap`), and ask
    `refs` over those snaps for what points into the line: a word that does in some moments only is the one
    that follows it. `pointed` then reads the record or stack that word is in as strings. This is what found
@@ -184,6 +194,11 @@ In the order to try them:
    Read a place off an explored map with its `ruler` (a mark at every fifth column, numbered), not by
    counting characters: on Xenogears a passage was taken for nine columns east of where it was, and a walk
    "to" it found nothing. The map itself is the same each time from one state.
+   A place kept in pixels (Tales of Phantasia: x at 0x7E14A0, y at 0x7E14A2, 32 a push of 16 frames) makes
+   every pixel a push can end on a place of its own: a village was 1,300 places and the call's time ran out each
+   time, with every push a "door" at the default `jump`. `explore` now says so (`hint`: the pushes' distance as
+   a `grid` to give with `whole`); in cells a push is one place. Not reaching the place asked for, it walks to
+   the nearest place it got to and says where it stopped (`stopped_at`), so the next call goes on from there.
    With `to`, `explore` stops trying as soon as it is there, and tries the places nearest to it first: a walk
    across a room is a few seconds, and across Mother 2's hill (93 pushes) under a minute, where trying evenly
    ran out of time. A long `step` (16) with four ways covers ground fastest. What it can't see: a door whose
@@ -201,6 +216,13 @@ In the order to try them:
    there. The answer counts the fights and lists each (`fought`: where, presses, why it stopped); a walk with
    `to` keeps their presses in the record of the way. A `begin` is waited after every new place's step, so
    a flag set at once (found with `grouped` against a snap of the opening) maps fastest.
+   Chrono Cross showed two things `explore` couldn't see. Its rooms change without the place jumping (the party
+   walks out of a walkway and a stairwell by hand, and 526 places of the stairwell gave no door at `jump` 5):
+   `room`, an address that changes with the room (`room_size` bytes, default 1), makes a push that changes it a
+   door, however far the place moved. And its fight flag (0x80037E52) is also set by the fade of a room change:
+   16 false fights on one walkway. `fight` takes `holds`, the frames the mode must stand before it is a fight (a
+   fade drops it within a few), and `also`, a second mode that must hold with it; a mode that fails either is no
+   fight, its frames are kept and nothing is pressed.
    The words a place is read from may hold only on some maps: in Dragon Quest I & II they did in the first room
    and read 0xF8 and 0 after the stairs. After a change of map, push once by hand and read them before trusting
    a walk; `cursor_find` again where they don't move.
@@ -212,6 +234,18 @@ In the order to try them:
    found by eye. Give `walk_to` the map's numbers with `near` (a step there is 16, and a walk never lands on
    the very place), and `map_picture` the screen's as well (`screen_x_address`, `screen_y_address`), since the
    picture doesn't keep the character in the middle at a map's edge.
+   Find the place in the first room you walk, before any walking by hand: on Mother (Famicom) 35 calls went
+   on walks by eye about one house. There `cursor_find` gave where the hero is drawn (0x3B and 0x8E, a byte
+   each), which hardly moves while the picture scrolls with him, and `explore` on them saw six places. The map's
+   numbers came from one `steps` call of eight pushes (right, right, down, down, left, left, up, up; 16 frames
+   each) with a snap after each, read outside the harness for the words that follow the pushes: x at 0x18 and
+   y at 0x1A, little-endian, 64 a push. `explore` on them (`size` 2, `grid` 64 with `whole`, `step` 16) gave the
+   upstairs hall, 43 places, in one call. A Famicom keeps no numbers with a point, so `grid` there needs
+   `whole` (explore says so). To tell the rooms apart, hold snaps kept in each room against each other (or
+   `grouped` with a state in each): in Mother none of the bytes that stand within a room and differ between
+   them is a room's number; the rooms lie apart in one space of numbers (the hall's y is about 55 x 256, the
+   sister's room's 251 x 256), so a door is a jump in the numbers, where `walk_to` stops, and no `map_address`
+   is needed.
 9. When `find_relative` finds nothing it tries the other ways a game may keep a line and gives those that fit
    (`other_ways`): codes of two bytes, the other byte order, kana as far apart as in an order, counting up or
    down. A line with three or four different kana is enough.
@@ -429,6 +463,18 @@ screen all its rows with `snap_lines`, as for any other game, and each is held t
 screen before it in its scene left standing. Mother 3 (two rows, scrolling) was checked both ways, by rows
 worked out by hand and by `scrolls` on whole windows, and they agree.
 
+What a live `compare` counts is what the script said when the snap was taken: after a fix to the script or its
+table, the old snaps still hold the old script's sayings. `reread` with `live` runs the script as it now is over
+each snap's memory instead, every snap the same way (those taken with no script loaded too), and the answer, the
+bar and the record (`reread` in the call's outcome) count how many were re-read. It is a check of a fix before
+the calls of a fresh run, not a way to the bar: the bar is never met with it, since it counts what was said in
+play (when a page is said, whether it repeats), which a still snap can't show. It suits a script that reads a
+whole page from where it stands; one that says a line only as it appears reads nothing from a still snap.
+
+A snap keeps memory, not the cartridge, and a script whose build check reads the cartridge's header (a Super
+Famicom's at `0xC0FFC0`) refused every snap under `compare` before it was given one. `compare` now gives it the
+loaded game's cartridge, over snaps of that game only, as `docs/script-api.md` says ("Over a snap").
+
 ### Snaps on disk
 
 A snap is written to `snaps/` in scratch as an inbox-style snapshot: `<name>.ram.gz`, a `<name>.<region>.gz`
@@ -545,6 +591,20 @@ The Super Famicom keeps tiles as planes: `--find` also looks for its 8x8 tiles o
 one colour (`Super Famicom tiles of 2 bits, colour 1`), and for 12-pixel glyphs of a bit a pixel whose rows are
 packed with nothing between them (`packed rows of 12 bits`). Draw them with `--form snes2` or `snes4` (a
 glyph's 8x8 tiles in reading order: `--width 16 --height 16` is four) and `--form bits1 --width 12 --height 12`.
+
+A game that keeps no code of what it shows, only the pixels of its window, is read off those pixels with the font
+the cartridge holds. `--glyphs` writes the font as a dictionary of pictures, each glyph `--chars` gives a
+character (a line a glyph: its code as on the sheet, `=`, the character), hashed as `lib/cells.lua` cuts a cell:
+trimmed to its ink for a proportional font (`--fixed` keeps a glyph whole), `--cut X0:X1` for a font that keeps
+two pictures of each glyph side by side, and a `# widths` line. The script reads its window as tiles
+(`cells.picture`), cuts a row (`cells.fixed`, or `cells.proportional`, which takes the widest picture the
+dictionary has at each glyph's first column with ink) and asks the dictionary (`lib/glyphs.lua`); a cell it
+hasn't got is logged for `yomikata unread`, so kanji not given by `--chars` are read off the logged pictures:
+
+```sh
+yomikata rom-font game.zip --at 0x781D5 --count 1500 --form rows1 --width 24 --height 12 \
+    --glyphs games/sfc/SHVC-AMXJ.glyphs --chars font-chars.txt --cut 0:12
+```
 
 A disc is read as its data track's sectors end to end (a .chd, .cue or .iso, or a raw track), so a place on it is
 sector x 2048 + offset. Look for the font in a memory snap first (`rom-font snap.ram --find picture.png`: a

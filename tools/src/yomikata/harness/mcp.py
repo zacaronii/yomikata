@@ -43,7 +43,8 @@ def call(session: Session, name: str, arguments: dict) -> dict:
     session.begin_call(name, arguments, ahead)
     began = time.monotonic()
     answer = _call(known[name][2], arguments)
-    session.record_call(name, arguments, not answer.get("isError"), time.monotonic() - began, _outcome(name, answer))
+    session.record_call(name, arguments, not answer.get("isError"), time.monotonic() - began, _outcome(name, answer),
+                        game=ahead)
     game = session.game or ahead
     if game:
         # The count after this call, from the record: so that it is before the eyes at every step.
@@ -68,7 +69,10 @@ def _outcome(name: str, answer: dict) -> dict | None:
         return {k: result.get(k) for k in ("presses", "backs", "stopped")}
     if not isinstance(bar, dict):
         return None
-    return {"bar": bool(bar.get("met")), "screens": bar.get("screens with text"), "scenes": len(bar.get("scenes") or {})}
+    kept = {"bar": bool(bar.get("met")), "screens": bar.get("screens with text"), "scenes": len(bar.get("scenes") or {})}
+    if bar.get("re-read offline"):
+        kept["reread"] = bar["re-read offline"]       # the screens counted by running the script over snaps again
+    return kept
 
 
 def _call(tool, arguments: dict) -> dict:

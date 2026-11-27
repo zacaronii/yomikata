@@ -21,7 +21,7 @@ STORY_CHANNELS = ("dialogue", "choice")
 CHANNELS = (*STORY_CHANNELS, "interface")
 
 # What a host calls a platform, where it isn't the catalog's name.
-PLATFORM_ALIASES = {"ngc": "gc", "psx": "ps1", "snes": "sfc"}
+PLATFORM_ALIASES = {"ngc": "gc", "psx": "ps1", "snes": "sfc", "genesis": "md", "megadrive": "md"}
 RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 # Other addresses the same main memory answers at.
 # The same memory at other addresses: the PS1's past its cache and from 0; the Dreamcast's main 16 MB from
@@ -93,35 +93,41 @@ def with_regions(read, platform: str | None, regions: dict[str, bytes]):
     return both
 
 
-def _memory(script: Path, snapshot: Path, platform: str | None, base: int | None):
-    """A snapshot's memory as a read, with its platform and its .json."""
+def _memory(script: Path, snapshot: Path, platform: str | None, base: int | None, rom: bytes | None = None):
+    """A snapshot's memory as a read, with its platform and its .json; with `rom`, the game's file, its
+    cartridge answers where the snapshot has nothing (harness/machine.py's rom_reader)."""
     meta, _ = sidecars(snapshot)
     platform = platform_of(script, platform, meta)
     start = base if base is not None else (int(meta["base_address"], 16) if meta.get("base_address")
                                            else RAM_BASES.get(platform))
     if start is None:
         raise ValueError(f"{snapshot.name}: give the address its first byte has (--base) or its platform")
-    read = rd.memory(start, _load(snapshot), MIRRORS.get(platform, ()))
-    return with_regions(read, platform, _regions(snapshot)), platform, meta
+    read = with_regions(rd.memory(start, _load(snapshot), MIRRORS.get(platform, ())), platform, _regions(snapshot))
+    if rom is not None:
+        from .harness.machine import rom_reader, with_rom
+        read = with_rom(read, rom_reader(platform or "", rom))
+    return read, platform, meta
 
 
-def _open(script: Path, snapshot: Path, platform: str | None, base: int | None, limits: dict) -> rd.Reader:
-    read, platform, meta = _memory(script, snapshot, platform, base)
+def _open(script: Path, snapshot: Path, platform: str | None, base: int | None, limits: dict,
+          rom: bytes | None = None) -> rd.Reader:
+    read, platform, meta = _memory(script, snapshot, platform, base, rom)
     return rd.Reader(read, platform=platform, game_id=meta.get("id") or script.stem,
                      build_id=meta.get("exe_sha1") or None, regions=_regions(snapshot), data=data_files(script),
                      **limits)
 
 
 def run(script: Path, snapshots: list[Path], *, platform: str | None = None, base: int | None = None,
-        frames: int = 2, sequence: bool = False, dump: bool = False, **limits) -> list[Reading]:
-    """What the script emits over each snapshot. With `dump`, not what is on screen but everything the game
+        frames: int = 2, sequence: bool = False, dump: bool = False, rom: bytes | None = None,
+        **limits) -> list[Reading]:
+    """What the script emits over each snapshot (with `rom`, the game's file, its cartridge too). With `dump`, not what is on screen but everything the game
     has in memory there, as the script's own `dump` function says it (docs/script-api.md): the way to read
     through a place's whole text with the script's decoder and tables."""
     source = bundle(script).encode("utf-8")
     out = [Reading(path.name.split(".")[0]) for path in snapshots]
     if dump:
         for path, reading in zip(snapshots, out):
-            with _open(script, path, platform, base, limits) as reader:
+            with _open(script, path, platform, base, limits, rom) as reader:
                 try:
                     reader.load(source, script.name)
                     reader.take()
@@ -133,7 +139,7 @@ def run(script: Path, snapshots: list[Path], *, platform: str | None = None, bas
                 reading.events = reader.take()
         return out
     if sequence:
-        with _open(script, snapshots[0], platform, base, limits) as reader:
+        with _open(script, snapshots[0], platform, base, limits, rom) as reader:
             try:
                 reader.load(source, script.name)
             except rd.ScriptError as e:
@@ -141,13 +147,13 @@ def run(script: Path, snapshots: list[Path], *, platform: str | None = None, bas
                 return out[:1]
             for n, (path, reading) in enumerate(zip(snapshots, out)):
                 if n:
-                    reader.read = _memory(script, path, platform, base)[0]
+                    reader.read = _memory(script, path, platform, base, rom)[0]
                     reader.regions = _regions(path)
                 reader.frame(n + 1)
                 reading.events = reader.take()
         return out
     for path, reading in zip(snapshots, out):
-        with _open(script, path, platform, base, limits) as reader:
+        with _open(script, path, platform, base, limits, rom) as reader:
             try:
                 reader.load(source, script.name)
                 for n in range(frames):

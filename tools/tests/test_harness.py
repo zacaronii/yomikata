@@ -447,6 +447,35 @@ def test_a_budget_is_counted_from_the_record_and_stops_calls_past_it(session, tm
     assert session.budget_of("sfc/Other.sfc") is None
 
 
+def test_every_counted_call_ends_in_the_record_under_its_own_game(tmp_path):
+    """Each call the record counts has two lines, its start and its end, both under the same game: `budget` and
+    `load` before any game is up too (the end line once named no game), and an errored call. A refused call ran
+    nothing and has neither."""
+    for name in ("games/ngc", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/ngc/Made Up (Japan).iso").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), FakeMachine)
+    game = "ngc/Made Up (Japan).iso"
+
+    def ask(name, arguments=None):
+        return mcp.handle(s, {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                              "params": {"name": name, "arguments": arguments or {}}})["result"].get("isError", False)
+    assert not ask("budget", {"calls": 4, "game": game})                               # before any game is up
+    assert not ask("load", {"game": game, "core": "fake_libretro.so", "platform": "ngc"})
+    assert ask("run", {"frames": 0})                                                   # an error: still a call
+    assert not ask("run", {"frames": 1})
+    assert ask("run", {"frames": 1})                                                   # refused: the budget is spent
+    lines = [json.loads(line) for line in (tmp_path / "scratch/record/calls.jsonl").read_text().splitlines()]
+    begun = {e["call"]: e for e in lines if e.get("begun")}
+    ended = {e["call"]: e for e in lines if not e.get("begun")}
+    assert begun.keys() == ended.keys() and len(begun) == 4 and len(lines) == 8
+    assert all(begun[c]["game"] == ended[c]["game"] == game for c in begun)
+    assert [ended[c]["tool"] for c in begun] == ["budget", "load", "run", "run"]
+    assert s.calls_so_far(game) == 4
+    s.close()
+
+
 def test_load_with_a_state_starts_the_game_there_in_one_call(session, tmp_path):
     """A run of the harness that begins at a kept state is one call, not load, run, state_load, run."""
     session.run(7)
@@ -730,6 +759,31 @@ def test_a_game_boys_io_is_a_region_where_the_cores_map_gives_it():
     assert "io" not in machine.regions()
     machine.platform = "gba"
     assert "io" not in machine.regions() and "io" not in region_starts("gba")
+
+
+def test_a_game_boy_advances_sprite_table_and_video_memory_are_kept_and_read_at_their_addresses():
+    """A Game Boy Advance game may draw each character as a sprite: the sprite table (1 KB at 0x07000000, a
+    stretch of the core's map) is kept as the region `oam`, and over a snap it and video memory (`vram`) answer at
+    the console's addresses, as they do in play; none where the map doesn't give the table whole."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine, region_starts
+    from yomikata.run import with_regions
+    video, table = bytes(range(256)) * 384, bytes((7 * k) & 0xFF for k in range(0x400))
+    held = C.create_string_buffer(table, 0x400)
+
+    class Core:
+        maps = [(0x07000000, 0x400, C.addressof(held))]
+        def video_ram(self): return video
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core = "gba", Core()
+    regions = machine.regions()
+    assert regions["oam"] == table and regions["vram"] == video
+    assert region_starts("gba")["oam"] == 0x07000000 and region_starts("gba")["vram"] == 0x06000000
+    read = with_regions(lambda address, size: b"", "gba", regions)
+    assert read(0x07000008, 8) == table[8:16] and read(0x06010000, 4) == video[0x10000:0x10004]
+    machine.core.maps = [(0x07000000, 0x200, C.addressof(held))]                         # half given
+    assert "oam" not in machine.regions()
+    assert "oam" not in region_starts("gb") and "vram" not in region_starts("snes")
 
 
 def test_a_game_boys_io_is_read_across_the_stretches_of_the_cores_map():
@@ -1689,6 +1743,276 @@ def test_compare_with_what_the_script_said_in_play(session):
         session.compare(snaps=["before"], live=True)
 
 
+@needs_reader
+def test_compare_reread_runs_the_script_over_snaps_taken_in_play_again(session):
+    """After a fix to a script or its table, the snaps already taken in play are counted again by running the
+    script as it now is over each one's memory: every snap the same way, those taken with no script loaded too;
+    how many were re-read is in the answer, the bar and the record. The bar is never met so: it counts what was
+    said in play, and a script can read a still snap right and still fail there."""
+    session.snap("before")                                            # no script yet
+    broken = SCRIPT.replace("text = text.sjis(bytes)", 'text = "?"')
+    assert session.script_try(broken)["loaded"]
+    session.steps([{"wait": 3, "snap": True}, {"wait": 10, "snap": True}], prefix="p")
+    session.snap_lines("p-000", ocr=["こんにちは"])
+    session.snap_lines("p-001", ocr=["さようなら"])
+    scenes = {"one": ["p-000"], "two": ["p-001"]}
+    said = session.compare(scenes=scenes, live=True, show=True)       # what the broken script said in play
+    assert [r["read"] for r in said["rows"]] == ["?", "?"] and said["script"]["re-read offline"] == 0
+    again = session.compare(source=SCRIPT, scenes=scenes, live=True, reread=True, show=True)
+    assert [r["read"] for r in again["rows"]] == ["こんにちは", "さようなら"]
+    assert all(r["reread"] for r in again["rows"])
+    assert again["script"]["re-read offline"] == 2 and again["bar"]["re-read offline"] == 2
+    assert again["bar"]["scenes"]["one"] == {"screens": 1, "agreeing": 1}
+    assert not again["bar"]["met"]
+    assert "re-read offline: the bar counts what was said in play; run the stretch again" in again["bar"]["short_of_it"]
+    assert not any("re-read" in line for line in said["bar"]["short_of_it"])
+    assert session.compare(source=SCRIPT, snaps=["before"], live=True, reread=True)["script"]["re-read offline"] == 1
+    with pytest.raises(HarnessError, match="give reread"):
+        session.compare(source=SCRIPT, snaps=["before"], live=True)
+    with pytest.raises(HarnessError, match="whole window"):
+        session.compare(source=SCRIPT, scenes=scenes, live=True, reread=True, scrolls=True)
+    with pytest.raises(HarnessError, match="reread goes with live"):
+        session.compare(source=SCRIPT, snaps=["p-000"], reread=True)
+
+
+def made_up_sfc(hirom: bool, title: bytes = b"MADE UP") -> bytes:
+    """A 64 KB Super Famicom image with a header that holds: its title at bus 0xFFC0, its checksum and complement,
+    its map byte; each byte elsewhere its offset's low byte, and a mark at the start of its second 32 KB."""
+    image = bytearray(i & 0xFF for i in range(0x10000))
+    image[0x8000:0x8004] = b"MARK"
+    at = 0xFFB0 if hirom else 0x7FB0
+    image[at + 0x10:at + 0x10 + 21] = title.ljust(21)
+    image[at + 0x25] = 0x21 if hirom else 0x20
+    image[at + 0x2C:at + 0x30] = struct.pack("<HH", 0xEDCB, 0x1234)
+    return bytes(image)
+
+
+def test_rom_reader_gives_the_cartridge_at_the_consoles_own_addresses():
+    """Snaps keep memory, not the cartridge: rom_reader gives a script the cartridge where it reads it in play,
+    and no more than docs/script-api.md promises: a Super Famicom HiROM cartridge at 0xC00000 on, byte for byte
+    (a copier's header left out), not its mirrors, and no LoROM one; a Game Boy's at CARTRIDGE."""
+    from yomikata.harness.machine import CARTRIDGE, rom_reader
+    hi = made_up_sfc(True)
+    read = rom_reader("sfc", hi)
+    assert read(0xC0FFC0, 7) == b"MADE UP" and read(0xC08000, 4) == b"MARK" and read(0xC00123, 1) == b"\x23"
+    assert read(0xC0FFFE, 4) == hi[0xFFFE:]                                           # where the file ends
+    assert read(0x400123, 1) == b"" and read(0x008000, 4) == b"" and read(0x7E0000, 1) == b""     # mirrors, RAM
+    assert rom_reader("sfc", bytes(512) + hi)(0xC0FFC0, 7) == b"MADE UP"              # a copier's header
+    assert rom_reader("sfc", made_up_sfc(False)) is None                              # LoROM: not dependable yet
+    assert rom_reader("gb", b"GB" * 8)(CARTRIDGE["gb"] + 2, 2) == b"GB"
+    assert rom_reader("ps1", b"x") is None and rom_reader("sfc", b"short") is None
+
+
+class Cartridge(FakeMachine):
+    """FakeMachine with the game's file as its cartridge, as Machine keeps it for reading over snaps; read in play
+    too, as a Super Famicom core's map gives it."""
+
+    def __init__(self, core_path, game, platform, system_dir, options):
+        from yomikata.harness.machine import rom_reader
+        super().__init__(core_path, game, platform, system_dir, options)
+        self.rom = rom_reader(platform, Path(game).read_bytes())
+
+    def read(self, address, size):
+        return super().read(address, size) or self.rom(address, size)
+
+
+SFC_SCRIPT = SCRIPT.replace('if mem.u32be(0x80000040) ~= 0x80000100 then',
+                            'if mem.read(0xC0FFC0, 7) ~= "MADE UP" or mem.u32be(0x80000040) ~= 0x80000100 then')
+
+
+@needs_reader
+def test_compare_gives_a_super_famicom_script_its_cartridge_over_snaps(tmp_path):
+    """A script whose build check reads the cartridge's header refused every snap: a snap keeps memory only.
+    compare now gives it the loaded game's cartridge, over snaps of that game (not another's), and so does
+    `run` with the game's file; reread too, which still never meets the bar."""
+    from yomikata.run import run
+    for name in ("games/sfc", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/sfc/Made Up (Japan).sfc").write_bytes(made_up_sfc(True))
+    (tmp_path / "games/sfc/Other (Japan).sfc").write_bytes(made_up_sfc(True, b"SOMETHING ELSE"))
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), Cartridge)
+    s.load("sfc/Made Up (Japan).sfc", "fake_libretro.so", "sfc")
+    assert s.script_try(SFC_SCRIPT, "SFC-MADEUP.lua")["loaded"]
+    s.steps([{"wait": 3, "snap": True}, {"wait": 10, "snap": True}], prefix="p")
+    s.snap_lines("p-000", ocr=["こんにちは"])
+    s.snap_lines("p-001", ocr=["さようなら"])
+    out = s.compare(source=SFC_SCRIPT, name="SFC-MADEUP.lua", snaps=["p-000", "p-001"], show=True)
+    assert [(r["read"], r["error"]) for r in out["rows"]] == [("こんにちは", None), ("さようなら", None)]
+    again = s.compare(source=SFC_SCRIPT, name="SFC-MADEUP.lua", scenes={"a": ["p-000"], "b": ["p-001"]},
+                      live=True, reread=True, show=True)
+    assert [r["read"] for r in again["rows"]] == ["こんにちは", "さようなら"] and not again["bar"]["met"]
+    script = tmp_path / "SFC-MADEUP.lua"
+    script.write_text(SFC_SCRIPT, encoding="utf-8")
+    snap = tmp_path / "scratch/snaps/p-000.ram.gz"
+    assert [e[1]["text"] for e in run(script, [snap], rom=made_up_sfc(True))[0].events if e[0] == "text"] == ["こんにちは"]
+    assert "another build" in (run(script, [snap])[0].error or "")                    # no file: no cartridge
+    s.close()
+    # Snaps of another game get no cartridge from the one loaded now.
+    t = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), Cartridge)
+    t.load("sfc/Other (Japan).sfc", "fake_libretro.so", "sfc")
+    out = t.compare(source=SFC_SCRIPT, name="SFC-MADEUP.lua", snaps=["p-000"], show=True)
+    assert "another build" in (out["rows"][0]["error"] or "")
+    t.close()
+
+
+def unpack(packed: bytes) -> bytes:
+    """A made-up decompressor: 0x00 n and n bytes as they are; 0x01 back length, that many bytes copied from back."""
+    out, i = bytearray(), 0
+    while i < len(packed):
+        if packed[i] == 0:
+            n = packed[i + 1]
+            out += packed[i + 2:i + 2 + n]
+            i += 2 + n
+        else:
+            back, n = packed[i + 1], packed[i + 2]
+            for _ in range(n):
+                out.append(out[-back])
+            i += 3
+    return bytes(out)
+
+
+class Unpacker(FakeMachine):
+    """A game whose script is packed: a press of a unpacks the next page into BUFFER (or, kept twice, the pages
+    alternating between two places), 2 frames after the press. Beside it, as a real game has: the frame counter
+    (0x10), the line that changes every 10 frames (0x100), a stack rewritten every frame, and a tile copy of the
+    page whose first half holds while the page stands and whose second half moves every frame."""
+    BUFFER, OTHER, TILES, STACK, SIZE = 0x400, 0x500, 0x800, 0x900, 64
+    PACKED = [b"\x00\x0a" + bytes(range(0x21, 0x2B)) + b"\x01\x0a\x1e" + b"\x00\x04\x50\x51\x52\x53",
+              b"\x00\x14" + bytes(range(0x40, 0x54)) + b"\x01\x05\x14",
+              b"\x00\x08" + bytes(range(0x60, 0x68)) + b"\x01\x08\x20" + b"\x00\x02\x30\x31",
+              None]                                                  # the fourth is the first again
+    twice = False
+    write = True
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.page, self.held, self.due = -1, False, None
+        self.memory[self.BUFFER:self.BUFFER + self.SIZE] = b"\xff" * self.SIZE
+        self.memory[self.OTHER:self.OTHER + self.SIZE] = b"\xff" * self.SIZE
+
+    def text(self):
+        packed = self.PACKED[self.page % len(self.PACKED)] or self.PACKED[0]
+        return unpack(packed).ljust(self.SIZE, b"\xff")
+
+    def run(self, frames, buttons, stick):
+        for _ in range(frames):
+            super().run(1, buttons, stick)
+            if "a" in buttons and not self.held:
+                self.page, self.due = self.page + 1, self.frames + 2
+            self.held = "a" in buttons
+            if self.due == self.frames and self.write:
+                at = self.OTHER if self.twice and self.page % 2 else self.BUFFER
+                self.memory[at:at + self.SIZE] = self.text()
+            if self.page >= 0:
+                half = self.text()[:self.SIZE // 2]
+                moving = bytes((b + self.frames) & 0xFF for b in self.text()[self.SIZE // 2:])
+                self.memory[self.TILES:self.TILES + self.SIZE] = half + moving
+            self.memory[self.STACK:self.STACK + 32] = bytes((self.frames * 37 + i * 11) & 0xFF for i in range(32))
+
+
+def unpacker_session(tmp_path, machine):
+    for name in ("games/sfc", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True, exist_ok=True)
+    (tmp_path / "games/sfc/Made Up (Japan).sfc").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), machine)
+    s.load("sfc/Made Up (Japan).sfc", "fake_libretro.so", "sfc")
+    steps = []
+    for k in range(4):                                  # a snap before each page opens, three while it stands
+        steps += [{"wait": 1, "snap": f"b{k}"}, {"buttons": ["a"], "hold": 1, "wait": 5, "snap": f"p{k}a"},
+                  {"wait": 9, "snap": f"p{k}b"}, {"wait": 9, "snap": f"p{k}c"}]
+    s.steps(steps)
+    return s
+
+
+PAGES = [[f"p{k}a", f"p{k}b", f"p{k}c"] for k in range(4)]
+
+
+def test_page_buffer_finds_where_a_packed_page_is_written_whole(tmp_path):
+    """The buffer comes first, whole, with each page written by the first snap after its press (not before it),
+    and the repeated page the same; the tile copy that moves while a page stands is ranked below it, the stack
+    and the counter left out."""
+    s = unpacker_session(tmp_path, Unpacker)
+    out = s.page_buffer(PAGES, before=[f"b{k}" for k in range(4)], repeats=[[0, 3]])
+    top = out["stretches"][0]
+    assert top["address"] == f"0x{BASE + Unpacker.BUFFER:08X}" and top["stood"] == 1.0 and top["repeats"]
+    assert top["length"] >= 30 and top["written"] == [0, 0, 0, 0]
+    places = {r["address"]: r for r in out["stretches"]}
+    tiles = places.get(f"0x{BASE + Unpacker.TILES:08X}")
+    assert tiles and tiles["stood"] < 1.0 and tiles["score"] < top["score"]            # ranked down, not out
+    assert f"0x{BASE + Unpacker.STACK:08X}" not in places                               # never stands: left out
+    assert all(not (BASE + 0x10 <= int(a, 16) < BASE + 0x14) for a in places)            # the counter
+    assert s.page_buffer(PAGES, within=[f"0x{BASE + 0x700:X}", f"0x{BASE + 0x1000:X}"])["stretches"][0]["address"] \
+        == f"0x{BASE + Unpacker.TILES:08X}"
+    with pytest.raises(HarnessError, match="two pages or more"):
+        s.page_buffer([["p0a"]])
+    with pytest.raises(HarnessError, match="pairs of page indices"):
+        s.page_buffer(PAGES, repeats=[[0, 9]])
+    s.close()
+
+
+class Scenery(Unpacker):
+    """Unpacker with what made Tales of Phantasia's first pages go wrong: two long stretches of a scene's
+    graphics, unpacked anew for each page and standing while it does (each page's own bytes, all of them
+    different), as long as a whole block of tiles."""
+    GRAPHICS = ((0x1000, 6000), (0x3000, 6500))
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.memory += bytearray(0x8000 - len(self.memory))
+
+    def run(self, frames, buttons, stick):
+        super().run(frames, buttons, stick)
+        for at, length in self.GRAPHICS:
+            seed = (self.page + 1) * 7919 + at
+            self.memory[at:at + length] = bytes((seed + i * 131 + (i >> 3) * 17) & 0xFF for i in range(length))
+
+
+def test_page_buffer_ranks_against_the_size_a_page_takes(tmp_path):
+    """Long stretches of graphics stand and differ per page as a buffer does, and by length alone they came first.
+    Held to the size a page takes, given or estimated from the stretches that stood (those longer than cap left
+    out of it), the buffer comes first."""
+    s = unpacker_session(tmp_path, Scenery)
+    buffer = f"0x{BASE + Unpacker.BUFFER:08X}"
+    graphics = {f"0x{BASE + at:08X}" for at, _ in Scenery.GRAPHICS}
+    out = s.page_buffer(PAGES)
+    assert out["stretches"][0]["address"] == buffer and out["expected"]["from"] == "estimated"
+    assert out["expected"]["size"] == out["stretches"][0]["length"]
+    lengths = {r["address"]: r["length"] for r in out["stretches"]}
+    assert graphics <= set(lengths) and all(lengths[g] > 40 * lengths[buffer] for g in graphics)   # by length, they'd win
+    given = s.page_buffer(PAGES, size=48)
+    assert given["stretches"][0]["address"] == buffer and given["expected"] == {"size": 48, "from": "given"}
+    loose = s.page_buffer(PAGES, cap=10000)                  # graphics counted in the estimate: it goes wrong
+    assert loose["expected"]["size"] > 1000
+    s.close()
+
+
+def test_page_buffer_gives_both_halves_of_a_buffer_kept_twice(tmp_path):
+    """Pages that alternate between two buffers: both are given, side by side at the top, each said to alternate
+    with the other."""
+    class Twice(Unpacker):
+        twice = True
+    s = unpacker_session(tmp_path, Twice)
+    out = s.page_buffer(PAGES)
+    first, second = out["stretches"][:2]
+    addresses = {f"0x{BASE + Unpacker.BUFFER:08X}", f"0x{BASE + Unpacker.OTHER:08X}"}
+    assert {first["address"], second["address"]} == addresses
+    assert first["alternates_with"] == second["address"] and second["alternates_with"] == first["address"]
+    s.close()
+
+
+def test_page_buffer_gives_no_stood_stretch_where_no_page_is_written(tmp_path):
+    """With no buffer, nothing stands through the pages: the tile copy is still given, ranked down as one that
+    moves, and nothing is passed off as a page's buffer."""
+    class Nowhere(Unpacker):
+        write = False
+    s = unpacker_session(tmp_path, Nowhere)
+    out = s.page_buffer(PAGES)
+    assert out["stretches"] and all(r["stood"] < 1.0 for r in out["stretches"])
+    s.close()
+
+
 def test_on_disc_finds_memory_that_lies_on_the_disc_as_it_is(session, tmp_path):
     line = bytes(range(40, 104))
     put(session, 0x300, line)
@@ -2164,15 +2488,29 @@ def test_map_picture_puts_the_games_numbers_over_the_screen(session):
 @needs_reader
 def test_pictures_a_script_logs_for_want_of_a_reading_are_kept_in_scratch(session, tmp_path):
     """lib/glyphs.lua logs a picture its dictionary hasn't got, and the row it stood in: the harness keeps
-    those lines for `yomikata unread`, and they aren't among a call's events."""
+    those lines for `yomikata unread`, and they aren't among a call's events; another log line is."""
     script = SCRIPT.replace("reader.on_frame(function()", "reader.on_frame(function(frame)\n"
                             "    if frame == 3 then reader.log('glyph 00AA000000000001 4x2x2 1be4') "
                             "reader.log('glyph-line 00AA000000000001 _ 00AA000000000001') reader.log('other') end")
     assert session.script_try(script, "GXXJ01.lua")["loaded"]
     out = session.run(6)
-    assert not [e for e in out["events"] if e["kind"] == "log"]
+    assert [e["message"] for e in out["events"] if e["kind"] == "log"] == ["other"]
     assert (tmp_path / "scratch/glyphs/GXXJ01.log").read_text(encoding="utf-8").splitlines() == [
         "glyph 00AA000000000001 4x2x2 1be4", "glyph-line 00AA000000000001 _ 00AA000000000001"]
+
+
+def test_a_scripts_info_logs_reach_a_calls_events_capped_below_its_text(session):
+    """reader.log lines (info) come back among a call's events, as warnings do, but at most MAX_INFO of them, so a
+    script that logs every frame doesn't crowd out what it says; warnings and text aren't held by that cap."""
+    from yomikata.harness.session import MAX_INFO
+    script = SCRIPT.replace("reader.on_frame(function()", "reader.on_frame(function(frame)\n"
+                            "    reader.log('info ' .. frame) if frame % 10 == 0 then reader.warn('warn ' .. frame) end")
+    assert session.script_try(script, "GXXJ01.lua")["loaded"]
+    out = session.run(120)
+    infos = [e for e in out["events"] if e["kind"] == "log" and e.get("level") == "info"]
+    warns = [e for e in out["events"] if e["kind"] == "log" and e.get("level") != "info"]
+    assert len(infos) == MAX_INFO and infos[0]["message"] == "info 1"
+    assert len(warns) == 12 and [e for e in out["events"] if e["kind"] == "text"]
 
 
 def test_the_second_shoulder_buttons_and_the_sticks_pressed_in_are_buttons_too(session):
@@ -2212,12 +2550,48 @@ def test_explore_finds_where_one_can_walk_by_trying_and_walks_the_way_it_found(s
     out = session.explore(step=1, within=[96, 76, 116, 92], to=[112, 80], near=0)
     assert out["reached"] is True and (out["x"], out["y"]) == (112, 80) and out["pushes"] == 14 and "map" not in out
     assert struct.unpack_from(">hh", machine.memory, 0x30) == (112, 80) and machine.frames > frames
+    # Not reached, it walks as far as it got, to the place nearest the one asked for, and says where it stopped.
     out = session.explore(step=1, within=[96, 76, 116, 92], to=[200, 80])
-    assert out["reached"] is False and "isn't among" in out["why"]
+    assert out["reached"] is False and out["stopped_at"] == [116, 80] and "didn't reach [200, 80]" in out["why"]
+    assert struct.unpack_from(">hh", machine.memory, 0x30) == (116, 80)
+    assert session.explore(step=1, within=[96, 76, 116, 92], to=[200, 80])["why"].startswith("no place it got to")
     out = session.explore(step=1, most=5)
     assert out["places"] == 5 and "more" in out
     with pytest.raises(HarnessError, match="within"):
         session.explore(within=[1, 2, 3])
+
+
+def test_explore_hints_at_a_place_kept_in_pixels_and_walks_it_in_cells(session):
+    """A push that moves the place several of its numbers looks like pixels: explore says to give grid and
+    whole. With them a push is one place, and to and jump are in cells."""
+    session.cursor_find()
+    struct.pack_into(">hh", session.machine.memory, 0x30, 100, 80)
+    out = session.explore(step=4, within=[84, 64, 116, 96])            # 8 of the numbers a push
+    assert "grid 8 and whole" in out["hint"]
+    struct.pack_into(">hh", session.machine.memory, 0x30, 96, 80)      # on the grid of pushes: cell (12, 10)
+    cells = session.explore(step=4, grid=8, whole=True, within=[10, 8, 14, 12])
+    assert "hint" not in cells and (cells["x"], cells["y"]) == (12, 10) and cells["places"] == 25
+    out = session.explore(step=4, grid=8, whole=True, within=[10, 8, 14, 12], to=[14, 12], near=0)
+    assert out["reached"] is True and struct.unpack_from(">hh", session.machine.memory, 0x30) == (112, 96)
+
+
+@needs_reader
+def test_steps_snaps_the_moment_the_script_says_text(session):
+    """said: a snap `after` frames from each saying, mid-wait, where a snap at the step's end would come after
+    the line had given way to the next (the line here changes every 10 frames)."""
+    assert session.script_try(SCRIPT)["loaded"]
+    out = session.steps([{"wait": 35}], prefix="w", said={"after": 2, "shot": True})
+    texts = [e for e in out[1]["events"] if e["kind"] == "text"]
+    taken = out[1]["said"]
+    assert len(taken) == len(texts) >= 3
+    assert [t["frame"] for t in taken] == [e["frame"] + 2 for e in texts]
+    assert [t["snap"] for t in taken][:2] == ["w-said-00", "w-said-01"]
+    lines = [json.loads((session.roots.scratch / f"snaps/{t['snap']}.json").read_text())["said"][-1]["text"]
+             for t in taken]
+    assert lines == [e["text"] for e in texts]                              # each snap holds the line just said
+    assert session.each_frame is None                                        # the hook is put back
+    with pytest.raises(HarnessError, match="said is an object"):
+        session.steps([{"wait": 1}], said={"when": 1})
 
 
 def test_explore_says_when_a_window_takes_the_pad_and_closes_it_with_close(session):
@@ -2321,6 +2695,72 @@ def test_explore_presses_through_the_fights_its_steps_bring(session):
         session.explore(step=1, fight={"address": "0x10"})
 
 
+def test_explore_counts_a_push_that_changes_the_room_as_a_door_however_little_the_place_moved(session):
+    """A doorway at x 106: stepping through it changes the room (a byte at 0x7F0) and moves the place no more
+    than any step, so at the default jump it is a place like any other and the next room is mapped as if it were
+    this one; given `room`, the push through is a door, and the map stops at it."""
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+
+    def rooms(buttons, stick):
+        plain(buttons, stick)
+        x = struct.unpack_from(">h", machine.memory, 0x30)[0]
+        machine.memory[0x7F0] = 2 if x > 106 else 1
+    machine._step = rooms
+    struct.pack_into(">hh", machine.memory, 0x30, 100, 80)
+    machine.memory[0x7F0] = 1
+    box = [96, 78, 112, 82]
+    out = session.explore(step=1, within=box)
+    assert out["columns"] == [96, 112] and out["doors"] == [], out
+    out = session.explore(step=1, within=box, room=f"0x{BASE + 0x7F0:X}")
+    assert out["columns"] == [96, 106] and {"at": [106, 80], "push": "right"} in out["doors"], out
+    with pytest.raises(HarnessError, match="room_size"):
+        session.explore(step=1, room=f"0x{BASE + 0x7F0:X}", room_size=3)
+
+
+def test_explore_tells_a_fade_from_a_fight_by_how_long_the_mode_holds_or_by_a_second_mode(session):
+    """Stepping onto x 100 fades the screen: the fight's flag (0x7F2) is set for two frames and drops by itself.
+    Grass at x 104 starts a fight that holds the flag, and a second flag (0x7F5), until a is pressed three times.
+    Without `holds` every fade is pressed through as a fight; with it, or with `also`, only the grass's are."""
+    session.cursor_find()
+    machine, plain = session.machine, session.machine._step
+
+    def fades(buttons, stick):
+        m = machine.memory
+        pressed = "a" in buttons and not m[0x7F4]
+        m[0x7F4] = 1 if "a" in buttons else 0
+        if m[0x7F6]:                                   # a fade: the flag stands for two frames
+            m[0x7F6] -= 1
+            if not m[0x7F6]:
+                m[0x7F2] = 0
+        if m[0x7F2] and m[0x7F5]:                      # in a fight: the pad walks nobody
+            if pressed:
+                m[0x7F3] += 1
+                if m[0x7F3] >= 3:
+                    m[0x7F2], m[0x7F3], m[0x7F5] = 0, 0, 0
+            plain(set(), stick)
+            return
+        before = struct.unpack_from(">hh", m, 0x30)
+        plain(buttons, stick)
+        x, y = struct.unpack_from(">hh", m, 0x30)
+        if (x, y) != before and x == 100:
+            m[0x7F2], m[0x7F6] = 1, 2
+        if (x, y) != before and x == 104:
+            m[0x7F2], m[0x7F5] = 1, 1
+    machine._step = fades
+    struct.pack_into(">hh", machine.memory, 0x30, 102, 80)
+    box = [96, 78, 112, 82]
+    mode = {"address": f"0x{BASE + 0x7F2:X}", "equals": "1", "wait": 4, "begin": 1}
+    out = session.explore(step=1, within=box, fight=mode)
+    assert any(f["at"][0] == 100 for f in out["fought"]), out                      # the fades counted
+    for watch in ({"holds": 6}, {"also": {"address": f"0x{BASE + 0x7F5:X}", "equals": "1"}}):
+        out = session.explore(step=1, within=box, fight={**mode, **watch})
+        assert out["columns"] == [96, 112] and out["fights"] >= 1, out
+        assert all(f["at"][0] == 104 and (f["presses"], f["stopped"]) == (3, "mode ended") for f in out["fought"]), out
+    with pytest.raises(HarnessError, match="also"):
+        session.explore(step=1, fight={**mode, "also": {"address": "0x10"}})
+
+
 def test_the_record_gives_each_games_cost_up_to_its_bar(tmp_path, capsys):
     """`yomikata calls --trend`: for each game, the calls, runs and minutes from its first call to the first
     comparison by scenes that met the bar; a comparison's outcome is kept with its call (counts only)."""
@@ -2356,6 +2796,9 @@ def test_a_comparisons_outcome_is_kept_with_its_call():
     assert mcp._outcome("compare", {"content": [{"type": "text", "text": json.dumps(
         {"script": {}, "bar": {"met": True, "screens with text": 40, "scenes": {"a": {}, "b": {}, "c": {}}}})}]}) == \
         {"bar": True, "screens": 40, "scenes": 3}
+    assert mcp._outcome("compare", {"content": [{"type": "text", "text": json.dumps(
+        {"script": {}, "bar": {"met": False, "screens with text": 10, "scenes": {"a": {}}, "re-read offline": 10}})}]}) == \
+        {"bar": False, "screens": 10, "scenes": 1, "reread": 10}
     assert mcp._outcome("compare", {"content": [{"type": "text", "text": json.dumps({"script": {}})}]}) is None
     assert mcp._outcome("run", {"content": [{"type": "text", "text": "{}"}]}) is None
     assert mcp._outcome("compare", {"isError": True, "content": [{"type": "text", "text": "no"}]}) is None
@@ -2470,6 +2913,24 @@ def test_place_find_and_explore_by_whole_numbers(session):
     assert (out["x"], out["y"]) == (10, -40) and out["places"] > 50
     near = session.explore(**cells, within=[0, -60, 60, 20], to=[12, -38], near=1)
     assert near["reached"] is True and near["places"] < out["places"] // 2     # it stopped once it was there
+
+
+def test_explore_with_grid_on_a_console_of_whole_numbers_asks_for_whole(session):
+    """A Famicom game keeps its place as whole numbers (Mother: x at 0x18, y at 0x1A, 64 a push): grid without
+    whole would read them as numbers with a point, so explore says to give whole; where the place can't be read
+    as such numbers, it says why."""
+    machine = session.machine
+    struct.pack_into(">3i", machine.memory, 0x300, 160, 0, -640)
+    cells = {"x_address": f"0x{BASE + 0x300:08X}", "y_address": f"0x{BASE + 0x308:08X}", "size": 4, "grid": 16}
+    machine.platform = "fc"
+    try:
+        with pytest.raises(HarnessError, match="give whole as well"):
+            session.explore(**cells)
+    finally:
+        machine.platform = "ngc"
+    struct.pack_into("<I", machine.memory, 0x300, 0x7FC00000)                  # not a number, read with a point
+    with pytest.raises(HarnessError, match="for whole numbers give whole"):
+        session.explore(**cells)
 
 
 def test_explore_gives_the_same_map_each_time_and_a_ruler_for_its_columns(session):
@@ -2765,6 +3226,43 @@ def test_a_game_boy_cartridge_is_read_whole_at_its_own_address(tmp_path):
     assert machine.read(0x01000000, 4) == b""
 
 
+def test_a_pc_engine_hucard_machine_reads_the_consoles_ram_at_its_own_address():
+    """beetle pce_fast maps a HuCard game's 8 KB at 0x1F0000 (and its backup RAM at 0x1EE000) and gives the same
+    8 KB as system RAM (seen with a made-up HuCard): main memory is read from 0x1F0000."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine
+    work = (C.c_char * 0x2000)(*([7] * 0x2000))
+    work[0x10] = b"\x42"
+
+    class Lib:
+        def retro_get_memory_data(self, which):
+            return C.addressof(work) if which == 2 else None
+
+        def retro_get_memory_size(self, which):
+            return 0x2000 if which == 2 else 0
+
+    class Core:
+        lib = Lib()
+        maps = [(0x1F0000, 0x2000, C.addressof(work))]
+
+        def read(self, address, size):
+            for start, length, ptr in self.maps:
+                if start <= address < start + length:
+                    return C.string_at(ptr + address - start, min(size, start + length - address))
+            return b""
+
+        def ram(self):
+            return C.string_at(C.addressof(work), 0x2000)
+
+        def ram_base(self):
+            return None
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core, machine.cartridge = "pce", Core(), b""
+    base, ram = machine.ram()
+    assert (base, len(ram), ram[0x10]) == (0x1F0000, 0x2000, 0x42)
+    assert machine.read(0x1F0010, 2) == bytes([0x42, 7])
+
+
 def test_a_famicom_cartridge_and_a_disk_are_read_whole_after_their_headers(tmp_path):
     """fceumm's map has no program ROM: the harness gives a Famicom image after its iNES header (and trainer) at
     0x01000000, the program then the CHR; a Disk System image after its fwNES header; a file without one as is."""
@@ -2896,6 +3394,78 @@ def test_identify_famicom_cartridges_by_their_rom_and_disks_by_their_info_block(
     (tmp_path / "junk.fds").write_bytes(bytes(65500))
     with pytest.raises(ValueError, match="disk-info block"):
         identify(tmp_path / "junk.fds")
+
+
+def test_identify_mega_drive_cartridges_by_their_product_code_or_crc(tmp_path):
+    """A Mega Drive cartridge is named by the serial in its product code (the build adds the revision), in any
+    image: plain, an SMD dump (interleaved blocks behind a 512-byte header), a zip, a .bin with the header; one
+    whose code holds no serial by "MD-" and its ROM's CRC-32. A .bin without the header is still a disc's."""
+    import os, zlib, zipfile
+    from yomikata.identify import identify, md_unpack
+    rom = bytearray(os.urandom(0x8000))
+    rom[0x100:0x110] = b"SEGA MEGA DRIVE "
+    rom[0x180:0x18E] = b"GM G-9999   01"
+    rom = bytes(rom)
+    smd = bytearray(b"\x02\x00\x03" + bytes(5) + b"\xAA\xBB\x06" + bytes(512 - 11))
+    for at in range(0, len(rom), 0x4000):
+        block = rom[at:at + 0x4000]
+        smd += block[1::2] + block[0::2]                                   # odd bytes, then even
+    assert md_unpack(bytes(smd)) == rom and md_unpack(rom) == rom
+    crc = f"{zlib.crc32(rom):08x}"
+    with zipfile.ZipFile(tmp_path / "game.zip", "w") as z:
+        z.writestr("Made Up (Japan).md", rom)
+    for name, data in (("plain.md", rom), ("plain.gen", rom), ("dump.smd", bytes(smd)), ("game.zip", None),
+                       ("cart.bin", rom)):
+        if data is not None:
+            (tmp_path / name).write_bytes(data)
+        release = identify(tmp_path / name)
+        assert (release.platform, release.id, release.build, release.header_crc32) == ("md", "G-9999", "G-9999-01", crc), name
+    genesis = bytearray(rom)
+    genesis[0x100:0x110], genesis[0x180:0x18E] = b"SEGA GENESIS    ", b"GM 00000000-00"
+    genesis[0x183:0x18B] = b"        "                                 # no serial
+    (tmp_path / "nocode.md").write_bytes(bytes(genesis))
+    release = identify(tmp_path / "nocode.md")
+    want = f"MD-{zlib.crc32(bytes(genesis)):08X}"
+    assert (release.platform, release.id, release.build) == ("md", want, want)
+    (tmp_path / "junk.md").write_bytes(bytes(0x400))
+    with pytest.raises(ValueError, match="SEGA header"):
+        identify(tmp_path / "junk.md")
+
+
+def test_a_mega_drive_is_read_at_its_own_addresses_in_its_own_byte_order_and_its_cartridge_whole():
+    """genesis_plus_gx gives the 64 KB of work RAM as 16-bit words in the host's order and no map (seen with a
+    made-up cartridge that wrote 11 22 33 44 at 0xFF0000): the harness reads it at 0xFF0000, big-endian, writes
+    it back the same way, and gives the cartridge, an SMD dump put back in order, at 0x01000000."""
+    import ctypes as C
+    from yomikata.harness.machine import CARTRIDGE, Machine, cartridge_image
+    raw = (C.c_char * 0x10000)()
+    C.memmove(raw, bytes.fromhex("2211443366558877"), 8)
+    C.memmove(C.addressof(raw) + 0xFFFE, bytes.fromhex("b2a1"), 2)
+
+    class Lib:
+        def retro_get_memory_data(self, which):
+            return C.addressof(raw) if which == 2 else None
+
+        def retro_get_memory_size(self, which):
+            return 0x10000 if which == 2 else 0
+
+    class Core:
+        lib, maps = Lib(), []
+
+        def video_ram(self):
+            return None
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core = "md", Core()
+    rom = bytearray(0x4000)
+    rom[0x100:0x104] = b"SEGA"
+    rom = bytes(rom)
+    smd = bytes(512) + rom[1::2] + rom[0::2]
+    machine.cartridge = cartridge_image("md", smd)
+    base, ram = machine.ram()
+    assert (base, len(ram)) == (0xFF0000, 0x10000) and ram[:8] == bytes.fromhex("1122334455667788")
+    assert machine.read(0xFF0002, 4) == bytes.fromhex("33445566") and machine.read(0xFFFFFE, 2) == bytes.fromhex("a1b2")
+    assert machine.write(0xFF0001, b"\x99") == 1 and bytes(raw[0:2]) == bytes.fromhex("9911")
+    assert CARTRIDGE["md"] == 0x01000000 and machine.read(0x01000100, 4) == b"SEGA" and machine.cartridge == rom
 
 
 def test_a_famicom_machine_reads_its_work_ram_through_pages_and_its_nametables(tmp_path):

@@ -1,0 +1,26 @@
+{
+ "id": "SLPS-02274",
+ "platform": "ps1",
+ "title": "夕闇通り探検隊",
+ "title_romaji": "Yuuyami Doori Tankentai",
+ "versions": [
+  {
+   "exe_sha1": "1b2eee02e9ae542620be83a142532dc39c468886",
+   "note": "SLPS_022.74"
+  }
+ ],
+ "encoding": "compressed",
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's disc on pcsx_rearmed (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The disc and snaps were studied outside it",
+  "Found in play: a scene's script lies whole in work RAM in codes of the scene's own (a 16-bit code a character), found by find_relative on a row read off a picture; the page shown is counted, a scene's and a talk's counters apart",
+  "The game draws a page's characters, in order, into a cache of cells in video memory, which the script reads each by its picture",
+  "The dictionary: 156 pictures (a bit a pixel, since a talk shades a character otherwise; a space is a cell of its own, read by the script), each a scene's code beside its cell and the page's picture",
+  "Played from power-on through the opening, a talk from the notebook, and the talk a walk in the woods brings, with the script loaded",
+  "What the script said agreed with the rows read off 35 of 35 pictures, over 3 scenes (23, 11 and 1)",
+  "After the bar a space came to be read by the script, not the dictionary: over the 35 snaps offline, a reader on each, the script as merged read all the same as the bar's (34 as said live; the walk's on a still snap reads nothing under both, by the rule in the known limit)",
+  "Known limit: the talk a walk brings keeps no count of its page; the script takes the longest run of one or two rows of the scene's script that fits the cache, and leaves out the cache as it stood when such a talk came up",
+  "Calls: 79 of a budget of 120"
+ ],
+ "notes": "Read by the script games/ps1/SLPS-02274.lua: the subtitle on screen, from the scene's script and the pictures of its characters in video memory, said once the page stands. Not read: menus (the notebook's captions among them). A character not met in play comes out as U+FFFD."
+}

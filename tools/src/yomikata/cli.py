@@ -125,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--base", default=None, help="address of the snapshots' first byte (default: their .json, else the platform's RAM)")
     p.add_argument("--frames", type=int, default=2, help="ticks over each snapshot")
     p.add_argument("--sequence", action="store_true", help="the snapshots are consecutive moments of one run: one reader, one tick each")
+    p.add_argument("--rom", type=Path, help="the game's file, unpacked: a script then finds the cartridge where it reads it in play (snapshots keep memory only)")
     p.add_argument("--log", action="store_true", help="print the script's log lines too")
     p.add_argument("--story", action="store_true", help="only what is read: dialogue and choices, not interface text")
     p.add_argument("--dump", action="store_true", help="everything the game has in memory at each snapshot, as the script's own dump function says it: for reading a place's whole text through the script's decoder")
@@ -185,6 +186,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--columns", type=int, default=16, help="glyphs a row of the sheet (default 16)")
     p.add_argument("--scale", type=int, default=3, help="enlarge the sheet's glyphs (default 3)")
     p.add_argument("--json", type=Path, help="write the glyphs for `yomikata glyph-read` (a code to its rows), to scratch")
+    p.add_argument("--glyphs", type=Path, help="write a dictionary of the glyphs' pictures (lib/glyphs.lua, lib/cells.lua): each glyph --chars has, by the hash of its picture as lib/cells.lua cuts one, and a `# widths` line")
+    p.add_argument("--chars", type=Path, help="with --glyphs: the characters, a line a glyph: its code in hex (as on the sheet), = and the character")
+    p.add_argument("--cut", help="with --glyphs: X0:X1, the columns of each glyph the game draws (a font that keeps two pictures side by side)")
+    p.add_argument("--fixed", action="store_true", help="with --glyphs: a font drawn on a fixed grid: glyphs kept whole, not trimmed to their ink")
     p.add_argument("--read", type=Path, help="the rows read off the sheets (scratch): a line is a code in hex, then the characters from that glyph on, ? for one not read")
     p.add_argument("--known", type=Path, help="with --read: a table read in play (HEX=character lines) to hold the readings against")
     p.add_argument("--unit", type=int, default=2, help="table: bytes a code (default 2)")
@@ -398,6 +403,19 @@ def main(argv: list[str] | None = None) -> int:
             args.json.write_text(_json.dumps({f"{code:X}": romfont.rows_hex(pixels) for code, pixels in inked.items()}),
                                  encoding="utf-8")
         print(f"{len(glyphs)} glyphs from 0x{first:X}, {len(blanks)} of them blank", file=sys.stderr)
+        if args.glyphs:
+            if not args.chars:
+                print("--glyphs needs --chars (which character each glyph is)", file=sys.stderr)
+                return 2
+            characters = {}
+            for line in args.chars.read_text(encoding="utf-8").splitlines():
+                code, sep, ch = line.partition("=")
+                if sep and not line.startswith("#") and len(ch) == 1:
+                    characters[int(code, 16)] = ch
+            cut = tuple(int(v) for v in args.cut.split(":")) if args.cut else None
+            lines, widths = romfont.dictionary(glyphs, characters, cut, not args.fixed)
+            args.glyphs.write_text(f"# widths {' '.join(map(str, widths))}\n" + "\n".join(lines) + "\n", encoding="utf-8")
+            print(f"{len(lines)} pictures written to {args.glyphs}", file=sys.stderr)
         if args.read:
             try:
                 read = romfont.readings(args.read.read_text(encoding="utf-8"), blanks, lead)
@@ -821,7 +839,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             readings = run(args.script, args.snapshots, platform=args.platform,
                            base=int(args.base, 16) if args.base else None, frames=args.frames, sequence=args.sequence,
-                           dump=args.dump)
+                           dump=args.dump, rom=args.rom.read_bytes() if args.rom else None)
         except (rd.ReaderUnavailable, ValueError, OSError) as e:        # a BundleError is a ValueError
             print(e, file=sys.stderr)
             return 1

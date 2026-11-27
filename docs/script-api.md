@@ -87,6 +87,8 @@ end)
   picture it hasn't got (once, as `glyph <hash> <width>x<height>x<bits> <hex>`) and the row of text it stood in
   (`glyph-line <hash> …`): what `yomikata unread` draws for reading (docs/harness.md, "A game's own font"). A
   host may show such a line to a player who wants to report it, or drop it.
+  A game that keeps only its window's pixels is read with `lib/cells.lua`, which cuts the window's tiles into
+  cells (a fixed grid, or a proportional font's glyphs one after another) and asks the same dictionary.
 - A script may `require` a module from `lib/` (walking tags, tiles, reading a `.tbl`). What is run and published
   is one file per game with its modules put in (`yomikata bundle`, which `yomikata run` does by itself), header
   lines still first, so a host never loads anything but the script and its data.
@@ -210,7 +212,7 @@ emulator reached over a socket can't answer sixty times a second), so:
 | `reader.forget(slot)`, `reader.forget()` | Forget one slot's value, or all |
 | `reader.builder()` | Builds a text with furigana: `b:add(s)`, `b:add_ruby(base, reading)`, then `b:text()` and `b:ruby()` for `emit` |
 | `reader.data(name)` | The file `<id>.<name>` as a string, or nil |
-| `reader.log(…)`, `reader.warn(…)` | To the host's log. `print` is `reader.log` |
+| `reader.log(…)`, `reader.warn(…)` | To the host's log. `print` is `reader.log`. In the harness a call's events carry them: every warning, and the first 50 `reader.log` lines of a call (so that a script logging each frame doesn't crowd out what it says) |
 | `reader.action(label, f)`, `reader.progress{…}` | Accepted and left alone (read-only) |
 
 ### `reader.emit`
@@ -301,15 +303,17 @@ bytes as they lie in memory.
 | `gc` | `0x80000000`, 24 MB | Big-endian |
 | `wii` | `0x80000000`, 24 MB, and `0x90000000`, 64 MB | Big-endian |
 | `nds` | `0x02000000`, 4 MB | |
-| `gba` | `0x02000000`, 256 KB, and `0x03000000`, 32 KB | |
+| `gba` | `0x02000000`, 256 KB, and `0x03000000`, 32 KB | The video memory at `0x06000000` (96 KB, the region `vram`) and the sprite table at `0x07000000` (1 KB, OAM: 128 sprites of 8 bytes, the region `oam`), where mGBA's map gives them: for a game that draws each character as a sprite of its own. Read at those addresses over a snap too |
 | `sfc` | `0x7E0000`, 128 KB | And the cartridge, where the core maps it (below) |
 | `gb`, `gbc` | `0xC000`, 8 KB | And the cartridge, whole, at `0x01000000` on (below). The I/O registers and high RAM at `0xFF00`-`0xFFFF` where the core maps them (mGBA does): LCDC at `0xFF40`, WY and WX at `0xFF4A`, say whether the window layer shows, which a game's copy of the screen in work RAM doesn't. Kept in a snap as the region `io`, and read at those addresses over a snap too |
 | `pce-cd` | `0xD0000`, 256 KB: the Super System Card's RAM, then the CD's own (from `0x100000`) | The console's 8 KB at `0x1F0000` too (the region `wram` in a snap). Not `0x0E0000`-`0x0EFFFF`: below |
+| `pce` | `0x1F0000`, 8 KB: the console's own RAM (bank `0xF8`), which is all a HuCard has | Where beetle pce_fast's map puts it. The video memory (64 KB) is the region `vram`; the backup RAM (2 KB at `0x1EE000`) is in the map too |
 | `saturn` | `0x06000000`, 1 MB (the high work RAM), and `0x00200000`, 1 MB (the low) | Big-endian, as the console has it (mednafen_saturn keeps both as 16-bit words in the host's order; they are put back). The same again past the cache at `0x26000000` and `0x20200000`. The low 1 MB is the region `lwram` in a snap. No video memory: the core gives out neither VDP1's nor VDP2's |
 | `n64` | `0x80000000`, 8 MB (the RDRAM; a game without the Expansion Pak uses the first 4) | Big-endian, as the console has it (mupen64plus_next keeps it as 32-bit words in the host's order; they are put back). The same again past the cache at `0xA0000000`. No video memory, and the cartridge isn't given |
 | `dc` | `0x8C000000`, 16 MB (the main memory) | Little-endian. The same at `0x0C000000` and `0xAC000000`. flycast gives no video memory |
 | `fc` | `0x0000`, 2 KB (the same again at `0x0800`, `0x1000` and `0x1800`) | And the cartridge, whole, at `0x01000000` on (below). A cartridge's work RAM at `0x6000`-`0x7FFF`, where the core maps it (fceumm does, in 1 KB pages), read through its map; kept in a snap as the region `wram`. The video memory (`vram` in a snap) is the two nametables, 2 KB: the screen's tiles. fceumm gives out no video memory as such; the harness takes them where its map puts them |
 | `fds` | `0x0000`, 2 KB, as `fc` | And the disk, whole, at `0x01000000` on (below). The Disk System's RAM is `0x6000`-`0xDFFF` (32 KB), but fceumm's map gives only its first 8 KB, `0x6000`-`0x7FFF` (the region `wram` in a snap): a script reading `0x8000` on gets nothing. The nametables as `fc`'s. The core's "save RAM" is the disk side, not RAM |
+| `md` | `0xFF0000`, 64 KB | Big-endian, as the console has it: genesis_plus_gx gives its work RAM as 16-bit words in the host's order, with no map, and they are put back. And the cartridge, whole, at `0x01000000` on (below) |
 
 **A Super Famicom cartridge.** Some games never copy their text into work RAM and draw it straight from the
 cartridge, so a script may read the cartridge at the addresses the game itself uses:
@@ -339,6 +343,16 @@ script has nothing there to check its build against or to read text from. The ha
 `0x01000000` on, after its 16-byte iNES header and the trainer one may have: the program first (8 KB bank `n` at
 `0x01000000 + n x 0x2000`, the last bank the one fixed at `0xE000`), then the CHR. A Disk System image is given
 there after its fwNES header (where it has one), side after side (65,500 bytes each). The same rule holds.
+
+**Over a snap.** A snap keeps memory, not the cartridge. Where a script reads one of the cartridges above (a
+Super Famicom HiROM cartridge at `0xC00000`, a Game Boy, Famicom, Disk System or Mega Drive image at
+`0x01000000`), the harness's `compare` gives it the loaded game's, over snaps of that game, and `yomikata run`
+gives it with `--rom` and the game's file: a build check on the cartridge's header holds there as in play. A Super
+Famicom cartridge is given only as above (no mirrors, no LoROM), so that what reads over a snap reads in play.
+
+**A Mega Drive cartridge.** genesis_plus_gx gives out no map of the cartridge either. The harness gives it whole at
+`0x01000000` on, as the console sees it (byte `n` of the ROM at `0x01000000 + n`; an SMD dump put back in order), so
+a script can check its build against the header at `0x01000100`. The same rule holds.
 
 A host maps these onto what its emulator gives out (a libretro core's memory descriptors, or its system RAM at
 the base above). Other platforms are added here as their first script arrives.
