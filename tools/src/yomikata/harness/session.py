@@ -2289,6 +2289,8 @@ class Session:
                             "degrees either side, then 45, … then shorter pushes): a pier or a ramp is followed, "
                             "not fallen off", False),
           fall=("number", "with height: a drop of more than this, in the game's units, is a fall (default 30)", False),
+          settle=("integer", "with the guard: frames waited after each push before the height is read: a game that "
+                             "jumps the character off a ledge it runs at drops it only after the push", False),
           floor=("number", "with height: a push that ends lower than this is refused too: a way down by small steps "
                            "into water stands below the land (Wind Waker: swimming at 30, its pier at 180)", False),
           water=("object", "with the guard: a mode that means the character is in water or has fallen (address, "
@@ -2299,7 +2301,8 @@ class Session:
           yaw_kind=("string", "s16 (a turn is 65536: most consoles' angles) or float (radians) (default s16)", False))
     def walk_3d(self, x_address: str, z_address: str, x: float | None = None, z: float | None = None,
                 near: float = 0.0, push: int = 8, limit: int = 1200, height: str = "", fall: float = 30.0,
-                water: dict | None = None, yaw: str = "", yaw_kind: str = "s16", floor: float | None = None) -> dict:
+                water: dict | None = None, yaw: str = "", yaw_kind: str = "s16", floor: float | None = None,
+                settle: int = 0) -> dict:
         import math
         import struct
         machine = self._need()
@@ -2450,6 +2453,9 @@ class Session:
                     before_state, before_route, before_frames = machine.save_state(), json.loads(json.dumps(self.route)), machine.frames
                     h0 = float_at(at_h) if at_h is not None else None
                     move, why = stick((tx, ty), frames)
+                    if not why and settle:
+                        done, why = self._advance(max(0, min(int(settle), 120)), set(), (0.0, 0.0), events)
+                        ran += done
                     if why:
                         break
                     h1 = float_at(at_h) if at_h is not None else None

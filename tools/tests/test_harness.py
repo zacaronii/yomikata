@@ -3387,7 +3387,7 @@ def test_walk_3d_keeps_to_a_pier_and_steers_by_the_camera(session):
     assert struct.unpack_from(">f", machine.memory, 0x304)[0] == 10.0                 # still on the pier
     # A floor: no push ends below it, however small the step down (here none falls 3 at once but all go below 5).
     machine.load_state(start)
-    low = session.walk_3d(**place, height=f"0x{BASE + 0x304:08X}", fall=100.0, floor=5.0, limit=3000)
+    low = session.walk_3d(**place, height=f"0x{BASE + 0x304:08X}", fall=100.0, floor=5.0, settle=4, limit=3000)
     assert low["reached"] and low["refused"], low
     # The camera turns 1/256 of a turn a frame; the stick moves the character by the camera's ways.
     import math
