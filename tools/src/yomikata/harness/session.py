@@ -549,12 +549,15 @@ class Session:
           still_share=("number", "the share of the picture's pixels that may change in a press that still counts "
                                  "as no change, against the picture a press back or two (default 0.01)", False),
           back=("array", "the buttons that back out of a stuck menu (default b)", False),
+          cycle=("integer", "a press counts as no change when its picture is any of the last so many presses' "
+                            "(default 6): a menu that goes round a few pictures and never on", False),
           begin=("integer", "frames to wait, pressing nothing, for the mode to begin (a fight's opening plays "
                             "before the game sets its flag); default 0", False))
     def advance_through(self, address: str, size: int = 1, equals: str = "", differs: str = "",
                         buttons: list | None = None, hold: int = 6, wait: int = 30, watch: str = "",
                         watch_size: int = 1, most: int = 300, stuck: int = 8, back: list | None = None,
-                        first: list | None = None, still_share: float = 0.01, begin: int = 0) -> dict:
+                        first: list | None = None, still_share: float = 0.01, begin: int = 0,
+                        cycle: int = 6) -> dict:
         import numpy as np
         machine = self._need()
         if size not in (1, 2, 4) or watch_size not in (1, 2, 3, 4):
@@ -630,7 +633,10 @@ class Session:
                 stopped = why
                 break
         first, presses, backs, still = seen(), 0, 0, 0
-        last = earlier = picture()
+        # The pictures of the last presses: one that comes again within them is no change (a blink, or a menu
+        # going round a few pictures under the same button).
+        cycle = max(2, int(cycle))
+        recent = [picture()]
         while stopped is None:
             if not mode():
                 stopped = "mode ended"
@@ -647,9 +653,9 @@ class Session:
                 stopped = "watched changed"
                 break
             now = picture()
-            # Still: the same as a press back, or as two back (a two-phase blink comes round again).
-            still = still + 1 if same(now, last) or same(now, earlier) else 0
-            earlier, last = last, now
+            # Still: the same as any of the last `cycle` presses' pictures (a blink, a loop of a few pictures).
+            still = still + 1 if any(same(now, old) for old in recent) else 0
+            recent = (recent + [now])[-cycle:]
             if stuck and still >= stuck:
                 if backs >= 3:
                     stopped = "stuck"
@@ -1380,8 +1386,12 @@ class Session:
           snaps=("boolean", "the names are snaps, not states", False),
           least=("integer", "how many different values the groups must show (default: one for each group)", False),
           unit=("integer", "bytes compared together: 1, 2 or 4 (default 1)", False),
-          within=("array", "only places from one address to another, hex", False))
-    def grouped(self, groups: dict, snaps: bool = False, least: int = 0, unit: int = 1, within: list | None = None) -> dict:
+          within=("array", "only places from one address to another, hex", False),
+          values=("object", "only places whose values fit: for a group's name, \"0\" (zero), \"!0\" (not zero), a "
+                            "value (0x80) or \"!\" and a value (not it); or the word \"flag\" for places zero in "
+                            "some groups and not in the others (a flag that goes on or off between them)", False))
+    def grouped(self, groups: dict, snaps: bool = False, least: int = 0, unit: int = 1, within: list | None = None,
+                values: dict | str | None = None) -> dict:
         import numpy as np
         machine = self._need()
         if unit not in (1, 2, 4):
@@ -1433,6 +1443,32 @@ class Session:
             kinds += new
         least = len(names) if not least else max(2, min(int(least), len(names)))
         keep &= kinds >= least
+        if values is not None:
+            # Only places whose values fit: a flag going on or off, or each group's own condition.
+            zero = [(first == 0).all(axis=1) for first in firsts]
+            if values == "flag":
+                some = np.zeros(len(keep), dtype=bool)
+                every = np.ones(len(keep), dtype=bool)
+                for z in zero:
+                    some |= z
+                    every &= z
+                keep &= some & ~every
+            elif isinstance(values, dict) and values and set(values) <= set(names):
+                order = ">" if machine.platform in BIG_ENDIAN else "<"
+                for g, want in values.items():
+                    first = firsts[names.index(g)]
+                    number = first.view(f"{order}u{unit}").reshape(-1) if unit > 1 else first.reshape(-1)
+                    text = str(want).strip()
+                    negate = text.startswith("!")
+                    try:
+                        value = int(text.lstrip("!"), 0)
+                    except ValueError:
+                        raise HarnessError(f"values: {want} isn't 0, !0, a value or ! and a value") from None
+                    fits = number == value
+                    keep &= ~fits if negate else fits
+            else:
+                raise HarnessError("values is \"flag\", or a group's name to its condition (0, !0, 0x80, !0x80) "
+                                   "for groups that are given")
         places = np.nonzero(keep)[0]
         if within is not None:
             low, high = (int(str(v), 16) for v in within)
@@ -1444,7 +1480,12 @@ class Session:
             alike = [sorted(g for g in names if values[g] == v) for v in sorted(set(values.values()))]
             rows.append({"address": f"0x{base + i * unit:08X}", "values": values,
                          **({"alike": [a for a in alike if len(a) > 1]} if int(kinds[i]) < len(names) else {})})
-        return {"count": len(places), "groups": len(names), "places": rows}
+        out = {"count": len(places), "groups": len(names), "places": rows}
+        if len(places) > MAX_HITS:
+            # The list is cut, the places that differ most first: a flag elsewhere may not be among those given.
+            out["cut"] = (f"{len(places)} places fit, {MAX_HITS} given (those the most groups differ at, then by "
+                          "address): narrow it with `values` (\"flag\", or each group's value) or `within`")
+        return out
 
     @tool("Reads a name off a naming screen. Snap the empty name, enter a character, snap, enter another, "
           "snap, and so on: this finds the places that took a value one after the other, which are the name, "
