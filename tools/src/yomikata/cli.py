@@ -259,6 +259,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("record", type=Path, help="scratch's record/calls.jsonl, or the scratch folder")
     p.add_argument("--game", help="only games whose path has this in it")
     p.add_argument("--trend", action="store_true", help="instead, what each game's script cost up to the comparison that met its bar (calls, runs, minutes on the clock), as a Markdown table for a pull request: the games side by side, oldest first")
+    p = sub.add_parser("regress", help="the nightly regression check: every merged entry's bar screens read again with the current script, against a baseline (docs/regress.md); names and numbers only, never the text")
+    p.add_argument("--catalog", type=Path, default=Path("."), help="the catalog at main (default: here)")
+    p.add_argument("--games", type=Path, default=Path("/games"), help="the library (read)")
+    p.add_argument("--scratch", type=Path, default=Path("/scratch"), help="the harness's scratch: its snaps, and regress/ for what this keeps")
+    p.add_argument("--accept", action="append", default=[], metavar="ID", help="take this entry's fallen readings as its new baseline (after checking them)")
+    p.add_argument("--frames", type=int, default=40, help="ticks over each snap (as compare's)")
+    p.add_argument("--summary", type=Path, help="on a fall, write one line for a notifier here (counts and snap names)")
     p = sub.add_parser("serve", help="run the sample inbox (needs the server extra; settings from YOMIKATA_* env)")
     p.add_argument("--port", type=int, default=8080)
     args = ap.parse_args(argv)
@@ -839,6 +846,20 @@ def main(argv: list[str] | None = None) -> int:
                     for key in row.differing():
                         print(f"  layout {key}: {row.layout[key]!r}\n  script {key}: {row.script[key]!r}", file=sys.stderr)
         return 0 if result.agrees else 1
+    if args.cmd == "regress":
+        from . import reader as rd
+        from .regress import markdown, regress, summary
+        try:
+            report = regress(args.scratch, args.games, args.catalog, tuple(args.accept), args.frames)
+        except rd.ReaderUnavailable as e:
+            print(e, file=sys.stderr)
+            return 2
+        import datetime as dt
+        print(markdown(report, dt.date.today().isoformat()), end="")
+        if report.failed and args.summary:
+            args.summary.write_text(summary(report) + "\n", encoding="utf-8")
+        return 1 if report.failed else 0
+
     if args.cmd == "run":
         from . import reader as rd
         from .run import STORY_CHANNELS, run
