@@ -3429,6 +3429,25 @@ def test_walk_3d_keeps_to_a_pier_and_steers_by_the_camera(session):
     struct.pack_into(">H", machine.memory, 0x330, 0)
     hopped = session.walk_3d(**{**place, "x": 40.0, "z": 0.0}, height=f"0x{BASE + 0x304:08X}", fall=10.0, limit=3000)
     assert hopped["reached"] and any(r.get("height", [0, 0])[0] == 30.0 for r in hopped["refused"]), hopped
+    # A character that runs on air a moment past the edge (15 frames) before it drops: the push over the edge
+    # is let through; then every way falls. The guard backs to before that push and waits longer after each.
+    def air(buttons, stick):
+        plain(buttons, stick)
+        m = machine.memory
+        x, h, z = struct.unpack_from(">3f", m, 0x300)
+        timer = struct.unpack_from(">H", m, 0x330)[0]
+        if h > 5:
+            sx, sy = stick
+            x, z = x + 0.9 * sx, z + 0.9 * sy
+            timer = 0 if on_pier(x, z) else timer + 1
+            h = 10.0 if timer < 15 else 0.0
+        struct.pack_into(">3f", m, 0x300, x, h, z)
+        struct.pack_into(">H", m, 0x330, timer)
+    machine._step = air
+    struct.pack_into(">3f", machine.memory, 0x300, 2.0, 10.0, 0.0)
+    struct.pack_into(">H", machine.memory, 0x330, 0)
+    aired = session.walk_3d(**place, height=f"0x{BASE + 0x304:08X}", fall=3.0, settle=4, limit=4000)
+    assert aired["reached"] and struct.unpack_from(">f", machine.memory, 0x304)[0] == 10.0, aired
     machine._step = pier
     # The camera turns 1/256 of a turn a frame; the stick moves the character by the camera's ways.
     import math
