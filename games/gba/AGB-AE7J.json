@@ -1,0 +1,24 @@
+{
+ "id": "AGB-AE7J",
+ "platform": "gba",
+ "title": "ファイアーエムブレム 烈火の剣",
+ "title_romaji": "Fire Emblem: Rekka no Ken",
+ "versions": [
+  {
+   "header_crc32": "9dc30368",
+   "note": "the Japanese cartridge (FIREEMBLEM7, AE7J)"
+  }
+ ],
+ "encoding": "shift_jis",
+ "unit": 1,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on mGBA (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. Snaps were studied outside it",
+  "From Fire Emblem: Fuuin no Tsurugi (games/gba/AGB-AFEJ.lua): the script, the message unpacked into work RAM as Shift-JIS with its codes, and a page said where the typing word stands at a wait",
+  "Found here, in snaps: the buffers (0x0202A5B0, three copies), the talk's word (0x03000040), the other windows' word that the game places in work RAM anew each time, the tactician's name (0x80 0x20, kept at 0x0202BC14) and the build table (0x03005A70)",
+  "Played through the tactician's profile, the talk in the yurt and the first map's talk and tutorial: two stretches from states with the script loaded, a press every 300 frames, three scenes",
+  "What the script said agreed with the rows read off 33 of 33 pictures (5, 16 and 12); no page was said inside a press, and no screen without text was among them",
+  "62 harness calls in all (by the record), none failed; 13 went on 180 frames a press, too short for the tutorial's long windows"
+ ],
+ "notes": "Read by the script games/gba/AGB-AE7J.lua: the page the game has unpacked and typed, once it stands at its wait, from the talk's bubbles and from the windows of the map, the tutorial and the screens before the story. Not read: menus, choices, fights. The tactician's name comes out as chosen."
+}
