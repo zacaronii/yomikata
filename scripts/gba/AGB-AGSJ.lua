@@ -23,8 +23,8 @@
 -- each page once, until another comes. It reads the sprite table and video memory at the console's own
 -- addresses: where a host doesn't give them, it reads nothing.
 --
--- Not covered: fights' messages, the screens before the story. Open: a menu's text, drawn in the same sprites, is read as
--- dialogue; nothing yet tells it from a page.
+-- Not covered: fights' messages, the screens before the story, menus. A menu's text is drawn on the background,
+-- not in these sprites; its cursor (a hand) is such a sprite, and the dictionary lists its picture as not text.
 
 local __loaded, __module = {}, {}
 local function require(name)
@@ -54,6 +54,12 @@ __module["lib.glyphs"] = function()
 --     glyph-line <HASH> <HASH> _ =<characters> <HASH> …
 -- a hash for each picture in order, "_" for a space, and "=" before characters the script knows by code:
 -- `yomikata unread` then draws the row whole.
+--
+-- Some pictures a game draws where its glyphs go aren't text: a menu's cursor, a prompt's arrow, a decoration.
+-- The file names those on lines of their own,
+--     # not text: <HASH> <HASH> …
+-- (a comment to anything else that reads the file), and `dictionary:text(picture)` says false for them, so a
+-- script leaves them out of a page; a page of nothing else is no page.
 
 local glyphs = {}
 
@@ -69,10 +75,29 @@ function glyphs.parse(source)
     return known
 end
 
+--- The hashes the file says aren't text (`# not text:` lines), as a set.
+function glyphs.not_text(source)
+    local out = {}
+    for line in (source or ""):gmatch("[^\r\n]+") do
+        local list = line:match("^#%s*not text:%s*(.+)$")
+        for word in (list or ""):gmatch("%S+") do
+            if word:find("^%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then      -- a hash; anything after it is a note
+                out[word:upper()] = true
+            end
+        end
+    end
+    return out
+end
+
 --- A dictionary to ask: `dictionary:read(picture, width, height, bits)` gives the picture's character, or nil
---- (and logs the picture, the first time it is asked for), and its hash.
+--- (and logs the picture, the first time it is asked for), and its hash; `dictionary:text(picture)` whether the
+--- picture may be text at all (false for one the file says isn't).
 function glyphs.open(source)
-    local dictionary = { known = glyphs.parse(source), logged = {} }
+    local dictionary = { known = glyphs.parse(source), not_text = glyphs.not_text(source), logged = {} }
+
+    function dictionary:text(picture)
+        return not self.not_text[text.hash(picture):upper()]
+    end
 
     function dictionary:read(picture, width, height, bits)
         local hash = text.hash(picture):upper()
@@ -238,19 +263,21 @@ reader.on_frame(function()
     if not table_bytes or #table_bytes < 8 * SPRITES then
         return
     end
-    local sprites = text_sprites(table_bytes)
-    if #sprites == 0 then
-        last, stood = nil, 0
-        return
-    end
-    local cells, key = {}, {}
-    for i, s in ipairs(sprites) do
+    local sprites, cells, key = {}, {}, {}
+    for _, s in ipairs(text_sprites(table_bytes)) do
         local bytes = mem.read(TILES + s.tile * TILE, CELL_BYTES)
         if not bytes or #bytes < CELL_BYTES then
             return
         end
-        cells[i] = picture(bytes)
-        key[#key + 1] = string.format("%d,%d;", s.x, s.y) .. bytes
+        local cell = picture(bytes)
+        if dictionary:text(cell) then      -- a menu's cursor is such a sprite too: not text, the dictionary says
+            sprites[#sprites + 1], cells[#cells + 1] = s, cell
+            key[#key + 1] = string.format("%d,%d;", s.x, s.y) .. bytes
+        end
+    end
+    if #sprites == 0 then
+        last, stood = nil, 0
+        return
     end
     local now = table.concat(key)
     stood = now == last and stood + 1 or 0

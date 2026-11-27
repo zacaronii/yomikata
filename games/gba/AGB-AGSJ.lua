@@ -23,8 +23,8 @@
 -- each page once, until another comes. It reads the sprite table and video memory at the console's own
 -- addresses: where a host doesn't give them, it reads nothing.
 --
--- Not covered: fights' messages, the screens before the story. Open: a menu's text, drawn in the same sprites, is read as
--- dialogue; nothing yet tells it from a page.
+-- Not covered: fights' messages, the screens before the story, menus. A menu's text is drawn on the background,
+-- not in these sprites; its cursor (a hand) is such a sprite, and the dictionary lists its picture as not text.
 
 local OAM, SPRITES = 0x07000000, 128
 local TILES, TILE = 0x06010000, 32
@@ -152,19 +152,21 @@ reader.on_frame(function()
     if not table_bytes or #table_bytes < 8 * SPRITES then
         return
     end
-    local sprites = text_sprites(table_bytes)
-    if #sprites == 0 then
-        last, stood = nil, 0
-        return
-    end
-    local cells, key = {}, {}
-    for i, s in ipairs(sprites) do
+    local sprites, cells, key = {}, {}, {}
+    for _, s in ipairs(text_sprites(table_bytes)) do
         local bytes = mem.read(TILES + s.tile * TILE, CELL_BYTES)
         if not bytes or #bytes < CELL_BYTES then
             return
         end
-        cells[i] = picture(bytes)
-        key[#key + 1] = string.format("%d,%d;", s.x, s.y) .. bytes
+        local cell = picture(bytes)
+        if dictionary:text(cell) then      -- a menu's cursor is such a sprite too: not text, the dictionary says
+            sprites[#sprites + 1], cells[#cells + 1] = s, cell
+            key[#key + 1] = string.format("%d,%d;", s.x, s.y) .. bytes
+        end
+    end
+    if #sprites == 0 then
+        last, stood = nil, 0
+        return
     end
     local now = table.concat(key)
     stood = now == last and stood + 1 or 0

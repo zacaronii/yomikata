@@ -2380,3 +2380,31 @@ end)
     assert texts == ["あいう　え�あ", ".#."], texts
     assert len([m for m in logs if m.startswith("glyph ")]) == 1                      # the glyph it lacks
     assert any(m.startswith("glyph ") and " 6x12x1 " in m for m in logs)
+
+
+def test_a_dictionary_names_pictures_that_are_not_text():
+    """lib/glyphs.lua: `# not text: <HASH> …` lines (a comment to anything else that reads the file) name pictures a
+    game draws where its glyphs go that aren't text (a menu's cursor); `dictionary:text` says false for them, and
+    a note after the hashes isn't taken for one. Other pictures read as before."""
+    cursor, glyph = b"\x01" * 4, b"\x02" * 4
+    data = {"glyphs": f"# made up\n# not text: {fnv(cursor)} (a cursor, a hand)\n{fnv(glyph)}=あ\n".encode()}
+    script = bundle_text("""
+local glyphs = require("lib.glyphs")
+local dictionary = glyphs.open(reader.data("glyphs"))
+reader.on_frame(function(frame)
+    if frame ~= 1 then return end
+    local out = {}
+    for _, picture in ipairs({ "\\1\\1\\1\\1", "\\2\\2\\2\\2", "\\10" }) do
+        if dictionary:text(picture) then
+            out[#out + 1] = dictionary:read(picture, 2, 2, 8) or "?"
+        else
+            out[#out + 1] = "-"
+        end
+    end
+    reader.emit{ text = table.concat(out) }
+end)
+""")
+    with rd.Reader(lambda address, size: b"", platform="gc", game_id="GXXJ01", data=data) as r:
+        r.load(script, "t.lua")
+        r.frame(1)
+        assert [e["text"] for e in r.take("text")] == ["-あ?"]

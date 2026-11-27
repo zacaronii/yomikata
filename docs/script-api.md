@@ -86,7 +86,10 @@ end)
   `text.hash` of its bytes in capitals, `=`, and the character it is. `lib/glyphs.lua` reads it, and logs a
   picture it hasn't got (once, as `glyph <hash> <width>x<height>x<bits> <hex>`) and the row of text it stood in
   (`glyph-line <hash> …`): what `yomikata unread` draws for reading (docs/harness.md, "A game's own font"). A
-  host may show such a line to a player who wants to report it, or drop it.
+  host may show such a line to a player who wants to report it, or drop it. Pictures drawn where the glyphs go
+  that aren't text (a menu's cursor, a prompt's arrow) are named on a comment line of their own,
+  `# not text: <hash> <hash> …`, and `dictionary:text(picture)` is false for them: a script leaves them out of a
+  page, and a page of nothing else is none.
   A game that keeps only its window's pixels is read with `lib/cells.lua`, which cuts the window's tiles into
   cells (a fixed grid, or a proportional font's glyphs one after another) and asks the same dictionary.
 - A script may `require` a module from `lib/` (walking tags, tiles, reading a `.tbl`). What is run and published
@@ -246,6 +249,30 @@ word of it up, and it is kept apart from what is read:
 A script may leave interface text out altogether: a host has OCR for menus otherwise. A host that doesn't
 know the channel must drop it, not show it as dialogue. *Open: Furoshiki has no such channel; there a script
 that emits one would have it shown as a line of its own channel.*
+
+### Menus and pages
+
+A menu is told from a page by what the game does, not by what the text says. Ways a script tells them, the
+surest first:
+
+- **The game's own mode.** A byte or word that names the screen (field, menu, talk, fight): find it as a fight's
+  mode is found, a snap with the menu open against snaps of talk (`grouped`, or `changed` with `differs`), and
+  read it before anything else. Chrono Cross's field data (0x80037E52: 1 on the field, 0 while a fight's code
+  lies over it) is of this kind.
+- **Where it is drawn.** A menu's windows are often another layer, another plane, another set of sprites or
+  another palette than the talk window: Golden Sun's menus are on the background while its talk is in sprites,
+  so its reader never sees their text, only their cursor, a sprite of the same shape, which its dictionary
+  names as `not text` (above).
+- **What the window is.** A talk window is opened by the script's text; a menu's is set up by the game's menu
+  code: a window's record often says which (a type, a flag, the routine that drew it).
+
+What is then done with a menu's text is the `interface` channel's (above): emitted once when the menu shows it,
+with a `window` and a `reader.layout` for each pane, never as dialogue. A menu of the kind Final Fantasy's are
+(a pane of commands, a pane of a list that scrolls, a pane describing what the cursor is on) is best one window
+a pane: the commands and the list as one emit each, a line an entry, emitted again only when the list scrolls;
+the description as its own text each time the cursor moves to another entry (its `id` the entry's, so moving
+back is a reread). A script that can't tell a menu from a page leaves menus out: a menu read as dialogue is worse
+than one not read, since a host shows it among the story.
 
 ### `reader.layout`
 

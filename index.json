@@ -988,7 +988,7 @@
   },
   "AGB-AGSJ": {
    "path": "scripts/gba/AGB-AGSJ.lua",
-   "sha256": "657c315d7f055b977a0b1752bf1a4c019672be80efec8ce074bac1087145cac1",
+   "sha256": "5e5474dd50fb242139ebd0fb7af0021cfd271c14f720eb7bc2b998ec041ac72e",
    "platform": "gba",
    "runtime": 1,
    "title": "黄金の太陽 開かれし封印 (Ougon no Taiyou: Hirakareshi Fuuin, Game Boy Advance)",
@@ -1000,7 +1000,7 @@
    "data": {
     "glyphs": {
      "path": "games/gba/AGB-AGSJ.glyphs",
-     "sha256": "5b3d9c044a30151b827977dfd2d055315f5c9800bc44fc25e6a576b95a24f701"
+     "sha256": "15a293b4906a6e9cf3510476cfa3ae0875d0a8b3795e8e5c7ad0212bd199859f"
     }
    }
   },
@@ -1091,7 +1091,7 @@
   },
   "CGB-BD3J": {
    "path": "scripts/gbc/CGB-BD3J.lua",
-   "sha256": "890565c9ebb678eeda6cc468571b90b85fd6318281bbab33f27d7f2a6611512a",
+   "sha256": "f7f88bf33af326a7a33b363e447573bc5202b960369b490e42d16512593a5925",
    "platform": "gbc",
    "runtime": 1,
    "title": "ドラゴンクエストIII そして伝説へ… (Dragon Quest III, Game Boy Color)",
@@ -1131,7 +1131,7 @@
   },
   "G-5512": {
    "path": "scripts/md/G-5512.lua",
-   "sha256": "6f32d8840e691f0898dc2d80da83e9004711785a826e2bd7dccf5ee510b879c3",
+   "sha256": "7f2a455e9621369fd7732fb4ea30641c8398383c4638689149119071c318083c",
    "platform": "md",
    "runtime": 1,
    "title": "シャイニング・フォース 神々の遺産 (Shining Force: Kamigami no Isan, Mega Drive)",
@@ -1438,7 +1438,7 @@
   },
   "SHVC-AMXJ": {
    "path": "scripts/sfc/SHVC-AMXJ.lua",
-   "sha256": "ab32a957dbba196a88d58bb387798e98c74f249cd60c755e3187247be5a1ab01",
+   "sha256": "dbe7079d74f6f14636c3ea8325a33dcf6749c8f14c7f40a09ab80ca9adca2f04",
    "platform": "sfc",
    "runtime": 1,
    "title": "真・女神転生if... (Shin Megami Tensei if..., Super Famicom)",
@@ -1456,7 +1456,7 @@
   },
   "SHVC-ATVJ": {
    "path": "scripts/sfc/SHVC-ATVJ.lua",
-   "sha256": "bb39acbaeac23ac1535ea79ae9f17e71ce4c91069fea7762427dc1c17589d052",
+   "sha256": "9034b8d585cd443a7d205389b7a07e9ccec7caefe01b729dbd6008201c9a9bbf",
    "platform": "sfc",
    "runtime": 1,
    "title": "テイルズ オブ ファンタジア (Tales of Phantasia, Super Famicom)",
@@ -1505,7 +1505,7 @@
   },
   "SLPM-66602": {
    "path": "scripts/ps2/SLPM-66602.lua",
-   "sha256": "d05cbbb2769341f8393372a572a5961d18475627d27bfd29ae314f349a4cc6d8",
+   "sha256": "4acadf65abed9a45a9eeab760c7a3d6d6ce45fc97b4f150318efddda87f13b27",
    "platform": "ps2",
    "runtime": 1,
    "title": "龍が如く2 (Ryuu ga Gotoku 2)",
@@ -1536,7 +1536,7 @@
   },
   "SLPM-86111": {
    "path": "scripts/ps1/SLPM-86111.lua",
-   "sha256": "39718132ea95c1e4dcd5866edd0ea44079649b5bfbf9062f7f43c444b7aae3fb",
+   "sha256": "5810361456404b78f2552ece7d1f9b354ef2796269522a3eb9ac13bfc4ca7c7f",
    "platform": "ps1",
    "runtime": 1,
    "title": "メタルギアソリッド (Metal Gear Solid)",
@@ -1576,7 +1576,7 @@
   },
   "SLPM-86379": {
    "path": "scripts/ps1/SLPM-86379.lua",
-   "sha256": "38fa9c7b6561ffba62fe216a4475c29ad3712636971b356b17cbcdb20f952f67",
+   "sha256": "5f66dde1c8a023e6350bf080f3de1766f4de29e588da0f51af5435191089ee24",
    "platform": "ps1",
    "runtime": 1,
    "title": "ヴァルキリープロファイル (Valkyrie Profile, disc 1)",
@@ -1876,7 +1876,7 @@
   },
   "SLPS-02274": {
    "path": "scripts/ps1/SLPS-02274.lua",
-   "sha256": "d076dd223b251d4ad5224feda01c42340ccbfc8b04d779ee65b6958026f82774",
+   "sha256": "c3419229b4839e3ad3177819f86fb6e103611ffbd3ea6b9b110640ad77fb6abd",
    "platform": "ps1",
    "runtime": 1,
    "title": "夕闇通り探検隊 (Yuuyami Doori Tankentai)",
