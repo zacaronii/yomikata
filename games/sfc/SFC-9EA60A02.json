@@ -1,0 +1,31 @@
+{
+ "id": "SFC-9EA60A02",
+ "platform": "sfc",
+ "title": "ファイナルファンタジーV",
+ "title_romaji": "Final Fantasy V",
+ "versions": [
+  {
+   "header_crc32": "9ea60a02",
+   "note": "the cartridge FINAL FANTASY 5"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/sfc/SFC-9EA60A02.tbl"
+ ],
+ "unit": 1,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on bsnes (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
+  "From Final Fantasy VI (its table on that game's branch): the single-byte codes of the kana and signs, held against this game's pages, where every one met agrees",
+  "Found in play: the script lies in the cartridge with its own codes (kanji as 0x1E or 0x1F and a byte, dictionary words, a name inserted); the game unpacks each page whole into work RAM as the window shows it, 4 rows of 16 cells, a kanji's second byte in the cell and its lead in a parallel array",
+  "The table: the kana and signs Final Fantasy VI hasn't got, and every kanji, read in play, each page's codes in snaps beside its picture",
+  "Found in play: the page is in the buffer before its window opens and stays after it closes (and through a state's load); a byte (0x7E0BB5) is 5 while the window shows its page, and a page is said only then",
+  "Played from power-on through the opening at the castle and the wind's stopping, and from a state through the meteor's fall and the rescue after it, with the script loaded",
+  "The opening was played twice, the second time snapped 2 frames after each page the first said: a window that closes by itself is gone by a later snap",
+  "What the script said agreed with the rows read off 22 of 22 pictures, over 3 scenes (5, 4 and 13). The bar's 30 weren't reached: the scene after the rescue wasn't set off. Its figure was reached on the field and gave no page",
+  "Calls: 178 in all. The first budget was 150; it was extended to 180 for the bar alone, and 28 calls over 150 were spent",
+  "The kanji and signs were read off the same pictures the comparison holds the script to"
+ ],
+ "notes": "Read by the script games/sfc/SFC-9EA60A02.lua: the message window's page, from the game's page buffer once it stands. Not read: menus, the name entry, fights' messages, the screens before the story. Kanji not met in play come out as U+FFFD."
+}
