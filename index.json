@@ -22,6 +22,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "AGB-AE7J": {
+   "path": "games/gba/AGB-AE7J.json",
+   "sha256": "b443f333f1a4d9b8be375c3291d2bd2029f5b8b567921484b8476c08ea5f9919",
+   "platform": "gba",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "AGB-AFEJ": {
    "path": "games/gba/AGB-AFEJ.json",
    "sha256": "f003bcbbc3a87965ec8807feef51b3870d9e2ef445f2abf62be9e151e7a3b5cc",
@@ -903,6 +910,19 @@
      "sha256": "2970ee29018d7317cb4b4073f7437bb8403019d9f0f43e96e7660d0ceb539882"
     }
    }
+  },
+  "AGB-AE7J": {
+   "path": "scripts/gba/AGB-AE7J.lua",
+   "sha256": "77e12be96beb432148d50be370ef1c7d0817331aaabe612fc27988f3860513b1",
+   "platform": "gba",
+   "runtime": 1,
+   "title": "ファイアーエムブレム 烈火の剣 (Fire Emblem: Rekka no Ken, Game Boy Advance)",
+   "reads": "the message window's or speech bubble's page once it has typed out",
+   "builds": [
+    "9dc30368"
+   ],
+   "needs": [],
+   "data": {}
   },
   "AGB-AFEJ": {
    "path": "scripts/gba/AGB-AFEJ.lua",
