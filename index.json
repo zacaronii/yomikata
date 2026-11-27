@@ -1880,6 +1880,24 @@
    "needs": [],
    "data": {}
   },
+  "SLPS-02364": {
+   "path": "scripts/ps1/SLPS-02364.lua",
+   "sha256": "ff56d2ba1e6bc2e9bc9eb7970d5fe6f7f8ca82f1baf420b336cffd6189d410f9",
+   "platform": "ps1",
+   "runtime": 1,
+   "title": "クロノ・クロス (Chrono Cross, PlayStation)",
+   "reads": "the message window's rows off the sprites that draw them once the page waits, each by its picture",
+   "builds": [
+    "26c3da2599af76f7e352b8594d048b527d6bd0d9"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/ps1/SLPS-02364.glyphs",
+     "sha256": "7a6ff2f292dff98404b289d1ef8820e7b4ab952b9f6b9725640d9493a5a20740"
+    }
+   }
+  },
   "SLPS-02785": {
    "path": "scripts/ps1/SLPS-02785.lua",
    "sha256": "64bd6676cd628ca5ea451c0511a644f1b1541f8b1f180da60c711d11c3b88a2b",
