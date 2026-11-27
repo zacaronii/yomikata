@@ -52,11 +52,15 @@ def rom_reader(platform: str, data: bytes):
     consoles in CARTRIDGE, the image at that address; for those in NATIVE_CARTRIDGE, the file at the console's own
     address, as the core gives it in play. A Super Famicom's as docs/script-api.md promises a script:
     a HiROM cartridge at 0xC00000 on, byte for byte, and no more (not its mirrors, which a host may not give
-    truly, nor a LoROM cartridge, which isn't dependable yet), so that what reads over a snap reads in play.
+    truly); a LoROM one in the upper halves of banks 0x00-0x3F, as every LoROM map gives it. A Game Boy's bank 0
+    at 0x0000 as well, as the console always shows it. So that what reads over a snap reads in play.
     None for a console it doesn't cover."""
     platform = PLATFORM_ALIASES.get(platform, platform)
+    fixed = None                                    # a bank the console itself always shows: (address, image)
     if platform in CARTRIDGE:
         image, start = cartridge_image(platform, data), CARTRIDGE[platform]
+        if platform in ("gb", "gbc"):
+            fixed = (0x0000, image[:0x4000])        # bank 0, at 0x0000-0x3FFF: its header at 0x0134
     elif platform in NATIVE_CARTRIDGE:
         image, start = data, NATIVE_CARTRIDGE[platform]
     elif platform == "sfc":
@@ -66,14 +70,29 @@ def rom_reader(platform: str, data: bytes):
         except DiscError:
             return None
         if not hirom:
-            return None
+            return _lorom(image)
         image, start = image[:0x400000], 0xC00000
     else:
         return None
 
     def read(address: int, size: int) -> bytes:
+        if fixed is not None and fixed[0] <= address < fixed[0] + len(fixed[1]):
+            at = address - fixed[0]
+            return fixed[1][at:at + size]
         at = address - start
         return image[at:at + size] if 0 <= at < len(image) else b""
+    return read
+
+
+def _lorom(image: bytes):
+    """A LoROM cartridge as every LoROM map gives it: the upper half (0x8000-0xFFFF) of banks 0x00-0x3F is the
+    file's 32 KB at bank x 0x8000 (its header at 0x00FFC0). Not the other banks or mirrors, which maps differ in."""
+    def read(address: int, size: int) -> bytes:
+        bank, low = address >> 16, address & 0xFFFF
+        if bank > 0x3F or low < 0x8000:
+            return b""
+        at = bank * 0x8000 + (low - 0x8000)
+        return image[at:at + min(size, 0x10000 - low)] if at < len(image) else b""
     return read
 
 
@@ -139,6 +158,8 @@ def region_starts(platform: str) -> dict[str, int]:
         out["oam"] = SPRITE_TABLE[platform][0]
     if platform in VIDEO_AT:
         out["vram"] = VIDEO_AT[platform]
+    if platform in MAPPED_VIDEO:
+        out["vram"] = MAPPED_VIDEO[platform][0]     # a Famicom's nametables, where the core's map puts them
     out.update({name: start for name, (start, _) in PAGED.get(platform, {}).items()})
     return out
 
