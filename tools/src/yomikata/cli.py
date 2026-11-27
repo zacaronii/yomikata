@@ -251,6 +251,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--extract", type=Path, help="a scratch folder to write the files into, by their paths")
     p.add_argument("--unpack", action="store_true", help="with --extract: a packed file is written unpacked (and its streams, with --streams)")
     p.add_argument("--streams", action="store_true", help="list the packed streams inside each file (an archive of sections); with --extract --unpack, write each as <path>@<offset>.bin")
+    p = sub.add_parser("rvz", help="a GameCube or Wii disc's files out of an RVZ or WIA image (or a plain .iso/.gcm): listed with their sizes (JSON lines, names only), taken out to a scratch folder")
+    p.add_argument("disc", type=Path, help="the image: .rvz, .wia, .iso or .gcm")
+    p.add_argument("--only", action="append", default=[], help="a pattern of paths (fnmatch: res/Msg/*); several may be given")
+    p.add_argument("--extract", type=Path, help="a scratch folder to write the files into, by their paths")
     p = sub.add_parser("disc-text", help="the stretches of a disc image that read as text through a table of the game's codes (the game's text: write it to scratch)")
     p.add_argument("disc", type=Path)
     p.add_argument("--table", type=Path, action="append", required=True, help="a .tbl of the game's codes; several are read as one")
@@ -644,6 +648,22 @@ def main(argv: list[str] | None = None) -> int:
                 if args.unpack:
                     for at, _, _ in found:
                         (args.extract / f"{f.path}@{at:X}.bin").write_bytes(nitro.unpack(data, at))
+        return 0
+    if args.cmd == "rvz":
+        from . import rvz
+        try:
+            disc = rvz.open_disc(args.disc)
+            chosen = rvz.select(rvz.files(disc), args.only)
+            for f in chosen:
+                print(json.dumps({"path": f.path, "offset": f.offset, "size": f.size,
+                                  **({"partition": f.partition} if f.partition is not None else {})}, ensure_ascii=False))
+                if args.extract:
+                    out = args.extract / f.path
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    out.write_bytes(rvz.content(disc, f))
+        except (OSError, rvz.RvzError) as e:
+            print(f"rvz: {e}", file=sys.stderr)
+            return 1
         return 0
     if args.cmd == "disc-text":
         from . import disctext
