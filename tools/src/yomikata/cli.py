@@ -274,6 +274,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--cell", type=float, default=25.0, help="the side of a cell of the ground (default 25)")
     p.add_argument("--skip", action="append", default=[], help="collision groups to leave out (fnmatch)")
     p.add_argument("--reach", type=float, default=600.0, help="how far from each end a floor is looked for (default 600)")
+    p.add_argument("--every", type=float, default=150.0, help="a waypoint at least this often along a long stretch (default 150; 0: corners only)")
+    p.add_argument("--margin", type=int, default=3, help="cells from an edge (a drop, a wall) that cost more to walk (default 3)")
     p = sub.add_parser("disc-text", help="the stretches of a disc image that read as text through a table of the game's codes (the game's text: write it to scratch)")
     p.add_argument("disc", type=Path)
     p.add_argument("--table", type=Path, action="append", required=True, help="a .tbl of the game's codes; several are read as one")
@@ -719,7 +721,8 @@ def main(argv: list[str] | None = None) -> int:
             print("route: give --to or --name", file=sys.stderr)
             return 1
         for row in route.targets(mesh, tuple(args.frm), places, low=args.low, up=args.up, down=args.down,
-                                 slope=args.slope, cell=args.cell, skip=args.skip, reach=args.reach):
+                                 slope=args.slope, cell=args.cell, skip=args.skip, reach=args.reach,
+                                 every=args.every, margin=args.margin):
             print(json.dumps(row, ensure_ascii=False))
         return 0
     if args.cmd == "disc-text":

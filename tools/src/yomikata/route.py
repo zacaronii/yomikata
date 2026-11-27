@@ -81,6 +81,8 @@ class Ground:
     down: float
     floors: dict = field(default_factory=dict)
     shut: set = field(default_factory=set)
+    edge: dict = field(default_factory=dict)         # floor -> cells from the nearest edge (0: at an edge)
+    margin: int = 0
 
     def cell_of(self, x: float, z: float) -> tuple[int, int]:
         return math.floor(x / self.cell), math.floor(z / self.cell)
@@ -129,31 +131,65 @@ class Ground:
                 if di or dj:
                     k2 = self.step(h, i + di, j + dj)
                     if k2 is not None:
-                        yield (i + di, j + dj, k2), self.cell * math.hypot(di, dj)
+                        m = (i + di, j + dj, k2)
+                        # Near an edge (a drop, a wall) dearer: the way keeps to the middle of a narrow ramp.
+                        dear = 1.0 + 3.0 * (self.margin - self.edge[m]) / self.margin if m in self.edge else 1.0
+                        yield m, self.cell * math.hypot(di, dj) * dear
+
+    def edges(self, margin: int) -> None:
+        """Marks the floors within `margin` cells of an edge: a floor with a neighbour it can't step onto."""
+        self.margin, self.edge = max(0, int(margin)), {}
+        if not self.margin:
+            return
+        ring = []
+        for (i, j), hs in self.floors.items():
+            for k, h in enumerate(hs):
+                node = (i, j, k)
+                if self.open(node) and any(self.step(h, i + di, j + dj) is None
+                                           for di in (-1, 0, 1) for dj in (-1, 0, 1) if di or dj):
+                    self.edge[node] = 0
+                    ring.append(node)
+        for d in range(1, self.margin):
+            nxt = []
+            for node in ring:
+                i, j, k = node
+                h = self.height(node)
+                for di in (-1, 0, 1):
+                    for dj in (-1, 0, 1):
+                        k2 = self.step(h, i + di, j + dj) if di or dj else None
+                        if k2 is not None and (i + di, j + dj, k2) not in self.edge:
+                            self.edge[(i + di, j + dj, k2)] = d
+                            nxt.append((i + di, j + dj, k2))
+            ring = nxt
 
     def straight(self, a, b) -> bool:
-        """Whether a straight walk from node a to node b keeps to open floors, a step at a time."""
+        """Whether a straight walk from node a to node b keeps to open floors, a step at a time, and no nearer an
+        edge than a and b are (when the edges are marked)."""
         (ax, az), (bx, bz) = self.middle(a[0], a[1]), self.middle(b[0], b[1])
         n = max(1, int(math.ceil(math.hypot(bx - ax, bz - az) / (self.cell / 3))))
+        # Never nearer an edge than both ends are: along a narrow pier, the middle is kept.
+        least = max(1, min(self.edge.get(a, self.margin), self.edge.get(b, self.margin)))
         h, last = self.height(a), (a[0], a[1])
         for s in range(1, n + 1):
             i, j = self.cell_of(ax + (bx - ax) * s / n, az + (bz - az) * s / n)
             if (i, j) == last:
                 continue
             k = self.step(h, i, j)
-            if k is None:
-                return False
+            if k is None or ((i, j) != (b[0], b[1]) and self.edge.get((i, j, k), self.margin) < least):
+                return False                                # off the floors, or nearer the edge than its ends
             h, last = self.floors[(i, j)][k], (i, j)
         return last == (b[0], b[1])
 
 
 def ground(mesh: Mesh, box: tuple[float, float, float, float], cell: float = 25.0, slope: float = 50.0,
            up: float = 30.0, down: float = 60.0, head: tuple[float, float] = (25.0, 90.0), body: float = 20.0,
-           skip: list[str] | None = None, merge: float = 10.0, low: float | None = None) -> Ground:
+           skip: list[str] | None = None, merge: float = 10.0, low: float | None = None, margin: int = 3) -> Ground:
     """The floors and walls of `mesh` inside box (x0, z0, x1, z1), in cells of `cell`. A triangle in a group
     matching any of `skip` is left out (fnmatch patterns). A wall shuts a floor when it passes within `body` of
     the cell's middle and rises through the head room over it: from head[0] to head[1] above the floor. A floor
-    lower than `low` isn't walked (under water: Wind Waker's sea is at 0)."""
+    lower than `low` isn't walked (under water: Wind Waker's sea is at 0). Floors within `margin` cells of an
+    edge (a drop or a wall) cost more to walk, and a straight stretch isn't drawn along the edge itself: a
+    character walked along a narrow ramp drifts, and one at its very edge walks off it."""
     g = Ground(float(cell), float(up), float(down))
     x0, z0, x1, z1 = box
     least = math.cos(math.radians(slope))
@@ -228,6 +264,7 @@ def ground(mesh: Mesh, box: tuple[float, float, float, float], cell: float = 25.
         for k, h in enumerate(kept):
             if any(lo < h + head[1] and hi > h + head[0] for lo, hi in walls.get(ij, ())):
                 g.shut.add((ij[0], ij[1], k))
+    g.edges(margin)
     return g
 
 
@@ -272,9 +309,10 @@ def pulled(g: Ground, nodes: list) -> list:
     return out
 
 
-def way(g: Ground, frm: tuple, to: tuple, reach: float = 600.0) -> dict:
+def way(g: Ground, frm: tuple, to: tuple, reach: float = 600.0, every: float = 150.0) -> dict:
     """The waypoints from frm to to (each x, z, or x, y, z): the floor nearest each end (within `reach`), A*,
-    pulled straight. Returns {"way": [[x, z, height], ...], "from": node, "to": node} or {"why": ...}."""
+    pulled straight, with a waypoint every `every` along a long stretch (a walk aimed at a far corner drifts;
+    their height is None). Returns {"way": [[x, z, height], ...], "from": node, "to": node} or {"why": ...}."""
     fy = frm[1] if len(frm) == 3 else None
     ty = to[1] if len(to) == 3 else None
     a = g.nearest(frm[0], frm[-1], fy, reach)
@@ -285,8 +323,17 @@ def way(g: Ground, frm: tuple, to: tuple, reach: float = 600.0) -> dict:
     if not cells:
         return {"why": "no way over the floors from the start to the place", "from": list(a), "to": list(b)}
     corners = pulled(g, cells)
-    out = [[round(c, 1) for c in (*g.middle(n[0], n[1]), g.height(n))] for n in corners[1:]]
-    return {"way": out, "cells": len(cells), "from": list(a), "to": list(b)}
+    out, last = [], g.middle(a[0], a[1])
+    for n in corners[1:]:
+        x, z = g.middle(n[0], n[1])
+        h = g.height(n)
+        parts = max(1, int(math.ceil(math.hypot(x - last[0], z - last[1]) / every))) if every else 1
+        for s in range(1, parts):                           # a waypoint every `every` along a long stretch
+            out.append([round(last[0] + (x - last[0]) * s / parts, 1), round(last[1] + (z - last[1]) * s / parts, 1),
+                        None])
+        out.append([round(x, 1), round(z, 1), round(h, 1)])
+        last = (x, z)
+    return {"way": out, "cells": len(cells), "corners": len(corners) - 1, "from": list(a), "to": list(b)}
 
 
 def from_archive(data: bytes) -> Mesh:
@@ -304,16 +351,17 @@ def from_archive(data: bytes) -> Mesh:
     return mesh
 
 
-def targets(mesh: Mesh, frm: tuple, places: list[dict], margin: float = 2000.0, **options) -> list[dict]:
+def targets(mesh: Mesh, frm: tuple, places: list[dict], around: float = 2000.0, **options) -> list[dict]:
     """meet's targets: each place ({name, x, z, and y when known}) with the way to it from frm (x, y, z), or why
-    there is none. The ground is worked out over the box round them all, `margin` wider."""
+    there is none. The ground is worked out over the box round them all, `around` wider."""
     xs = [frm[0]] + [p["x"] for p in places]
     zs = [frm[-1]] + [p["z"] for p in places]
     reach = options.pop("reach", 600.0)
-    g = ground(mesh, (min(xs) - margin, min(zs) - margin, max(xs) + margin, max(zs) + margin), **options)
+    every = options.pop("every", 150.0)
+    g = ground(mesh, (min(xs) - around, min(zs) - around, max(xs) + around, max(zs) + around), **options)
     out = []
     for p in places:
-        found = way(g, frm, (p["x"], p["y"], p["z"]) if p.get("y") is not None else (p["x"], p["z"]), reach)
+        found = way(g, frm, (p["x"], p["y"], p["z"]) if p.get("y") is not None else (p["x"], p["z"]), reach, every)
         row = {"name": p.get("name", ""), "x": p["x"], "z": p["z"]}
         out.append({**row, "way": found["way"]} if "way" in found else {**row, "why": found["why"]})
     return out

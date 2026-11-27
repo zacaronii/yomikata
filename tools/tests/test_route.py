@@ -56,9 +56,17 @@ def test_a_way_goes_round_the_wall_and_not_onto_the_shelf():
     mesh = route.dzb(dzb_of(ROOM))
     assert len(mesh.points) == 16 and {t[3] for t in mesh.triangles} == {"jimen", "kabe", "dai", "umi"}
     g = route.ground(mesh, (-1000, 0, 1000, 1000), cell=25, low=-1)
-    found = route.way(g, (100, 0, 100), (550, 0, 100))
+    found = route.way(g, (100, 0, 100), (550, 0, 100), every=0)
     assert "way" in found, found
     corners = found["way"]
+    assert all(z < 1000 - 25 for _, z, _ in corners)               # not along the floor's far edge
+    # With waypoints along the long stretches, none is more than `every` from the last.
+    dense = route.way(g, (100, 0, 100), (550, 0, 100), every=150)["way"]
+    assert len(dense) > len(corners) and [w[:2] for w in corners] == [w[:2] for w in dense if w[2] is not None]
+    last = g.middle(*g.nearest(100, 100, 0)[:2])
+    for x, z, _ in dense:
+        assert ((x - last[0]) ** 2 + (z - last[1]) ** 2) ** 0.5 <= 150 + 1e-6
+        last = (x, z)
     assert max(z for _, z, _ in corners) > 800                     # round the end of the wall
     assert abs(corners[-1][0] - 550) <= 25 and abs(corners[-1][1] - 100) <= 25
     assert all(h < 1 for _, _, h in corners)                       # on the ground, never the shelf
@@ -85,7 +93,7 @@ def test_an_archive_s_collision_and_targets():
     mesh = route.from_archive(archive)
     rows = route.targets(mesh, (100, 0, 100), [{"name": "Ab1", "x": 550.0, "y": 0.0, "z": 100.0},
                                                {"name": "Up1", "x": 800.0, "y": 150.0, "z": 100.0}],
-                         margin=800, cell=25, low=-1)
+                         around=800, cell=25, low=-1)
     assert rows[0]["name"] == "Ab1" and rows[0]["way"] and "why" in rows[1]
     with pytest.raises(route.RouteError):
         route.from_archive(rarc_of({"room.dzr": b"\0\0\0\0"}))
