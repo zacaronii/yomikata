@@ -43,6 +43,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "AGB-BE8J": {
+   "path": "games/gba/AGB-BE8J.json",
+   "sha256": "7ab5f31ae181f335014519f103c793e5371c25209f675ac5402f143a0a106c10",
+   "platform": "gba",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "CGB-AAUJ": {
    "path": "games/gbc/CGB-AAUJ.json",
    "sha256": "e3d1b85c887f110fd743bc59e65bc960a735ef3e37c51d764c2d19c717d022ab",
@@ -961,6 +968,19 @@
      "sha256": "6b429bbd822f523c99234fbf68e0ace11c5bf283e9a2211b9df20220d1f3ca36"
     }
    }
+  },
+  "AGB-BE8J": {
+   "path": "scripts/gba/AGB-BE8J.lua",
+   "sha256": "63aa57a5e296feb4ae434fac2f241dbbef10fb88e4f8c1607367e457cf284939",
+   "platform": "gba",
+   "runtime": 1,
+   "title": "ファイアーエムブレム 聖魔の光石 (Fire Emblem: Seima no Kouseki, Game Boy Advance)",
+   "reads": "the message window's or speech bubble's page once it has typed out",
+   "builds": [
+    "105761d9"
+   ],
+   "needs": [],
+   "data": {}
   },
   "CGB-AAUJ": {
    "path": "scripts/gbc/CGB-AAUJ.lua",

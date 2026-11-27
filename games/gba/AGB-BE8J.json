@@ -1,0 +1,24 @@
+{
+ "id": "AGB-BE8J",
+ "platform": "gba",
+ "title": "ファイアーエムブレム 聖魔の光石",
+ "title_romaji": "Fire Emblem: Seima no Kouseki",
+ "versions": [
+  {
+   "header_crc32": "105761d9",
+   "note": "the Japanese cartridge (FIREEMBLEM8, BE8J)"
+  }
+ ],
+ "encoding": "shift_jis",
+ "unit": 1,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on mGBA (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. Snaps were studied outside it",
+  "From Fire Emblem: Rekka no Ken (games/gba/AGB-AE7J.lua): the script, the talk's typing word in the CPU's memory (0x03000040, the same here) and the scan for the words the game places in work RAM",
+  "Found here, in snaps of one session: where the unpacked message lies (0x0202A6A8 on, so the copies' range was widened), the build table (0x03006470); this game has no tactician, so no name is put in",
+  "Played through the map's narration of the continent, the fall of the castle and the escape: one stretch from a state with the script loaded, a press every 300 frames",
+  "What the script said agreed with the rows read off 50 of 50 pictures, over 3 scenes (15, 29 and 6); 7 long narration pages said inside a press have no picture. No screen without text was among them",
+  "17 harness calls in all (by the record), none failed"
+ ],
+ "notes": "Read by the script games/gba/AGB-BE8J.lua: the page the game has unpacked and typed, once it stands at its wait, from the talk's bubbles and the map's narration. Not read: the opening's narration over black before the title's menu returns, menus, choices, fights."
+}
