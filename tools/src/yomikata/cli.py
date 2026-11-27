@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+import zipfile
 from pathlib import Path
 
 from . import catalog, snapfile
@@ -225,6 +226,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("readings", type=Path, help="a line for each glyph in the font's order: its reading, or ? (anything after the first character is a note)")
     p.add_argument("--order", default="jis", help="jis (default), sjis or unicode")
     p.add_argument("--all", action="store_true", help="print the glyphs that are in order as well")
+    p = sub.add_parser("nitro", help="a DS card's files (NitroFS): listed with their sizes and packing (JSON lines, names only), taken out to a scratch folder, LZ77 (0x10, 0x11) undone")
+    p.add_argument("card", type=Path, help="the card image (.nds, or a .zip with one)")
+    p.add_argument("--only", action="append", default=[], help="a pattern of paths (fnmatch: *.bin, font/*); several may be given")
+    p.add_argument("--extract", type=Path, help="a scratch folder to write the files into, by their paths")
+    p.add_argument("--unpack", action="store_true", help="with --extract: a packed file is written unpacked (and its streams, with --streams)")
+    p.add_argument("--streams", action="store_true", help="list the packed streams inside each file (an archive of sections); with --extract --unpack, write each as <path>@<offset>.bin")
     p = sub.add_parser("disc-text", help="the stretches of a disc image that read as text through a table of the game's codes (the game's text: write it to scratch)")
     p.add_argument("disc", type=Path)
     p.add_argument("--table", type=Path, action="append", required=True, help="a .tbl of the game's codes; several are read as one")
@@ -550,6 +557,33 @@ def main(argv: list[str] | None = None) -> int:
         pinned = sum(1 for row in rows if "must_be" in row)
         print(f"{len(rows)} glyphs: {counts['ok']} in order, {counts['breaks']} that break it, {counts['unread']} unread; "
               f"{pinned} of those the order settles by itself", file=sys.stderr)
+        return 0
+    if args.cmd == "nitro":
+        from . import nitro
+        try:
+            card = nitro.card_bytes(args.card)
+            chosen = nitro.select(nitro.files(card), args.only)
+        except (OSError, zipfile.BadZipFile, nitro.NitroError) as e:
+            print(f"nitro: {e}", file=sys.stderr)
+            return 1
+        for f in chosen:
+            data = card[f.offset:f.offset + f.size]
+            packed = nitro.packing(data)
+            body = nitro.unpack(data) if packed else data
+            row = {"path": f.path, "id": f.id, "offset": f.offset, "size": f.size,
+                   **({"packed": packed, "unpacked": len(body)} if packed else {})}
+            found = nitro.streams(data) if args.streams and not packed else []
+            if args.streams:
+                row["streams"] = len(found)
+                row["streams_unpacked"] = sum(n for _, _, n in found)
+            print(json.dumps(row, ensure_ascii=False))
+            if args.extract:
+                out = args.extract / f.path
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_bytes(body if args.unpack else data)
+                if args.unpack:
+                    for at, _, _ in found:
+                        (args.extract / f"{f.path}@{at:X}.bin").write_bytes(nitro.unpack(data, at))
         return 0
     if args.cmd == "disc-text":
         from . import disctext
