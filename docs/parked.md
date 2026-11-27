@@ -6,8 +6,9 @@ the harness's scratch (`states/`), where it may or may not still be.
 
 ## Final Fantasy VI (Super Famicom, SFC-0ACC8D36)
 
-Parked at 111 of its 300 calls, resumed and parked again at 153: the story's next long talk needs the party walked
-through the first town, and the way on wasn't found (below).
+Parked at 111 of its 300 calls, resumed and parked again at 153, and again at 180 (a last stretch of 40, stopped
+at 193; 13 left unspent): the way through the first town is found now (below), but the talk on it came too late in
+the stretch for a bar.
 
 - **Core**: bsnes_mercury_balanced. HiROM: a script reads the cartridge at `0xC00000` + its file offset.
 - **The text** is never in work RAM. A 24-bit pointer at `0x7E00C9` (low), `0x7E00CA`, `0x7E00CB` (bank) walks the
@@ -50,6 +51,19 @@ through the first town, and the way on wasn't found (below).
   can't see (a change of map takes longer than a push) leads on. **Next**: `map_picture` on both maps and a long
   push at each edge, by eye, before more exploring.
 - **States**: ff-p1 after the opening's talk (from the title, 60 presses), ff-q the second map, ff-t on the bridge.
+- **The room** (calls 154-180): u16 at `0x7E1F64` names the map (19 the street, 39 the second map; copies at
+  `0x7E0B46` and `0x7E0B98`), found from snaps on both maps. `explore` with `room` 0x7E1F64, `room_size` 2 sees
+  a map change as a door, but only with a push long enough for the change to be over: at `step` 16 the second
+  map showed no door at all, not even the way back down; at `step` 40 it showed that door, and the longer pushes
+  went past the old dead end under the house, up to row 37 and across to x 30.
+- **The way on**: from the second map's top, (30, 37), a guard's window opens and a fight follows (Magitek armour
+  against guards and dogs; `a` alone won it, and `fight` with `holds` 30 counted no fade as a fight). After it the
+  way north is open to (31, 22), where a page of the soldiers' talk comes up and the walk goes on north.
+- **Not yet known**: why the reader said neither the guard's page nor the soldiers' page live (both were on the
+  pictures; the guard's was already open when `ff-u1` was saved, and the first press closed it). Check the
+  soldiers' page offline on a snap before the next run.
+- **States** (this stretch): `ff-u1` at (30, 37) with the guard's window open, `ff-u2` after the guards' fight,
+  `ff-u3` past the soldiers' page at the north end.
 
 ## Final Fantasy V (Super Famicom, SFC-9EA60A02)
 
