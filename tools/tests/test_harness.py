@@ -2664,6 +2664,13 @@ def test_steps_snaps_the_moment_the_script_says_text(session):
     assert session.each_frame is None                                        # the hook is put back
     with pytest.raises(HarnessError, match="said is an object"):
         session.steps([{"wait": 1}], said={"when": 1})
+    # before, in steps as in replay: each saying's sequence, memory as it was those frames before it.
+    out = session.steps([{"wait": 35}], prefix="wb", said={"after": 2, "before": [4, 2]})
+    out = out[1] if isinstance(out, (list, tuple)) else out
+    last = out["said"][-1]
+    n = len(out["said"]) - 1
+    assert session.snaps[f"wb-said-{n:02d}-seq-00"].frame == last["frame"] - 2 - 4
+    assert session.snaps[f"wb-said-{n:02d}-seq-01"].frame == last["frame"] - 2 - 2
 
 
 def test_steps_load_a_state_between_segments(session):

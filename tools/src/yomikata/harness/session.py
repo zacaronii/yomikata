@@ -809,8 +809,8 @@ class Session:
         if said is not None:
             if self.reader is None:
                 raise HarnessError("no script is loaded to say anything: call script_try first")
-            if not isinstance(said, dict) or set(said) - {"after", "shot"} or int(said.get("after", 2)) < 0:
-                raise HarnessError("said is an object: after (frames, 0 or more) and shot")
+            if not isinstance(said, dict) or set(said) - {"after", "shot", "before"} or int(said.get("after", 2)) < 0:
+                raise HarnessError("said is an object: after (frames, 0 or more), shot, and before")
         if not isinstance(steps, list) or not steps or not all(isinstance(s, dict) for s in steps):
             raise HarnessError("steps is a list of objects")
         known = {"buttons", "stick", "hold", "wait", "until", "times", "snap", "shot", "every", "until_event",
