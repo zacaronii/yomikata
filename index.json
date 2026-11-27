@@ -129,7 +129,7 @@
   },
   "GB-7F805941": {
    "path": "games/gb/GB-7F805941.json",
-   "sha256": "4aea0fe41f14d03fcb426a8ade727fbb4334509bb089b9fcdaf3e6ae7c3e6982",
+   "sha256": "62645ddc8219dff7bf5df8bcd0a122a0304fb06ff343b8f4922b216041be09e5",
    "platform": "gb",
    "encoding": "table",
    "status": "partial"
@@ -150,7 +150,7 @@
   },
   "HDR-0152-D1": {
    "path": "games/dc/HDR-0152-D1.json",
-   "sha256": "a3ad020b75c13f6131643b3b498496406ce42c7752cc61023ccb55c7ebbc2707",
+   "sha256": "66592c85ff84a662bcb0fec41ba86beccbf356c5750decccccaea4e27fecd78e",
    "platform": "dc",
    "encoding": "shift_jis",
    "status": "partial"
@@ -199,7 +199,7 @@
   },
   "PCECD-92261ECE": {
    "path": "games/pce-cd/PCECD-92261ECE.json",
-   "sha256": "85aa6bd2472c1d821dbfde013c0f86f53754ff2a709f9bcdd424ca3e08cfecfe",
+   "sha256": "b47b470fe0044c4be47c81cd0d0d4287a4b4c1754af887bf2038be5a4c3135cf",
    "platform": "pce-cd",
    "encoding": "shift_jis",
    "status": "partial"
@@ -309,7 +309,7 @@
   },
   "SFC-819B137D": {
    "path": "games/sfc/SFC-819B137D.json",
-   "sha256": "d48354d144066d931f7d56d9d418f83d799a14ca6d11583c07cc510fb665c332",
+   "sha256": "2b7ec274ce6f7e6d21584248e7c770eaf085c99f06f2c30218bebd35ebd53974",
    "platform": "sfc",
    "encoding": "table",
    "status": "partial"

@@ -11,6 +11,7 @@
  ],
  "encoding": "shift_jis",
  "status": "partial",
+ "regress": "sequence",
  "sources": [
   "The harness alone, from the game's file (docs/first-script.md): no reader's snapshots, no memory written",
   "Kanji and signs are Shift-JIS; the one-byte codes are turned into Shift-JIS by the game's own table, which the script reads from memory as the game has it: no table in the catalog. The codes that aren't characters were read off pages beside the screen",

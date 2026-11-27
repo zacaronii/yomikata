@@ -39,6 +39,7 @@ class Row:
     hash: str
     length: int
     error: str | None = None
+    how: str = "still"           # still, or sequence (read across its page's typing)
 
 
 @dataclass
@@ -67,6 +68,13 @@ def bar_snaps(snaps: Path) -> dict[str, list[str]]:
         if meta.get("ocr") and meta.get("game") and (snaps / f"{stem}.ram.gz").is_file():
             out.setdefault(meta["game"], []).append(stem)
     return out
+
+
+def sequence_of(folder: Path, stem: str) -> list[str]:
+    """A bar snap's sequence: the snaps taken across its page's typing, <stem>-seq-00, -01, …, in order (none for
+    a bar read as a still snap)."""
+    return sorted(p.name[:-len(".ram.gz")] for p in folder.glob(f"{stem}-seq-*.ram.gz")
+                  if p.name[len(stem) + len("-seq-"):-len(".ram.gz")].isdigit())
 
 
 def _script(catalog: Path, release) -> Path | None:
@@ -102,17 +110,20 @@ def keep(scratch: Path, games: Path, catalog: Path, identify=None) -> tuple[int,
         for stem in stems:
             if (into / f"{stem}.json").is_file():
                 continue
+            group = sequence_of(snaps, stem)
             try:
-                parts = [(part, snapfile.read(part)) for part in sorted(snaps.glob(f"{stem}.*.gz"))
-                         if "." not in part.name[len(stem) + 1:-len(".gz")]]      # not a savestate kept beside it
+                parts = [(part, snapfile.read(part)) for one in (*group, stem)
+                         for part in sorted(snaps.glob(f"{one}.*.gz"))
+                         if "." not in part.name[len(one) + 1:-len(".gz")]]       # not a savestate kept beside it
             except snapfile.SnapError:
                 lost.append(stem)                 # kept as a difference from a snap that is gone: can't be read
                 continue
             for part, data in parts:
                 snapfile.write(into / part.name, data, None)
-            for side in (f"{stem}.json", f"{stem}.png"):
-                if (snaps / side).is_file():
-                    shutil.copyfile(snaps / side, into / side)
+            for one in (*group, stem):
+                for side in (f"{one}.json", f"{one}.png"):
+                    if (snaps / side).is_file():
+                        shutil.copyfile(snaps / side, into / side)
             copied += 1
         if lost:
             skipped[f"{game} ({len(lost)} snaps)"] = (f"{len(lost)} bar snaps can't be read (each kept as a "
@@ -139,7 +150,7 @@ def _rom(games: Path, game: str, platform: str) -> bytes | None:
 
 def reread(scratch: Path, games: Path, catalog: Path, frames: int = FRAMES) -> list[Row]:
     """Every kept bar screen read again with the catalog's current script."""
-    from .run import run
+    from .run import Reading, run
     folder = scratch / "regress"
     ids_path = folder / IDS
     ids = json.loads(ids_path.read_text(encoding="utf-8")) if ids_path.is_file() else {}
@@ -151,23 +162,40 @@ def reread(scratch: Path, games: Path, catalog: Path, frames: int = FRAMES) -> l
             continue
         game, platform = by_id[gid]
         script = catalog / "games" / platform / f"{gid}.lua"
-        stems = sorted(p.name[:-len(".json")] for p in into.glob("*.json"))
+        stems = sorted(p.name[:-len(".json")] for p in into.glob("*.json") if "-seq-" not in p.name)
+        entry = script.with_suffix(".json")
+        try:
+            sequence_entry = json.loads(entry.read_text(encoding="utf-8")).get("regress") == "sequence"
+        except (OSError, ValueError):
+            sequence_entry = False
         if not script.is_file() or not stems:
             continue
         try:
             rom = _rom(games, game, platform)
         except OSError:
             rom = None
+        groups = {s: sequence_of(into, s) for s in stems}
+        still = [s for s in stems if not groups[s]]
         try:
-            readings = run(script, [into / f"{s}.ram.gz" for s in stems], frames=frames, rom=rom)
+            readings = dict(zip(still, run(script, [into / f"{s}.ram.gz" for s in still], frames=frames, rom=rom)))
+            for s in stems:
+                if groups[s]:
+                    # Read as in play: the snaps across the page's typing one tick each, then the bar snap held.
+                    seq = run(script, [into / f"{x}.ram.gz" for x in (*groups[s], s)], sequence=True, hold=frames,
+                              rom=rom)
+                    whole = Reading(s, events=[e for r in seq for e in r.events],
+                                    error=next((r.error for r in seq if r.error), None))
+                    readings[s] = whole
         except Exception as e:                    # the script can't be made ready (a module missing): each falls
-            from .run import Reading
-            readings = [Reading(s, error=f"the script can't run: {e}") for s in stems]
+            readings = {s: Reading(s, error=f"the script can't run: {e}") for s in stems}
+        readings = [readings[s] for s in stems]
         for stem, reading in zip(stems, readings):
             meta = json.loads((into / f"{stem}.json").read_text(encoding="utf-8"))
-            said = "\n".join(part for e in reading.story() for part in (e.get("speaker") or "", e["text"]) if part)
+            story = reading.story()[-1:] if groups[stem] else reading.story()      # a sequence: the page it ends on
+            said = "\n".join(part for e in story for part in (e.get("speaker") or "", e["text"]) if part)
+            how = "sequence" if groups[stem] else ("still, sequence wanted" if sequence_entry else "still")
             rows.append(Row(gid, stem, None if reading.error else round(agreement(said, meta.get("ocr") or []), 2),
-                            text_hash(said.encode("utf-8")), len(said), reading.error))
+                            text_hash(said.encode("utf-8")), len(said), reading.error, how))
     return rows
 
 
@@ -223,6 +251,13 @@ def markdown(report: Report, day: str) -> str:
         for gid, rows in blind:
             why = next((r.error for r in rows if r.error), None)
             lines.append(f"- {gid}: {why or 'loads, and says nothing'}")
+    sequences = {gid: sum(r.how == "sequence" for r in rows) for gid, rows in sorted(games.items())}
+    wanted = {gid: sum(r.how == "still, sequence wanted" for r in rows) for gid, rows in sorted(games.items())}
+    if any(sequences.values()) or any(wanted.values()):
+        lines += ["", "## Read as sequences", ""]
+        lines += [f"- {gid}: {n} of {len(games[gid])} screens read across their typing" for gid, n in sequences.items() if n]
+        lines += [f"- {gid}: {n} screens kept still, though the entry reads by sequence: take them again with "
+                  f"their sequences" for gid, n in wanted.items() if n]
     if report.skipped:
         lines += ["", "## Not checked", ""] + [f"- {Path(g).name}: {why}" for g, why in sorted(report.skipped.items())]
     return "\n".join(lines) + "\n"

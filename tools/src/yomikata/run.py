@@ -117,7 +117,7 @@ def _open(script: Path, snapshot: Path, platform: str | None, base: int | None, 
 
 
 def run(script: Path, snapshots: list[Path], *, platform: str | None = None, base: int | None = None,
-        frames: int = 2, sequence: bool = False, dump: bool = False, rom: bytes | None = None,
+        frames: int = 2, sequence: bool = False, dump: bool = False, rom: bytes | None = None, hold: int = 1,
         **limits) -> list[Reading]:
     """What the script emits over each snapshot (with `rom`, the game's file, its cartridge too). With `dump`, not what is on screen but everything the game
     has in memory there, as the script's own `dump` function says it (docs/script-api.md): the way to read
@@ -144,11 +144,15 @@ def run(script: Path, snapshots: list[Path], *, platform: str | None = None, bas
             except rd.ScriptError as e:
                 out[0].error, out[0].events = str(e), reader.take()
                 return out[:1]
+            tick = 0
             for n, (path, reading) in enumerate(zip(snapshots, out)):
                 if n:
                     reader.read = _memory(script, path, platform, base, rom)[0]
                     reader.regions = _regions(path)
-                reader.frame(n + 1)
+                # One tick each; the last held for `hold` ticks (a script that says a page once it has stood).
+                for _ in range(max(1, hold) if n == len(snapshots) - 1 else 1):
+                    tick += 1
+                    reader.frame(tick)
                 reading.events = reader.take()
         return out
     for path, reading in zip(snapshots, out):
