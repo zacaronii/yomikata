@@ -213,11 +213,13 @@ class Session:
         return {"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "session": self.session_id,
                 "game": game, "tool": tool, "arguments": {str(k): short(v) for k, v in (arguments or {}).items()}}
 
-    def record_call(self, tool: str, arguments: dict, ok: bool, seconds: float, outcome: dict | None = None) -> None:
+    def record_call(self, tool: str, arguments: dict, ok: bool, seconds: float, outcome: dict | None = None,
+                    game: str | None = None) -> None:
         """A line for this call in scratch's record (record/calls.jsonl): when, which session and game, the tool
         and its arguments in short. `yomikata calls` sums them by game. A record that can't be written is no
-        reason for a call to fail. After begin_call with the tool, it is the call's second line."""
-        entry = {**self._entry(tool, arguments, self.game), "ok": bool(ok), "seconds": round(seconds, 2),
+        reason for a call to fail. After begin_call with the tool, it is the call's second line, under the same
+        game as the first: the loaded one, else the one the call names (`budget` or `load` before a game is up)."""
+        entry = {**self._entry(tool, arguments, self.game or game), "ok": bool(ok), "seconds": round(seconds, 2),
                  **({"outcome": outcome} if outcome else {})}
         call, self._call_id = getattr(self, "_call_id", None), None
         if call is None:
@@ -3271,6 +3273,10 @@ class Session:
             platform = PLATFORM_ALIASES.get(meta.get("platform"), meta.get("platform"))
             read = with_regions(rd.memory(int(meta["base_address"], 16), _load(path), MIRRORS.get(platform, ())),
                                 platform, _regions(path))
+            if meta.get("game") and meta.get("game") == self.game:
+                # A snap keeps memory, not the cartridge: the loaded game's, where the snap is of that game.
+                from .machine import with_rom
+                read = with_rom(read, getattr(self.machine, "rom", None))
             reading = Reading(n)
             if played:
                 if "said" not in meta:

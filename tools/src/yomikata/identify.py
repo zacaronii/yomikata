@@ -190,11 +190,13 @@ def identify_gb(head: bytes) -> Release:
 SFC_SUFFIXES = (".sfc", ".smc", ".swc", ".fig")
 
 
-def sfc_header(rom: bytes) -> bytes:
-    """The 48 header bytes of a Super Famicom image (bus addresses 0xFFB0-0xFFDF), by the rule in docs/format.md."""
+def sfc_layout(rom: bytes) -> tuple[bytes, bytes, bool]:
+    """A Super Famicom image without a copier's header, its 48 header bytes (bus addresses 0xFFB0-0xFFDF) and
+    whether it is laid out HiROM (its header at 0xFFB0 in the file) or LoROM (at 0x7FB0), by the rule in
+    docs/format.md."""
     if len(rom) % 0x8000 == 512:                                        # a copier's own header comes first
         rom = rom[512:]
-    best, best_score = b"", -1
+    best, best_score, best_hirom = b"", -1, False
     for offset, hirom in ((0x7FB0, 0), (0xFFB0, 1)):
         h = rom[offset:offset + 0x30]
         if len(h) < 0x30:
@@ -202,10 +204,15 @@ def sfc_header(rom: bytes) -> bytes:
         complement, checksum = struct.unpack("<HH", h[0x2C:0x30])
         score = 2 * (complement ^ checksum == 0xFFFF) + ((h[0x25] & 1) == hirom)
         if score > best_score:                                          # on a tie, the first (0x7FB0)
-            best, best_score = h, score
+            best, best_score, best_hirom = h, score, bool(hirom)
     if not best:
         raise DiscError("too short for a Super Famicom image")
-    return best
+    return rom, best, best_hirom
+
+
+def sfc_header(rom: bytes) -> bytes:
+    """The 48 header bytes of a Super Famicom image (bus addresses 0xFFB0-0xFFDF), by the rule in docs/format.md."""
+    return sfc_layout(rom)[1]
 
 
 def identify_sfc(rom: bytes) -> Release:

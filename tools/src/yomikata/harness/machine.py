@@ -43,6 +43,44 @@ def cartridge_image(platform: str, data: bytes) -> bytes:
         from ..identify import md_unpack
         return md_unpack(data)
     return data
+def rom_reader(platform: str, data: bytes):
+    """The cartridge as a script reads it, for reading over snaps (which keep memory, not the cartridge): a
+    function of a console address and a size giving the bytes there, b"" where the cartridge isn't. For the
+    consoles in CARTRIDGE, the image at that address. A Super Famicom's as docs/script-api.md promises a script:
+    a HiROM cartridge at 0xC00000 on, byte for byte, and no more (not its mirrors, which a host may not give
+    truly, nor a LoROM cartridge, which isn't dependable yet), so that what reads over a snap reads in play.
+    None for a console it doesn't cover."""
+    platform = PLATFORM_ALIASES.get(platform, platform)
+    if platform in CARTRIDGE:
+        image, start = cartridge_image(platform, data), CARTRIDGE[platform]
+    elif platform == "sfc":
+        from ..identify import DiscError, sfc_layout
+        try:
+            image, _, hirom = sfc_layout(data)
+        except DiscError:
+            return None
+        if not hirom:
+            return None
+        image, start = image[:0x400000], 0xC00000
+    else:
+        return None
+
+    def read(address: int, size: int) -> bytes:
+        at = address - start
+        return image[at:at + size] if 0 <= at < len(image) else b""
+    return read
+
+
+def with_rom(read, rom):
+    """A read over a snap's memory that answers from the cartridge (rom_reader) where the memory has nothing."""
+    if rom is None:
+        return read
+
+    def both(address: int, size: int) -> bytes:
+        return read(address, size) or rom(address, size)
+    return both
+
+
 # A Game Boy's I/O registers and high RAM (0xFF00-0xFFFF), where the core maps them (mGBA does): the LCD's
 # registers say what the screen shows (LCDC at 0xFF40: the window on or off, which map; WY and WX at 0xFF4A
 # where it is), which the game's copy of the screen in work RAM doesn't. Read through the core's map, and kept
@@ -123,7 +161,10 @@ class Machine:
         self.platform = PLATFORM_ALIASES.get(platform, platform)
         self.core = Core(core_path, system_dir, options)
         self.core.load_game(game)
-        self.cartridge = cartridge_image(self.platform, Path(game).read_bytes()) if self.platform in CARTRIDGE else b""
+        data = Path(game).read_bytes() if self.platform in CARTRIDGE or self.platform == "sfc" else b""
+        self.cartridge = cartridge_image(self.platform, data) if self.platform in CARTRIDGE else b""
+        # The cartridge for reading over snaps of this game (compare): they keep memory, not the cartridge.
+        self.rom = rom_reader(self.platform, data) if data else None
         self.frames = 0
         # A core that draws with the card can't be loaded a second time in one process: the second load never
         # comes back (seen with Dolphin).

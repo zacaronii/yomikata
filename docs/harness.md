@@ -449,6 +449,10 @@ the calls of a fresh run, not a way to the bar: the bar is never met with it, si
 play (when a page is said, whether it repeats), which a still snap can't show. It suits a script that reads a
 whole page from where it stands; one that says a line only as it appears reads nothing from a still snap.
 
+A snap keeps memory, not the cartridge, and a script whose build check reads the cartridge's header (a Super
+Famicom's at `0xC0FFC0`) refused every snap under `compare` before it was given one. `compare` now gives it the
+loaded game's cartridge, over snaps of that game only, as `docs/script-api.md` says ("Over a snap").
+
 ### Snaps on disk
 
 A snap is written to `snaps/` in scratch as an inbox-style snapshot: `<name>.ram.gz`, a `<name>.<region>.gz`
