@@ -556,6 +556,10 @@ and A* finds the way, pulled straight to a few corners; `--low` leaves out floor
 Things placed on the ground that aren't in its collision (a tree, a barrel, other people) are gone round with
 `--avoid CHUNK` (Wind Waker: ACTR, SCOB, and the scene's layer, ACT0 in the opening); `--through NAME` leaves
 out those walked through (Wind Waker's grass, kusa*), which would otherwise squeeze the way against a fence.
+What got Wind Waker's hero from the pier to a villager: `route --low 1 --margin 6 --avoid ACTR --avoid ACT0
+--avoid-radius 60 --through kusa*`, then meet with that target and its way, walk {height (the player's y),
+fall 60, floor 35, settle 20, lag 10, push 8, way_near 40, patience 20, limit 6000}, reach 150, and keep. Its
+height reads 30 above the collision's floor (the pier at 150 reads 180; swimming 30 over the sea at 0).
 Each line it prints is one of meet's `targets` with its `way`, which walk_3d walks in turn (`way`, `way_near`).
 A character that turns and speeds up slowly, as one swimming does, moves the way it was going at the start of a
 push: walk_3d's `lag` leaves those first frames out of what it learns of the stick's way. A game that hops
