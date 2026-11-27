@@ -92,6 +92,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "G-5512": {
+   "path": "games/md/G-5512.json",
+   "sha256": "163f1c267643cad879eaff72303972f2c4dae68ff757839f29d7f597f28ad4f1",
+   "platform": "md",
+   "encoding": "compressed",
+   "status": "partial"
+  },
   "G8MJ01": {
    "path": "games/gc/G8MJ01.json",
    "sha256": "0a0b5ced378fa1085a750324ae1bea4e26c36a3558566f5faad6802ba3dab3db",
@@ -1119,6 +1126,24 @@
     "tbl": {
      "path": "games/fc/FC-20CC079D.tbl",
      "sha256": "d0bd4647ce6863cc07db3089011bd57cfa89d1e07656792013829055a61abd86"
+    }
+   }
+  },
+  "G-5512": {
+   "path": "scripts/md/G-5512.lua",
+   "sha256": "6f32d8840e691f0898dc2d80da83e9004711785a826e2bd7dccf5ee510b879c3",
+   "platform": "md",
+   "runtime": 1,
+   "title": "シャイニング・フォース 神々の遺産 (Shining Force: Kamigami no Isan, Mega Drive)",
+   "reads": "the text window's rows off video memory once the page stands, each glyph by its picture",
+   "builds": [
+    "G-5512-00"
+   ],
+   "needs": [],
+   "data": {
+    "glyphs": {
+     "path": "games/md/G-5512.glyphs",
+     "sha256": "815ae643211aa3f1394ac2e09198f254d5a3478b9304d3cb57f161bbe01ccf3a"
     }
    }
   },

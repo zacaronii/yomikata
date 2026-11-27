@@ -1,0 +1,26 @@
+{
+ "id": "G-5512",
+ "platform": "md",
+ "title": "シャイニング・フォース 神々の遺産",
+ "title_romaji": "Shining Force: Kamigami no Isan",
+ "versions": [
+  {
+   "header_crc32": "9378fbcd",
+   "note": "the cartridge GM G-5512-00 (1.5 MB, with backup RAM)"
+  }
+ ],
+ "encoding": "compressed",
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on genesis_plus_gx built with tools/cores/genesis_plus_gx-video-ram.patch (docs/harness.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
+  "Found in play: no page stands in work RAM as codes; each character is drawn into tiles of the VDP's video memory, shown on a plane (the talk window) or as sprites (the opening's narration), the font proportional, two glyphs at times touching",
+  "The talk window is the plane at 0xC000's cells whose tiles are 1664 on; the narration is the sprites four tiles high of palette 2 in the sprite table at 0xF000",
+  "The dictionary: 110 pictures, each page's glyphs beside its picture, read in play; where two glyphs touch or share a column (four such pairs), each is the piece the cut gives it there",
+  "Played from the opening's narration through the book's keeper (one of three garbled backup-RAM slots deleted, since the core starts backup RAM as 0xFF and the game takes that for three saves), a new game, and the first chapter's sparring talk, with the script loaded",
+  "What the script said agreed with the rows read off 44 of 44 pictures, over 3 scenes (15, 19 and 10); the sparring talk's last six screens repeat two pages, as the presses kept asking for another round",
+  "The first bar run used a dictionary with the touching pairs as entries of two characters, which the catalog doesn't take; with them cut into single pieces the same routes were run again live, said the same at all 44 snaps, and met the bar again",
+  "Known limits: カ and 力 are one picture and read as カ (two screens of the narration agree at 0.96); a page is left unsaid while a row is cut by the window's scroll",
+  "Calls: 64 of a budget of 150"
+ ],
+ "notes": "Read by the script games/md/G-5512.lua: the talk window's rows and the opening's narration, each glyph by its picture, said once the page stands. It needs a host that gives the VDP's video memory (the harness image's genesis_plus_gx_vram_libretro.so). Not read: menus, fights' messages. A glyph not met in play comes out as U+FFFD."
+}

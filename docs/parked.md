@@ -157,40 +157,6 @@ dictionary are on the branch `chrono-cross-reader` (unmerged, opened as a draft 
   the pad answering), `cc-v` the walkway, `cc-z` the stairwell's foot, `cc-z6` its top, `cc-z7` the gate room
   entered from there.
 
-## Shining Force: Kamigami no Isan (Mega Drive, G-5512): checked, not started
-
-Parked at 7 of its 150 calls (and one `advancing` call made without the game loaded, which the record doesn't
-count under it): the text is drawn only into the VDP's tiles, which genesis_plus_gx doesn't give out.
-
-- **Core**: genesis_plus_gx, which gives the 64 KB of work RAM (as 16-bit words, put back by the harness) and no
-  video memory: every snap is work RAM alone, no `vram` part. The cartridge is given at `0x01000000` (#230).
-- **The text** isn't in the cartridge in any standard encoding (`runs`: no Shift-JIS, UTF-16 or UTF-8), and no
-  place in work RAM fits a narration row as codes of the game's own (`find_relative` offline, unit 1 and 2, stride
-  1 and 2, either byte order, spaces as characters or not, one row or three moments together; rows read off
-  full-size pictures).
-- **While a line types** (snaps every 2 frames over the intro's line after the 21st press of A every 120 frames
-  from power-on), no number walks the script (`advancing`, unit 2 and 4; unit 1 offline): what climbs is the
-  palette at `0xFF0000`-`0xFF007F` fading in, in steps of 2. So no pointer, count or buffer of codes follows the
-  typing: the line goes straight into tiles.
-- **States**: `sf-a` (power-on plus 40 presses: the intro's narration).
-- **Open (tools)**: whether genesis_plus_gx gives the VDP's memory out at all: a core option, or a newer build that
-  answers `RETRO_MEMORY_VIDEO_RAM` (it keeps the VRAM internally). Genkan's built-in Mega Drive core is also
-  genesis_plus_gx, so the answer matters there too. With VRAM, the game would be read off its tiles (lib/cells
-  and a dictionary, as Tales of Phantasia is). Not built: to be decided first.
-- **What exposes the VDP's memory** (upstream libretro/Genesis-Plus-GX, `libretro/libretro.c` and
-  `core/vdp_ctrl.h`, read from source): nothing today. `retro_get_memory_data` answers `RETRO_MEMORY_SAVE_RAM`
-  and `RETRO_MEMORY_SYSTEM_RAM` (`work_ram`, 64 KB on a Mega Drive); `RETRO_MEMORY_VIDEO_RAM` falls to the
-  default, NULL and 0. `SET_MEMORY_MAPS` is called only for the Mega CD (68K RAM, PRG RAM, word RAM): a Mega Drive
-  game gets no map. No core option changes what memory is given. The VDP's memory is `vram[0x10000]` (with
-  `cram[0x80]`, `vsram[0x80]`, `sat[0x400]`) in `core/vdp_ctrl.h`, not referred to from `libretro.c`.
-- **A small patch would do it** (not built): `case RETRO_MEMORY_VIDEO_RAM: return vram;` in
-  `retro_get_memory_data` and `return 0x10000;` in `retro_get_memory_size`. The harness's `Core.video_ram()` is
-  generic, so snaps would keep it as `vram` and a script would read it through `mem.region("vram")`. Two caveats:
-  the core keeps `vram` in the host's order through its word macros, so on a little-endian host the words are
-  likely swapped against the console's and want putting back, as the work RAM's are; and CRAM and VSRAM aren't
-  covered (another id or a map entry), though tiles need only VRAM. Genkan's built-in Mega Drive core is the same
-  and has the same gap; whether to patch either is the owner's call.
-
 ## Tools to build when needed
 
 - **A proportional-font reader from video memory.** For a game that draws its text a character at a time into
