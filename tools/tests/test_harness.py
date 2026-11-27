@@ -3335,6 +3335,21 @@ def test_meet_walks_to_the_nearest_people_and_finds_who_answers(session):
     by_way = session.meet(**player, targets=[{"x": -17.0, "z": 26.0, "name": "Ab1", "way": [[3.0, 20.0, 0.0]]}],
                           reach=2.0, walk={"limit": 1500, "way_near": 2.0})
     assert by_way["met"]["address"] == "Ab1", by_way
+    # One who speaks as the player comes near, without the press (a talk that starts on its own): an answer, by
+    # arrival; standing still where the call began, nothing comes.
+    def nearby(buttons, stick):
+        walked(buttons, stick)
+        m = machine.memory
+        x, _, z = struct.unpack_from(">3f", m, 0x400)
+        if ((x - 15.0) ** 2 + (z - 1.0) ** 2) ** 0.5 <= 3.0:
+            line = "やあ".encode("cp932")
+            m[0x100:0x120] = line + bytes(0x20 - len(line))
+    machine._step = nearby
+    struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)
+    machine.memory[0x100:0x100 + 0x20] = bytes(0x20)
+    hello = session.meet(**player, targets=[{"x": 15.0, "z": 1.0, "name": "Cd2"}], reach=2.0, walk={"limit": 1500})
+    assert hello["met"] and hello["met"].get("by") == "arrival" and hello["said"] == ["やあ"], json.dumps(hello, ensure_ascii=False)
+    machine._step = walked
     # No one answers (Cd2 says nothing), with keep: the game is kept where the walk got to, not put back.
     struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)
     silent = session.meet(**player, targets=[{"x": 15.0, "z": 1.0, "name": "Cd2"}], reach=2.0, walk={"limit": 1500},

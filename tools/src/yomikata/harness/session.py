@@ -3419,6 +3419,8 @@ class Session:
           "place_find gives them: the records that hold places near it a steady distance apart, the player's own "
           "among them), walks to each with walk_3d from where the call began, presses the button there and holds "
           "the script's sayings against a wait without the press (what the scene says by itself doesn't count). "
+          "What comes after it arrives without the press, and not standing still where the call began, came on "
+          "arrival (a talk or a cutscene that starts as the player comes near): an answer too, `by` arrival. "
           "Stops at the first that answers and leaves the game there; else goes back to where it began. With no "
           "script loaded, or `look`, it only lists the people.",
           x_address=("string", "the player's x, hex: a float, as place_find gives it (required)", True),
@@ -3479,6 +3481,12 @@ class Session:
 
         def said(events):
             return [e["text"] for e in events if e.get("kind") == "text" and e.get("channel") != "interface"]
+        # What comes by itself standing still where the player starts, for as long as after each arrival: text
+        # that comes after an arrival and not here (a cutscene's page, a talk that starts on its own when the
+        # player comes near) is an answer too.
+        still: list = []
+        self._advance(6 + wait, set(), (0.0, 0.0), still)
+        back()
         tried = []
         last_reached = None
         for person in people[:max(1, min(int(most), 32))]:
@@ -3500,6 +3508,8 @@ class Session:
                 continue
             there = machine.save_state()
             last_reached = (there, json.loads(json.dumps(self.route)), machine.frames)
+            self.reader.state_loaded()                  # heard afresh: a page that came during the walk counts
+            self.reader.take()
             quiet: list = []
             self._advance(6 + wait, set(), (0.0, 0.0), quiet)        # without the press: what comes by itself
             machine.load_state(there)
@@ -3509,7 +3519,17 @@ class Session:
             self._advance(6, keys, (0.0, 0.0), heard)
             self._advance(wait, set(), (0.0, 0.0), heard)
             answer = [t for t in said(heard) if t not in said(quiet)]
+            came = [t for t in said(quiet) if t not in said(still)]
             row["said"] = len(answer)
+            if came and not answer:
+                # It came on arrival, without the press: kept where it is about to (before the frames waited).
+                row["came"] = len(came)
+                machine.load_state(there)
+                self.reader.state_loaded()
+                self.reader.take()
+                tried.append(row)
+                return {"met": {**row, "by": "arrival"}, "said": came[:3], "tried": tried, "stride": found["stride"],
+                        "frames": machine.frames, **({"kept": self._keep(keep)} if keep else {})}
             tried.append(row)
             if answer:
                 return {"met": row, "said": answer[:3], "tried": tried, "stride": found["stride"],
