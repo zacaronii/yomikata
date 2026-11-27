@@ -852,6 +852,40 @@ def test_advance_through_waits_for_a_mode_to_begin_and_says_when_it_never_did(tm
     s.close()
 
 
+class LoopingBattles(Battles):
+    """A fight whose command cursor is on a command that goes round three pictures under a (a list opening, a
+    note, the menu again: Chrono Cross's element command) and never on; b does nothing there."""
+    hits = 10 ** 6
+
+    def run(self, frames, buttons, stick):
+        new = set(buttons) - self.was
+        if "a" in new:
+            self.memory[0x53] = (self.memory[0x53] + 1) % 3
+        super().run(frames, buttons, stick)
+
+    def picture(self):
+        frame = np.zeros((48, 64, 3), dtype=np.uint8)
+        frame[:, :, 0] = 40 + 60 * self.memory[0x53]
+        return frame
+
+
+def test_advance_through_takes_a_loop_of_pictures_for_still(tmp_path):
+    """A menu going round three pictures under a: with the last six presses' pictures held against, it is seen as
+    still, backed out of three times and reported stuck; against two back only, it runs to `most`."""
+    for name in ("games/sfc", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/sfc/Made Up (Japan).sfc").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), LoopingBattles)
+    s.load("sfc/Made Up (Japan).sfc", "fake_libretro.so", "sfc")
+    flag = f"0x{BASE + 0x50:X}"
+    out = s.advance_through(flag, equals="1", wait=10, stuck=4, most=100)
+    assert (out["stopped"], out["backs"]) == ("stuck", 3) and out["presses"] < 40, out
+    out = s.advance_through(flag, equals="1", wait=10, stuck=4, most=100, cycle=2)
+    assert (out["stopped"], out["backs"], out["presses"]) == ("most", 0, 100), out
+    s.close()
+
+
 class CursorBattles(Battles):
     """Battles with a command cursor (0x52: 0 to fight, 1 the items): a fights only from the first command, and
     from the second opens an empty list (0x51) whose cursor blinks, 4 pixels of 3072 every 8 frames; b closes
@@ -1647,6 +1681,27 @@ def test_grouped_finds_what_is_the_same_on_a_map_and_differs_between_maps(sessio
     for bad in ({"ship": ["a1"]}, {"ship": ["a1"], "deck": []}, {"ship": ["a1"], "deck": ["never"]}):
         with pytest.raises(HarnessError):
             session.grouped(bad)
+
+
+def test_grouped_keeps_only_places_whose_values_fit_and_says_when_it_cut_the_list(session):
+    """A flag that is 0 on the field and 0x80 in a fight, among many places that differ (a fight loads other code
+    over the field's): `values` "flag" or each group's value keeps it alone; a list past the most says it was cut
+    (Chrono Cross: 230,000 places, the first 200 given, the flag not among them)."""
+    m = session.machine.memory
+    for name, flag, noise in (("f1", 0, 1), ("f2", 0, 1), ("b1", 0x80, 2), ("b2", 0x80, 2)):
+        m[0x900], m[0x710:0x810] = flag, bytes([noise]) * 0x100      # the flag, above 256 places that differ too
+        session.run(1)
+        session.snap(name)
+    groups = {"field": ["f1", "f2"], "fight": ["b1", "b2"]}
+    every = session.grouped(groups, snaps=True)
+    assert every["count"] > 200 and "cut" in every and "0x80000900" not in [p["address"] for p in every["places"]]
+    for values in ("flag", {"field": "0", "fight": "!0"}, {"fight": "0x80"}):
+        out = session.grouped(groups, snaps=True, values=values)
+        assert [p["address"] for p in out["places"]] == ["0x80000900"] and "cut" not in out, (values, out)
+    assert session.grouped(groups, snaps=True, values={"fight": "!0x80"}, within=["0x80000900", "0x80000901"])["count"] == 0
+    for bad in ({"nowhere": "0"}, {"field": "zero"}, "flags"):
+        with pytest.raises(HarnessError):
+            session.grouped(groups, snaps=True, values=bad)
 
 
 def test_a_name_read_off_a_naming_screen(session):
