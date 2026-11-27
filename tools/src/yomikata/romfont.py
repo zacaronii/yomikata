@@ -155,6 +155,44 @@ def rows_hex(pixels: np.ndarray) -> str:
     return np.packbits(pixels.astype(np.uint8), axis=1).tobytes().hex()
 
 
+def text_hash(data: bytes) -> str:
+    """What a script's text.hash gives for `data`: 64-bit FNV-1a, 16 hex digits in capitals."""
+    h = 0xCBF29CE484222325
+    for b in data:
+        h = ((h ^ b) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+    return f"{h:016X}"
+
+
+def trimmed(pixels: np.ndarray) -> np.ndarray:
+    """A glyph without the blank columns at its left and right, as a proportional font draws it; all its rows."""
+    inked = np.where(pixels.any(axis=0))[0]
+    return pixels[:, inked[0]:inked[-1] + 1] if len(inked) else pixels[:, :0]
+
+
+def dictionary(glyphs: dict[int, np.ndarray], characters: dict[int, str], cut: tuple[int, int] | None = None,
+               proportional: bool = True) -> tuple[list[str], list[int]]:
+    """A dictionary of glyph pictures for lib/glyphs.lua and lib/cells.lua: for each glyph whose code `characters`
+    has, the hash of its picture as lib/cells.lua cuts one (columns `cut` of it, trimmed for a proportional font;
+    rows a bit a pixel, each a whole number of bytes, the leftmost pixel in a byte's high bits) and its character.
+    Gives the lines, and the widths the pictures have (widest first). Two glyphs with one picture keep the first."""
+    lines, seen, widths = [], set(), set()
+    for code in sorted(glyphs):
+        if code not in characters:
+            continue
+        pixels = glyphs[code] if cut is None else glyphs[code][:, cut[0]:cut[1]]
+        if proportional:
+            pixels = trimmed(pixels)
+        if not pixels.size or not pixels.any():
+            continue
+        mark = text_hash(np.packbits(pixels.astype(np.uint8), axis=1).tobytes())
+        if mark in seen:
+            continue
+        seen.add(mark)
+        widths.add(pixels.shape[1])
+        lines.append(f"{mark}={characters[code]}")
+    return lines, sorted(widths, reverse=True)
+
+
 def find(rom: bytes, ink: np.ndarray, most: int = 12) -> list[dict]:
     """Where pieces of a picture of text lie in the cartridge: `ink` is the picture as true where there is ink.
     8x8 pieces at every place are looked for as tiles of 4 bits a pixel in any one colour, and as a bit a pixel
