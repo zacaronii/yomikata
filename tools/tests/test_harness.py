@@ -2894,8 +2894,9 @@ end
     assert session.script_try(events, "GXXJ01.lua")["loaded"]
     assert session.events()["places"] == [[22, 31]]
     start = machine.save_state()
-    out = session.expedition(room=f"0x{BASE + 0x7F0:X}", step=1, rooms=3, events=True)
+    out = session.expedition(room=f"0x{BASE + 0x7F0:X}", step=1, rooms=3, events=True, keep="xp-said")
     assert out["stopped"] == "said" and out["event_at"] == [22, 31] and out["said"] == ["おまちかね"], out
+    assert out["kept"] == "xp-said" and (session.roots.scratch / "states" / "xp-said.route.json").is_file()
     assert machine.memory[0x7F1] == 1 and out["legs"] == []
     assert session.events()["places"] == []
     # Done already: nothing waits, and the walk goes through the door as before.

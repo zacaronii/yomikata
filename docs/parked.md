@@ -101,6 +101,17 @@ pages, but the next talk is past the mines' fights, further than the calls went.
   (at the gate, (40, 8)) the party doesn't move at all. Spent at 280 of 280.
 - **Next**: a walk to an event place that keeps its progress across calls (the nearest state reached, given back
   to go on from), as `legs` does for doors; or the walk from `ff-u4` to (42, 9) split over two calls.
+- **Resumed (calls 281-305, a budget of 40 more, to 320)**: with `keep` (calls 241-280 count three walks of
+  mine with steps of 8 and 16 frames, where the game needs 40: the record has them). From `ff-u4` the walk
+  crawled (one tile in a call: every push of every branch may start a fight). From `ff-x5`, at the gate (40, 8),
+  which had seemed stuck only because of those steps, `expedition` with `events` and steps of 40 reached (42, 9)
+  in 2 seconds: a guard's page, and the gate opened. From there (42, 5): two more pages, and a fight began.
+  Pressing `a` blindly through it lost it: the game went back to its title and the opening's narration (state
+  `ff-k7` is after that; `ff-k6` stands before the fight, `ff-k4` with the gate open). Five codes more from the
+  guard's page held against its picture.
+- **Next**: the fight after (42, 5) is a boss's; `a` on its default target loses. A fight watch that notices a
+  game over (the opening's narration said again) and stops, and a fight plan (a command and target chosen per
+  turn), would get past it. 15 calls are left of the 320.
 
 ## Final Fantasy V (Super Famicom, SFC-9EA60A02)
 

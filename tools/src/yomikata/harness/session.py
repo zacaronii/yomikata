@@ -3033,9 +3033,10 @@ class Session:
           heading=("string", "up, down, left or right: cross each room towards that side instead of mapping all of it "
                              "(explore with a far `to`, the places nearest it first), for rooms where fights come "
                              "every few steps; the doors met on the way are tried", False),
-          keep=("string", "a state's name: when the call's time runs out, where it got to is saved under it "
-                          "(the end of a walk to an event's place, or else the last room it reached) instead of "
-                          "going back to where it began; load it and call again to go on", False),
+          keep=("string", "a state's name: where it stopped is saved under it, at a saying (to go on through the "
+                          "scene from there in a later call) or when the call's time runs out (the end of a walk "
+                          "to an event's place, or else the last room it reached, instead of going back to where it "
+                          "began; load it and call again to go on)", False),
           events=("boolean", "in each room, first walk to the places the loaded script's `events` function says "
                              "an event still waits at (docs/script-api.md), and stop at the first that says "
                              "something; then map the room and try its doors as before", False))
@@ -3193,7 +3194,8 @@ class Session:
                     queue.append(beyond)
         graph_out = {k: {**v, "doors": v.get("doors", [])[:MAX_ROWS]} for k, v in graph.items()}
         if found:
-            return {"stopped": "said", **found, "rooms": graph_out, "frames": machine.frames}
+            return {"stopped": "said", **found, "rooms": graph_out, "frames": machine.frames,
+                    **({"kept": self._keep(keep)} if keep else {})}
         if stopped == "time" and keep:
             if not walked_on:
                 state, there_route, there_frames, _ = entries[here]
