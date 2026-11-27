@@ -255,6 +255,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("disc", type=Path, help="the image: .rvz, .wia, .iso or .gcm")
     p.add_argument("--only", action="append", default=[], help="a pattern of paths (fnmatch: res/Msg/*); several may be given")
     p.add_argument("--extract", type=Path, help="a scratch folder to write the files into, by their paths")
+    p = sub.add_parser("placements", help="where a game puts its people, doors and things, read off its disc: targets in its own world coordinates for the harness's walk_3d and meet (JSON lines: names and places only). GameCube Zelda stages first")
+    p.add_argument("disc", type=Path, help="the disc image (.rvz, .wia, .iso, .gcm)")
+    p.add_argument("archive", help="the stage or room archive on the disc, e.g. res/Stage/sea/Room44.arc")
+    p.add_argument("--name", action="append", default=[], help="only entries whose name matches (fnmatch); several may be given")
+    p.add_argument("--chunk", action="append", default=[], help="only entries of these chunks (ACTR, ACT0, TGDR, PLYR, …; fnmatch)")
     p = sub.add_parser("disc-text", help="the stretches of a disc image that read as text through a table of the game's codes (the game's text: write it to scratch)")
     p.add_argument("disc", type=Path)
     p.add_argument("--table", type=Path, action="append", required=True, help="a .tbl of the game's codes; several are read as one")
@@ -664,6 +669,21 @@ def main(argv: list[str] | None = None) -> int:
         except (OSError, rvz.RvzError) as e:
             print(f"rvz: {e}", file=sys.stderr)
             return 1
+        return 0
+    if args.cmd == "placements":
+        from . import placements, rvz
+        try:
+            disc = rvz.open_disc(args.disc)
+            found = {f.path: f for f in rvz.files(disc)}
+            if args.archive not in found:
+                print(f"placements: no file {args.archive} on the disc", file=sys.stderr)
+                return 1
+            entries = placements.from_archive(rvz.content(disc, found[args.archive]))
+        except (OSError, rvz.RvzError, placements.PlacementError) as e:
+            print(f"placements: {e}", file=sys.stderr)
+            return 1
+        for e in placements.select(entries, args.name, args.chunk):
+            print(json.dumps(e, ensure_ascii=False))
         return 0
     if args.cmd == "disc-text":
         from . import disctext
