@@ -1,0 +1,29 @@
+{
+ "id": "GB-7F805941",
+ "platform": "gb",
+ "title": "カエルの為に鐘は鳴る",
+ "title_romaji": "Kaeru no Tame ni Kane wa Naru",
+ "versions": [
+  {
+   "header_crc32": "7f805941",
+   "note": "the cartridge KAERUNOTAMENI"
+  }
+ ],
+ "encoding": "table",
+ "tables": [
+  "tables/gb/GB-7F805941.tbl"
+ ],
+ "unit": 2,
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's cartridge on mGBA (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The cartridge and snaps were studied outside it",
+  "From scratch: `entered` on the naming screen gave the name's kana codes (another set than the story's). find_relative, advancing (unit 1 and 2) and rom-font --find found nothing: the script is packed in the cartridge and drawn in a proportional font into fresh tiles",
+  "Found offline in snaps taken every frame from the press that starts a page: a word on the stack pointing at the page, unpacked whole into work RAM as numbers of its own, and beside it each number's code in the game's font",
+  "The table: the kana by one plan read off the first two pages' codes (hiragana from 0x000, katakana from 0x050, each with its small, voiced and half-voiced ones after), the small ones' order corrected by later pages; 100 kana codes on the bar's pages all fit it.",
+  "The signs, digits and 21 kanji were read in play, a page's codes beside its picture",
+  "Played from the naming through the opening duel, an old servant's news and the shore: three stretches, each replayed from a state with the script loaded",
+  "What the script said agreed with the rows read off 36 of 36 pictures, over 3 scenes. No screen without text was among them",
+  "The signs and kanji were read off the same pictures the comparison holds the script to; the kana plan was not, past the first two pages"
+ ],
+ "notes": "Read by the script games/gb/GB-7F805941.lua: a page of the window or a speech bubble, once it has begun to type and stands, from the page unpacked in work RAM through its list of codes. Not read: who speaks, pages of big letters (a laugh in the opening), the naming screen, menus and status rows. Kanji not met in play come out as U+FFFD."
+}

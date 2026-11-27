@@ -78,6 +78,13 @@
    "encoding": "table",
    "status": "partial"
   },
+  "GB-7F805941": {
+   "path": "games/gb/GB-7F805941.json",
+   "sha256": "4aea0fe41f14d03fcb426a8ade727fbb4334509bb089b9fcdaf3e6ae7c3e6982",
+   "platform": "gb",
+   "encoding": "table",
+   "status": "partial"
+  },
   "HDR-0152-D1": {
    "path": "games/dc/HDR-0152-D1.json",
    "sha256": "a3ad020b75c13f6131643b3b498496406ce42c7752cc61023ccb55c7ebbc2707",
@@ -997,6 +1004,24 @@
     "tbl": {
      "path": "games/gb/GB-29D07340.tbl",
      "sha256": "79476b8b75c9049026e132294bc2cb68fd3117f846476b11c34b1da89557261f"
+    }
+   }
+  },
+  "GB-7F805941": {
+   "path": "scripts/gb/GB-7F805941.lua",
+   "sha256": "e105ccba1f84425ad1554b3ab17d8d9ec6c16d5fdbb5dde9c6b0651ebbd17acf",
+   "platform": "gb",
+   "runtime": 1,
+   "title": "カエルの為に鐘は鳴る (Kaeru no Tame ni Kane wa Naru, Game Boy)",
+   "reads": "a page of the message window or a speech bubble once it has typed out",
+   "builds": [
+    "7f805941"
+   ],
+   "needs": [],
+   "data": {
+    "tbl": {
+     "path": "games/gb/GB-7F805941.tbl",
+     "sha256": "17048a37f4508fe0fb1da7096cff73602d91b2293a77f0150da3e89ead026ec9"
     }
    }
   },
