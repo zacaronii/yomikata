@@ -21,7 +21,7 @@ STORY_CHANNELS = ("dialogue", "choice")
 CHANNELS = (*STORY_CHANNELS, "interface")
 
 # What a host calls a platform, where it isn't the catalog's name.
-PLATFORM_ALIASES = {"ngc": "gc", "psx": "ps1", "snes": "sfc"}
+PLATFORM_ALIASES = {"ngc": "gc", "psx": "ps1", "snes": "sfc", "genesis": "md", "megadrive": "md"}
 RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 # Other addresses the same main memory answers at.
 # The same memory at other addresses: the PS1's past its cache and from 0; the Dreamcast's main 16 MB from

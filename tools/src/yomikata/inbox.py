@@ -37,8 +37,9 @@ log = logging.getLogger(__name__)
 ID_RE = re.compile(r"^[A-Z0-9][A-Z0-9-]{3,19}$")
 PLATFORMS = {"ps1", "ps2", "psp", "nds", "3ds", "gc", "wii", "saturn", "dc", "pce-cd", "sfc", "fc", "fds", "gba", "gb",
              "gbc", "n64", "md"}
-# What a reader may call a platform, where it isn't the catalog's name (Genkan and RomM say ngc for the GameCube).
-PLATFORM_ALIASES = {"ngc": "gc"}
+# What a reader may call a platform, where it isn't the catalog's name (Genkan and RomM say ngc for the GameCube,
+# RomM genesis for the Mega Drive).
+PLATFORM_ALIASES = {"ngc": "gc", "genesis": "md", "megadrive": "md"}
 # RomM-style library folders for each catalog platform (only these are identified)
 LIBRARY_DIRS = {"ps1": "psx", "ps2": "ps2", "psp": "psp", "nds": "nds", "3ds": "3ds"}
 IMAGE_EXT = {".chd", ".cue", ".iso", ".3ds", ".cci", ".nds", ".zip"}
@@ -83,6 +84,8 @@ RAM = {
     # System's RAM at 0x6000-0xDFFF (32 KB).
     "fc": [(0x0000, 0x2000), (0x6000, 0x8000)],
     "fds": [(0x0000, 0x2000), (0x6000, 0xE000)],
+    # The 64 KB of work RAM, kept in the console's byte order (big-endian), as the harness reads it.
+    "md": [(0xFF0000, 0x1000000)],
 }
 
 
@@ -102,7 +105,8 @@ REGION_NAMES = sorted({name for parts in REGION_PARTS.values() for name in parts
 # The largest RAM snapshot accepted per platform (main RAM size), and how many are kept per game.
 SNAPSHOT_MAX = {"ps1": 0x200000, "ps2": 0x2000000, "psp": 0x2000000, "sfc": 0x20000, "gba": 0x40000,
                 "gb": 0x2000, "gbc": 0x2000, "nds": 0x400000, "gc": 0x1800000, "wii": 0x1800000,
-                "saturn": 0x100000, "dc": 0x1000000, "pce-cd": 0x40000, "n64": 0x800000, "fc": 0x800, "fds": 0x800}
+                "saturn": 0x100000, "dc": 0x1000000, "pce-cd": 0x40000, "n64": 0x800000, "fc": 0x800, "fds": 0x800,
+                "md": 0x10000}
 # Video memory is smaller than the general limit on most consoles; a part larger than the console has is refused.
 # (A core may hand out a Game Boy game the Color's 16 KB: the cap is the larger.)
 VRAM_MAX = {"ps1": 0x100000, "sfc": 0x10000, "gba": 0x18000, "gb": 0x4000, "gbc": 0x4000, "nds": 0xA4000,

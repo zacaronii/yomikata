@@ -10,7 +10,7 @@ from ..run import MIRRORS, PLATFORM_ALIASES
 
 RAM_BASES = {**RAM_BASE, "wii": 0x80000000}
 # Consoles whose memory is big-endian, as a script reads it here.
-BIG_ENDIAN = ("gc", "wii", "saturn", "n64")
+BIG_ENDIAN = ("gc", "wii", "saturn", "n64", "md")
 # Where a core's "system RAM" isn't the console's main memory: the stretch of the core's memory map that is,
 # by its start, and others worth having beside it, as regions. mGBA gives the 32 KB in the CPU as system RAM;
 # a Game Boy Advance game's data is in the 256 KB on the board (as a snapshot of one has it, inbox.py).
@@ -26,18 +26,22 @@ JOINED = {"pce-cd": (0xD0000, 0x100000)}
 # at this address on, byte for byte (docs/script-api.md).
 # A Famicom's program ROM isn't in fceumm's map at all (0x8000-0xFFFF reads nothing), so its image is given the
 # same way: after its 16-byte iNES header (and a trainer), the program then the CHR. A Disk System's disk image
-# after its fwNES header, side after side.
-CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000, "fc": 0x01000000, "fds": 0x01000000}
+# after its fwNES header, side after side. A Mega Drive's whole: genesis_plus_gx gives out no map of it.
+CARTRIDGE = {"gb": 0x01000000, "gbc": 0x01000000, "fc": 0x01000000, "fds": 0x01000000, "md": 0x01000000}
 
 
 def cartridge_image(platform: str, data: bytes) -> bytes:
     """The bytes a script finds at CARTRIDGE: a Game Boy's file as it is; a Famicom's without its iNES header and
-    trainer; a Disk System's without its fwNES header. A file without a header is taken as it is."""
+    trainer; a Disk System's without its fwNES header; a Mega Drive's as the console sees it (an SMD dump put back in
+    order). A file without a header is taken as it is."""
     from ..identify import FWNES_MAGIC, INES_MAGIC
     if platform == "fc" and data[:4] == INES_MAGIC:
         return data[16 + (512 if data[6] & 0x04 else 0):]
     if platform == "fds" and data[:4] == FWNES_MAGIC:
         return data[16:]
+    if platform == "md":
+        from ..identify import md_unpack
+        return md_unpack(data)
     return data
 # A Game Boy's I/O registers and high RAM (0xFF00-0xFFFF), where the core maps them (mGBA does): the LCD's
 # registers say what the screen shows (LCDC at 0xFF40: the window on or off, which map; WY and WX at 0xFF4A
@@ -58,8 +62,9 @@ MAPPED_VIDEO = {"fc": (0x80002000, 0x800), "fds": (0x80002000, 0x800)}
 # order (big-endian): the first stretch as main memory, the others as regions ("lwram" on a Saturn). Each
 # entry: the console's address, where it starts in the core's system RAM, its length, its region's name.
 WORDS = {"saturn": ((0x06000000, 0x100000, 0x100000, None), (0x00200000, 0, 0x100000, "lwram")),
-         "n64": ((0x80000000, 0, 0x800000, None),)}
-WORD_SIZE = {"saturn": 2, "n64": 4}
+         "n64": ((0x80000000, 0, 0x800000, None),),
+         "md": ((0xFF0000, 0, 0x10000, None),)}       # genesis_plus_gx: the 64 KB of work RAM, no map
+WORD_SIZE = {"saturn": 2, "n64": 4, "md": 2}
 
 
 def _flip(raw: bytes, size: int) -> bytes:

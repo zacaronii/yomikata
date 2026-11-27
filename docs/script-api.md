@@ -310,6 +310,7 @@ bytes as they lie in memory.
 | `dc` | `0x8C000000`, 16 MB (the main memory) | Little-endian. The same at `0x0C000000` and `0xAC000000`. flycast gives no video memory |
 | `fc` | `0x0000`, 2 KB (the same again at `0x0800`, `0x1000` and `0x1800`) | And the cartridge, whole, at `0x01000000` on (below). A cartridge's work RAM at `0x6000`-`0x7FFF`, where the core maps it (fceumm does, in 1 KB pages), read through its map; kept in a snap as the region `wram`. The video memory (`vram` in a snap) is the two nametables, 2 KB: the screen's tiles. fceumm gives out no video memory as such; the harness takes them where its map puts them |
 | `fds` | `0x0000`, 2 KB, as `fc` | And the disk, whole, at `0x01000000` on (below). The Disk System's RAM is `0x6000`-`0xDFFF` (32 KB), but fceumm's map gives only its first 8 KB, `0x6000`-`0x7FFF` (the region `wram` in a snap): a script reading `0x8000` on gets nothing. The nametables as `fc`'s. The core's "save RAM" is the disk side, not RAM |
+| `md` | `0xFF0000`, 64 KB | Big-endian, as the console has it: genesis_plus_gx gives its work RAM as 16-bit words in the host's order, with no map, and they are put back. And the cartridge, whole, at `0x01000000` on (below) |
 
 **A Super Famicom cartridge.** Some games never copy their text into work RAM and draw it straight from the
 cartridge, so a script may read the cartridge at the addresses the game itself uses:
@@ -339,6 +340,10 @@ script has nothing there to check its build against or to read text from. The ha
 `0x01000000` on, after its 16-byte iNES header and the trainer one may have: the program first (8 KB bank `n` at
 `0x01000000 + n x 0x2000`, the last bank the one fixed at `0xE000`), then the CHR. A Disk System image is given
 there after its fwNES header (where it has one), side after side (65,500 bytes each). The same rule holds.
+
+**A Mega Drive cartridge.** genesis_plus_gx gives out no map of the cartridge either. The harness gives it whole at
+`0x01000000` on, as the console sees it (byte `n` of the ROM at `0x01000000 + n`; an SMD dump put back in order), so
+a script can check its build against the header at `0x01000100`. The same rule holds.
 
 A host maps these onto what its emulator gives out (a libretro core's memory descriptors, or its system RAM at
 the base above). Other platforms are added here as their first script arrives.

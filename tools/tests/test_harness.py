@@ -2916,6 +2916,78 @@ def test_identify_famicom_cartridges_by_their_rom_and_disks_by_their_info_block(
         identify(tmp_path / "junk.fds")
 
 
+def test_identify_mega_drive_cartridges_by_their_product_code_or_crc(tmp_path):
+    """A Mega Drive cartridge is named by the serial in its product code (the build adds the revision), in any
+    image: plain, an SMD dump (interleaved blocks behind a 512-byte header), a zip, a .bin with the header; one
+    whose code holds no serial by "MD-" and its ROM's CRC-32. A .bin without the header is still a disc's."""
+    import os, zlib, zipfile
+    from yomikata.identify import identify, md_unpack
+    rom = bytearray(os.urandom(0x8000))
+    rom[0x100:0x110] = b"SEGA MEGA DRIVE "
+    rom[0x180:0x18E] = b"GM G-9999   01"
+    rom = bytes(rom)
+    smd = bytearray(b"\x02\x00\x03" + bytes(5) + b"\xAA\xBB\x06" + bytes(512 - 11))
+    for at in range(0, len(rom), 0x4000):
+        block = rom[at:at + 0x4000]
+        smd += block[1::2] + block[0::2]                                   # odd bytes, then even
+    assert md_unpack(bytes(smd)) == rom and md_unpack(rom) == rom
+    crc = f"{zlib.crc32(rom):08x}"
+    with zipfile.ZipFile(tmp_path / "game.zip", "w") as z:
+        z.writestr("Made Up (Japan).md", rom)
+    for name, data in (("plain.md", rom), ("plain.gen", rom), ("dump.smd", bytes(smd)), ("game.zip", None),
+                       ("cart.bin", rom)):
+        if data is not None:
+            (tmp_path / name).write_bytes(data)
+        release = identify(tmp_path / name)
+        assert (release.platform, release.id, release.build, release.header_crc32) == ("md", "G-9999", "G-9999-01", crc), name
+    genesis = bytearray(rom)
+    genesis[0x100:0x110], genesis[0x180:0x18E] = b"SEGA GENESIS    ", b"GM 00000000-00"
+    genesis[0x183:0x18B] = b"        "                                 # no serial
+    (tmp_path / "nocode.md").write_bytes(bytes(genesis))
+    release = identify(tmp_path / "nocode.md")
+    want = f"MD-{zlib.crc32(bytes(genesis)):08X}"
+    assert (release.platform, release.id, release.build) == ("md", want, want)
+    (tmp_path / "junk.md").write_bytes(bytes(0x400))
+    with pytest.raises(ValueError, match="SEGA header"):
+        identify(tmp_path / "junk.md")
+
+
+def test_a_mega_drive_is_read_at_its_own_addresses_in_its_own_byte_order_and_its_cartridge_whole():
+    """genesis_plus_gx gives the 64 KB of work RAM as 16-bit words in the host's order and no map (seen with a
+    made-up cartridge that wrote 11 22 33 44 at 0xFF0000): the harness reads it at 0xFF0000, big-endian, writes
+    it back the same way, and gives the cartridge, an SMD dump put back in order, at 0x01000000."""
+    import ctypes as C
+    from yomikata.harness.machine import CARTRIDGE, Machine, cartridge_image
+    raw = (C.c_char * 0x10000)()
+    C.memmove(raw, bytes.fromhex("2211443366558877"), 8)
+    C.memmove(C.addressof(raw) + 0xFFFE, bytes.fromhex("b2a1"), 2)
+
+    class Lib:
+        def retro_get_memory_data(self, which):
+            return C.addressof(raw) if which == 2 else None
+
+        def retro_get_memory_size(self, which):
+            return 0x10000 if which == 2 else 0
+
+    class Core:
+        lib, maps = Lib(), []
+
+        def video_ram(self):
+            return None
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core = "md", Core()
+    rom = bytearray(0x4000)
+    rom[0x100:0x104] = b"SEGA"
+    rom = bytes(rom)
+    smd = bytes(512) + rom[1::2] + rom[0::2]
+    machine.cartridge = cartridge_image("md", smd)
+    base, ram = machine.ram()
+    assert (base, len(ram)) == (0xFF0000, 0x10000) and ram[:8] == bytes.fromhex("1122334455667788")
+    assert machine.read(0xFF0002, 4) == bytes.fromhex("33445566") and machine.read(0xFFFFFE, 2) == bytes.fromhex("a1b2")
+    assert machine.write(0xFF0001, b"\x99") == 1 and bytes(raw[0:2]) == bytes.fromhex("9911")
+    assert CARTRIDGE["md"] == 0x01000000 and machine.read(0x01000100, 4) == b"SEGA" and machine.cartridge == rom
+
+
 def test_a_famicom_machine_reads_its_work_ram_through_pages_and_its_nametables(tmp_path):
     """fceumm maps a Famicom's 2 KB at 0x0000 in two pages, 0x6000-0x7FFF in eight pages of 1 KB, and the two
     nametables at 0x80002000, and gives out no video memory as such. The harness reads main memory and its

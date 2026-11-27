@@ -42,7 +42,7 @@ def test_bad_snapshots_get_the_reason(tmp_path):
     for m, ram, says in ((meta(base_address="0x1FC00000"), small, "base_address"),       # the BIOS ROM
                          (meta(), os.urandom(0x200001), "main RAM"),                       # bigger than PS1 RAM
                          (meta(base_address="0x801FF000"), small + small, "runs past"),
-                         (meta(ocr=[]), small, "meta.ocr"), (meta(platform="md"), small, "snapshots are taken"),
+                         (meta(ocr=[]), small, "meta.ocr"), (meta(platform="3ds"), small, "snapshots are taken"),
                          (meta(no_text=True), small, "no_text"), (meta(ocr=[], no_text="yes"), small, "meta.ocr")):
         r = send(c, ram, m)
         assert r.status_code == 400 and says in r.json()["detail"], (m, r.text)
