@@ -2765,6 +2765,44 @@ def test_a_game_boy_cartridge_is_read_whole_at_its_own_address(tmp_path):
     assert machine.read(0x01000000, 4) == b""
 
 
+def test_a_famicom_cartridge_and_a_disk_are_read_whole_after_their_headers(tmp_path):
+    """fceumm's map has no program ROM: the harness gives a Famicom image after its iNES header (and trainer) at
+    0x01000000, the program then the CHR; a Disk System image after its fwNES header; a file without one as is."""
+    from yomikata.harness.machine import CARTRIDGE, Machine, cartridge_image
+
+    class Core:
+        maps = []
+
+        class lib:
+            @staticmethod
+            def retro_get_memory_data(kind):
+                return None
+
+            @staticmethod
+            def retro_get_memory_size(kind):
+                return 0
+
+    prg, chr_ = bytes(range(256)) * 0x80, bytes([0xC5]) * 0x2000          # 32 KB program, 8 KB CHR
+    header = b"NES\x1a" + bytes([2, 1, 0x40, 0]) + bytes(8)
+    trained = b"NES\x1a" + bytes([2, 1, 0x44, 0]) + bytes(8) + bytes([0xEE]) * 512
+    assert cartridge_image("fc", header + prg + chr_) == prg + chr_
+    assert cartridge_image("fc", trained + prg + chr_) == prg + chr_
+    assert cartridge_image("fc", prg + chr_) == prg + chr_                 # no header: as it is
+    side = b"\x01*NINTENDO-HVC*" + bytes(65500 - 15)
+    assert cartridge_image("fds", b"FDS\x1a\x01" + bytes(11) + side) == side
+    assert cartridge_image("fds", side) == side
+    assert cartridge_image("gb", header + prg) == header + prg           # a Game Boy's file as it is
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core = "fc", Core()
+    machine.cartridge = cartridge_image("fc", header + prg + chr_)
+    assert CARTRIDGE["fc"] == CARTRIDGE["fds"] == 0x01000000
+    assert machine.read(0x01000000 + 3 * 0x2000 + 0x10, 4) == bytes([0x10, 0x11, 0x12, 0x13])     # bank 3
+    assert machine.read(0x01000000 + len(prg) - 2, 4) == bytes([0xFE, 0xFF, 0xC5, 0xC5])       # then the CHR
+    assert machine.read(0x01000000 + len(prg) + len(chr_), 4) == b""
+    machine.platform, machine.cartridge = "fds", cartridge_image("fds", b"FDS\x1a\x01" + bytes(11) + side)
+    assert machine.read(0x01000001, 14) == b"*NINTENDO-HVC*"
+
+
 def test_identify_a_game_boy_cartridge(tmp_path):
     """Game Boy cartridges by their header: a Color one with a game code takes it, an older one its header's CRC-32."""
     import zlib

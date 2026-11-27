@@ -308,8 +308,8 @@ bytes as they lie in memory.
 | `saturn` | `0x06000000`, 1 MB (the high work RAM), and `0x00200000`, 1 MB (the low) | Big-endian, as the console has it (mednafen_saturn keeps both as 16-bit words in the host's order; they are put back). The same again past the cache at `0x26000000` and `0x20200000`. The low 1 MB is the region `lwram` in a snap. No video memory: the core gives out neither VDP1's nor VDP2's |
 | `n64` | `0x80000000`, 8 MB (the RDRAM; a game without the Expansion Pak uses the first 4) | Big-endian, as the console has it (mupen64plus_next keeps it as 32-bit words in the host's order; they are put back). The same again past the cache at `0xA0000000`. No video memory, and the cartridge isn't given |
 | `dc` | `0x8C000000`, 16 MB (the main memory) | Little-endian. The same at `0x0C000000` and `0xAC000000`. flycast gives no video memory |
-| `fc` | `0x0000`, 2 KB (the same again at `0x0800`, `0x1000` and `0x1800`) | A cartridge's work RAM at `0x6000`-`0x7FFF`, where the core maps it (fceumm does, in 1 KB pages), read through its map; kept in a snap as the region `wram`. The video memory (`vram` in a snap) is the two nametables, 2 KB: the screen's tiles. fceumm gives out no video memory as such; the harness takes them where its map puts them |
-| `fds` | `0x0000`, 2 KB, as `fc` | The Disk System's RAM is `0x6000`-`0xDFFF` (32 KB), but fceumm's map gives only its first 8 KB, `0x6000`-`0x7FFF` (the region `wram` in a snap): a script reading `0x8000` on gets nothing. The nametables as `fc`'s. The core's "save RAM" is the disk side, not RAM |
+| `fc` | `0x0000`, 2 KB (the same again at `0x0800`, `0x1000` and `0x1800`) | And the cartridge, whole, at `0x01000000` on (below). A cartridge's work RAM at `0x6000`-`0x7FFF`, where the core maps it (fceumm does, in 1 KB pages), read through its map; kept in a snap as the region `wram`. The video memory (`vram` in a snap) is the two nametables, 2 KB: the screen's tiles. fceumm gives out no video memory as such; the harness takes them where its map puts them |
+| `fds` | `0x0000`, 2 KB, as `fc` | And the disk, whole, at `0x01000000` on (below). The Disk System's RAM is `0x6000`-`0xDFFF` (32 KB), but fceumm's map gives only its first 8 KB, `0x6000`-`0x7FFF` (the region `wram` in a snap): a script reading `0x8000` on gets nothing. The nametables as `fc`'s. The core's "save RAM" is the disk side, not RAM |
 
 **A Super Famicom cartridge.** Some games never copy their text into work RAM and draw it straight from the
 cartridge, so a script may read the cartridge at the addresses the game itself uses:
@@ -333,6 +333,12 @@ as on a host that follows the map. A snap's main memory and the searches over it
 line stands the game may have switched to others. The harness gives the cartridge's file whole at `0x01000000`
 on, byte for byte (bank `n` at `0x01000000 + n x 0x4000`). The same rule holds: a script checks a read there, and
 where it gets nothing says so once and reads nothing.
+
+**A Famicom cartridge or disk.** fceumm's map has no program ROM at all (`0x8000`-`0xFFFF` reads nothing), so a
+script has nothing there to check its build against or to read text from. The harness gives a Famicom image at
+`0x01000000` on, after its 16-byte iNES header and the trainer one may have: the program first (8 KB bank `n` at
+`0x01000000 + n x 0x2000`, the last bank the one fixed at `0xE000`), then the CHR. A Disk System image is given
+there after its fwNES header (where it has one), side after side (65,500 bytes each). The same rule holds.
 
 A host maps these onto what its emulator gives out (a libretro core's memory descriptors, or its system RAM at
 the base above). Other platforms are added here as their first script arrives.
