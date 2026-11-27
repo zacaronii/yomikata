@@ -652,7 +652,7 @@
   },
   "SLPS-02274": {
    "path": "games/ps1/SLPS-02274.json",
-   "sha256": "68c5fe8d8a535500baa7b85185f53fecf96a647d0557ca556879bc5cd96b20ba",
+   "sha256": "25f365e5c603032e7d16c6cb4d61fc47f47f28979e8fc95f0dd68f06effda6c8",
    "platform": "ps1",
    "encoding": "compressed",
    "status": "partial"
