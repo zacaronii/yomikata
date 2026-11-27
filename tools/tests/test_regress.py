@@ -106,3 +106,16 @@ def test_a_bar_snap_whose_base_is_gone_is_skipped_not_fatal(world):
     assert copied == 2 and sorted(p.name for p in kept.glob("*.json")) == ["bar-0.json", "bar-1.json"]
     why = skipped[f"{GAME} (1 snaps)"]
     assert "bar-2" in why and "gone" in why
+
+
+@needs_reader
+def test_a_script_that_cant_be_bundled_is_a_fall_not_a_crash(world):
+    """A script that wants a module the catalog's lib/ hasn't: its screens can't be read, each says why, and the
+    night's check goes on."""
+    from yomikata.regress import regress
+    run = lambda: regress(world.scratch, world.games, world.catalog, identify=world.identify, day="d")  # noqa: E731
+    assert not run().failed
+    (world.catalog / "games" / "gc" / "GXXJ01.lua").write_text('local t = require("lib.nowhere")\n' + SCRIPT.replace("OFFSET", "0"),
+                                                               encoding="utf-8")
+    broken = run()
+    assert broken.failed and all(r.agreement is None and "can't run" in r.error for r in broken.rows)

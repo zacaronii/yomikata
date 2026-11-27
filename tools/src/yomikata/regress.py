@@ -158,7 +158,11 @@ def reread(scratch: Path, games: Path, catalog: Path, frames: int = FRAMES) -> l
             rom = _rom(games, game, platform)
         except OSError:
             rom = None
-        readings = run(script, [into / f"{s}.ram.gz" for s in stems], frames=frames, rom=rom)
+        try:
+            readings = run(script, [into / f"{s}.ram.gz" for s in stems], frames=frames, rom=rom)
+        except Exception as e:                    # the script can't be made ready (a module missing): each falls
+            from .run import Reading
+            readings = [Reading(s, error=f"the script can't run: {e}") for s in stems]
         for stem, reading in zip(stems, readings):
             meta = json.loads((into / f"{stem}.json").read_text(encoding="utf-8"))
             said = "\n".join(part for e in reading.story() for part in (e.get("speaker") or "", e["text"]) if part)
