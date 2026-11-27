@@ -3326,6 +3326,15 @@ def test_meet_walks_to_the_nearest_people_and_finds_who_answers(session):
     given = session.meet(**player, targets=[{"x": -17.0, "z": 26.0, "name": "Ab1"}, {"x": 15.0, "z": 1.0, "name": "Cd2"}],
                          reach=2.0, walk={"limit": 1500})
     assert given["met"]["address"] == "Ab1" and given["said"] == ["おはなし"], given
+    # A target's way is walked to it; a walk that doesn't get there says where it stopped.
+    struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)
+    short = session.meet(**player, targets=[{"x": -17.0, "z": 26.0, "name": "Ab1", "way": [[3.0, 20.0, 0.0]]}],
+                         reach=2.0, walk={"limit": 8})
+    assert short["met"] is None and len(short["tried"][0]["at"]) == 2, short
+    struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)
+    by_way = session.meet(**player, targets=[{"x": -17.0, "z": 26.0, "name": "Ab1", "way": [[3.0, 20.0, 0.0]]}],
+                          reach=2.0, walk={"limit": 1500, "way_near": 2.0})
+    assert by_way["met"]["address"] == "Ab1", by_way
     with pytest.raises(HarnessError, match="walk takes"):
         session.meet(**player, targets=[{"x": 1.0, "z": 1.0}], walk={"fly": True})
     struct.pack_into(">3f", machine.memory, 0x400, 3.0, 1.0, -4.0)            # back where the sword is beside
@@ -4441,3 +4450,62 @@ def test_a_dreamcast_is_read_at_0x8c000000_and_its_mirrors():
     machine.platform, machine.core, machine.cartridge = "dc", Core(), b""
     assert machine.read(0x8C000010, 8) == machine.read(0x0C000010, 8) == machine.read(0xAC000010, 8) == b"SEGA KAT"
     assert machine.ram()[0] == 0x8C000000 and machine.read(0x8D000000, 4) == b""
+
+
+class Swimmer(Walker):
+    """A character with way on it (swimming): the stick sets where it heads, and its motion turns that way only
+    slowly; it starts going the other way. Without `lag` the pushes that teach the stick's way learn the old
+    motion."""
+    angle, turn = 0.6, 0.0
+
+    def __init__(self, *a):
+        super().__init__(*a)
+        self.vx, self.vz = 0.0, -3.0
+
+    def run(self, frames, buttons, stick):
+        import math
+        for _ in range(frames):
+            sx, sy = stick
+            c, s = math.cos(self.angle), math.sin(self.angle)
+            wx, wz = self.speed * (c * sx - s * sy), self.speed * (s * sx + c * sy)
+            self.vx += (wx - self.vx) * 0.06
+            self.vz += (wz - self.vz) * 0.06
+            self.x += self.vx
+            self.z += self.vz
+        FakeMachine.run(self, frames, buttons, stick)
+        struct.pack_into(">ff", self.memory, 0x1000, self.x, 0.0)
+        struct.pack_into(">f", self.memory, 0x1008, self.z)
+
+
+def test_walk_3d_learns_a_swimmer_s_way_after_its_lag_and_follows_waypoints(tmp_path):
+    """A character with way on it (swimming) goes on as it was at the start of a push: learnt from the whole
+    push, the stick's way is wrong and it doesn't get there; with `lag`, the first frames aren't learnt from and
+    it does. A way of waypoints is walked in turn."""
+    for name in ("games/wii", "cores", "inbox", "scratch"):
+        (tmp_path / name).mkdir(parents=True)
+    (tmp_path / "games/wii/Made Up (Japan).iso").write_bytes(b"not a game")
+    (tmp_path / "cores/fake_libretro.so").write_bytes(b"not a core")
+    xa, za = f"0x{BASE + 0x1000:X}", f"0x{BASE + 0x1008:X}"
+
+    def fresh():
+        s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), Swimmer)
+        s.load("wii/Made Up (Japan).iso", "fake_libretro.so", "wii")
+        s.machine.run(1, set(), (0.0, 0.0))
+        s.machine.vx, s.machine.vz = 0.0, -3.0
+        return s
+    s = fresh()
+    blind = s.walk_3d(xa, za, x=100.0, z=400.0, near=20, limit=1500)
+    s.close()
+    s = fresh()
+    out = s.walk_3d(xa, za, x=100.0, z=400.0, near=20, limit=1500, lag=30)
+    assert out["reached"] and not blind["reached"], (blind, out)
+    s.close()
+    s = Session(Roots(tmp_path / "games", tmp_path / "cores", tmp_path / "inbox", tmp_path / "scratch"), Walker)
+    s.load("wii/Made Up (Japan).iso", "fake_libretro.so", "wii")
+    s.machine.run(1, set(), (0.0, 0.0))
+    s.machine.turn = 0.0
+    out = s.walk_3d(xa, za, way=[[300.0, -50.0], [300.0, 200.0]], near=6, way_near=10)
+    assert out["reached"] and out["waypoints"] == 1 and abs(s.machine.z - 200) <= 6, out
+    with pytest.raises(HarnessError):
+        s.walk_3d(xa, za, way=[["a"]])
+    s.close()
