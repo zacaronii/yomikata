@@ -1,0 +1,23 @@
+{
+ "id": "PCE-D9E1549A",
+ "platform": "pce",
+ "title": "桃太郎伝説II",
+ "title_romaji": "Momotarou Densetsu II",
+ "versions": [
+  {
+   "header_crc32": "d9e1549a",
+   "note": "the Japanese HuCard (6 Mbit)"
+  }
+ ],
+ "encoding": "unknown",
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's HuCard on beetle pce_fast (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. The HuCard and snaps were studied outside it",
+  "The first HuCard entry: the console's RAM at 0x1F0000 is #223. Menus and names lie in the HuCard as half-width katakana codes shown as hiragana; the talk's text wasn't found there and isn't read from memory",
+  "The script reads the background's tile map: each character a top and a bottom tile, from pages laid out in the half-width katakana order (hiragana, katakana) and ASCII; voiced kana by a top tile of their own; 王, 両 and … read in play. All found in snaps of the opening's pages",
+  "Played from the title through the opening's narration, the king of hell's speech and the grandfather's talk, and the grandmother in the field: two stretches from states with the script loaded",
+  "What the script said agreed with the rows read off 35 of 35 pictures, over 4 scenes (3, 14, 12 and 6); no page was said inside a press, and no screen without text was among them. Three of the grandfather's pages were held against their snaps' rows only, not seen in a picture",
+  "54 harness calls in all (by the record), none failed"
+ ],
+ "notes": "Read by the script games/pce/PCE-D9E1549A.lua off the tile map in video memory (it needs the host to give vram): of the framed windows, the message window, its rows once they stand. Not read: menus, the party's status, fights' numbers; who speaks only where the text says it. Kanji the rules don't give come out as U+FFFD and are logged by their tiles."
+}
