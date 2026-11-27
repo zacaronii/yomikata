@@ -212,7 +212,7 @@ emulator reached over a socket can't answer sixty times a second), so:
 | `reader.forget(slot)`, `reader.forget()` | Forget one slot's value, or all |
 | `reader.builder()` | Builds a text with furigana: `b:add(s)`, `b:add_ruby(base, reading)`, then `b:text()` and `b:ruby()` for `emit` |
 | `reader.data(name)` | The file `<id>.<name>` as a string, or nil |
-| `reader.log(…)`, `reader.warn(…)` | To the host's log. `print` is `reader.log` |
+| `reader.log(…)`, `reader.warn(…)` | To the host's log. `print` is `reader.log`. In the harness a call's events carry them: every warning, and the first 50 `reader.log` lines of a call (so that a script logging each frame doesn't crowd out what it says) |
 | `reader.action(label, f)`, `reader.progress{…}` | Accepted and left alone (read-only) |
 
 ### `reader.emit`
