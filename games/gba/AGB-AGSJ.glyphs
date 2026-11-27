@@ -2,6 +2,7 @@
 # hash of each as the script reads a character's sprite (16 by 16 pixels, 4 bits a pixel, the leftmost in a byte's
 # high bits), and the character it is. Read in play: each page's sprites beside its picture, since the font in the
 # cartridge is packed.
+# not text: 15687F3297A365BB (the menus' cursor, a pointing hand)
 00668B8E209F95E0=の
 009D8E76159D837F=は
 0A1DF2E1FB02A946=チ

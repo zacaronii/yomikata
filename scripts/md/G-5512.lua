@@ -278,6 +278,12 @@ __module["lib.glyphs"] = function()
 --     glyph-line <HASH> <HASH> _ =<characters> <HASH> …
 -- a hash for each picture in order, "_" for a space, and "=" before characters the script knows by code:
 -- `yomikata unread` then draws the row whole.
+--
+-- Some pictures a game draws where its glyphs go aren't text: a menu's cursor, a prompt's arrow, a decoration.
+-- The file names those on lines of their own,
+--     # not text: <HASH> <HASH> …
+-- (a comment to anything else that reads the file), and `dictionary:text(picture)` says false for them, so a
+-- script leaves them out of a page; a page of nothing else is no page.
 
 local glyphs = {}
 
@@ -293,10 +299,29 @@ function glyphs.parse(source)
     return known
 end
 
+--- The hashes the file says aren't text (`# not text:` lines), as a set.
+function glyphs.not_text(source)
+    local out = {}
+    for line in (source or ""):gmatch("[^\r\n]+") do
+        local list = line:match("^#%s*not text:%s*(.+)$")
+        for word in (list or ""):gmatch("%S+") do
+            if word:find("^%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x%x$") then      -- a hash; anything after it is a note
+                out[word:upper()] = true
+            end
+        end
+    end
+    return out
+end
+
 --- A dictionary to ask: `dictionary:read(picture, width, height, bits)` gives the picture's character, or nil
---- (and logs the picture, the first time it is asked for), and its hash.
+--- (and logs the picture, the first time it is asked for), and its hash; `dictionary:text(picture)` whether the
+--- picture may be text at all (false for one the file says isn't).
 function glyphs.open(source)
-    local dictionary = { known = glyphs.parse(source), logged = {} }
+    local dictionary = { known = glyphs.parse(source), not_text = glyphs.not_text(source), logged = {} }
+
+    function dictionary:text(picture)
+        return not self.not_text[text.hash(picture):upper()]
+    end
 
     function dictionary:read(picture, width, height, bits)
         local hash = text.hash(picture):upper()
