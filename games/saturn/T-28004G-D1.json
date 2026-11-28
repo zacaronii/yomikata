@@ -1,0 +1,22 @@
+{
+ "id": "T-28004G-D1",
+ "platform": "saturn",
+ "title": "この世の果てで恋を唄う少女YU-NO",
+ "title_romaji": "Yu-No: Konoyo no Hate de Koi o Utau Shoujo",
+ "versions": [
+  {
+   "header_crc32": "89b2bbbd",
+   "note": "disc A, 1 of 3, version V1.002 (the build T-28004G-D1-V1.002)"
+  }
+ ],
+ "encoding": "shift_jis",
+ "status": "partial",
+ "sources": [
+  "The harness alone, from the game's first disc on mednafen_saturn with the console's BIOS (docs/first-script.md): no reader's snapshots, no memory written, no play outside the harness. Snaps were studied outside it",
+  "The scenario is packed on the disc (almost no Shift-JIS there); in play it is unpacked into the low work RAM as Shift-JIS, and the page on screen is copied whole into a buffer there, found by searching snaps for what the pictures showed",
+  "The build is the disc's boot header, which the console loads into the high work RAM: its product number, version and which disc of the set",
+  "Played from power-on through the opening dream and the morning on the school roof, the page advanced with the pad's R: what the script said agreed with the rows read off 33 of 33 pictures, over 3 scenes, compared live",
+  "25 harness calls in all (by the record), to the bar"
+ ],
+ "notes": "Read by the script games/saturn/T-28004G-D1.lua: the message window's page each time it changes, the speaker's name in brackets with it. The pad's R advances a page on mednafen_saturn. Not read: the rows' breaks (the window wraps a page by its width), choices and the command menu, and discs B and C (builds of their own)."
+}

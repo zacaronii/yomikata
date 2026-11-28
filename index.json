@@ -810,6 +810,13 @@
    "encoding": "compressed",
    "status": "auto"
   },
+  "T-28004G-D1": {
+   "path": "games/saturn/T-28004G-D1.json",
+   "sha256": "5fe4d1a293702c7de00530d5f662648527504403b6f13d8f6fbd9e04a903b7d5",
+   "platform": "saturn",
+   "encoding": "shift_jis",
+   "status": "partial"
+  },
   "ULJM05110": {
    "path": "games/psp/ULJM05110.json",
    "sha256": "7ff48b3301229776c4d27f9c0229fff080edbefa5a725fa8810c348235bf0c62",
@@ -2016,6 +2023,19 @@
    "reads": "the message window's line and its speaker",
    "builds": [
     "SLPS-25149-6e86bb5a"
+   ],
+   "needs": [],
+   "data": {}
+  },
+  "T-28004G-D1": {
+   "path": "scripts/saturn/T-28004G-D1.lua",
+   "sha256": "63ad702e423d0f357a85cb1597048629e0373dbd0d64df0ab0eb40a3342b11fe",
+   "platform": "saturn",
+   "runtime": 1,
+   "title": "この世の果てで恋を唄う少女YU-NO (Yu-No: Konoyo no Hate de Koi o Utau Shoujo)",
+   "reads": "the message window's page each time it changes, the speaker's name with it",
+   "builds": [
+    "T-28004G-D1-V1.002"
    ],
    "needs": [],
    "data": {}
