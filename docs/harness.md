@@ -964,6 +964,18 @@ with the official build is never loaded into it, nor one of its own into the off
 given as `YOMIKATA_SYSTEM` (mounted read-only): your own console's, never one from elsewhere. PCSX ReARMed plays
 most games without one; some show nothing until it has one.
 
+### 3DS
+
+Azahar (`azahar_libretro.so`) runs a decrypted card image (`.3ds`), drawing with OpenGL (the harness image's GL
+runner). Its official build describes only the memory the game has when it is loaded (a small area at
+0x0FFC0000 and the 6 MB of VRAM at 0x1F000000), not the heap and the linear heap the game makes after, and gives
+no system RAM. The harness image builds it again with `tools/cores/azahar-fcram.patch` as
+`azahar_fcram_libretro.so`: the FCRAM whole as the system RAM (128 MB; 256 MB on a New 3DS model), which the
+harness shows at the linear heap's address, 0x14000000 (the linear heap is the FCRAM, page for page), and the
+process's memory described again whenever its areas change (the heap at 0x08000000, at its own addresses). Its
+`retro_run` emulates until a frame is drawn, so frames count as on other consoles; the first frames after a load
+are black while it builds its shader cache. A game's files: `yomikata ctr` (its ExeFS and RomFS).
+
 ### Saturn
 
 mednafen_saturn describes no memory map, and of the libretro memories gives the work RAM (2 MB: the low 1 MB,
