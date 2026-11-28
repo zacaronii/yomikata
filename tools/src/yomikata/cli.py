@@ -252,6 +252,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--extract", type=Path, help="a scratch folder to write the files into, by their paths")
     p.add_argument("--unpack", action="store_true", help="with --extract: a packed file is written unpacked (and its streams, with --streams)")
     p.add_argument("--streams", action="store_true", help="list the packed streams inside each file (an archive of sections); with --extract --unpack, write each as <path>@<offset>.bin")
+    p = sub.add_parser("ctr", help="a 3DS card image's files (ExeFS and RomFS, from a decrypted .3ds/.cci): listed with their sizes (JSON lines, names only), taken out to a scratch folder")
+    p.add_argument("card", type=Path, help="the card image (.3ds or .cci, decrypted)")
+    p.add_argument("--only", action="append", default=[], help="a pattern of paths (fnmatch: romfs/archive/msg_*); several may be given")
+    p.add_argument("--extract", type=Path, help="a scratch folder to write the files into, by their paths")
     p = sub.add_parser("rvz", help="a GameCube or Wii disc's files out of an RVZ or WIA image (or a plain .iso/.gcm): listed with their sizes (JSON lines, names only), taken out to a scratch folder")
     p.add_argument("disc", type=Path, help="the image: .rvz, .wia, .iso or .gcm")
     p.add_argument("--only", action="append", default=[], help="a pattern of paths (fnmatch: res/Msg/*); several may be given")
@@ -684,6 +688,21 @@ def main(argv: list[str] | None = None) -> int:
                 if args.unpack:
                     for at, _, _ in found:
                         (args.extract / f"{f.path}@{at:X}.bin").write_bytes(nitro.unpack(data, at))
+        return 0
+    if args.cmd == "ctr":
+        from . import ctr
+        try:
+            with ctr.Card(args.card) as card:
+                print(json.dumps({"code": card.code}), file=sys.stderr)
+                for f in ctr.select(card.files(), args.only):
+                    print(json.dumps({"path": f.path, "offset": f.offset, "size": f.size}, ensure_ascii=False))
+                    if args.extract:
+                        out = args.extract / f.path
+                        out.parent.mkdir(parents=True, exist_ok=True)
+                        out.write_bytes(card.read(f))
+        except (OSError, ctr.CtrError) as e:
+            print(f"ctr: {e}", file=sys.stderr)
+            return 1
         return 0
     if args.cmd == "rvz":
         from . import rvz
