@@ -4741,3 +4741,29 @@ def test_a_3ds_machine_reads_the_fcram_at_the_linear_heap_and_the_heap_where_the
     assert base == 0x14000000 and len(ram) == 0x10000 and ram[0x40:0x44] == b"LINE"
     assert machine.read(0x14000040, 4) == b"LINE" and machine.read(0x08000010, 4) == b"HEAP"
     assert machine.read(0x14010000, 4) == b""                              # past the FCRAM
+
+
+def test_a_memory_map_sent_again_replaces_the_one_before():
+    """A core may describe its memory again while running (Azahar patched: when the game makes its heaps): the
+    host's environment callback replaces the stored map each time, not only at load, and reads follow the new one."""
+    import ctypes as C
+    from yomikata.replay.libretro import ENV_SET_MEMORY_MAPS, Core, MemoryDescriptor, MemoryMap
+    small = (C.c_char * 0x100)(*([0x33] * 0x100))
+    heap = (C.c_char * 0x1000)(*([0x44] * 0x1000))
+    heap[0x20:0x24] = b"HEAP"
+
+    def send(core, stretches):
+        descs = (MemoryDescriptor * len(stretches))()
+        for d, (start, buf) in zip(descs, stretches):
+            d.ptr, d.start, d.len = C.addressof(buf), start, len(buf)
+        m = MemoryMap(descs, len(stretches))
+        assert core._env(ENV_SET_MEMORY_MAPS, C.cast(C.pointer(m), C.c_void_p))
+    core = Core.__new__(Core)
+    core.maps, core.descriptors = [], []
+    send(core, [(0x0FFC0000, small)])                                   # at load: no heap yet
+    assert [m[0] for m in core.maps] == [0x0FFC0000] and core.read(0x08000020, 4) == b""
+    send(core, [(0x0FFC0000, small), (0x08000000, heap)])               # later, from retro_run
+    assert [m[0] for m in core.maps] == [0x0FFC0000, 0x08000000]
+    assert core.read(0x08000020, 4) == b"HEAP" and core.read(0x0FFC0000, 2) == b"\x33\x33"
+    send(core, [(0x08000000, heap)])                                    # one taken away: gone from the map
+    assert [m[0] for m in core.maps] == [0x08000000] and core.read(0x0FFC0000, 2) == b""
