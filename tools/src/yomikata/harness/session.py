@@ -379,12 +379,23 @@ class Session:
 
     # ---- the game
 
-    @tool("What is loaded and where things are: the game, the frame count, saved states and snaps, the script.")
-    def status(self) -> dict:
+    @tool("What is loaded and where things are: the game, the frame count, saved states and snaps, the script. "
+          "With `core`, what the core itself says: its last log lines, the memory map it gave (each stretch's "
+          "address and length), and why a drawing context was refused, if one was: for a new core or console, "
+          "or a game that shows nothing",
+          core=("boolean", "also the core's log, memory map and drawing context (default false)", False))
+    def status(self, core: bool = False) -> dict:
         states = sorted(p.name[:-len(".state.gz")] for p in (self.roots.scratch / "states").glob("*.state.gz"))
-        return {"game": self.game, "platform": getattr(self.machine, "platform", None),
-                "frames": getattr(self.machine, "frames", None), "states": states, "snaps": sorted(self.snaps),
-                "script": self.script_name, **({"memory_writes": self.pokes} if self.allow_poke else {})}
+        out = {"game": self.game, "platform": getattr(self.machine, "platform", None),
+               "frames": getattr(self.machine, "frames", None), "states": states, "snaps": sorted(self.snaps),
+               "script": self.script_name, **({"memory_writes": self.pokes} if self.allow_poke else {})}
+        lib = getattr(self.machine, "core", None) if core else None
+        if lib is not None:
+            out["core"] = {"log": list(getattr(lib, "log", []) or [])[-40:],
+                           "memory_map": [[f"0x{start:X}", length] for start, length, *_ in getattr(lib, "maps", []) or []][:64],
+                           **({"gl_error": lib.gl_error} if getattr(lib, "gl_error", None) else {}),
+                           "drawing": "opengl" if getattr(lib, "gl", None) is not None else "software"}
+        return out
 
     @tool("How many calls a game has had and how many it may have. The count is the record's own (what "
           "`yomikata calls` sums), over every run of the harness; every answer of every tool carries it as "

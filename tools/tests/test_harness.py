@@ -4678,3 +4678,21 @@ def test_walk_3d_learns_a_swimmer_s_way_after_its_lag_and_follows_waypoints(tmp_
     with pytest.raises(HarnessError):
         s.walk_3d(xa, za, way=[["a"]])
     s.close()
+
+
+def test_status_with_core_tells_what_the_core_says(session):
+    """status(core=True) gives the core's last log lines, the memory map it gave and how it draws: for a new
+    core or console, or a game that shows nothing. Without core, the answer is as it was."""
+    class Lib:
+        log = [f"line {k}" for k in range(50)]
+        maps = [(0x1F000000, 0x600000, 1), (0x08000000, 0x2000000, 2)]
+        gl, gl_error = None, "no OpenGL 4.3 driver"
+    session.machine.core = Lib()
+    plain = session.status()
+    assert "core" not in plain
+    told = session.status(core=True)["core"]
+    assert told["log"] == [f"line {k}" for k in range(10, 50)]
+    assert told["memory_map"] == [["0x1F000000", 0x600000], ["0x8000000", 0x2000000]]
+    assert told["gl_error"] == "no OpenGL 4.3 driver" and told["drawing"] == "software"
+    del session.machine.core
+    assert "core" not in session.status(core=True)
