@@ -1,0 +1,54 @@
+--- a/src/citra_libretro/citra_libretro.cpp
++++ b/src/citra_libretro/citra_libretro.cpp
+@@ -215,6 +215,8 @@
+ /**
+  * libretro callback; Called every game tick.
+  */
++static void refresh_memory_maps();
++
+ void retro_run() {
+     if (!emu_instance->game_loaded) {
+         // Game failed to load (e.g. encrypted ROM, bad path).
+@@ -314,6 +316,10 @@
+             LibRetro::DisplayMessage(msg.c_str());
+         }
+     }
++
++    // yomikata: the process maps its heap and linear heap after the game is loaded, when the maps were set:
++    // set them again whenever the count of its memory areas changes, so that a frontend sees them.
++    refresh_memory_maps();
+ }
+ 
+ static void setup_memory_maps() {
+@@ -747,13 +753,29 @@
+     }
+ }
+ 
++static void refresh_memory_maps() {
++    static std::size_t areas = 0;
++    auto process = Core::System::GetInstance().Kernel().GetCurrentProcess();
++    if (!process)
++        return;
++    const std::size_t now = process->vm_manager.vma_map.size();
++    if (now != areas) {
++        areas = now;
++        setup_memory_maps();
++    }
++}
++
++// yomikata: the FCRAM whole as the system RAM (as the older Citra core gives it), for a frontend that reads a
++// game's memory as one block: the linear heap is it, page for page, from its start (0x14000000).
+ void* retro_get_memory_data(unsigned id) {
+-    // Memory is exposed via RETRO_ENVIRONMENT_SET_MEMORY_MAPS instead,
+-    // using virtual addresses for stable cheat/achievement support.
++    if (id == RETRO_MEMORY_SYSTEM_RAM && emu_instance && emu_instance->game_loaded)
++        return Core::System::GetInstance().Memory().GetFCRAMPointer(0);
+     return NULL;
+ }
+ 
+ size_t retro_get_memory_size(unsigned id) {
++    if (id == RETRO_MEMORY_SYSTEM_RAM && emu_instance && emu_instance->game_loaded)
++        return Settings::values.is_new_3ds.GetValue() ? Memory::FCRAM_N3DS_SIZE : Memory::FCRAM_SIZE;
+     return 0;
+ }
+ 

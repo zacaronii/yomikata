@@ -4696,3 +4696,74 @@ def test_status_with_core_tells_what_the_core_says(session):
     assert told["gl_error"] == "no OpenGL 4.3 driver" and told["drawing"] == "software"
     del session.machine.core
     assert "core" not in session.status(core=True)
+
+
+def test_a_3ds_machine_reads_the_fcram_at_the_linear_heap_and_the_heap_where_the_core_says():
+    """Azahar patched (azahar-fcram.patch) gives the FCRAM as the system RAM and describes the process's memory
+    (the application's heap at 0x08000000): the harness shows the FCRAM at the linear heap's address, 0x14000000,
+    reads the heap where the core says it is, and takes the FCRAM for a snap's main memory."""
+    import ctypes as C
+    from yomikata.harness.machine import Machine
+    from yomikata.replay.libretro import MEMORY_SYSTEM_RAM
+    fcram = (C.c_char * 0x10000)(*([0x11] * 0x10000))
+    fcram[0x40:0x44] = b"LINE"
+    heap = (C.c_char * 0x1000)(*([0x22] * 0x1000))
+    heap[0x10:0x14] = b"HEAP"
+
+    class Lib:
+        def retro_get_memory_data(self, which):
+            return C.addressof(fcram) if which == MEMORY_SYSTEM_RAM else None
+
+        def retro_get_memory_size(self, which):
+            return 0x10000 if which == MEMORY_SYSTEM_RAM else 0
+
+    class Core:
+        lib = Lib()
+        maps = [(0x08000000, 0x1000, C.addressof(heap)), (0x1F000000, 0x600000, C.addressof(heap))]
+
+        def read(self, address, size):
+            for start, length, ptr in self.maps[:1]:
+                if start <= address < start + length:
+                    return C.string_at(ptr + address - start, min(size, start + length - address))
+            return b""
+
+        def ram(self):
+            return C.string_at(C.addressof(fcram), 0x10000)
+
+        def ram_base(self):
+            return None
+
+        def video_ram(self):
+            return None
+    machine = Machine.__new__(Machine)
+    machine.platform, machine.core, machine.cartridge = "3ds", Core(), b""
+    base, ram = machine.ram()
+    assert base == 0x14000000 and len(ram) == 0x10000 and ram[0x40:0x44] == b"LINE"
+    assert machine.read(0x14000040, 4) == b"LINE" and machine.read(0x08000010, 4) == b"HEAP"
+    assert machine.read(0x14010000, 4) == b""                              # past the FCRAM
+
+
+def test_a_memory_map_sent_again_replaces_the_one_before():
+    """A core may describe its memory again while running (Azahar patched: when the game makes its heaps): the
+    host's environment callback replaces the stored map each time, not only at load, and reads follow the new one."""
+    import ctypes as C
+    from yomikata.replay.libretro import ENV_SET_MEMORY_MAPS, Core, MemoryDescriptor, MemoryMap
+    small = (C.c_char * 0x100)(*([0x33] * 0x100))
+    heap = (C.c_char * 0x1000)(*([0x44] * 0x1000))
+    heap[0x20:0x24] = b"HEAP"
+
+    def send(core, stretches):
+        descs = (MemoryDescriptor * len(stretches))()
+        for d, (start, buf) in zip(descs, stretches):
+            d.ptr, d.start, d.len = C.addressof(buf), start, len(buf)
+        m = MemoryMap(descs, len(stretches))
+        assert core._env(ENV_SET_MEMORY_MAPS, C.cast(C.pointer(m), C.c_void_p))
+    core = Core.__new__(Core)
+    core.maps, core.descriptors = [], []
+    send(core, [(0x0FFC0000, small)])                                   # at load: no heap yet
+    assert [m[0] for m in core.maps] == [0x0FFC0000] and core.read(0x08000020, 4) == b""
+    send(core, [(0x0FFC0000, small), (0x08000000, heap)])               # later, from retro_run
+    assert [m[0] for m in core.maps] == [0x0FFC0000, 0x08000000]
+    assert core.read(0x08000020, 4) == b"HEAP" and core.read(0x0FFC0000, 2) == b"\x33\x33"
+    send(core, [(0x08000000, heap)])                                    # one taken away: gone from the map
+    assert [m[0] for m in core.maps] == [0x08000000] and core.read(0x0FFC0000, 2) == b""
